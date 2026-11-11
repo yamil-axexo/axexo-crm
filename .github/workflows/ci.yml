@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      UNIT_MIGRATION_DATABASE_URL: postgres://postgres@127.0.0.1:5432/contigo_unit
+      MIGRATION_DATABASE_URL: postgres://postgres@127.0.0.1:5432/contigo_test
+      DATABASE_URL: postgres://contigo_app@127.0.0.1:5432/contigo_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Prohibited data and secrets scan (SEC-08, SEC-09)
+        run: pnpm scan:prohibited
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - name: Create databases
+        run: |
+          psql -h 127.0.0.1 -U postgres -c "create database contigo_unit" -c "create database contigo_test"
+      - name: Migrations go up, down and up again (PORT-03)
+        run: |
+          node scripts/migrate.mjs up
+          node scripts/migrate.mjs down && node scripts/migrate.mjs down && node scripts/migrate.mjs down
+          node scripts/migrate.mjs up
+      - name: Rules and permission matrix against Postgres (AUTHZ-08)
+        run: pnpm test
+        env:
+          DATABASE_URL: postgres://contigo_app@127.0.0.1:5432/contigo_unit
+      - run: pnpm build
+        env:
+          DATABASE_URL: postgres://contigo_app@127.0.0.1:5432/contigo_test
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: End-to-end flows on the standalone build
+        run: pnpm e2e
+        env:
+          E2E_PORT: 3100
+      - name: Prohibited data scan of free-text columns
+        run: node scripts/scan-prohibited.mjs --db
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results
+          retention-days: 7

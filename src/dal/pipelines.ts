@@ -1,0 +1,112 @@
+import 'server-only'
+import { withUser } from '@/server/db'
+import type { Ctx } from '@/server/context'
+import { missingForStage, type StageKind } from '@/domain/deals'
+
+export type PipelineInfo = { id: string; market_code: string; motor: string; name: string; open_deals: number }
+
+export async function listPipelines(ctx: Ctx): Promise<PipelineInfo[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<PipelineInfo[]>`
+      select p.id, p.market_code, p.motor, p.name,
+             (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'open') as open_deals
+        from crm.pipelines p join crm.markets m on m.code = p.market_code
+       where p.market_code = any(app.my_markets()) and m.status = 'live'
+       order by p.market_code, p.position`
+    return [...rows]
+  })
+}
+
+export type Stage = {
+  id: string
+  position: number
+  code: string
+  name_es: string
+  name_en: string
+  kind: StageKind
+  probability: number
+  rot_days: number
+  required_fields: string[]
+  exit_es: string
+  exit_en: string
+}
+
+export type BoardDeal = {
+  id: string
+  stage_id: string
+  title: string
+  account_id: string
+  account_name: string
+  owner_name: string | null
+  amount_minor: string | null
+  currency: string
+  next_step: string | null
+  next_step_due: string | null
+  revisit_needed: boolean
+  revisit_due: string | null
+  stage_entered_at: Date
+  decision_maker_id: string | null
+  decision_maker_met: boolean
+}
+
+export const BOARD_LIMIT = 40
+
+export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string }) {
+  return withUser(ctx.user.id, async (tx) => {
+    const pipes = await tx<{ id: string; market_code: string; motor: string; name: string }[]>`
+      select id, market_code, motor, name from crm.pipelines where id = ${pipelineId} and market_code = any(app.my_markets())`
+    const pipeline = pipes[0]
+    if (!pipeline) return null
+    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en
+      from crm.stages where pipeline_id = ${pipelineId} order by position`
+    const owner = f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : f.owner ? tx`and d.owner_id = ${f.owner}` : tx``
+    const deals = await tx<BoardDeal[]>`
+      select * from (
+        select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
+               d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
+               row_number() over (partition by d.stage_id order by d.revisit_needed desc, d.stage_entered_at) as rn
+          from crm.deals d join crm.accounts a on a.id = d.account_id left join crm.users u on u.id = d.owner_id
+         where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}) x
+       where rn <= ${BOARD_LIMIT}`
+    const totals = await tx<{ stage_id: string; n: number; amount: string | null; revisits: number }[]>`
+      select d.stage_id, count(*)::int as n, sum(d.amount_minor)::text as amount, count(*) filter (where d.revisit_needed)::int as revisits
+        from crm.deals d where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner} group by d.stage_id`
+    const closed = await tx<{ won: number; lost: number }[]>`
+      select count(*) filter (where d.status = 'won' and d.won_at > now() - interval '30 days')::int as won,
+             count(*) filter (where d.status = 'lost' and d.lost_at > now() - interval '30 days')::int as lost
+        from crm.deals d where d.pipeline_id = ${pipelineId} ${owner}`
+    return { pipeline, stages: [...stages], deals: [...deals], totals: [...totals], closed: closed[0] ?? { won: 0, lost: 0 } }
+  })
+}
+
+export async function getDeal(ctx: Ctx, id: string) {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<
+      (BoardDeal & { market_code: string; pipeline_id: string; pipeline_name: string; status: 'open' | 'won' | 'lost'; owner_id: string | null; loss_reason_code: string | null;
+        loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string })[]
+    >`select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
+             d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
+             d.market_code, d.pipeline_id, p.name as pipeline_name, d.status, d.owner_id, d.loss_reason_code, d.loss_note, d.won_at, d.lost_at, d.closed_by,
+             d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle
+        from crm.deals d join crm.accounts a on a.id = d.account_id join crm.pipelines p on p.id = d.pipeline_id left join crm.users u on u.id = d.owner_id
+       where d.id = ${id}`
+    const deal = rows[0]
+    if (!deal) return null
+    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en
+      from crm.stages where pipeline_id = ${deal.pipeline_id} order by position`
+    const contacts = await tx<{ id: string; full_name: string; role: string }[]>`
+      select c.id, c.full_name, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
+       where ac.account_id = ${deal.account_id} and ac.valid_to is null order by ac.role, c.full_name`
+    const events = await tx<{ at: Date; from_es: string | null; from_en: string | null; to_es: string; to_en: string; actor: string | null; cause: string }[]>`
+      select e.at, f.name_es as from_es, f.name_en as from_en, t.name_es as to_es, t.name_en as to_en, u.full_name as actor, e.cause
+        from crm.deal_stage_events e left join crm.stages f on f.id = e.from_stage_id join crm.stages t on t.id = e.to_stage_id
+        left join crm.users u on u.id = e.actor_id where e.deal_id = ${id} order by e.at desc`
+    const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; due_at: Date | null; done_at: Date | null; created_at: Date; author: string | null }[]>`
+      select a.id, a.kind, a.subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author
+        from crm.activities a left join crm.users u on u.id = a.created_by where a.deal_id = ${id} order by a.created_at desc limit 40`
+    const current = stages.find((s) => s.id === deal.stage_id)
+    const next = current ? stages.find((s) => s.position === current.position + 1 && s.kind !== 'lost') : undefined
+    const missingNext = next && next.kind !== 'won' ? missingForStage(deal, next) : []
+    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], current, next, missingNext }
+  })
+}
