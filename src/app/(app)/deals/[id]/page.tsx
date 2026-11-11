@@ -2,9 +2,11 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getDeal } from '@/dal/pipelines'
+import { fieldDefs } from '@/dal/fields'
+import { CustomFields } from '@/ui/fields'
 import { lossReasons } from '@/dal/leads'
 import { FIELD_LABEL } from '@/domain/deals'
-import { Badge, Card, CardTitle, Field, KeyVal, PageHeader, cx } from '@/ui/kit'
+import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { day, dayTime, daysSince, money } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
@@ -18,13 +20,17 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getDeal(ctx, id)
   if (!data) notFound()
-  const { deal, stages, contacts, events, activities, current, next, missingNext } = data
+  const { deal, stages, contacts, events, activities, items, current, next, missingNext } = data
+  const defs = await fieldDefs(ctx, 'deal', deal.market_code)
+  const canEditFields = ctx.can('deal.edit', deal.market_code)
   const market = ctx.market(deal.market_code)
   const canEdit = deal.status === 'open' && ctx.can('deal.edit', deal.market_code)
   const reasons = canEdit ? await lossReasons(ctx) : []
   const lost = stages.find((s) => s.kind === 'lost')
   const flow = stages.filter((s) => s.kind !== 'lost')
   const prev = current ? stages.find((s) => s.position === current.position - 1 && s.kind === 'open') : undefined
+  const won = stages.find((s) => s.kind === 'won')
+  const lastOpen = Boolean(current && current.kind === 'open' && (!next || next.kind === 'won'))
 
   return (
     <>
@@ -69,7 +75,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                 hint={
                   current.kind === 'awaiting_txn'
                     ? t(`Lleva ${daysSince(deal.stage_entered_at)} días aquí. Se gana cuando el archivo diario de S5 trae la primera venta de este comercio; nadie lo marca a mano.`, `It has been here ${daysSince(deal.stage_entered_at)} days. It is won when the S5 daily file brings this merchant’s first sale; nobody marks it by hand.`)
-                    : t(`Criterio de salida: ${current.exit_es}.`, `Exit criteria: ${current.exit_en}.`)
+                    : current.exit_es
+                      ? t(`Criterio de salida: ${current.exit_es}.`, `Exit criteria: ${current.exit_en}.`)
+                      : lastOpen && deal.close_by_transaction
+                        ? t('Última etapa del embudo. El deal se gana cuando S5 reporta la primera transacción del comercio; nadie lo marca a mano.', 'Last stage of the pipeline. The deal is won when S5 reports the merchant’s first transaction; nobody marks it by hand.')
+                        : undefined
                 }
               />
               {next && next.kind !== 'won' && missingNext.length > 0 && (
@@ -84,6 +94,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                     <ActionForm action={moveDealAction}>
                       <input type="hidden" name="deal_id" value={deal.id} /><input type="hidden" name="stage_id" value={next.id} />
                       <Submit testId="deal-advance">{t(`Pasar a "${next.name_es}"`, `Move to "${next.name_en}"`)}</Submit>
+                    </ActionForm>
+                  )}
+                  {won && !deal.close_by_transaction && (
+                    <ActionForm action={moveDealAction}>
+                      <input type="hidden" name="deal_id" value={deal.id} /><input type="hidden" name="stage_id" value={won.id} />
+                      <Submit variant={lastOpen ? 'primary' : 'ghost'} testId="deal-win">{t('Marcar como ganado', 'Mark as won')}</Submit>
                     </ActionForm>
                   )}
                   {prev && (
@@ -139,6 +155,28 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </Card>
           )}
 
+          {items.length > 0 && (
+            <Card data-testid="deal-items">
+              <CardTitle title={t('Productos', 'Products')} />
+              <ul>
+                {items.map((it) => (
+                  <li key={it.id} className="flex items-baseline justify-between gap-4 border-t border-line py-3 text-[14px] first:border-t-0">
+                    <span><span className="font-semibold text-strong">{it.name}</span> <span className="text-muted-2">× {Number(it.quantity)}</span>{it.comments ? <span className="block text-[12.5px] text-muted">{it.comments}</span> : null}</span>
+                    <span className="num whitespace-nowrap">{money(it.sum_minor ? Number(it.sum_minor) : null, it.currency, locale)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          {defs.length > 0 && (
+            <Card data-testid="deal-custom">
+              <CardTitle title={t('Campos adicionales', 'Additional fields')} />
+              <CustomFields defs={defs} values={deal.custom} t={t} locale={locale}
+                action={canEditFields ? <LinkButton href={`/deals/${deal.id}/campos`} size="sm" testId="custom-edit">{t('Editar campos', 'Edit fields')}</LinkButton> : undefined} />
+            </Card>
+          )}
+
           <Card>
             <CardTitle title="Timeline" />
             {ctx.can('activity.write', deal.market_code) && (
@@ -180,7 +218,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : '—'}</KeyVal>
               <KeyVal k={t('En esta etapa', 'In this stage')}>{t(`${daysSince(deal.stage_entered_at)} días`, `${daysSince(deal.stage_entered_at)} days`)}</KeyVal>
               <KeyVal k={t('Creado', 'Created')}>{day(deal.created_at, locale, market.timezone)}</KeyVal>
-              {deal.won_at && <KeyVal k={t('Primera transacción', 'First transaction')}>{day(deal.won_at, locale, market.timezone)}</KeyVal>}
+              {deal.won_at && <KeyVal k={deal.closed_by === 'transaction' ? t('Primera transacción', 'First transaction') : t('Ganado', 'Won')}>{day(deal.won_at, locale, market.timezone)}</KeyVal>}
             </dl>
           </Card>
         </div>

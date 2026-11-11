@@ -20,15 +20,17 @@ export async function getUsers(ctx: Ctx) {
 
 export async function getConfig(ctx: Ctx) {
   return withUser(ctx.user.id, async (tx) => {
-    const pipelines = await tx<{ id: string; market_code: string; motor: string; name: string }[]>`
-      select id, market_code, motor, name from crm.pipelines order by market_code, position`
-    const stages = await tx<{ pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; probability: number; rot_days: number; required_fields: string[]; exit_es: string; exit_en: string }[]>`
-      select pipeline_id, position, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en from crm.stages order by pipeline_id, position`
+    const pipelines = await tx<{ id: string; market_code: string; motor: string; name: string; close_by_transaction: boolean }[]>`
+      select id, market_code, motor, name, close_by_transaction from crm.pipelines where is_active order by market_code, position`
+    const stages = await tx<{ id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; probability: number; rot_days: number; required_fields: string[]; exit_es: string; exit_en: string }[]>`
+      select id, pipeline_id, position, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en from crm.stages order by pipeline_id, position`
     const reasons = await tx<{ code: string; kind: string; label_es: string; label_en: string }[]>`
       select code, kind, label_es, label_en from crm.loss_reasons where is_active order by kind, label_es`
     const fields = await tx<{ object: string; key: string; label_es: string; label_en: string; data_type: string; market_code: string | null; data_class: string }[]>`
-      select object, key, label_es, label_en, data_type, market_code, data_class from crm.field_definitions where is_active order by object, key`
-    return { pipelines: [...pipelines], stages: [...stages], reasons: [...reasons], fields: [...fields] }
+      select object, key, label_es, label_en, data_type, market_code, data_class from crm.field_definitions where is_active and source = 'manual' order by object, key`
+    const imported = await tx<{ object: string; n: number }[]>`
+      select object, count(*)::int as n from crm.field_definitions where is_active and source <> 'manual' group by object order by object`
+    return { pipelines: [...pipelines], stages: [...stages], reasons: [...reasons], fields: [...fields], imported: [...imported] }
   })
 }
 

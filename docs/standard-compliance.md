@@ -1,6 +1,6 @@
 # Engineering Standard v1: compliance of this PR
 
-Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 11-Nov-2026, for the staging candidate with synthetic data.
+Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 11-Nov-2026, for the staging candidate. Staging may hold current Pipedrive data under ADR-005; development and CI use synthetic data.
 
 **Met** = implemented and covered by a test or a file you can open. **Partial** = part of the rule is in place; the gap is stated. **Not yet** = not in this PR. **Open** = needs a decision or an owner outside this repository. **N/A** = the thing the rule governs does not exist here yet.
 
@@ -25,7 +25,7 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 | DATA-03 | MUST | Met | `amount_minor bigint` + `currency char(3)`; conversion only in the leadership panel with a dated rate |
 | DATA-04 | MUST | Met | `timestamptz` everywhere; dates shown in the market time zone |
 | DATA-05 | MUST | Met | E.164 check constraint; `toE164` validates per country with libphonenumber (unit test) |
-| DATA-06 | MUST | N/A | No fiscal ID is captured or stored. Columns `tax_id_last4` and `tax_id_blind_ix` are reserved; encryption with KMS comes with the platform |
+| DATA-06 | MUST | Partial | No full fiscal ID is stored. The Pipedrive import keeps only the last 4 characters of `Tax ID` and drops fields that look like account, card or password fields, before the raw copy is written (DB test). Encryption with KMS comes with the platform |
 | DATA-07 | SHOULD | Not yet | Addresses are plain columns, not per-market validated `jsonb` |
 | DATA-08 | MUST | Partial | `crm.field_definitions` + `custom jsonb`, shown in Administration. No owner or review date per field, no editor |
 | DATA-09 | SHOULD | Met | `app.uuid_v7()` default on every table (DB test). Synthetic seed rows use deterministic IDs |
@@ -57,7 +57,7 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 | SEC-05 | MUST | Met | CSP with per-request nonce, HSTS, `frame-ancestors 'none'`, Referrer-Policy, Permissions-Policy (E2E test). `style-src` allows inline styles |
 | SEC-06 | MUST | Not yet | No rate limiting in the app or at the edge |
 | SEC-07 | MUST | Met | There are no exports |
-| SEC-08 | MUST | Partial | `scripts/scan-prohibited.mjs` scans the repo in CI and free-text columns with `--db`. Not yet applied at write time |
+| SEC-08 | MUST | Partial | `scripts/scan-prohibited.mjs` scans the repo in CI and free-text columns with `--db`. At write time: card numbers and SSNs are removed from imported notes and refused in custom text fields (unit and DB tests). Not yet applied to every free-text input |
 | SEC-09 | MUST | Partial | Frozen lockfile, Dependabot, secret scan in CI. SAST and license check not configured |
 | SEC-10 | SHOULD | Open | Google Workspace policy |
 | SEC-11 | MUST | Open | Pentest before widening users |
@@ -115,8 +115,8 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 | OPS-05 | MUST | N/A | No production deploys |
 | OPS-06 | MUST | Partial | Versioned, reversible migrations. Expand-and-contract discipline starts with the first change after this PR |
 | OPS-07 | MUST | N/A | No cloud resources defined as code |
-| OPS-08 | MUST | Met | Built by a Claude Code agent against local databases and staging with synthetic data. The database password was set by a person; the agent never held it |
-| OPS-09 | MUST | Open | No separate email was sent. Sign-off on the staging stack is requested through this pull request |
+| OPS-08 | MUST | Partial | Built by a Claude Code agent against local databases with synthetic data. Exception recorded in ADR-005: staging loads current Pipedrive data through an import that runs inside the application, so records do not pass through the agent. Secrets are set by a person. On 11-Nov-2026 a malformed `DATABASE_URL` made the driver print the staging database password in the host's runtime log, which the agent read while diagnosing; the password was rotated and the env schema now rejects a malformed URL before it reaches the driver (unit test) |
+| OPS-09 | MUST | Open | No separate email was sent. Sign-off on the staging stack, and on loading current Pipedrive data into it (ADR-005), is requested through this pull request |
 
 ## Compliance and AI
 | Rule | Level | Status | Evidence or gap |

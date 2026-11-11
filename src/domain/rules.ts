@@ -51,10 +51,14 @@ export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: n
         from crm.accounts a
        where a.owner_id is null and a.parent_id is null and a.archived_at is null and a.lifecycle in ('active','at_risk','onboarding')
       union all
-      select 'duplicate_suspect', 'medium', a.market_code, a.id, null, null, a.owner_id,
+      -- un aviso por comercio repetido (contra el más antiguo con ese teléfono), no uno por cada par
+      select 'duplicate_suspect', 'medium', b.market_code, a.id, null, null, b.owner_id,
              jsonb_build_object('name', a.name, 'other_id', b.id, 'other_name', b.name, 'match', 'phone'), 'duplicate_suspect:' || a.id || ':' || b.id
-        from crm.accounts a join crm.accounts b on b.market_code = a.market_code and b.phone = a.phone and b.id > a.id
-       where a.phone is not null and a.archived_at is null and b.archived_at is null
+        from crm.accounts b
+        join lateral (select o.id, o.name from crm.accounts o
+                       where o.market_code = b.market_code and o.phone = b.phone and o.id < b.id and o.archived_at is null
+                       order by o.id limit 1) a on true
+       where b.phone is not null and b.archived_at is null
     ),
     closed as (
       update crm.exceptions e set resolved_at = now(), resolution = 'auto'

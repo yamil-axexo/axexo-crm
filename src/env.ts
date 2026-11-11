@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 // PORT-05: variables de entorno tipadas y validadas al arrancar. Nada sensible lleva NEXT_PUBLIC_ (SEC-03).
 /**
- * Una URL mal formada (sin @host, o con # o / sin codificar en la contraseña) hace que el driver tome parte de la
+ * Una URL mal formada (por ejemplo, una contraseña con # o / sin codificar) hace que el driver tome parte de la
  * contraseña como host y la imprima en el error de conexión. Se valida aquí para que nunca llegue al driver (OBS-01).
  * El mensaje de error no incluye el valor.
  */
@@ -33,10 +33,20 @@ const schema = z
     SUPABASE_PUBLISHABLE_KEY: z.string().optional().or(z.literal('').transform(() => undefined)),
     BOOTSTRAP_ADMIN_EMAILS: z.string().default(''),
     DEMO_PERSONAS: z.enum(['0', '1']).default('0'),
+    // Migración desde Pipedrive: el token solo vive en el servidor (SEC-03) y solo sale hacia la API de Pipedrive.
+    PIPEDRIVE_API_TOKEN: z.string().optional().or(z.literal('').transform(() => undefined)),
+    PIPEDRIVE_API_BASE: z.string().url().default('https://api.pipedrive.com'),
   })
   .superRefine((v, ctx) => {
     if (v.APP_ENV === 'production' && v.DEMO_PERSONAS === '1') {
       ctx.addIssue({ code: 'custom', message: 'DEMO_PERSONAS cannot be enabled in production', path: ['DEMO_PERSONAS'] })
+    }
+    // El token nunca viaja a un host que no sea Pipedrive; el host local solo existe para las pruebas.
+    const host = new URL(v.PIPEDRIVE_API_BASE).hostname
+    const isPipedrive = host === 'pipedrive.com' || host.endsWith('.pipedrive.com')
+    const isLocalTest = v.APP_ENV !== 'production' && v.APP_ENV !== 'staging' && (host === '127.0.0.1' || host === 'localhost')
+    if (!isPipedrive && !isLocalTest) {
+      ctx.addIssue({ code: 'custom', message: 'PIPEDRIVE_API_BASE must be a pipedrive.com host', path: ['PIPEDRIVE_API_BASE'] })
     }
     if (v.APP_ENV === 'production' && !(v.SUPABASE_URL && v.SUPABASE_PUBLISHABLE_KEY)) {
       ctx.addIssue({ code: 'custom', message: 'an identity provider is required in production', path: ['SUPABASE_URL'] })

@@ -24,6 +24,9 @@ export const MOTOR: Record<string, Pair> = {
   d2d: ['Tiendas (D2D)', 'Stores (D2D)'],
   b2b: ['Cadenas y distribuidores', 'Chains and distributors'],
   dealer: ['Dealers', 'Dealers'],
+  event: ['Eventos', 'Events'],
+  orders: ['Pedidos', 'Orders'],
+  other: ['Otro', 'Other'],
 }
 
 export const KIND: Record<string, Pair> = {

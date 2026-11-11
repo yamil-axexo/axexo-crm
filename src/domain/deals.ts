@@ -107,7 +107,8 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
 
     if (stage.kind === 'won') {
       // PIPE-06: "la transacción cierra, no el vendedor".
-      if (ctx.market(d.market_code).closeByTransaction) {
+      const pipe = await tx<{ close_by_transaction: boolean }[]>`select close_by_transaction from crm.pipelines where id = ${d.pipeline_id}`
+      if (pipe[0]?.close_by_transaction !== false) {
         throw new DomainError('won_by_transaction',
           'Un deal se gana solo cuando S5 reporta la primera transacción del comercio.',
           'A deal is won only when S5 reports the merchant’s first transaction.')

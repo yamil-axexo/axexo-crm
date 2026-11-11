@@ -2,7 +2,7 @@
 
 In-house CRM for axexo. Web app that works with the existing Sales App: the Sales App records visits, S5 reports transactions, CONTIGO owns leads, pipelines, the account tree, attribution and follow-up.
 
-**Status: staging candidate, synthetic data only.** Nothing here is connected to production systems. Production platform is an open decision (see `docs/adr/ADR-002-platform.md`).
+**Status: staging candidate.** Local development and CI use synthetic data only. Staging can load the current Pipedrive data for US and MX through a read-only import (decision and limits in `docs/adr/ADR-005-pipedrive-data-in-staging.md`). Production platform is an open decision (see `docs/adr/ADR-002-platform.md`).
 
 ## How it is built
 
@@ -43,7 +43,7 @@ With `DEMO_PERSONAS=1` the login screen lists synthetic personas (admin, leaders
 |---|---|
 | `pnpm typecheck` / `pnpm lint` | Types and lint |
 | `pnpm test` | Unit tests for rules, plus allowed/denied tests per role × object × action and domain tests against a real Postgres (AUTHZ-08) |
-| `pnpm build && pnpm e2e` | 41 end-to-end flows against the standalone build |
+| `pnpm build && pnpm e2e` | 45 end-to-end flows against the standalone build, including a full Pipedrive import against a simulated API |
 | `pnpm scan:prohibited` | No cards, SSNs, keys or connection strings in the repo; `--db` scans free-text columns (SEC-08) |
 
 ## Where to look
@@ -52,7 +52,8 @@ With `DEMO_PERSONAS=1` the login screen lists synthetic personas (admin, leaders
 - `docs/scope.md`: which catalog features are in this PR and which are not.
 - `docs/adr/`: architecture decisions, including the two that are still open.
 - `docs/contracts/`: proposed v1 contracts for Sales App events, the S5 daily file and web forms.
+- `docs/pipedrive-migration.md`: how the Pipedrive import works, what maps to what and what is not migrated.
 
 ## Not in this repository yet
 
-Infrastructure as code, the outbox publisher, rate limiting, fiscal ID capture and encryption, consent records, exports, AI features, and any real integration. Each one is listed with its rule ID in `docs/standard-compliance.md`.
+Infrastructure as code, the outbox publisher, rate limiting, fiscal ID capture and encryption, consent records, exports, AI features, and any live integration other than the read-only Pipedrive import. Each one is listed with its rule ID in `docs/standard-compliance.md`.

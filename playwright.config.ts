@@ -22,6 +22,8 @@ export default defineConfig({
       APP_ENV: 'test',
       DEMO_PERSONAS: '1',
       DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://contigo_app@127.0.0.1:5433/contigo_test',
+      PIPEDRIVE_API_BASE: `http://127.0.0.1:${process.env.E2E_PIPEDRIVE_PORT ?? 45992}`,
+      PIPEDRIVE_API_TOKEN: 'test-token',
     },
   },
 })

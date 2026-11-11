@@ -181,7 +181,7 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: { linkAccountI
     const market = ctx.market(lead.market_code)
     const pipes = await tx<{ id: string; stage_id: string }[]>`
       select p.id, (select s.id from crm.stages s where s.pipeline_id = p.id order by s.position limit 1) as stage_id
-        from crm.pipelines p where p.market_code = ${lead.market_code} and p.motor = ${lead.motor}`
+        from crm.pipelines p where p.market_code = ${lead.market_code} and p.motor = ${lead.motor} and p.is_active order by p.position limit 1`
     const pipe = pipes[0]
     if (!pipe) throw new DomainError('no_pipeline', 'Este mercado no tiene pipeline para ese motor.', 'This market has no pipeline for that motor.')
     const ownerId = lead.owner_id ?? ctx.user.id

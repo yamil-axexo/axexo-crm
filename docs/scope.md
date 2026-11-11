@@ -32,7 +32,7 @@ Markets with data: MX and US. SV is configured (market row and pipeline) with no
 | Status | IDs |
 |---|---|
 | Built | DAT-01, DAT-02, DAT-03, LEAD-03, CANAL-03, AUT-01, AUT-06, SEG-01, GOB-01, GOB-08 |
-| Partial | DAT-05 (registry, no editor), CAMPO-01 (contract and intake built; no live connection), REP-02 (stage events; no snapshots), REP-04 (S5 figures with cut date; no reconciliation), AUT-02 (outbox written; no publisher), AUT-04 (three inbound endpoints with keys; no read API), MULTI-01 (minor units, dated rate; synthetic rates), MULTI-02 (legal entity, locale, time zone; UI in ES and EN), SEG-03 (immutable audit), SEG-08 (API keys hashed, shown once), GOB-02 (gaps and duplicates), GOB-04 (CI, migrations, PR template) |
+| Partial | DAT-05 (registry of 5 objects fed by the Pipedrive import, values editable with type validation; no editor for definitions), CAMPO-01 (contract and intake built; no live connection), REP-02 (stage events; no snapshots), REP-04 (S5 figures with cut date; no reconciliation), AUT-02 (outbox written; no publisher), AUT-04 (three inbound endpoints with keys; no read API), MULTI-01 (minor units, dated rate; synthetic rates), MULTI-02 (legal entity, locale, time zone; UI in ES and EN), SEG-03 (immutable audit), SEG-08 (API keys hashed, shown once), GOB-02 (gaps and duplicates), GOB-04 (CI, migrations, PR template) |
 | Not in this PR | DAT-07, AUT-03, AUT-07, MULTI-03, MULTI-04, SEG-02, SEG-04, SEG-07, GOB-05, GOB-07, GOB-09, GOB-10 |
 | N/A | IA-07 (no AI features) |
 
@@ -41,3 +41,6 @@ Routing, check-in and GPS (Sales App), offline writes, commission calculation, K
 
 ## Present in the earlier clickable demo, not carried into this build
 Guided tour, help pages, reports page, automations page, the Pipedrive parity page. The demo remains available as a visual reference of the full scope.
+
+## Added after the first cut: Pipedrive replacement
+Read-only import of the Pipedrive configuration and records for US and MX, custom fields on merchants and deals, products on deals, and the first-transaction rule per pipeline. Detail and what is not migrated: `docs/pipedrive-migration.md`.

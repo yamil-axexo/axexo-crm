@@ -5,7 +5,7 @@ Status: **Open. Decision owner: Dan Mulligan, with Squad 6.**
 The Engineering Standard v1 compares three options and recommends Option 3 (AWS native) for production, accepts Option 2 (Vercel web + data in AWS) and allows Option 1 (Vercel + Supabase) only for demo and staging with synthetic data.
 
 ## What this repository does today
-Staging runs on Option 1: Vercel project `axexo-crm` and Supabase project `axexo-crm` (us-east-2), synthetic data only.
+Staging runs on Option 1: Vercel project `axexo-crm` and Supabase project `axexo-crm` (us-east-2). ADR-005 records the decision to load current Pipedrive data into it for the replacement test, and what bounds that exception.
 
 ## What has to be decided before any real data
 1. Production platform (Option 2 or 3).

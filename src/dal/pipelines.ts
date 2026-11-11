@@ -11,7 +11,7 @@ export async function listPipelines(ctx: Ctx): Promise<PipelineInfo[]> {
       select p.id, p.market_code, p.motor, p.name,
              (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'open') as open_deals
         from crm.pipelines p join crm.markets m on m.code = p.market_code
-       where p.market_code = any(app.my_markets()) and m.status = 'live'
+       where p.market_code = any(app.my_markets()) and m.status = 'live' and p.is_active
        order by p.market_code, p.position`
     return [...rows]
   })
@@ -83,11 +83,11 @@ export async function getDeal(ctx: Ctx, id: string) {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<
       (BoardDeal & { market_code: string; pipeline_id: string; pipeline_name: string; status: 'open' | 'won' | 'lost'; owner_id: string | null; loss_reason_code: string | null;
-        loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string })[]
+        loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string; custom: Record<string, unknown>; close_by_transaction: boolean })[]
     >`select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
              d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
              d.market_code, d.pipeline_id, p.name as pipeline_name, d.status, d.owner_id, d.loss_reason_code, d.loss_note, d.won_at, d.lost_at, d.closed_by,
-             d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle
+             d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle, d.custom, p.close_by_transaction
         from crm.deals d join crm.accounts a on a.id = d.account_id join crm.pipelines p on p.id = d.pipeline_id left join crm.users u on u.id = d.owner_id
        where d.id = ${id}`
     const deal = rows[0]
@@ -104,9 +104,11 @@ export async function getDeal(ctx: Ctx, id: string) {
     const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; due_at: Date | null; done_at: Date | null; created_at: Date; author: string | null }[]>`
       select a.id, a.kind, a.subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author
         from crm.activities a left join crm.users u on u.id = a.created_by where a.deal_id = ${id} order by a.created_at desc limit 40`
+    const items = await tx<{ id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }[]>`
+      select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments from crm.deal_items where deal_id = ${id} order by position, created_at`
     const current = stages.find((s) => s.id === deal.stage_id)
     const next = current ? stages.find((s) => s.position === current.position + 1 && s.kind !== 'lost') : undefined
     const missingNext = next && next.kind !== 'won' ? missingForStage(deal, next) : []
-    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], current, next, missingNext }
+    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext }
   })
 }

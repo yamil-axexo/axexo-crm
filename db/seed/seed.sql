@@ -15,7 +15,8 @@ update crm.settings set value = 'true'::jsonb where key = 'demo_personas';
 insert into crm.markets (code, name, currency, default_locale, locales, timezone, phone_cc, status, flags) values
   ('MX', 'México', 'MXN', 'es', '{es}', 'America/Mexico_City', '+52', 'live', '{"close_by_transaction": true}'),
   ('US', 'United States', 'USD', 'en', '{en,es}', 'America/New_York', '+1', 'live', '{"close_by_transaction": true}'),
-  ('SV', 'El Salvador', 'USD', 'es', '{es}', 'America/El_Salvador', '+503', 'planned', '{"close_by_transaction": true}');
+  ('SV', 'El Salvador', 'USD', 'es', '{es}', 'America/El_Salvador', '+503', 'planned', '{"close_by_transaction": true}')
+on conflict (code) do update set flags = excluded.flags;
 insert into crm.legal_entities (id, market_code, name) values
   (pg_temp.uid('le-mx'), 'MX', 'Entidad MX (sintética)'), (pg_temp.uid('le-us'), 'US', 'Entity US (synthetic)');
 insert into crm.fx_rates (currency, as_of, usd_rate, source) values
@@ -88,7 +89,8 @@ insert into crm.loss_reasons (code, kind, label_es, label_en) values
   ('duplicate', 'lost', 'Duplicado', 'Duplicate'), ('no_response', 'lost', 'No responde', 'No response'),
   ('owner_absent', 'no_sale', 'No estaba el decisor', 'Decision-maker absent'), ('no_cash', 'no_sale', 'Sin efectivo hoy', 'No cash today'),
   ('has_stock', 'no_sale', 'Tiene inventario', 'Has stock'), ('not_interested', 'no_sale', 'No le interesa', 'Not interested'),
-  ('closed', 'no_sale', 'Tienda cerrada', 'Store closed');
+  ('closed', 'no_sale', 'Tienda cerrada', 'Store closed')
+on conflict (code) do nothing;
 
 insert into crm.field_definitions (object, key, label_es, label_en, data_type, options, market_code, data_class) values
   ('account', 'giro', 'Giro', 'Business type', 'select', '["Abarrotes","Papelería","Farmacia","Ferretería","Otro"]', 'MX', 'internal'),
