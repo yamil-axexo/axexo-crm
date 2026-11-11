@@ -39,7 +39,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-30 flex h-[60px] items-center gap-4 border-b border-line bg-surface px-4 md:h-16 md:gap-6 md:px-8 min-[1200px]:h-[72px] min-[1200px]:px-10" data-testid="topbar">
+      <header className="sticky top-0 z-[36] flex h-[60px] items-center gap-4 border-b border-line bg-surface px-4 md:h-[64px] md:gap-6 md:px-8 desk:h-[72px] desk:px-10" data-testid="topbar">
         <Link href="/hoy" className="shrink-0" aria-label="axexo CONTIGO">
           <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={129} height={32} priority className="h-7 w-auto md:h-8" />
         </Link>
@@ -74,7 +74,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </AccountMenu>
         </div>
       </header>
-      <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} />
+      <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} />
       <ToastHost />

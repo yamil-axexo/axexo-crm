@@ -1,6 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { isUuid } from '@/lib/ids'
 
 export type LeadListItem = {
   id: string
@@ -27,12 +28,12 @@ export const LEAD_PAGE = 40
 export async function listLeads(ctx: Ctx, f: LeadFilters): Promise<{ items: LeadListItem[]; next: string | null; counts: Record<string, number> }> {
   return withUser(ctx.user.id, async (tx) => {
     const [bTs, bId] = (f.before ?? '').split('|')
-    const cursor = bTs && bId ? tx`and (l.created_at, l.id) < (${bTs}::timestamptz, ${bId}::uuid)` : tx``
+    const cursor = bTs && isUuid(bId) && !Number.isNaN(Date.parse(bTs)) ? tx`and (l.created_at, l.id) < (${bTs}::timestamptz, ${bId}::uuid)` : tx``
     const scope = ctx.markets.map((m) => m.code) // AUTHZ-07
     const base = tx`
       and l.market_code = any(${scope}::text[])
       ${f.market ? tx`and l.market_code = ${f.market}` : tx``}
-      ${f.owner === 'me' ? tx`and l.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and l.owner_id is null` : f.owner ? tx`and l.owner_id = ${f.owner}` : tx``}
+      ${f.owner === 'me' ? tx`and l.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and l.owner_id is null` : isUuid(f.owner) ? tx`and l.owner_id = ${f.owner}` : tx``}
       ${f.q ? tx`and (app.norm(l.business_name) like ${'%' + f.q.toLowerCase() + '%'} or app.norm(l.contact_name) like ${'%' + f.q.toLowerCase() + '%'})` : tx``}`
     const status =
       f.status === 'overdue' ? tx`and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()`

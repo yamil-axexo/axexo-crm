@@ -12,6 +12,8 @@ export type SheetItem = {
   name: string
   results: { value: string; label: string }[]
   defaultResult: string | null
+  /** Si es falso, la hoja no ofrece "cerrar": el registro se atiende con un próximo paso con fecha. */
+  closable?: boolean
 }
 export type SheetConfig = {
   labels: {
@@ -106,6 +108,7 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
       setError(labels.missingNext)
       return
     }
+    if (offlineBlocked()) return
     startTransition(async () => {
       const res = await action(null, data)
       if (res.ok) onSaved(res.data?.toast ?? null)
@@ -124,7 +127,7 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
       </h2>
 
       <Choices name="result" legend={labels.result} options={item.results} defaultValue={item.defaultResult} />
-      <Choices name="next" legend={labels.next} options={nextOptions} value={next} onChange={setNext} />
+      <Choices name="next" legend={labels.next} options={item.closable === false ? nextOptions.filter((o) => o.value !== 'none') : nextOptions} value={next} onChange={setNext} />
       {next !== 'none' && (
         <>
           <Choices name="when_choice" legend={labels.when} options={[...whenOptions, { value: 'other', label: labels.other }]} value={preset ? when : 'other'} onChange={(v) => setWhen(v === 'other' ? '' : v)} />
@@ -191,6 +194,16 @@ function Choices({
 
 const TOAST_EVENT = 'contigo:toast'
 
+/**
+ * Sin señal, una acción que no es un formulario (mover una tarjeta, tomar un lead) no se intenta: se avisa y ya.
+ * El texto lo deja el aviso sin conexión en el documento, en el idioma de la persona.
+ */
+export function offlineBlocked(): boolean {
+  if (typeof navigator === 'undefined' || navigator.onLine) return false
+  showToast(document.documentElement.dataset.offlineMsg ?? 'Sin señal / No signal')
+  return true
+}
+
 /** Muestra un aviso desde cualquier parte. Vive fuera de la fila que lo dispara: la fila puede desaparecer al guardar. */
 export const showToast = (text: string | null) => {
   if (text) window.dispatchEvent(new CustomEvent<string>(TOAST_EVENT, { detail: text }))
@@ -224,21 +237,27 @@ export function ToastHost() {
 }
 
 /** Círculo de completar para un registro fuera de la cola (ficha, negocio): abre la misma hoja y refresca al guardar. */
-export function CompleteButton({ item, config, action }: { item: SheetItem; config: SheetConfig; action: CompleteAction }) {
+export function CompleteButton({ item, config, action, label, className, testId }: { item: SheetItem; config: SheetConfig; action: CompleteAction; label?: string; className?: string; testId?: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={fill(config.labels.completeOf, item.title)}
-        title={config.labels.markDone}
-        className="q-check inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
-        data-testid="row-complete"
-      >
-        <Check size={16} strokeWidth={2.5} aria-hidden className="opacity-0" />
-      </button>
+      {label ? (
+        <button type="button" onClick={() => setOpen(true)} className={className} data-testid={testId}>
+          {label}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={fill(config.labels.completeOf, item.title)}
+          title={config.labels.markDone}
+          className="q-check inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
+          data-testid="row-complete"
+        >
+          <Check size={16} strokeWidth={2.5} aria-hidden className="opacity-0" />
+        </button>
+      )}
       <CompleteSheet
         target={open ? { item } : null}
         config={config}

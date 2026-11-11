@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Inbox, Kanban, Plus, Search, Store, Sun } from 'lucide-react'
 import { cx } from '@/ui/kit'
+import { showToast } from '@/ui/complete'
 
 const ICONS = { today: Sun, leads: Inbox, deals: Kanban, merchants: Store } as const
 export type DockItem = { key: keyof typeof ICONS; href: string; label: string; match: string[]; badge?: number; badgeLabel?: string }
@@ -58,7 +59,7 @@ export function Dock({ items, label, createLabel, create }: { items: DockItem[];
               aria-current={on ? 'page' : undefined}
               data-testid={`nav-${it.key}`}
               className={cx(
-                'dock-item press relative z-10 flex h-[62px] w-1/4 flex-col items-center justify-center gap-1 rounded-[14px] text-[12px] md:h-[52px] md:w-[112px] md:flex-row md:gap-2 md:rounded-full md:text-[14px] min-[1200px]:w-[128px]',
+                'dock-item press relative z-10 flex h-[62px] w-1/4 flex-col items-center justify-center gap-1 rounded-[14px] text-[12px] md:h-[52px] md:w-[112px] md:flex-row md:gap-2 md:rounded-full md:text-[14px] desk:w-[128px]',
                 on ? 'font-semibold text-black' : 'font-medium text-on-black hover:text-white',
               )}
             >
@@ -120,7 +121,7 @@ export function SearchBox({ placeholder, label }: { placeholder: string; label: 
     <form action="/buscar" method="get" role="search" className="relative hidden w-full max-w-[424px] md:block">
       <Search size={18} strokeWidth={1.75} aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
       <input ref={ref} name="q" type="search" className="input !bg-surface-2 !pr-12 !pl-11" placeholder={placeholder} aria-label={label} data-testid="global-search" />
-      <kbd aria-hidden className="pointer-events-none absolute top-1/2 right-3 hidden -translate-y-1/2 rounded-md border border-line bg-surface px-2 text-[12px] font-medium text-muted min-[1200px]:block">/</kbd>
+      <kbd aria-hidden className="pointer-events-none absolute top-1/2 right-3 hidden -translate-y-1/2 rounded-md border border-line bg-surface px-2 text-[12px] font-medium text-muted desk:block">/</kbd>
     </form>
   )
 }
@@ -172,16 +173,29 @@ const onNetwork = (cb: () => void) => {
  * y la etiqueta "sin señal" (regla en globals.css sobre html[data-offline]).
  * La lectura sin conexión con datos guardados en el equipo no está construida: requiere decisión explícita (ADR-006).
  */
-export function OfflineBanner({ text, tag }: { text: string; tag: string }) {
+export function OfflineBanner({ text, tag, blocked }: { text: string; tag: string; blocked: string }) {
   const offline = useSyncExternalStore(onNetwork, () => !navigator.onLine, () => false)
   useEffect(() => {
     const root = document.documentElement
     if (offline) {
       root.setAttribute('data-offline', '')
       root.style.setProperty('--offline-tag', JSON.stringify(` · ${tag}`))
+      root.dataset.offlineMsg = blocked
     } else root.removeAttribute('data-offline')
-    return () => root.removeAttribute('data-offline')
-  }, [offline, tag])
+    // Sin señal, abrir otra pantalla dejaría la página de error del navegador: el enlace no navega y se avisa por qué.
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest('a[href]') as HTMLAnchorElement | null
+      if (!offline || !a || a.origin !== window.location.origin) return
+      e.preventDefault()
+      e.stopPropagation()
+      showToast(blocked)
+    }
+    document.addEventListener('click', onClick, true)
+    return () => {
+      document.removeEventListener('click', onClick, true)
+      root.removeAttribute('data-offline')
+    }
+  }, [offline, tag, blocked])
   if (!offline) return null
   return (
     <p role="status" className="border-b border-[#f0d9a8] bg-warn-bg px-4 py-2.5 text-center text-[14px] font-medium text-amber-text" data-testid="offline-banner">

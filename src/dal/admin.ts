@@ -1,6 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { isUuid } from '@/lib/ids'
 
 export async function getUsers(ctx: Ctx) {
   return withUser(ctx.user.id, async (tx) => {
@@ -85,7 +86,7 @@ export async function getAudit(ctx: Ctx, f: { before?: string; object?: string }
       select e.id, e.at, u.full_name as actor, e.action, e.object, e.object_id, e.market_code, e.after
         from crm.audit_events e left join crm.users u on u.id = e.actor_id
        where true ${f.object ? tx`and e.object = ${f.object}` : tx``}
-         ${bTs && bId ? tx`and (e.at, e.id) < (${bTs}::timestamptz, ${bId}::uuid)` : tx``}
+         ${bTs && isUuid(bId) && !Number.isNaN(Date.parse(bTs)) ? tx`and (e.at, e.id) < (${bTs}::timestamptz, ${bId}::uuid)` : tx``}
        order by e.at desc, e.id desc limit ${AUDIT_PAGE + 1}`
     const items = rows.slice(0, AUDIT_PAGE)
     const last = items[items.length - 1]

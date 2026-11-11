@@ -9,7 +9,7 @@ import { CustomFields } from '@/ui/fields'
 import { Badge, Field, KeyVal, LinkButton, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CompleteButton } from '@/ui/complete'
-import { ago, day, money, monthYear, num, threadDate, weekday } from '@/lib/format'
+import { ago, day, isoDay, offsetMs, money, monthYear, num, phoneText, threadDate, weekday } from '@/lib/format'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { ACTIVITY, ALIAS_SYSTEM, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
@@ -50,9 +50,16 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const openDeal = deals.find((d) => d.status === 'open')
   const lastDeal = deals[0]
   const health = healthOf(a.lifecycle, !!openDeal)
-  const today = now.toISOString().slice(0, 10)
+  const today = isoDay(now, tz)
   const parent = ancestors[ancestors.length - 1]
   const size = isParent ? m('merchants.size.children', { count: rollup.stores }) : parent ? m('merchants.size.under', { name: parent.name }) : m('merchants.size.independent')
+  // Para llamar: el teléfono del comercio y, si no tiene, el de su contacto (primero quien decide).
+  const callee = a.phone
+    ? { phone: a.phone, who: null as string | null }
+    : (() => {
+        const c = contacts.find((x) => x.role === 'decision_maker' && x.phone) ?? contacts.find((x) => x.role === 'owner' && x.phone) ?? contacts.find((x) => x.phone)
+        return c?.phone ? { phone: c.phone, who: c.full_name } : null
+      })()
   const owner = a.owner_name ?? (ancestors.length ? m('merchants.viaChain') : m('merchants.noOwner'))
   const Title = mode === 'page' ? 'h1' : 'h2'
 
@@ -62,7 +69,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
     : openDeal?.next_step
       ? { text: openDeal.next_step, due: openDeal.next_step_due ? new Date(`${openDeal.next_step_due}T15:00:00Z`) : null }
       : null
-  const stepLate = !!step?.due && step.due < new Date(`${today}T00:00:00Z`)
+  const startOfToday = new Date(new Date(`${today}T00:00:00Z`).getTime() - offsetMs(now, tz))
+  const stepLate = !!step?.due && step.due < startOfToday
   const dueLabel = (due: Date | null, late: boolean) => (due ? m(late ? 'record.next.late' : 'record.next.due', { date: weekday(due, locale, tz) }) : '')
 
   const tile = 'press flex h-[68px] flex-col items-center justify-center gap-1.5 rounded-[12px] border border-line bg-surface text-[13px] font-medium text-green-600 hover:bg-green-50'
@@ -124,13 +132,13 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
       </div>
 
       <div className="grid grid-cols-4 gap-2" data-testid="ficha-actions">
-        {a.phone ? (
-          <a href={`tel:${a.phone}`} className={tile} data-testid="action-call"><Phone size={20} strokeWidth={1.75} aria-hidden />{m('action.call')}</a>
+        {callee ? (
+          <a href={`tel:${callee.phone}`} className={tile} title={callee.who ?? undefined} data-testid="action-call"><Phone size={20} strokeWidth={1.75} aria-hidden />{m('action.call')}</a>
         ) : (
           <span className={tileOff} title={m('action.noPhone')}><Phone size={20} strokeWidth={1.75} aria-hidden />{m('action.noPhone')}</span>
         )}
-        {a.phone ? (
-          <a href={`https://wa.me/${a.phone.slice(1)}`} target="_blank" rel="noopener noreferrer" className={tile} data-testid="action-whatsapp"><MessageCircle size={20} strokeWidth={1.75} aria-hidden />{m('action.whatsapp')}</a>
+        {callee ? (
+          <a href={`https://wa.me/${callee.phone.slice(1)}`} target="_blank" rel="noopener noreferrer" className={tile} title={callee.who ?? undefined} data-testid="action-whatsapp"><MessageCircle size={20} strokeWidth={1.75} aria-hidden />{m('action.whatsapp')}</a>
         ) : (
           <span className={tileOff} aria-hidden><MessageCircle size={20} strokeWidth={1.75} aria-hidden />{m('action.whatsapp')}</span>
         )}
@@ -161,6 +169,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </>
         ) : null}
       </div>
+
+      {callee?.who && <p className="-mt-2 text-[13px] text-muted" data-testid="callee">{m('record.callee', { name: callee.who })}</p>}
 
       {canSell && !openDeal && pipelines.length > 0 && (
         <Dialog trigger={t('Nuevo negocio', 'New deal')} title={t('Nuevo negocio', 'New deal')} variant="ghost" testId="new-deal">
@@ -194,7 +204,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               {tasks.length > 0 && (
                 <ol className="thread" data-testid="account-tasks">
                   {tasks.map((task) => {
-                    const late = !!task.due_at && task.due_at < new Date(`${today}T00:00:00Z`)
+                    const late = !!task.due_at && task.due_at < startOfToday
                     return (
                       <li key={task.id} className="thread-item thread-open !pb-5" data-testid="thread-next">
                         <div className="flex items-start justify-between gap-3">
@@ -340,7 +350,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               {contacts.map((c) => (
                 <li key={c.id} data-testid="contact-row">
                   <p className="text-[15px] font-medium text-strong">{c.full_name} <span className="ml-1 text-[13px] font-normal text-muted">{lab(t, CONTACT_ROLE[c.role])}</span></p>
-                  <p className="text-[13px] text-muted-2">{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</p>
+                  <p className="text-[13px] text-muted-2">
+                    {c.phone ? <a href={`tel:${c.phone}`} className="font-medium text-blue-text underline" data-testid="contact-call">{phoneText(c.phone)}</a> : null}
+                    {c.phone ? <> · <a href={`https://wa.me/${c.phone.slice(1)}`} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-text underline">WhatsApp</a></> : null}
+                    {c.phone && c.email ? ' · ' : ''}{c.email ?? (c.phone ? '' : '—')}
+                  </p>
                 </li>
               ))}
               {contacts.length === 0 && <li className="text-[15px] text-muted">{t('Sin contactos todavía.', 'No contacts yet.')}</li>}

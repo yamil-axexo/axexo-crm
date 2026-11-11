@@ -4,6 +4,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId, clean } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
+import { assertNoProhibited } from '@/domain/guard'
 
 const input = z.object({
   accountId: z.guid().optional(),
@@ -21,23 +22,33 @@ export async function addActivity(ctx: Ctx, raw: z.input<typeof input>): Promise
   if (!parsed.success) throw invalid('Escribe de qué se trata.', 'Say what this is about.')
   const v = parsed.data
   if (v.kind === 'task' && !v.dueAt) throw invalid('Una tarea necesita fecha.', 'A task needs a date.')
-  if (!v.accountId && !v.dealId && !v.leadId) throw invalid('Liga la actividad a un comercio, deal o lead.', 'Link the activity to a merchant, deal or lead.')
+  if (!v.accountId && !v.dealId && !v.leadId) throw invalid('Liga la actividad a un comercio, negocio o lead.', 'Link the activity to a merchant, deal or lead.')
+  assertNoProhibited(v.subject, v.body)
   return withUser(ctx.user.id, async (tx) => {
+    // Cada registro al que se liga la actividad tiene que ser visible para la persona (RLS) y del mismo mercado.
+    // Validar solo uno dejaba escribir en el lead o el negocio de otro mercado con solo conocer su id.
     let market: string | undefined
     let accountId = v.accountId ?? null
+    const same = (m: string) => {
+      if (market && market !== m) throw notFound()
+      market = m
+    }
     if (v.dealId) {
       const d = await tx<{ market_code: string; account_id: string }[]>`select market_code, account_id from crm.deals where id = ${v.dealId}`
       if (!d[0]) throw notFound()
-      market = d[0].market_code
+      if (accountId && accountId !== d[0].account_id) throw notFound()
+      same(d[0].market_code)
       accountId = d[0].account_id
-    } else if (accountId) {
+    }
+    if (accountId) {
       const a = await tx<{ market_code: string }[]>`select market_code from crm.accounts where id = ${accountId}`
       if (!a[0]) throw notFound()
-      market = a[0].market_code
-    } else if (v.leadId) {
+      same(a[0].market_code)
+    }
+    if (v.leadId) {
       const l = await tx<{ market_code: string }[]>`select market_code from crm.leads where id = ${v.leadId}`
       if (!l[0]) throw notFound()
-      market = l[0].market_code
+      same(l[0].market_code)
     }
     ctx.assert('activity.write', market)
     const id = await newId(tx)

@@ -4,9 +4,13 @@ import { requireCtx } from '@/server/context'
 import { getLead, lossReasons, sellers } from '@/dal/leads'
 import { Badge, Card, CardTitle, Field, KeyVal, PageHeader } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { ago, dayTime } from '@/lib/format'
+import { ago, dayTime, phoneText } from '@/lib/format'
 import { ACTIVITY, LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
 import { leadStepAction } from '../actions'
+import { CompleteButton } from '@/ui/complete'
+import { resultOptions, sheetConfig } from '@/server/sheet'
+import { buttonClass } from '@/ui/kit'
+import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,7 +27,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const reasons = canWork ? await lossReasons(ctx) : []
   const people = canAssign ? await sellers(ctx, lead.market_code) : []
   const open = ['new', 'contacted', 'qualified'].includes(lead.status)
-  const late = lead.status === 'new' && new Date(lead.sla_due_at) < new Date()
+  const waiting = lead.status === 'new' && !lead.first_touch_at
+  const late = waiting && !!lead.sla_due_at && new Date(lead.sla_due_at) < new Date()
 
   return (
     <>
@@ -41,8 +46,11 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 title={lead.status === 'qualified' ? t('Listo para convertir', 'Ready to convert') : t('Siguiente paso', 'Next step')}
                 hint={
                   lead.status === 'qualified'
-                    ? t('Al convertir se crea el comercio como prospecto, su contacto y un deal con próximo paso.', 'Converting creates the merchant as a prospect, its contact and a deal with a next step.')
-                    : late ? t('Este lead ya pasó su tiempo de respuesta.', 'This lead is past its response time.') : t(`Tiempo de respuesta: ${ago(lead.sla_due_at, locale)}.`, `Response time: ${ago(lead.sla_due_at, locale)}.`)
+                    ? t('Al convertir se crea el comercio como prospecto, su contacto y un negocio con próximo paso.', 'Converting creates the merchant as a prospect, its contact and a deal with a next step.')
+                    : late ? t('Este lead ya pasó su tiempo de respuesta.', 'This lead is past its response time.')
+                    : waiting && lead.sla_due_at ? t(`Tiempo de respuesta: ${ago(lead.sla_due_at, locale)}.`, `Response time: ${ago(lead.sla_due_at, locale)}.`)
+                    : lead.status === 'new' && lead.first_touch_at ? t('Ya hubo un intento de contacto, sin respuesta.', 'There was a contact attempt, with no answer.')
+                    : t('Decide si este lead avanza.', 'Decide whether this lead moves forward.')
                 }
               />
               {duplicates.length > 0 && (
@@ -61,7 +69,14 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               )}
               <div className="flex flex-wrap gap-3">
                 {lead.status === 'new' && (
-                  <ActionForm action={leadStepAction}><input type="hidden" name="id" value={lead.id} /><Submit name="step" value="contacted" variant="primary" testId="lead-contacted">{t('Ya lo contacté', 'I reached out')}</Submit></ActionForm>
+                  <CompleteButton
+                    item={{ type: 'lead', id: lead.id, title: ctx.m('action.callOf', { name: lead.business_name }), name: lead.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: 'reached' }}
+                    config={sheetConfig(ctx)}
+                    action={completeItemAction}
+                    label={t('Registrar contacto', 'Log contact')}
+                    className={buttonClass('primary')}
+                    testId="lead-contacted"
+                  />
                 )}
                 {['new', 'contacted'].includes(lead.status) && (
                   <ActionForm action={leadStepAction}><input type="hidden" name="id" value={lead.id} /><Submit name="step" value="qualify" variant={lead.status === 'contacted' ? 'primary' : 'ghost'} testId="lead-qualify">{t('Calificar', 'Qualify')}</Submit></ActionForm>
@@ -77,7 +92,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                         </select>
                       </Field>
                     )}
-                    <Submit name="step" value="convert" variant="primary" testId="lead-convert">{t('Convertir en comercio y deal', 'Convert to merchant and deal')}</Submit>
+                    <Submit name="step" value="convert" variant="primary" testId="lead-convert">{t('Convertir en comercio y negocio', 'Convert to merchant and deal')}</Submit>
                   </ActionForm>
                 )}
                 <Dialog trigger={t('Descartar', 'Disqualify')} title={t('Descartar lead', 'Disqualify lead')} variant="quiet" testId="lead-disqualify">
@@ -130,7 +145,14 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           <Card>
             <CardTitle title={t('Datos', 'Details')} />
             <dl>
-              <KeyVal k={t('Teléfono', 'Phone')}>{lead.phone ?? '—'}</KeyVal>
+              <KeyVal k={t('Teléfono', 'Phone')}>
+                {lead.phone ? (
+                  <span className="inline-flex flex-wrap justify-end gap-x-3">
+                    <a href={`tel:${lead.phone}`} className="font-medium text-blue-text underline" data-testid="lead-tel">{phoneText(lead.phone)}</a>
+                    <a href={`https://wa.me/${lead.phone.slice(1)}`} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-text underline">WhatsApp</a>
+                  </span>
+                ) : '—'}
+              </KeyVal>
               <KeyVal k={t('Correo', 'Email')}>{lead.email ?? '—'}</KeyVal>
               <KeyVal k={t('Tipo', 'Type')}>{lab(t, MOTOR[lead.motor])}</KeyVal>
               <KeyVal k={t('Origen', 'Source')}>{lead.form_name ?? lab(t, SOURCE[lead.source])}</KeyVal>

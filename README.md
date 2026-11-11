@@ -43,7 +43,7 @@ With `DEMO_PERSONAS=1` the login screen lists synthetic personas (admin, leaders
 |---|---|
 | `pnpm typecheck` / `pnpm lint` | Types and lint |
 | `pnpm test` | Unit tests for rules, plus allowed/denied tests per role × object × action and domain tests against a real Postgres (AUTHZ-08) |
-| `pnpm build && pnpm e2e` | 109 end-to-end tests against the standalone build: the business flows, a full Pipedrive import against a simulated API, and every screen at 1440, 1024 and 390 px with accessibility checks (axe, WCAG 2.2 AA tags) |
+| `pnpm build && pnpm e2e` | 112 end-to-end tests against the standalone build: the business flows, a full Pipedrive import against a simulated API, and every screen at 1440, 1024 and 390 px with accessibility checks (axe, WCAG 2.2 AA tags) |
 | `pnpm scan:prohibited` | No cards, SSNs, keys or connection strings in the repo; `--db` scans free-text columns (SEC-08) |
 
 ## Where to look

@@ -11,21 +11,23 @@ import { KIND, MOTOR, lab, qs } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
 import { createAccountAction } from './actions'
 import { Ficha, fichaTab, type FichaTab } from './ficha'
+import { flat } from '@/server/params'
 
 type Params = AccountFilters & { vista?: string; ficha?: string; tab?: string }
 
 export default async function ComerciosPage({ searchParams }: { searchParams: Promise<Params> }) {
   const ctx = await requireCtx()
   const { t, m, locale } = ctx
-  const sp = await searchParams
+  const sp = flat(await searchParams)
   const tree = sp.vista === 'arbol'
   const fichaId = sp.ficha && /^[0-9a-f-]{36}$/.test(sp.ficha) ? sp.ficha : null
-  const [data, views, nodes, open] = await Promise.all([
+  const [data, views, treeData, open] = await Promise.all([
     listAccounts(ctx, sp),
     savedViews(ctx, 'account'),
-    tree ? listTree(ctx, { market: sp.market }) : Promise.resolve([]),
+    tree ? listTree(ctx, { market: sp.market, owner: sp.owner, q: sp.q }) : Promise.resolve({ nodes: [], cut: false }),
     fichaId ? getAccount(ctx, fichaId) : Promise.resolve(null),
   ])
+  const nodes = treeData.nodes
   await track(ctx, 'view.comercios')
   const live = ctx.markets.filter((x) => x.status === 'live')
   const multi = ctx.markets.length > 1
@@ -73,7 +75,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
           )}
         </header>
 
-        <Pills
+        {!tree && <Pills
           label={m('merchants.filters')}
           current={current}
           items={[
@@ -87,7 +89,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
               return { key: f.lifecycle ? `lc:${f.lifecycle}` : f.kind ? `k:${f.kind}` : `v:${v.id}`, href: qs('/comercios', { market: sp.market, owner: sp.owner, ...f }), label: v.name }
             }),
           ]}
-        />
+        />}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <form action="/comercios" method="get" role="search" className="flex min-w-0 flex-1 basis-64 flex-wrap gap-2">
@@ -135,6 +137,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 ))}
               </ul>
             )}
+            {treeData.cut && <p className="border-t border-line px-4 py-3 text-[13px] text-muted" data-testid="tree-cut">{m('merchants.tree.cut', { count: nodes.length })}</p>}
           </div>
         ) : (
           <>

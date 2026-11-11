@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { buttonClass, cx } from '@/ui/kit'
+import { offlineBlocked } from '@/ui/complete'
 import type { ActionResult } from '@/lib/errors'
 
 export type FormAction = (prev: ActionResult<unknown> | null, data: FormData) => Promise<ActionResult<unknown>>
@@ -28,8 +29,10 @@ export function Submit({ children, variant = 'primary', size = 'md', testId, nam
 export function ActionForm({ action, children, className, onOk, testId }: { action: FormAction; children: ReactNode; className?: string; onOk?: 'reset' | 'close'; testId?: string }) {
   const [state, formAction, pending] = useActionState(action, null)
   const ref = useRef<HTMLFormElement>(null)
+  const last = useRef(0)
   useEffect(() => {
     if (state?.ok) {
+      last.current = Date.now()
       if (onOk === 'reset' || onOk === 'close') ref.current?.reset()
       if (onOk === 'close') ref.current?.closest('dialog')?.close()
     }
@@ -38,6 +41,9 @@ export function ActionForm({ action, children, className, onOk, testId }: { acti
   // (React reinicia el formulario cuando la acción va por el atributo action). Sin JavaScript, el atributo sigue funcionando.
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    // Un doble clic no dispara dos acciones: justo después de guardar con éxito, el formulario ignora otro envío por un
+    // momento (el botón puede cambiar bajo el cursor, por ejemplo al avanzar de etapa).
+    if (Date.now() - last.current < 700 || offlineBlocked()) return
     const submitter = (e.nativeEvent as SubmitEvent).submitter
     const data = new FormData(e.currentTarget, submitter)
     startTransition(() => formAction(data))

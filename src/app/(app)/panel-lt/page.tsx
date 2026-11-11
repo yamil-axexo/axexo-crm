@@ -39,7 +39,7 @@ export default async function PanelLtPage() {
           const steps = [
             { k: t('Leads (30 días)', 'Leads (30 days)'), v: m.leads_30d },
             { k: t('Calificados', 'Qualified'), v: m.leads_qualified_30d },
-            { k: t('Deals abiertos', 'Open deals'), v: m.deals_open },
+            { k: t('Negocios abiertos', 'Open deals'), v: m.deals_open },
             { k: t('Esperando primera venta', 'Awaiting first sale'), v: m.awaiting_txn },
             { k: t('Ganados (30 días)', 'Won (30 days)'), v: m.won_30d },
           ]
@@ -67,7 +67,7 @@ export default async function PanelLtPage() {
         })}
 
         <Card data-testid="lt-loss">
-          <CardTitle title={t('Por qué se pierden los deals', 'Why deals are lost')} hint={t('Motivo obligatorio al cerrar como perdido.', 'A reason is required to close as lost.')} />
+          <CardTitle title={t('Por qué se pierden los negocios', 'Why deals are lost')} hint={t('Motivo obligatorio al cerrar como perdido.', 'A reason is required to close as lost.')} />
           {data.reasons.length === 0 ? <p className="text-[14px] text-muted">—</p> : (
             <ul className="space-y-3">
               {data.reasons.map((r) => (

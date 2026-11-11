@@ -7,6 +7,7 @@ import { translator } from '@/lib/format'
 import { ROLE_LABEL, type Role } from '@/domain/policy'
 import { loginAsPersona, setLocale } from '@/app/session-actions'
 import { buttonClass } from '@/ui/kit'
+import { flat } from '@/server/params'
 
 const ERRORS: Record<string, [string, string]> = {
   domain: ['Entra con tu cuenta de axexo.', 'Sign in with your axexo account.'],
@@ -18,7 +19,7 @@ const ERRORS: Record<string, [string, string]> = {
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   if (await getCtx()) redirect('/hoy')
-  const { error } = await searchParams
+  const { error } = flat(await searchParams)
   const locale = await publicLocale()
   const t = translator(locale)
   const personas = personasEnabled()

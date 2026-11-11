@@ -18,7 +18,7 @@ export default async function CustomFieldsPage({ params }: { params: Promise<{ i
     <>
       <PageHeader
         eyebrow={row.title}
-        title={t('Campos del deal', 'Deal fields')}
+        title={t('Campos del negocio', 'Deal fields')}
         desc={t('Cada cambio queda en la bitácora con el valor anterior y el nuevo.', 'Every change is logged with the old and the new value.')}
         actions={<LinkButton href={`/deals/${id}`} testId="custom-back">{t('Volver', 'Back')}</LinkButton>}
       />

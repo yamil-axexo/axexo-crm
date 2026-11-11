@@ -34,7 +34,7 @@ export async function updateDealAction(_: R | null, fd: FormData): Promise<R> {
       decisionMakerId: fd.has('decision_maker_id') ? str(fd, 'decision_maker_id') : undefined,
       decisionMakerMet: fd.has('decision_maker_id') ? fd.get('decision_maker_met') === 'on' : undefined,
     })
-    return { message: ['Deal actualizado.', 'Deal updated.'] }
+    return { message: ['Negocio actualizado.', 'Deal updated.'] }
   })
 }
 

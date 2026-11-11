@@ -8,14 +8,15 @@ import { Board, NavSelect, type BoardCard, type BoardCol } from '@/ui/board'
 import { daysSince, isoDay, money, weekday } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { boardMoveAction } from '../actions'
+import { flat } from '@/server/params'
 
-export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string }> }) {
+export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string }> }) {
   const ctx = await requireCtx()
   const { t, m, locale } = ctx
   const { id } = await params
-  const sp = await searchParams
+  const sp = flat(await searchParams)
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
-  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner }), listPipelines(ctx)])
+  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin' }), listPipelines(ctx)])
   if (!board) notFound()
   await track(ctx, 'view.pipeline')
   const market = ctx.market(board.pipeline.market_code)
@@ -28,7 +29,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const open = board.totals.reduce((n, x) => n + x.n, 0)
   const noStep = board.totals.reduce((n, x) => n + x.no_step, 0)
   const revisits = board.totals.reduce((n, x) => n + x.revisits, 0)
-  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, ...patch })
+  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, ...patch })
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
@@ -70,10 +71,14 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <NavSelect label={m('deals.pipeline')} value={here({})} testId="pipeline-select"
-            options={pipelines.map((p) => ({ href: qs(`/pipelines/${p.id}`, { owner: sp.owner, vista: sp.vista }), label: `${ctx.markets.length > 1 ? `${p.market_code} · ` : ''}${p.name} (${p.open_deals})` }))} />
+            options={pipelines.map((p) => ({ href: qs(`/pipelines/${p.id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso }), label: `${ctx.markets.length > 1 ? `${p.market_code} · ` : ''}${p.name} (${p.open_deals})` }))} />
           <nav aria-label={m('deals.scope')} className="inline-flex rounded-full border border-line bg-surface p-1">
             <Link href={here({ owner: undefined })} aria-current={sp.owner !== 'me' ? 'page' : undefined} className={seg(sp.owner !== 'me')} data-testid="pill-all">{m('merchants.scope.all')}</Link>
             <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
+          </nav>
+          <nav aria-label={m('deals.filter')} className="inline-flex rounded-full border border-line bg-surface p-1">
+            <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' ? 'page' : undefined} className={seg(sp.paso !== 'sin')} data-testid="filter-all">{m('deals.filter.all')}</Link>
+            <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
           </nav>
           <nav aria-label={m('deals.view')} className="inline-flex rounded-full border border-line bg-surface p-1">
             <Link href={here({ vista: undefined })} aria-current={!listView ? 'page' : undefined} className={seg(!listView)} data-testid="view-board">{m('deals.view.board')}</Link>
@@ -114,6 +119,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         <>
           <Board
             key={board.deals.map((d) => `${d.id}:${d.stage_id}:${d.next_step_due ?? ''}`).join('|')}
+            id={id}
             cols={cols}
             cards={cards}
             minDate={today}

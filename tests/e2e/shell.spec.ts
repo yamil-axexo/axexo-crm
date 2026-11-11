@@ -128,7 +128,57 @@ test('sin señal: aparece el aviso y guardar queda deshabilitado con su etiqueta
   await expect(save).toHaveCSS('pointer-events', 'none')
   await expect(save).toHaveCSS('border-top-style', 'dashed')
   expect(await save.evaluate((el) => getComputedStyle(el, '::after').content)).toContain('sin señal')
+  // sin señal, un enlace no lleva a la pantalla de error del navegador: se queda donde está y avisa
+  await page.keyboard.press('Escape')
+  await page.getByTestId('nav-deals').click()
+  await expect(page.getByTestId('toast')).toContainText('Sin señal: no se puede abrir otra pantalla')
+  await expect(page).toHaveURL(/\/leads$/)
+  await expect(page.locator('h1').first()).toHaveText('Leads')
   await context.setOffline(false)
   await expect(page.getByTestId('offline-banner')).toHaveCount(0)
-  await expect(save).toHaveCSS('pointer-events', 'auto')
+  await page.getByTestId('nav-deals').click()
+  await expect(page).toHaveURL(/\/pipelines/)
+})
+
+test('un enlace manipulado no tira la página: parámetros repetidos, ids con mala forma y cursores inválidos', async ({ page }) => {
+  await loginAs(page, 'nora.salas')
+  for (const path of [
+    '/leads?owner=zzz', '/comercios?owner=zzz', '/pipelines?owner=zzz', '/supervisor?owner=zzz',
+    '/comercios?q=a&q=b', '/leads?q=a&q=b&status=new&status=open', '/buscar?q=a&q=b', '/hoy?ver=equipo&ver=x',
+    '/comercios?after=x%7Cy', '/leads?before=x%7Cy', '/admin?tab=auditoria&before=x%7Cy', '/comercios?ficha=no-es-un-id&tab=zzz', '/comercios?vista=arbol&owner=me&q=%25',
+  ]) {
+    const res = await page.goto(path)
+    expect(res?.status(), path).toBeLessThan(500)
+    await expect(page.locator('h1').first(), path).toBeVisible()
+  }
+})
+
+test.describe('tablet vertical (768 px)', () => {
+  test.use({ viewport: { width: 768, height: 1024 } })
+  test('la ficha ocupa la pantalla completa y el menú de cuenta queda por encima', async ({ page }) => {
+    await loginAs(page, 'fernando.ibarra')
+    await page.goto('/comercios')
+    await page.getByTestId('account-row').first().locator('a').click()
+    const panel = page.getByTestId('ficha-panel')
+    await expect(panel).toBeVisible()
+    await expect.poll(async () => panel.evaluate((el) => el.getAnimations().filter((x) => x.playState === 'running').length)).toBe(0)
+    const box = (await panel.boundingBox())!
+    expect(Math.round(box.x)).toBe(0)
+    expect(Math.round(box.width)).toBe(768)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await openMenu(page)
+    await page.getByTestId('nav-supervisor').click()
+    await expect(page).toHaveURL(/\/supervisor/)
+  })
+})
+
+test('en desktop el menú de cuenta se puede usar con la ficha abierta y los destinos del dock miden 128 px', async ({ page }) => {
+  await loginAs(page, 'fernando.ibarra')
+  expect(Math.round((await page.getByTestId('nav-today').boundingBox())!.width)).toBe(128)
+  await page.goto('/comercios')
+  await page.getByTestId('account-row').first().locator('a').click()
+  await expect(page.getByTestId('ficha-panel')).toBeVisible()
+  await openMenu(page)
+  await page.getByTestId('nav-supervisor').click()
+  await expect(page).toHaveURL(/\/supervisor/)
 })

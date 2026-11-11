@@ -1,6 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { isUuid } from '@/lib/ids'
 
 export type AccountListItem = {
   id: string
@@ -43,13 +44,13 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items
       ${f.market ? tx`and a.market_code = ${f.market}` : tx``}
       ${f.lifecycle ? tx`and a.lifecycle = ${f.lifecycle}` : tx``}
       ${f.kind === 'parents' ? tx`and a.kind <> 'store'` : f.kind ? tx`and a.kind = ${f.kind}` : tx``}
-      ${f.owner === 'me' ? tx`and a.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and a.owner_id is null` : f.owner ? tx`and a.owner_id = ${f.owner}` : tx``}
+      ${f.owner === 'me' ? tx`and a.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and a.owner_id is null` : isUuid(f.owner) ? tx`and a.owner_id = ${f.owner}` : tx``}
       ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'}
                     ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
                     or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) like ${'%' + q.toUpperCase() + '%'}))` : tx``}`
     const where = tx`${base} ${f.ver === 'riesgo' ? tx`and ${risk}` : f.ver === 'sin-transaccionar' ? tx`and ${idle}` : f.ver === 'sin-paso' ? tx`and ${nostep}` : tx``}`
     const [aName, aId] = (f.after ?? '').split('|')
-    const cursor = aName !== undefined && aId ? tx`and (a.name_norm, a.id) > (${aName}, ${aId}::uuid)` : tx``
+    const cursor = aName !== undefined && isUuid(aId) ? tx`and (a.name_norm, a.id) > (${aName}, ${aId}::uuid)` : tx``
     const rows = await tx<(AccountListItem & { name_norm: string })[]>`
       select a.id, a.market_code, a.name, a.name_norm, a.kind, a.segment, a.lifecycle, a.locality, a.region, a.owner_id, u.full_name as owner_name,
              p.name as parent_name,
@@ -73,21 +74,31 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items
 }
 
 export type TreeNode = { id: string; name: string; kind: string; lifecycle: string; depth: number; has_deal: boolean; owner_name: string | null; children: number }
+export const TREE_LIMIT = 300
 
-/** Vista Árbol de la lista: organizaciones y cadenas con lo que cuelga de ellas, en orden de jerarquía. */
-export async function listTree(ctx: Ctx, f: { market?: string }): Promise<TreeNode[]> {
+/**
+ * Vista Árbol de la lista: organizaciones y cadenas con lo que cuelga de ellas, en orden de jerarquía.
+ * La sangría cuenta solo los ancestros que la persona puede ver: si su rol no ve la cadena, sus tiendas salen al primer nivel.
+ */
+export async function listTree(ctx: Ctx, f: { market?: string; owner?: string; q?: string }): Promise<{ nodes: TreeNode[]; cut: boolean }> {
   return withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<TreeNode[]>`
-      select a.id, a.name, a.kind, a.lifecycle, cardinality(a.ancestor_ids) as depth, u.full_name as owner_name,
+    const q = (f.q ?? '').trim()
+    const rows = await tx<(TreeNode & { ancestor_ids: string[] })[]>`
+      select a.id, a.name, a.kind, a.lifecycle, a.ancestor_ids, 0 as depth, u.full_name as owner_name,
              exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open') as has_deal,
              (select count(*)::int from crm.accounts c where c.parent_id = a.id and c.archived_at is null) as children
         from crm.accounts a left join crm.users u on u.id = a.owner_id
        where a.archived_at is null and a.market_code = any(${ctx.markets.map((m) => m.code)}::text[])
          ${f.market ? tx`and a.market_code = ${f.market}` : tx``}
+         ${f.owner === 'me' ? tx`and (a.owner_id = ${ctx.user.id} or exists (select 1 from crm.accounts p where p.id = any(a.ancestor_ids) and p.owner_id = ${ctx.user.id}))` : tx``}
+         ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'} or exists (select 1 from crm.accounts p where p.id = any(a.ancestor_ids) and p.name_norm like ${'%'} || app.norm(${q}) || ${'%'}))` : tx``}
          and (a.parent_id is not null or exists (select 1 from crm.accounts c where c.parent_id = a.id and c.archived_at is null))
-       order by (select coalesce(string_agg(p.name_norm, '/' order by o.ord), '') from unnest(a.ancestor_ids) with ordinality o(pid, ord) join crm.accounts p on p.id = o.pid) || '/' || a.name_norm, a.id
-       limit 300`
-    return [...rows]
+       order by coalesce((select string_agg(p.name_norm || ' ' || p.id::text, '/' order by o.ord) from unnest(a.ancestor_ids) with ordinality o(pid, ord) join crm.accounts p on p.id = o.pid) || '/', '')
+                || a.name_norm || ' ' || a.id::text
+       limit ${TREE_LIMIT + 1}`
+    const seen = new Set(rows.map((r) => r.id))
+    const nodes = rows.slice(0, TREE_LIMIT).map(({ ancestor_ids, ...r }) => ({ ...r, depth: ancestor_ids.filter((id) => seen.has(id)).length }))
+    return { nodes, cut: rows.length > TREE_LIMIT }
   })
 }
 
@@ -220,6 +231,7 @@ export async function searchAll(ctx: Ctx, q: string) {
        where a.archived_at is null and a.market_code = any(${ctx.markets.map((m) => m.code)}::text[])
          and (a.name_norm like ${'%'} || app.norm(${term}) || ${'%'} or a.name_norm % app.norm(${term})
              ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
+             ${/^[0-9a-f]{8}(-[0-9a-f-]{0,28})?$/i.test(term) ? tx`or a.id::text like ${term.toLowerCase() + '%'}` : tx``}
              or exists (select 1 from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
                          where ac.account_id = a.id and ac.valid_to is null
                            and (app.norm(c.full_name) like ${'%'} || app.norm(${term}) || ${'%'} ${digits.length >= 4 ? tx`or c.phone like ${'%' + digits + '%'}` : tx``}))

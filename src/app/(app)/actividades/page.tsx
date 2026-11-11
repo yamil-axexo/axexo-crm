@@ -7,13 +7,14 @@ import { sheetConfig, taskItem } from '@/server/sheet'
 import { day } from '@/lib/format'
 import { ACTIVITY, lab, qs } from '@/lib/labels'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
+import { flat } from '@/server/params'
 
 type Row = { id: string; kind: string; subject: string; due_at: Date | null; done_at: Date | null; account_id: string | null; account_name: string | null; deal_id: string | null; owner_name: string | null }
 
 export default async function ActividadesPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
-  const view = (await searchParams).view ?? 'mine'
+  const view = flat(await searchParams).view ?? 'mine'
   const rows = await withUser(ctx.user.id, (tx) => tx<Row[]>`
     select a.id, a.kind, a.subject, a.due_at, a.done_at, a.account_id, ac.name as account_name, a.deal_id, u.full_name as owner_name
       from crm.activities a left join crm.accounts ac on ac.id = a.account_id left join crm.users u on u.id = a.owner_id
@@ -25,7 +26,7 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <PageHeader title={t('Actividades', 'Activities')} desc={t('Tareas y handoffs con fecha. Las notas, llamadas y visitas viven en el timeline de cada comercio.', 'Dated tasks and handoffs. Notes, calls and visits live on each merchant’s timeline.')} />
+      <PageHeader title={t('Actividades', 'Activities')} desc={t('Tareas y entregas a Operaciones con fecha. Las notas, llamadas y visitas viven en el hilo de cada comercio.', 'Dated tasks and handoffs. Notes, calls and visits live on each merchant’s timeline.')} />
       <Pills
         label={t('Vista', 'View')}
         current={view}
@@ -37,7 +38,7 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
       />
       <Card className="mt-6" pad={false}>
         {rows.length === 0 ? (
-          <div className="p-7"><Empty title={t('Nada por aquí', 'Nothing here')} hint={t('Cuando un deal tenga próximo paso, la tarea aparece sola.', 'When a deal has a next step, the task shows up on its own.')} /></div>
+          <div className="p-7"><Empty title={t('Nada por aquí', 'Nothing here')} hint={t('Cuando un negocio tenga próximo paso, la tarea aparece sola.', 'When a deal has a next step, the task shows up on its own.')} /></div>
         ) : (
           <ul data-testid="task-list">
             {rows.map((r) => {

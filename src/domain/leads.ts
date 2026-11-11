@@ -5,6 +5,8 @@ import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
+import { assertNoProhibited } from '@/domain/guard'
+import { scrub } from '@/domain/pipedrive/mapping'
 
 export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
 
@@ -50,6 +52,10 @@ async function insertLead(
   v: z.output<typeof leadInput>,
   opts: { source: 'manual' | 'web_form'; formId: string | null; ownerId: string | null; slaMinutes: number },
 ): Promise<string> {
+  // SEC-08: lo que captura una persona se rechaza con explicación; lo que llega del formulario público se guarda sin el dato
+  // prohibido, para no perder el lead por un texto que escribió el comercio.
+  if (opts.source === 'manual') assertNoProhibited(v.message, v.businessName, v.contactName)
+  else v = { ...v, message: v.message ? scrub(v.message) : v.message }
   const market = ctx.market(v.market)
   const phone = v.phone ? toE164(v.phone, market.phoneCc) : null
   if (v.phone && !phone) throw invalid('El teléfono no parece válido.', 'The phone number does not look valid.')

@@ -84,6 +84,16 @@ export function ago(d: Date | string | null | undefined, locale: Locale, now = n
 export const daysSince = (d: Date | string, now = new Date()) =>
   Math.floor((now.getTime() - (typeof d === 'string' ? new Date(d) : d).getTime()) / 86400000)
 
+/** Desfase de una zona horaria contra UTC en un instante, en milisegundos (negativo al oeste de Greenwich). */
+export function offsetMs(d: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(d)
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value)
+  return Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second')) - Math.floor(d.getTime() / 1000) * 1000
+}
+
+/** DATA-05: el teléfono se guarda en E.164 y se muestra con el formato de su país ("+52 55 1234 5678"). */
+export const phoneText = (e164: string) => parsePhoneNumberFromString(e164)?.formatInternational() ?? e164
+
 const COUNTRY_BY_CC: Record<string, CountryCode> = { '52': 'MX', '1': 'US', '503': 'SV', '57': 'CO', '55': 'BR' }
 
 /**

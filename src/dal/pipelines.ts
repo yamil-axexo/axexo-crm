@@ -2,6 +2,7 @@ import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { missingForStage, type StageKind } from '@/domain/deals'
+import { isUuid } from '@/lib/ids'
 
 export type PipelineInfo = { id: string; market_code: string; motor: string; name: string; open_deals: number }
 
@@ -51,7 +52,7 @@ export type BoardDeal = {
 
 export const BOARD_LIMIT = 40
 
-export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string }) {
+export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string; noStep?: boolean }) {
   return withUser(ctx.user.id, async (tx) => {
     const pipes = await tx<{ id: string; market_code: string; motor: string; name: string }[]>`
       select id, market_code, motor, name from crm.pipelines where id = ${pipelineId} and market_code = any(app.my_markets())`
@@ -59,15 +60,16 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
     if (!pipeline) return null
     const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en
       from crm.stages where pipeline_id = ${pipelineId} order by position`
-    const owner = f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : f.owner ? tx`and d.owner_id = ${f.owner}` : tx``
+    const owner = f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : isUuid(f.owner) ? tx`and d.owner_id = ${f.owner}` : tx``
     const deals = await tx<BoardDeal[]>`
       select * from (
         select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
                d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
-               row_number() over (partition by d.stage_id order by d.revisit_needed desc, d.stage_entered_at) as rn
+               row_number() over (partition by d.stage_id order by ${f.noStep ? tx`d.amount_minor desc nulls last, d.created_at desc` : tx`d.revisit_needed desc, d.stage_entered_at`}) as rn
           from crm.deals d join crm.accounts a on a.id = d.account_id left join crm.users u on u.id = d.owner_id
-         where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}) x
-       where rn <= ${BOARD_LIMIT}`
+         where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}
+           ${f.noStep ? tx`and (d.next_step is null or d.next_step_due is null)` : tx``}) x
+       where rn <= ${f.noStep ? BOARD_LIMIT * 3 : BOARD_LIMIT}`
     const totals = await tx<{ stage_id: string; n: number; amount: string | null; revisits: number; no_step: number }[]>`
       select d.stage_id, count(*)::int as n, sum(d.amount_minor)::text as amount, count(*) filter (where d.revisit_needed)::int as revisits,
              count(*) filter (where d.next_step is null or d.next_step_due is null)::int as no_step

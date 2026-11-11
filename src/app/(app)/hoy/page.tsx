@@ -9,6 +9,7 @@ import type { MessageKey } from '@/lib/messages'
 import { cx } from '@/ui/kit'
 import { CountUp, Queue, type QueueItem, type QueueLabels } from '@/ui/queue'
 import { completeItemAction } from './actions'
+import { flat } from '@/server/params'
 
 /** Las tareas con fecha pero sin hora se guardan a esta hora UTC: no se muestran como una hora real. */
 const DATE_ONLY = 'T15:00:00.000Z'
@@ -17,7 +18,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
   const ctx = await requireCtx()
   const { m, locale } = ctx
   const leads = ctx.can('board.supervisor')
-  const team = leads && (await searchParams).ver === 'equipo'
+  const team = leads && flat(await searchParams).ver === 'equipo'
   await ensureRulesFresh(await systemCtx())
   await track(ctx, team ? 'view.hoy.equipo' : 'view.hoy')
   const tz = ctx.markets[0]?.timezone ?? 'UTC'
@@ -114,7 +115,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
         context: `${m(r.kind === 'web_form' ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
         chip: r.group === 'late' ? { text: m('today.chip.late'), tone: 'risk' } : { text: m('today.chip.today'), tone: 'warn' },
         clock: r.due ? r.due.toISOString() : null,
-        results: resultOptions(ctx, ['reached', 'no_answer', 'later']),
+        results: resultOptions(ctx, ['reached', 'no_answer']),
         defaultResult: null,
       }
     if (r.type === 'suggestion')
@@ -125,6 +126,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
         chip: { text: m('today.chip.suggested'), tone: 'suggested' },
         results: resultOptions(ctx, ['done', 'reached', 'no_answer', 'later']),
         defaultResult: 'done',
+        closable: false,
       }
     const timed = r.due && !r.due.toISOString().endsWith(DATE_ONLY)
     const parts = [
@@ -180,6 +182,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     <>
       {header(m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
       <Queue items={items} counts={q.counts} labels={labels} sheet={sheetConfig(ctx, now)} now={now.toISOString()} action={completeItemAction} />
+      <p className="mt-8 text-[14px]"><Link href="/actividades" className="font-medium text-blue-text underline" data-testid="all-activities">{m('today.all')}</Link></p>
     </>
   )
 }

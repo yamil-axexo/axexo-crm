@@ -14,6 +14,7 @@ import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
 import { configurePipelineAction, createApiClientAction, endMembershipAction, grantMembershipAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction } from './actions'
 import { PipedriveTab } from './pipedrive'
 import { mergeAction } from '@/app/(app)/comercios/actions'
+import { flat } from '@/server/params'
 
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
@@ -26,7 +27,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const admin = ctx.can('config.manage')
   if (!admin && !ctx.can('audit.read')) notFound()
   const { t, locale } = ctx
-  const sp = await searchParams
+  const sp = flat(await searchParams)
   const allowed: Tab[] = admin ? [...TABS] : ['embudos', 'auditoria']
   const tab: Tab = allowed.includes(sp.tab as Tab) ? (sp.tab as Tab) : allowed[0]!
   const labels: Record<Tab, string> = {
@@ -138,7 +139,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <ul className="space-y-2.5">{d.fields.map((f) => <li key={`${f.object}${f.key}${f.market_code}`} className="flex items-center justify-between gap-3 text-[14px]"><span><code className="text-[12.5px] text-muted-2">{f.object}.{f.key}</code> <span className="ml-2 font-medium text-strong">{t(f.label_es, f.label_en)}</span></span><span className="flex gap-2"><Badge>{f.market_code ?? t('todos', 'all')}</Badge><Badge>{f.data_class}</Badge></span></li>)}</ul>
           </Card>
           <Card><CardTitle title={t('Motivos codificados', 'Coded reasons')} hint={t('Mismos códigos en todos los mercados; la etiqueta cambia con el idioma.', 'Same codes in every market; the label changes with the language.')} />
-            <ul className="space-y-2.5">{d.reasons.map((r) => <li key={r.code} className="flex items-center justify-between gap-3 text-[14px]"><span className="font-medium text-strong">{t(r.label_es, r.label_en)}</span><Badge tone={r.kind === 'lost' ? 'bad' : 'warn'}>{r.kind === 'lost' ? t('pérdida de deal', 'deal loss') : t('visita sin venta', 'no-sale visit')}</Badge></li>)}</ul>
+            <ul className="space-y-2.5">{d.reasons.map((r) => <li key={r.code} className="flex items-center justify-between gap-3 text-[14px]"><span className="font-medium text-strong">{t(r.label_es, r.label_en)}</span><Badge tone={r.kind === 'lost' ? 'bad' : 'warn'}>{r.kind === 'lost' ? t('pérdida de negocio', 'deal loss') : t('visita sin venta', 'no-sale visit')}</Badge></li>)}</ul>
           </Card>
         </div>
       </div>
@@ -206,7 +207,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
               <ActionForm action={simulateMetricsAction} className="card-2 p-5" testId="sim-metrics">
                 <p className="text-[14.5px] font-semibold text-strong">{t('S5: primera transacción', 'S5: first transaction')}</p>
-                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Carga un archivo diario con la primera venta de un comercio que está esperando. Su deal se gana solo.', 'Loads a daily file with the first sale of a waiting merchant. Its deal wins on its own.')}</p>
+                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Carga un archivo diario con la primera venta de un comercio que está esperando. Su negocio se gana solo.', 'Loads a daily file with the first sale of a waiting merchant. Its deal wins on its own.')}</p>
                 <Field label={t('Comercio esperando primera venta', 'Merchant awaiting first sale')}>
                   <select name="merchant_ref" className="input" data-testid="sim-metrics-ref">{d.awaiting.map((a) => <option key={a.alias} value={a.alias}>{a.name} · {a.alias}</option>)}</select>
                 </Field>
@@ -215,7 +216,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               </ActionForm>
               <ActionForm action={simulateVisitAction} className="card-2 p-5" testId="sim-visit">
                 <p className="text-[14.5px] font-semibold text-strong">{t('Sales App: visita', 'Sales App: visit')}</p>
-                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Una visita sin decisor deja el deal marcado con revisita.', 'A visit with no decision-maker flags the deal for a revisit.')}</p>
+                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Una visita sin decisor deja el negocio marcado con revisita.', 'A visit with no decision-maker flags the deal for a revisit.')}</p>
                 <Field label={t('Comercio', 'Merchant')}><select name="customer_id" className="input" data-testid="sim-visit-ref">{d.visitable.map((a) => <option key={a.alias} value={a.alias}>{a.name} · {a.alias}</option>)}<option value="SC-XX-000000">{t('ID que no existe', 'An ID that does not exist')}</option></select></Field>
                 <Field label={t('Resultado', 'Outcome')} className="mt-3"><select name="outcome" className="input" data-testid="sim-visit-outcome"><option value="revisit">{t('Sin venta: no estaba el decisor', 'No sale: decision-maker absent')}</option><option value="sale">{t('Con venta', 'With a sale')}</option><option value="no_sale">{t('Sin venta: tiene inventario', 'No sale: has stock')}</option></select></Field>
                 <div className="mt-4"><Submit variant="ghost" size="sm" testId="sim-visit-send">{t('Enviar evento', 'Send event')}</Submit></div>

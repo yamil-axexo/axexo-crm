@@ -78,7 +78,7 @@
   "suggest.duplicate_suspect": "Revisar posible duplicado de {name}",
   "suggest.unmatched_event": "Revisar un evento sin comercio",
   "ctx.lead_sla": "Lead sin atender a tiempo",
-  "ctx.no_next_step": "Deal sin próximo paso",
+  "ctx.no_next_step": "Negocio sin próximo paso",
   "ctx.stalled_deal": "{days, plural, one {# día} other {# días}} sin moverse de etapa",
   "ctx.revisit_due": "La última visita no encontró a quien decide",
   "ctx.activation_risk": "Alta sin primera venta",
@@ -237,5 +237,12 @@
   "offline.tag": "sin señal",
   "today.backlog": "{count, plural, one {Hay # registro más que pide atención.} other {Hay # registros más que piden atención.}} Aquí van los más importantes.",
   "today.backlogLink": "Ver todos en Negocios",
+  "record.callee": "Llamar y WhatsApp van al contacto: {name}",
+  "deals.filter.all": "Todos",
+  "deals.filter.noStep": "Sin próximo paso",
+  "deals.filter": "Filtro",
+  "offline.blocked": "Sin señal: no se puede abrir otra pantalla. Lo que ves sigue disponible.",
+  "merchants.tree.cut": "Se muestran los primeros {count}. Usa la búsqueda o \"Míos\" para acotar.",
+  "today.all": "Ver todas mis actividades",
   "common.at": "{date}, {time}"
 }

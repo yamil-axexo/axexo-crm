@@ -237,5 +237,12 @@
   "offline.tag": "no signal",
   "today.backlog": "{count, plural, one {# more record needs attention.} other {# more records need attention.}} The most important ones are here.",
   "today.backlogLink": "See them all in Deals",
+  "record.callee": "Call and WhatsApp go to the contact: {name}",
+  "deals.filter.all": "All",
+  "deals.filter.noStep": "No next step",
+  "deals.filter": "Filter",
+  "offline.blocked": "No signal: another screen cannot be opened. What you see is still available.",
+  "merchants.tree.cut": "Showing the first {count}. Use search or \"Mine\" to narrow down.",
+  "today.all": "See all my activities",
   "common.at": "{date}, {time}"
 }

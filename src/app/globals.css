@@ -137,6 +137,7 @@
   --color-warn-bg: var(--cg-warn-bg);
   --color-risk-bg: var(--cg-risk-bg);
   --spacing: 0.27rem;
+  --breakpoint-desk: 75rem;
   --radius-card: 16px;
   --radius-tile: 12px;
   --radius-lg: 12px;
@@ -251,10 +252,13 @@
   .ficha-panel { background: var(--surface); }
   .ficha-veil { display: none; }
   .dock { transition: left var(--cg-dur-enter) var(--cg-ease-standard); }
-  @media (max-width: 767px) {
+  @media (max-width: 1023px) {
     .ficha-panel { position: fixed; inset: 60px 0 0 0; z-index: 35; overflow-y: auto; padding: 20px 16px 120px; animation: sheet-in var(--cg-dur-enter) var(--cg-ease-enter) backwards; }
   }
-  @media (min-width: 768px) and (max-width: 1199px) {
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .ficha-panel { top: 64px; padding: 24px 32px 140px; }
+  }
+  @media (min-width: 1024px) and (max-width: 1199px) {
     .ficha-split { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 24px; align-items: start; }
     .ficha-panel { position: sticky; top: 88px; max-height: calc(100vh - 112px); overflow-y: auto; border: 1px solid var(--line); border-radius: 16px; padding: 24px 24px 120px; }
   }

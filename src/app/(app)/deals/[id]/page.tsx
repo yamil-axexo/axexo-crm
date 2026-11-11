@@ -59,7 +59,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
         <div className="space-y-8 xl:col-span-2">
           {deal.revisit_needed && deal.status === 'open' && (
-            <div className="rounded-[22px] bg-amber/14 px-6 py-5" data-testid="revisit-banner">
+            <div className="rounded-[16px] bg-warn-bg px-6 py-5" data-testid="revisit-banner">
               <p className="text-[15px] font-semibold text-amber-text">{t('Hay que volver con el decisor', 'Go back to the decision-maker')}</p>
               <p className="mt-1 text-[13.5px] text-muted-2">
                 {t('La última visita en la Sales App no encontró a quien decide.', 'The last visit in the Sales App did not find the person who decides.')}
@@ -71,14 +71,14 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           {deal.status === 'open' && current && (
             <Card data-testid="deal-move">
               <CardTitle
-                title={current.kind === 'awaiting_txn' ? t('Esperando la primera transacción', 'Waiting for the first transaction') : t('Avanzar el deal', 'Move the deal forward')}
+                title={current.kind === 'awaiting_txn' ? t('Esperando la primera transacción', 'Waiting for the first transaction') : t('Avanzar el negocio', 'Move the deal forward')}
                 hint={
                   current.kind === 'awaiting_txn'
                     ? t(`Lleva ${daysSince(deal.stage_entered_at)} días aquí. Se gana cuando el archivo diario de S5 trae la primera venta de este comercio; nadie lo marca a mano.`, `It has been here ${daysSince(deal.stage_entered_at)} days. It is won when the S5 daily file brings this merchant’s first sale; nobody marks it by hand.`)
                     : current.exit_es
                       ? t(`Criterio de salida: ${current.exit_es}.`, `Exit criteria: ${current.exit_en}.`)
                       : lastOpen && deal.close_by_transaction
-                        ? t('Última etapa del embudo. El deal se gana cuando S5 reporta la primera transacción del comercio; nadie lo marca a mano.', 'Last stage of the pipeline. The deal is won when S5 reports the merchant’s first transaction; nobody marks it by hand.')
+                        ? t('Última etapa del embudo. El negocio se gana cuando S5 reporta la primera transacción del comercio; nadie lo marca a mano.', 'Last stage of the pipeline. The deal is won when S5 reports the merchant’s first transaction; nobody marks it by hand.')
                         : undefined
                 }
               />
@@ -134,7 +134,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
           {canEdit && (
             <Card data-testid="deal-edit">
-              <CardTitle title={t('Datos del deal', 'Deal details')} hint={t('Todo deal abierto lleva un próximo paso con fecha.', 'Every open deal carries a dated next step.')} />
+              <CardTitle title={t('Datos del negocio', 'Deal details')} hint={t('Todo negocio abierto lleva un próximo paso con fecha.', 'Every open deal carries a dated next step.')} />
               <ActionForm action={updateDealAction} className="grid grid-cols-2 gap-4">
                 <input type="hidden" name="deal_id" value={deal.id} />
                 <Field label={t('Próximo paso', 'Next step')} className="col-span-2"><input name="next_step" className="input" defaultValue={deal.next_step ?? ''} data-testid="next-step" /></Field>

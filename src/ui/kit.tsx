@@ -8,7 +8,7 @@ export function PageHeader({ eyebrow, title, desc, actions }: { eyebrow?: string
     <header className="mb-7 flex flex-wrap items-end justify-between gap-5">
       <div className="max-w-2xl">
         {eyebrow && <p className="eyebrow mb-1">{eyebrow}</p>}
-        <h1 className="text-[28px] leading-9 font-semibold">{title}</h1>
+        <h1 className="text-[28px] leading-9 font-semibold [overflow-wrap:anywhere]">{title}</h1>
         {desc && <p className="mt-1.5 text-[15px] text-muted">{desc}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
@@ -157,8 +157,8 @@ export function Bar({ value, max, tone = 'accent' }: { value: number; max: numbe
 export function KeyVal({ k, children }: { k: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-t border-line py-3 first:border-t-0">
-      <dt className="text-[13px] text-muted">{k}</dt>
-      <dd className="text-right text-[14px] font-medium text-strong">{children}</dd>
+      <dt className="shrink-0 text-[13px] text-muted">{k}</dt>
+      <dd className="min-w-0 text-right text-[14px] font-medium text-strong [overflow-wrap:anywhere]">{children}</dd>
     </div>
   )
 }

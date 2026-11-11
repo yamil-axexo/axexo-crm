@@ -106,7 +106,13 @@ test.describe('leads', () => {
     await newLead(page, name, '55 4000 ' + Math.floor(1000 + Math.random() * 8999))
     await expect(page.locator('h1')).toHaveText(name)
     await expect(page.getByTestId('lead-convert')).toHaveCount(0)
+    // registrar el contacto pasa por la misma hoja que pide el próximo paso
     await page.getByTestId('lead-contacted').click()
+    const sheet = page.locator('[data-testid="complete-sheet"][open]')
+    await sheet.getByText('Enviar propuesta', { exact: true }).click()
+    await sheet.getByTestId('sheet-save').click()
+    await expect(page.getByTestId('toast')).toContainText('Próximo paso: Enviar propuesta a')
+    await expect(page.getByTestId('lead-contacted')).toHaveCount(0)
     await expect(page.getByTestId('lead-qualify')).toBeVisible()
     await page.getByTestId('lead-qualify').click()
     await page.getByTestId('lead-convert').click()
@@ -191,6 +197,8 @@ test.describe('embudo', () => {
     await page.getByTestId('deal-advance').click()
     await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Propuesta')
 
+    // justo después de avanzar, el botón ignora otro envío por un momento (un doble clic no avanza dos etapas)
+    await page.waitForTimeout(800)
     await page.getByTestId('deal-advance').click()
     await expect(page.getByTestId('deal-move').getByTestId('form-error')).toContainText('decisor')
     await page.getByTestId('deal-account').click()
@@ -208,6 +216,7 @@ test.describe('embudo', () => {
     await page.getByTestId('deal-advance').click()
     await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Negociación')
 
+    await page.waitForTimeout(800)
     await page.getByTestId('deal-advance').click()
     await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Contrato firmado, esperando primera venta')
     await expect(page.getByTestId('deal-move')).toContainText('nadie lo marca a mano')

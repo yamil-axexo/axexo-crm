@@ -6,12 +6,13 @@ import { Empty } from '@/ui/kit'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { LEAD_STATUS, lab } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
+import { flat } from '@/server/params'
 
 /** Buscar (handoff, sección 6): por nombre, persona, teléfono con o sin lada, ID y el ID que el comercio tiene en otros sistemas. */
 export default async function BuscarPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
-  const q = ((await searchParams).q ?? '').slice(0, 80).trim()
+  const q = (flat(await searchParams).q ?? '').slice(0, 80).trim()
   const r = await searchAll(ctx, q)
   const none = r.accounts.length + r.leads.length + r.deals.length === 0
   const group = (title: string, count: number) => (

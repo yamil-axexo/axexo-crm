@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Phone } from 'lucide-react'
-import { CompleteSheet, showToast, type CompleteAction, type SheetConfig, type SheetItem } from '@/ui/complete'
+import { CompleteSheet, offlineBlocked, showToast, type CompleteAction, type SheetConfig, type SheetItem } from '@/ui/complete'
 import type { ActionResult } from '@/lib/errors'
 
 type TakeAction = (prev: ActionResult<unknown> | null, data: FormData) => Promise<ActionResult<unknown>>
@@ -34,6 +34,7 @@ export function LeadCall({ item, tel, take, label, takeAction, config, completeA
 
   const call = () =>
     startTransition(async () => {
+      if (take && offlineBlocked()) return
       if (take) {
         const data = new FormData()
         data.set('id', item.id)

@@ -33,6 +33,12 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
   if (!isOneOf(RESULTS, raw.result)) throw invalid('Elige cómo te fue.', 'Choose how it went.')
   if (!isOneOf(NEXTS, raw.next)) throw invalid('Elige qué sigue. Si ya no hay nada más que hacer, elige cerrar.', 'Choose what comes next. If there is nothing left to do, choose close.')
   const { type, id, result, next } = raw
+  // Un lead solo tiene dos resultados: hubo contacto o se intentó y no contestó. "Llamar después" no es un intento.
+  if (type === 'lead' && result !== 'reached' && result !== 'no_answer') throw invalid('Elige si hubo contacto o no contestó.', 'Choose whether you reached them or there was no answer.')
+  // Sin contacto, el lead no se puede cerrar sin programar el siguiente intento: si no, saldría de la cola sin seguimiento.
+  if (type === 'lead' && result === 'no_answer' && next === 'none') throw invalid('Si no contestó, programa el siguiente intento.', 'If there was no answer, schedule the next attempt.')
+  // Una sugerencia de CONTIGO no se apaga con "cerrar": se atiende con un próximo paso con fecha, o se corrige en el registro.
+  if (type === 'suggestion' && next === 'none') throw invalid('Una sugerencia se atiende con un próximo paso con fecha.', 'A suggestion is handled with a dated next step.')
   const when = next === 'none' ? null : raw.when
   if (next !== 'none' && !/^\d{4}-\d{2}-\d{2}$/.test(when ?? '')) throw invalid('Elige cuándo es el próximo paso.', 'Choose when the next step is.')
   const tz = ctx.markets[0]?.timezone ?? 'UTC'
@@ -40,7 +46,7 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
   return withUser(ctx.user.id, async (tx) => {
     if (when) {
       const ok = await tx<{ ok: boolean }[]>`select ${when}::date >= (now() at time zone ${tz})::date and ${when}::date <= (now() at time zone ${tz})::date + 366 as ok`
-      if (!ok[0]?.ok) throw invalid('El próximo paso no puede quedar en el pasado.', 'The next step cannot be in the past.')
+      if (!ok[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante y dentro de un año.', 'The next step date must be today or later, within a year.')
     }
     let market: string
     let accountId: string | null = null
@@ -71,7 +77,7 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
       market = l.market_code
       leadId = id
       name = l.business_name
-      const reached = result === 'reached' || result === 'done'
+      const reached = result === 'reached'
       const subject = ctx.m('complete.firstContact', { result: ctx.m(`complete.result.${result}` as MessageKey) })
       await tx`insert into crm.activities (market_code, lead_id, kind, subject, done_at, outcome, owner_id, created_by)
                values (${market}, ${id}, 'call', ${subject}, now(), ${result}, ${ctx.user.id}, ${ctx.user.id})`
@@ -89,9 +95,17 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
       const names = await tx<{ name: string | null }[]>`
         select coalesce((select name from crm.accounts where id = ${accountId}), (select business_name from crm.leads where id = ${leadId})) as name`
       name = names[0]?.name ?? String(e.detail.name ?? e.detail.title ?? '')
-      const resolution = next === 'none' ? 'dismissed' : 'scheduled'
+      const resolution = 'scheduled'
       await tx`update crm.exceptions set resolved_at = now(), resolved_by = ${ctx.user.id}, resolution = ${resolution},
                 detail = detail || ${tx.json({ outcome: result })} where id = ${id}`
+      // El mismo negocio o comercio puede tener más de un aviso abierto (sin próximo paso y estancado): el próximo paso
+      // con fecha los atiende a todos; si no, el registro reaparecería al instante con otro nombre.
+      if (dealId || accountId) {
+        await tx`update crm.exceptions set resolved_at = now(), resolved_by = ${ctx.user.id}, resolution = ${resolution},
+                  detail = detail || ${tx.json({ outcome: result, with: id })}
+                  where resolved_at is null and id <> ${id} and owner_id = ${ctx.user.id} and kind <> 'lead_sla'
+                    and ${dealId ? tx`deal_id = ${dealId}` : tx`account_id = ${accountId} and deal_id is null`}`
+      }
       // Lo atendido queda en el hilo del comercio, deal o lead; un aviso sin registro ligado solo se cierra.
       if (accountId || dealId || leadId) {
         ctx.assert('activity.write', market)

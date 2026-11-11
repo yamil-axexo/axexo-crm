@@ -2,6 +2,7 @@ import 'server-only'
 import { z } from 'zod'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 
@@ -66,10 +67,11 @@ export type DealEdit = z.input<typeof editInput>
 
 export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Promise<void> {
   const v = editInput.parse(input)
+  assertNoProhibited(v.title, v.nextStep)
   await withUser(ctx.user.id, async (tx) => {
     const d = await loadDeal(tx, dealId)
     ctx.assert('deal.edit', d.market_code)
-    if (d.status !== 'open') throw invalid('Un deal cerrado no se edita.', 'A closed deal cannot be edited.')
+    if (d.status !== 'open') throw invalid('Un negocio cerrado no se edita.', 'A closed deal cannot be edited.')
     const next = {
       title: v.title ?? d.title,
       amount_minor: v.amount === undefined ? d.amount_minor : v.amount === null ? null : Math.round(v.amount * 100),
@@ -79,6 +81,11 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
       decision_maker_met: v.decisionMakerMet ?? d.decision_maker_met,
     }
     if (next.next_step && !next.next_step_due) throw invalid('Ponle fecha al próximo paso.', 'Give the next step a date.')
+    if (d.next_step && !next.next_step) throw invalid('Un negocio abierto lleva próximo paso: cámbialo, no lo borres.', 'An open deal carries a next step: change it, do not clear it.')
+    if (next.next_step_due && String(next.next_step_due) !== String(d.next_step_due)) {
+      const ok = await tx<{ ok: boolean }[]>`select ${String(next.next_step_due)}::date >= current_date - 1 as ok`
+      if (!ok[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
+    }
     if (next.decision_maker_id) {
       const ok = await tx`select 1 from crm.account_contacts where account_id = ${d.account_id} and contact_id = ${next.decision_maker_id} and valid_to is null`
       if (!ok[0]) throw invalid('El decisor tiene que ser un contacto de este comercio.', 'The decision-maker must be a contact of this merchant.')
@@ -103,7 +110,10 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     const d = await loadDeal(tx, dealId)
     if (next) {
       const step = clean(next.step)
-      if (!step || step.length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(next.due)) throw invalid('Escribe el próximo paso y su fecha.', 'Enter the next step and its date.')
+      if (!step || step.length < 2 || step.length > 200 || !/^\d{4}-\d{2}-\d{2}$/.test(next.due)) throw invalid('Escribe el próximo paso (hasta 200 letras) y su fecha.', 'Enter the next step (up to 200 characters) and its date.')
+      assertNoProhibited(step)
+      const range = await tx<{ ok: boolean }[]>`select ${next.due}::date >= current_date - 1 as ok`
+      if (!range[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
       ctx.assert('deal.edit', d.market_code)
       await tx`update crm.deals set next_step = ${step}, next_step_due = ${next.due} where id = ${dealId} and status = 'open'`
       await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by)
@@ -113,12 +123,18 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       d.next_step_due = next.due
     }
     ctx.assert('deal.move', d.market_code)
-    if (d.status !== 'open') throw invalid('Este deal ya está cerrado.', 'This deal is already closed.')
+    if (d.status !== 'open') throw invalid('Este negocio ya está cerrado.', 'This deal is already closed.')
     if (toStageId === d.stage_id) return
-    const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string }[]>`
-      select id, kind, required_fields, name_es, name_en from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id}`
+    const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string; position: number }[]>`
+      select id, kind, required_fields, name_es, name_en, position from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id}`
     const stage = stages[0]
     if (!stage) throw invalid('Esa etapa no es de este pipeline.', 'That stage is not part of this pipeline.')
+    // Avanzar saltando etapas no evita lo que piden las de en medio: se exige la suma de todas hasta la de destino.
+    const skipped = await tx<{ required_fields: string[] }[]>`
+      select s.required_fields from crm.stages s
+       where s.pipeline_id = ${d.pipeline_id} and s.kind in ('open', 'awaiting_txn') and s.position < ${stage.position}
+         and s.position > (select c.position from crm.stages c where c.id = ${d.stage_id})`
+    const gate = { kind: stage.kind, required_fields: [...new Set([...stage.required_fields, ...skipped.flatMap((s) => s.required_fields)])] }
 
     if (stage.kind === 'won') {
       // PIPE-06: "la transacción cierra, no el vendedor".
@@ -132,10 +148,11 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     if (stage.kind === 'lost') {
       const reason = loss?.reasonCode ? await tx`select 1 from crm.loss_reasons where code = ${loss.reasonCode} and kind = 'lost' and is_active` : []
       if (!reason[0]) throw invalid('Elige el motivo de pérdida.', 'Pick the loss reason.')
+      assertNoProhibited(loss?.note)
       await tx`update crm.deals set stage_id = ${toStageId}, status = 'lost', loss_reason_code = ${loss!.reasonCode}, loss_note = ${clean(loss!.note)},
                 lost_at = now(), closed_by = 'manual', stage_entered_at = now(), revisit_needed = false where id = ${dealId}`
     } else {
-      const missing = missingForStage(d, stage)
+      const missing = missingForStage(d, gate)
       if (missing.length) {
         const es = missing.map((m) => FIELD_LABEL[m]?.es ?? m).join(', ')
         const en = missing.map((m) => FIELD_LABEL[m]?.en ?? m).join(', ')
@@ -165,9 +182,12 @@ const createInput = z.object({
 
 export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): Promise<string> {
   const parsed = createInput.safeParse(input)
-  if (!parsed.success) throw invalid('Un deal nace con título y próximo paso con fecha.', 'A deal starts with a title and a dated next step.')
+  if (!parsed.success) throw invalid('Un negocio nace con título y próximo paso con fecha.', 'A deal starts with a title and a dated next step.')
   const v = parsed.data
+  assertNoProhibited(v.title, v.nextStep)
   return withUser(ctx.user.id, async (tx) => {
+    const range = await tx<{ ok: boolean }[]>`select ${v.nextStepDue}::date >= current_date - 1 as ok`
+    if (!range[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
     const accs = await tx<{ market_code: string; owner_id: string | null }[]>`select market_code, owner_id from crm.accounts where id = ${v.accountId} and archived_at is null`
     const acc = accs[0]
     if (!acc) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
@@ -176,7 +196,7 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
       where p.id = ${v.pipelineId} and p.market_code = ${acc.market_code} order by s.position limit 1`
     if (!st[0]) throw invalid('Ese pipeline no es de este mercado.', 'That pipeline does not belong to this market.')
     const open = await tx`select 1 from crm.deals where account_id = ${v.accountId} and pipeline_id = ${v.pipelineId} and status = 'open'`
-    if (open[0]) throw invalid('Este comercio ya tiene un deal abierto en ese pipeline.', 'This merchant already has an open deal in that pipeline.')
+    if (open[0]) throw invalid('Este comercio ya tiene un negocio abierto en ese embudo.', 'This merchant already has an open deal in that pipeline.')
     const id = await newId(tx)
     const ownerId = acc.owner_id ?? ctx.user.id
     await tx`insert into crm.deals (id, market_code, pipeline_id, stage_id, account_id, owner_id, title, amount_minor, currency, next_step, next_step_due, created_by)

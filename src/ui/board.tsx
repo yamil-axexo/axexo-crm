@@ -4,7 +4,7 @@ import { useRef, useState, useSyncExternalStore, useTransition, type FormEvent }
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { cx } from '@/ui/kit'
-import { showToast } from '@/ui/complete'
+import { offlineBlocked, showToast } from '@/ui/complete'
 import type { ActionResult } from '@/lib/errors'
 
 export type BoardCol = { id: string; code: string; name: string; color: string; count: number; amount: string | null; note: string | null; more: string | null }
@@ -23,6 +23,8 @@ type MoveAction = (prev: ActionResult<unknown> | null, data: FormData) => Promis
 
 const CHIP = { ok: 'bg-green-100 text-brand-text', warn: 'bg-warn-bg text-amber-text', risk: 'bg-risk-bg text-red-text', neutral: 'bg-surface-3 text-strong' } as const
 const DESKTOP = '(min-width: 1200px) and (pointer: fine)'
+/** La etapa que la persona estaba viendo en móvil, por tablero: mover una tarjeta refresca el tablero y no debe perder el lugar. */
+const lastActive = new Map<string, string>()
 const subscribe = (cb: () => void) => {
   const mq = window.matchMedia(DESKTOP)
   mq.addEventListener('change', cb)
@@ -33,13 +35,17 @@ const subscribe = (cb: () => void) => {
  * Tablero de Negocios (handoff, sección 5). Arrastre solo en desktop con mouse; en tablet y móvil cada tarjeta trae
  * un selector de etapa. Si al negocio le falta el próximo paso, mover lo pide antes de guardar.
  */
-export function Board({ cols, cards: initial, labels, minDate, action }: { cols: BoardCol[]; cards: BoardCard[]; labels: BoardLabels; minDate: string; action: MoveAction }) {
+export function Board({ id, cols, cards: initial, labels, minDate, action }: { id: string; cols: BoardCol[]; cards: BoardCard[]; labels: BoardLabels; minDate: string; action: MoveAction }) {
   const router = useRouter()
   const drag = useSyncExternalStore(subscribe, () => window.matchMedia(DESKTOP).matches, () => false)
   const [cards, setCards] = useState(initial)
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<string | null>(null)
-  const [active, setActive] = useState(() => cols.find((c) => c.count > 0)?.id ?? cols[0]?.id ?? '')
+  const [active, setActiveState] = useState(() => (cols.some((c) => c.id === lastActive.get(id)) ? lastActive.get(id)! : (cols.find((c) => c.count > 0)?.id ?? cols[0]?.id ?? '')))
+  const setActive = (stage: string) => {
+    lastActive.set(id, stage)
+    setActiveState(stage)
+  }
   const [ask, setAsk] = useState<{ card: BoardCard; to: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -47,7 +53,7 @@ export function Board({ cols, cards: initial, labels, minDate, action }: { cols:
   const stageName = (id: string) => cols.find((c) => c.id === id)?.name ?? ''
 
   const move = (card: BoardCard, to: string, next?: { step: string; due: string }) => {
-    if (to === card.stageId) return
+    if (to === card.stageId || offlineBlocked()) return
     const from = card.stageId
     setCards((list) => list.map((c) => (c.id === card.id ? { ...c, stageId: to } : c)))
     startTransition(async () => {

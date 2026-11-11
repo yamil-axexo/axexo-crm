@@ -54,7 +54,9 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
        order by l.sla_due_at limit ${QUEUE_PAGE}`
     const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; created_at: Date; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; name: string | null; phone: string | null; stage: string | null }[]>`
       select a.id, a.kind, a.subject, a.due_at, a.created_at, a.market_code, a.account_id, a.deal_id, a.lead_id,
-             coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, l.phone) as phone, ${ctx.locale === 'en' ? tx`s.name_en` : tx`s.name_es`} as stage
+             coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, (select c.phone from crm.account_contacts x join crm.contacts c on c.id = x.contact_id
+                                 where x.account_id = ac.id and x.valid_to is null and c.phone is not null
+                                 order by (x.role = 'decision_maker') desc, (x.role = 'owner') desc, x.valid_from limit 1), l.phone) as phone, ${ctx.locale === 'en' ? tx`s.name_en` : tx`s.name_es`} as stage
         from crm.activities a
         left join crm.accounts ac on ac.id = a.account_id
         left join crm.leads l on l.id = a.lead_id
@@ -69,7 +71,9 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
       select * from (
         select distinct on (coalesce(e.deal_id, e.account_id, e.lead_id, e.id))
                e.id, e.kind, e.severity, e.market_code, e.account_id, e.deal_id, e.lead_id, e.detail, e.opened_at,
-               coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, l.phone) as phone, d.amount_minor, d.created_at as deal_created
+               coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, (select c.phone from crm.account_contacts x join crm.contacts c on c.id = x.contact_id
+                                 where x.account_id = ac.id and x.valid_to is null and c.phone is not null
+                                 order by (x.role = 'decision_maker') desc, (x.role = 'owner') desc, x.valid_from limit 1), l.phone) as phone, d.amount_minor, d.created_at as deal_created
           from crm.exceptions e
           left join crm.accounts ac on ac.id = e.account_id
           left join crm.leads l on l.id = e.lead_id

@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { getAccount } from '@/dal/accounts'
 import { Ficha, fichaTab, type FichaTab } from '../ficha'
+import { flat } from '@/server/params'
 
 /** La ficha a pantalla completa: a donde llegan los enlaces directos (Hoy, Buscar, un negocio). Desde la lista se abre como panel. */
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
@@ -12,7 +13,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getAccount(ctx, id)
   if (!data) notFound()
-  const tab = fichaTab((await searchParams).tab)
+  const tab = fichaTab(flat(await searchParams).tab)
   const href = (to: string, t?: FichaTab) => `/comercios/${to}${t && t !== 'hilo' ? `?tab=${t}` : ''}`
   return (
     <div className="mx-auto max-w-[720px]">

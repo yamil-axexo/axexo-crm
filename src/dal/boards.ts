@@ -1,6 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { isUuid } from '@/lib/ids'
 
 export type ExceptionItem = {
   id: string
@@ -63,7 +64,7 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
        where e.resolved_at is null
          ${f.market ? tx`and e.market_code = ${f.market}` : tx``}
          ${f.kind ? tx`and e.kind = ${f.kind}` : tx``}
-         ${f.owner === 'none' ? tx`and e.owner_id is null` : f.owner ? tx`and e.owner_id = ${f.owner}` : tx``}
+         ${f.owner === 'none' ? tx`and e.owner_id is null` : isUuid(f.owner) ? tx`and e.owner_id = ${f.owner}` : tx``}
        order by case e.severity when 'high' then 0 when 'medium' then 1 else 2 end, e.opened_at limit 60`
     const byKind = await tx<{ kind: string; n: number }[]>`
       select e.kind, count(*)::int as n from crm.exceptions e where e.resolved_at is null

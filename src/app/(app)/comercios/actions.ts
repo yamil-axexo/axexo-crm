@@ -76,7 +76,7 @@ export async function reassignAction(_: R | null, fd: FormData): Promise<R> {
       ids = rows.map((r) => r.id)
     }
     const n = await reassignAccounts(ctx, ids, str(fd, 'to_user_id'))
-    return { message: [`${n} comercios reasignados, con sus deals y tareas abiertas.`, `${n} merchants reassigned, with their open deals and tasks.`] }
+    return { message: [`${n} comercios reasignados, con sus negocios y tareas abiertas.`, `${n} merchants reassigned, with their open deals and tasks.`] }
   })
 }
 

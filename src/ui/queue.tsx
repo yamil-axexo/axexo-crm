@@ -24,6 +24,7 @@ export type QueueItem = {
   wa: string | null
   results: { value: string; label: string }[]
   defaultResult: string | null
+  closable?: boolean
 }
 export type QueueLabels = {
   now: string
@@ -198,7 +199,7 @@ export function Queue({
               data-testid="now-card"
               data-key={head.key}
               data-leaving={leaving === head.key ? '' : undefined}
-              className="now-card stage on-ink flex flex-col gap-5 rounded-[16px] p-5 md:p-8 min-[1200px]:flex-row min-[1200px]:items-center min-[1200px]:justify-between"
+              className="now-card stage on-ink flex flex-col gap-5 rounded-[16px] p-5 md:p-8 desk:flex-row desk:items-center desk:justify-between"
             >
               <div className="min-w-0">
                 <p className="text-[13px] font-medium text-mint">{labels.now}</p>
@@ -209,7 +210,7 @@ export function Queue({
                 <p className="mt-1 text-[15px] text-on-black">{head.context}</p>
                 {head.clock ? <p className="mt-3">{clockChip(head, true)}</p> : null}
               </div>
-              <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap min-[1200px]:shrink-0 min-[1200px]:flex-nowrap">
+              <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap desk:shrink-0 desk:flex-nowrap">
                 {head.tel ? (
                   <a href={head.tel} onClick={() => contacted(head)} className={cx(nowButton, 'glow-hover bg-neon text-black')} data-testid="now-call">
                     <Phone size={20} strokeWidth={1.75} aria-hidden />
@@ -254,7 +255,7 @@ export function Queue({
                         onClick={() => openSheet(item)}
                         aria-label={fill(labels.completeOf, item.title)}
                         title={labels.markDone}
-                        className="q-check inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
+                        className="q-check inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
                         data-testid="row-complete"
                       >
                         <Check size={16} strokeWidth={2.5} aria-hidden className="opacity-0" />
@@ -273,7 +274,7 @@ export function Queue({
                 {labels.more[g] && (
                   <p className="mt-2 px-1 text-[13px] text-muted" data-testid={`more-${g}`}>
                     {labels.more[g]}
-                    {g === 'suggested' && <> <Link href="/pipelines?owner=me" className="font-medium text-blue-text underline">{labels.backlogLink}</Link></>}
+                    {g === 'suggested' && <> <Link href="/pipelines?owner=me&vista=lista&paso=sin" className="font-medium text-blue-text underline">{labels.backlogLink}</Link></>}
                   </p>
                 )}
               </section>

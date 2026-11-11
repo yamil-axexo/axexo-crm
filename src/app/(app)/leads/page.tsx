@@ -10,6 +10,7 @@ import { LeadCall } from '@/ui/lead-call'
 import { LEAD_STATUS, MOTOR, SOURCE, lab, qs } from '@/lib/labels'
 import { createLeadAction, takeLeadAction } from './actions'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
+import { flat } from '@/server/params'
 
 /** Anillo de reloj: cuánto de la meta de primer contacto ya se consumió. Lleno y en rojo si se pasó; verde con palomita si ya hubo contacto. */
 function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'ok' | 'idle' }) {
@@ -30,7 +31,7 @@ function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'o
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
-  const sp = await searchParams
+  const sp = flat(await searchParams)
   const status = sp.status ?? 'open'
   const data = await listLeads(ctx, { ...sp, status: status === 'all' ? undefined : status })
   await track(ctx, 'view.leads')
@@ -146,7 +147,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     <div className="mt-3 flex pl-12 @3xl:mt-0 @3xl:justify-end @3xl:pl-0">
                       {canCall && (
                         <LeadCall
-                          item={{ type: 'lead', id: l.id, title: m('action.callOf', { name: l.business_name }), name: l.business_name, results: resultOptions(ctx, ['reached', 'no_answer', 'later']), defaultResult: null }}
+                          item={{ type: 'lead', id: l.id, title: m('action.callOf', { name: l.business_name }), name: l.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: null }}
                           tel={`tel:${l.phone}`}
                           take={!l.owner_id}
                           label={l.owner_id ? m('action.call') : m('leads.takeAndCall')}

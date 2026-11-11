@@ -10,12 +10,13 @@ import { ago, pct } from '@/lib/format'
 import { EXCEPTION, lab, qs } from '@/lib/labels'
 import { resolveExceptionAction, runRulesAction } from './actions'
 import { reassignAction } from '@/app/(app)/comercios/actions'
+import { flat } from '@/server/params'
 
 export default async function SupervisorPage({ searchParams }: { searchParams: Promise<{ market?: string; kind?: string; owner?: string }> }) {
   const ctx = await requireCtx()
   if (!ctx.can('board.supervisor')) notFound()
   const { t, locale } = ctx
-  const sp = await searchParams
+  const sp = flat(await searchParams)
   await ensureRulesFresh(await systemCtx())
   const board = await getSupervisorBoard(ctx, sp)
   const live = ctx.markets.filter((m) => m.status === 'live')
@@ -46,7 +47,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           />
         </div>
         {board.reps.length === 0 ? <div className="p-7"><Empty title={t('Sin vendedores en tu alcance', 'No sales reps in your scope')} /></div> : (
-          <Table testId="rep-table" head={<><th>{t('Vendedor', 'Rep')}</th><th>{t('Leads abiertos', 'Open leads')}</th><th>{t('Respuesta a tiempo', 'On-time response')}</th><th>{t('Deals abiertos', 'Open deals')}</th><th>{t('Sin próximo paso', 'No next step')}</th><th>{t('Revisitas', 'Revisits')}</th><th>{t('Esperando venta', 'Awaiting sale')}</th><th>{t('Visitas / con venta', 'Visits / with sale')}</th><th>{t('Cartera', 'Book')}</th></>}>
+          <Table testId="rep-table" head={<><th>{t('Vendedor', 'Rep')}</th><th>{t('Leads abiertos', 'Open leads')}</th><th>{t('Respuesta a tiempo', 'On-time response')}</th><th>{t('Negocios abiertos', 'Open deals')}</th><th>{t('Sin próximo paso', 'No next step')}</th><th>{t('Revisitas', 'Revisits')}</th><th>{t('Esperando venta', 'Awaiting sale')}</th><th>{t('Visitas / con venta', 'Visits / with sale')}</th><th>{t('Cartera', 'Book')}</th></>}>
             {board.reps.map((r) => (
               <tr key={`${r.id}-${r.market_code}`} className="table-row" data-testid="rep-row">
                 <td><span className="block font-semibold text-strong">{r.full_name}</span><span className="text-[12.5px] text-muted-2">{[r.team, r.market_code].filter(Boolean).join(' · ')}</span></td>
@@ -66,7 +67,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           <div className="border-t border-line px-7 py-5">
             <Dialog trigger={t('Reasignar una cartera completa', 'Reassign a whole book')} title={t('Reasignar cartera', 'Reassign book')} size="sm" testId="reassign-book">
               <ActionForm action={reassignAction} onOk="close" className="space-y-4">
-                <p className="text-[13.5px] text-muted-2">{t('Mueve todos los comercios de una persona a otra, con sus deals y tareas abiertas. La atribución anterior queda con fecha de cierre.', 'Moves all of one person’s merchants to another, with their open deals and tasks. The previous attribution is closed with a date.')}</p>
+                <p className="text-[13.5px] text-muted-2">{t('Mueve todos los comercios de una persona a otra, con sus negocios y tareas abiertas. La atribución anterior queda con fecha de cierre.', 'Moves all of one person’s merchants to another, with their open deals and tasks. The previous attribution is closed with a date.')}</p>
                 <Field label={t('Mercado', 'Market')}><select name="market" className="input" defaultValue={sp.market ?? live[0]?.code}>{live.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>
                 <Field label={t('De', 'From')}><select name="from_user_id" className="input" data-testid="book-from">{board.reps.map((r) => <option key={`${r.id}${r.market_code}`} value={r.id}>{r.full_name} · {r.market_code} ({r.accounts})</option>)}</select></Field>
                 <Field label={t('A', 'To')}><select name="to_user_id" className="input" data-testid="book-to">{people.map((p) => <option key={`${p.id}${p.market_code}`} value={p.id}>{p.full_name} · {p.market_code}</option>)}</select></Field>
