@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { ctxFor, owner, systemContext } from './helpers'
 import { completeItem } from '@/domain/queue'
-import { getQueue, getTeamQueue } from '@/dal/queue'
+import { getQueue, getTeamQueue, SUGGESTED_PER_DAY } from '@/dal/queue'
 import { createLead, takeLead } from '@/domain/leads'
 import { moveDeal } from '@/domain/deals'
 import { addActivity } from '@/domain/activities'
@@ -92,7 +92,7 @@ describe('cola de Hoy: completar siempre pide el próximo paso (handoff, secció
     const marco = await ctxFor('marco.pena')
     const sys = await systemContext()
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
-    const s = (await getQueue(marco)).rows.find((r) => r.type === 'suggestion' && r.kind !== 'no_next_step' && (r.accountId || r.dealId))
+    const s = (await getQueue(marco)).rows.find((r) => r.type === 'suggestion' && (r.accountId || r.dealId))
     expect(s, 'el seed deja sugerencias a Marco').toBeTruthy()
     const out = await completeItem(marco, { type: 'suggestion', id: s!.id, result: 'reached', next: 'meeting', when: tomorrow })
     expect(out.next).toContain('Reunión con')
@@ -189,5 +189,43 @@ describe('tomar un lead y mover un negocio', () => {
     expect(await one(admin`select stage_id, next_step, next_step_due::text as due from crm.deals where id = ${d.id}`)).toMatchObject({ stage_id: to, next_step: 'Volver con la dueña', due: tomorrow })
     expect((await admin`select 1 from crm.activities where deal_id = ${d.id} and kind = 'task' and done_at is null and subject = 'Volver con la dueña'`).length).toBe(1)
     expect((await admin`select 1 from crm.deal_stage_events where deal_id = ${d.id} and to_stage_id = ${to}`).length).toBe(1)
+  })
+})
+
+describe('cola de Hoy: el rezago no la inunda', () => {
+  it('entran las sugerencias más importantes, una por registro, y se dice cuántas más hay', async () => {
+    const lucia = await ctxFor('lucia.vega')
+    const sys = await systemContext()
+    // Un rezago como el de una importación: muchos negocios abiertos sin próximo paso
+    await admin`update crm.deals set next_step = null, next_step_due = null where owner_id = ${lucia.user.id} and status = 'open'`
+    await withUser(sys.user.id, (tx) => evaluateRules(tx))
+    const total = (await one(admin<{ n: number }[]>`select count(distinct coalesce(deal_id, account_id, lead_id, id))::int as n from crm.exceptions where resolved_at is null and owner_id = ${lucia.user.id} and kind <> 'lead_sla'`)).n
+    expect(total).toBeGreaterThan(SUGGESTED_PER_DAY)
+    const q = await getQueue(lucia)
+    const suggested = q.rows.filter((r) => r.type === 'suggestion')
+    expect(suggested.length).toBe(SUGGESTED_PER_DAY)
+    expect(q.counts.suggested).toBe(SUGGESTED_PER_DAY)
+    expect(q.backlog).toBe(total - SUGGESTED_PER_DAY)
+    const records = suggested.map((r) => r.dealId ?? r.accountId ?? r.leadId ?? r.id)
+    expect(new Set(records).size).toBe(records.length)
+    // si un negocio no tiene próximo paso y además está estancado, se sugiere una sola vez, por lo primero
+    const both = await admin`select 1 from crm.exceptions a join crm.exceptions b on b.deal_id = a.deal_id and b.kind = 'stalled_deal' and b.resolved_at is null
+                              where a.kind = 'no_next_step' and a.resolved_at is null and a.id = any(${suggested.map((r) => r.id)}::uuid[])`
+    expect(suggested.filter((r) => r.kind === 'stalled_deal' && both.length > 0 && suggested.some((o) => o.dealId === r.dealId && o.kind === 'no_next_step')).length).toBe(0)
+  })
+
+  it('un lead sin reloj de primer contacto (el que llega de una importación) no entra a Hoy ni al aviso del dock', async () => {
+    const marco = await ctxFor('marco.pena')
+    const id = (await one(admin<{ id: string }[]>`
+      insert into crm.leads (market_code, source, motor, business_name, contact_name, phone, status, owner_id, sla_due_at, created_at)
+      values ('MX', 'import', 'd2d', ${`Lead Importado ${tag()}`}, 'Persona', ${'+52555' + Math.floor(1000000 + Math.random() * 8999999)}, 'new', ${marco.user.id}, null, now() - interval '40 days') returning id`)).id
+    const before = (await getQueue(marco)).counts
+    expect((await getQueue(marco)).rows.find((r) => r.id === id)).toBeUndefined()
+    const { dockCounts } = await import('@/dal/boards')
+    const waiting = (await dockCounts(marco)).leadsWaiting
+    await admin`update crm.leads set sla_due_at = now() + interval '30 minutes' where id = ${id}`
+    expect((await getQueue(marco)).rows.find((r) => r.id === id)).toMatchObject({ type: 'lead', group: 'today' })
+    expect((await getQueue(marco)).counts.today).toBe(before.today + 1)
+    expect((await dockCounts(marco)).leadsWaiting).toBe(waiting + 1)
   })
 })

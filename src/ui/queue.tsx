@@ -43,6 +43,7 @@ export type QueueLabels = {
   groups: Record<QueueGroup, string>
   emptyTitle: string
   emptyBody: string
+  backlogLink: string
 }
 
 const CHIP = {
@@ -269,7 +270,12 @@ export function Queue({
                     </li>
                   ))}
                 </ul>
-                {labels.more[g] && <p className="mt-2 px-1 text-[13px] text-muted">{labels.more[g]}</p>}
+                {labels.more[g] && (
+                  <p className="mt-2 px-1 text-[13px] text-muted" data-testid={`more-${g}`}>
+                    {labels.more[g]}
+                    {g === 'suggested' && <> <Link href="/pipelines?owner=me" className="font-medium text-blue-text underline">{labels.backlogLink}</Link></>}
+                  </p>
+                )}
               </section>
             )
           })}

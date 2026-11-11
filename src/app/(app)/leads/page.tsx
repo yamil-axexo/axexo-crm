@@ -52,7 +52,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       const late = due !== null && due < now.getTime()
       const total = due !== null ? due - new Date(l.created_at).getTime() : 0
       return {
-        waiting: true, late, ring: late ? ('risk' as const) : ('warn' as const), fraction: late || total <= 0 ? 1 : (now.getTime() - new Date(l.created_at).getTime()) / total,
+        waiting: true, late, ring: late ? ('risk' as const) : due === null ? ('idle' as const) : ('warn' as const), fraction: late || total <= 0 ? 1 : (now.getTime() - new Date(l.created_at).getTime()) / total,
         chip: late ? m('leads.state.late') : m('leads.state.waiting'), chipClass: late ? 'bg-risk-bg text-red-text' : 'bg-warn-bg text-amber-text',
         note: due === null ? '' : late ? m('leads.clock.late', { time: span(now.getTime() - due) }) : m('leads.clock.left', { time: span(due - now.getTime()) }),
       }

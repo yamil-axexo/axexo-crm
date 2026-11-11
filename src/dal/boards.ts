@@ -148,12 +148,12 @@ export async function track(ctx: Ctx, event: string): Promise<void> {
   })
 }
 
-/** Lo que el dock necesita saber en cada pantalla: cuántos leads propios (o sin dueño, si puede repartir) siguen sin primer contacto. */
+/** Lo que el dock necesita saber en cada pantalla: cuántos leads propios (o sin dueño, si puede repartir) tienen el reloj de primer contacto corriendo. Los que llegaron de una importación no traen reloj y no cuentan aquí. */
 export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number }> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ n: number }[]>`
       select count(*)::int as n from crm.leads l
-       where l.status = 'new' and l.first_touch_at is null and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.assign')}))`
+       where l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.assign')}))`
     return { leadsWaiting: rows[0]?.n ?? 0 }
   })
 }

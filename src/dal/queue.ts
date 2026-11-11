@@ -22,10 +22,17 @@ export type QueueRow = {
   stage: string | null
   detail: Record<string, unknown>
 }
-export type Queue = { rows: QueueRow[]; counts: Record<QueueGroup, number>; tz: string }
+export type Queue = { rows: QueueRow[]; counts: Record<QueueGroup, number>; backlog: number; tz: string }
 
 /** Cuántas filas trae la cola por grupo. Lo que no cabe se cuenta y se anuncia ("Y n más"). */
 export const QUEUE_PAGE = 25
+
+/**
+ * Cuántas sugerencias entran a Hoy. Las reglas pueden tener miles de registros abiertos (por ejemplo, tras importar
+ * un CRM anterior, donde casi ningún negocio trae próximo paso): Hoy muestra las más importantes, una por registro,
+ * y dice cuántas más hay. El resto se trabaja en Negocios y Comercios, con sus filtros.
+ */
+export const SUGGESTED_PER_DAY = 5
 
 /**
  * La cola de Hoy de una persona (handoff, sección 6), en orden de urgencia:
@@ -43,8 +50,8 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
 
     const leads = await tx<{ id: string; business_name: string; phone: string | null; market_code: string; sla_due_at: Date | null; created_at: Date; source: string }[]>`
       select l.id, l.business_name, l.phone, l.market_code, l.sla_due_at, l.created_at, l.source from crm.leads l
-       where l.owner_id = ${me} and l.status = 'new' and l.first_touch_at is null
-       order by l.sla_due_at nulls last limit ${QUEUE_PAGE}`
+       where l.owner_id = ${me} and l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null
+       order by l.sla_due_at limit ${QUEUE_PAGE}`
     const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; created_at: Date; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; name: string | null; phone: string | null; stage: string | null }[]>`
       select a.id, a.kind, a.subject, a.due_at, a.created_at, a.market_code, a.account_id, a.deal_id, a.lead_id,
              coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, l.phone) as phone, ${ctx.locale === 'en' ? tx`s.name_en` : tx`s.name_es`} as stage
@@ -56,20 +63,27 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
        where a.owner_id = ${me} and a.done_at is null and a.kind in ('task', 'handoff', 'call', 'meeting', 'email')
          and (a.due_at is null or a.due_at < ${end})
        order by a.due_at nulls last, a.created_at limit ${QUEUE_PAGE * 2}`
+    // Una sugerencia por registro (si un negocio no tiene próximo paso y además está estancado, gana "sin próximo paso"),
+    // primero las de mayor severidad y, entre iguales, los negocios de mayor monto y los más recientes.
     const suggestions = await tx<{ id: string; kind: string; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; detail: Record<string, unknown>; opened_at: Date; name: string | null; phone: string | null }[]>`
-      select e.id, e.kind, e.market_code, e.account_id, e.deal_id, e.lead_id, e.detail, e.opened_at,
-             coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, l.phone) as phone
-        from crm.exceptions e
-        left join crm.accounts ac on ac.id = e.account_id
-        left join crm.leads l on l.id = e.lead_id
-       where e.resolved_at is null and e.owner_id = ${me} and e.kind <> 'lead_sla'
-       order by case e.severity when 'high' then 0 when 'medium' then 1 else 2 end, e.opened_at limit ${QUEUE_PAGE}`
+      select * from (
+        select distinct on (coalesce(e.deal_id, e.account_id, e.lead_id, e.id))
+               e.id, e.kind, e.severity, e.market_code, e.account_id, e.deal_id, e.lead_id, e.detail, e.opened_at,
+               coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, l.phone) as phone, d.amount_minor, d.created_at as deal_created
+          from crm.exceptions e
+          left join crm.accounts ac on ac.id = e.account_id
+          left join crm.leads l on l.id = e.lead_id
+          left join crm.deals d on d.id = e.deal_id
+         where e.resolved_at is null and e.owner_id = ${me} and e.kind <> 'lead_sla'
+         order by coalesce(e.deal_id, e.account_id, e.lead_id, e.id), (e.kind = 'no_next_step') desc, e.opened_at) s
+       order by case s.severity when 'high' then 0 when 'medium' then 1 else 2 end, s.amount_minor desc nulls last, s.deal_created desc nulls last, s.opened_at desc
+       limit ${SUGGESTED_PER_DAY}`
     const totals = await tx<{ leads_late: number; leads_today: number; tasks_late: number; tasks_today: number; suggested: number }[]>`
       select (select count(*)::int from crm.leads where owner_id = ${me} and status = 'new' and first_touch_at is null and sla_due_at < now()) as leads_late,
-             (select count(*)::int from crm.leads where owner_id = ${me} and status = 'new' and first_touch_at is null and (sla_due_at is null or sla_due_at >= now())) as leads_today,
+             (select count(*)::int from crm.leads where owner_id = ${me} and status = 'new' and first_touch_at is null and sla_due_at >= now()) as leads_today,
              (select count(*)::int from crm.activities where owner_id = ${me} and done_at is null and kind in ('task', 'handoff', 'call', 'meeting', 'email') and due_at < ${start}) as tasks_late,
              (select count(*)::int from crm.activities where owner_id = ${me} and done_at is null and kind in ('task', 'handoff', 'call', 'meeting', 'email') and (due_at is null or (due_at >= ${start} and due_at < ${end}))) as tasks_today,
-             (select count(*)::int from crm.exceptions where resolved_at is null and owner_id = ${me} and kind <> 'lead_sla') as suggested`
+             (select count(distinct coalesce(deal_id, account_id, lead_id, id))::int from crm.exceptions where resolved_at is null and owner_id = ${me} and kind <> 'lead_sla') as suggested`
     const c = totals[0]!
     const now = new Date()
 
@@ -87,7 +101,8 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
         market: e.market_code, due: null, created: e.opened_at, accountId: e.account_id, dealId: e.deal_id, leadId: e.lead_id, stage: null, detail: e.detail,
       })),
     ]
-    return { rows, counts: { late: c.leads_late + c.tasks_late, today: c.leads_today + c.tasks_today, suggested: c.suggested }, tz }
+    const shown = Math.min(c.suggested, SUGGESTED_PER_DAY)
+    return { rows, counts: { late: c.leads_late + c.tasks_late, today: c.leads_today + c.tasks_today, suggested: shown }, backlog: c.suggested - shown, tz }
   })
 }
 
@@ -105,7 +120,7 @@ export async function getTeamQueue(ctx: Ctx): Promise<TeamRow[]> {
              (select count(*)::int from crm.activities a where a.owner_id = u.id and a.done_at is null and a.kind in ('task', 'handoff', 'call', 'meeting', 'email')
                 and a.due_at < date_trunc('day', now() at time zone ${tz}) at time zone ${tz})
              + (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()) as late,
-             (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null) as leads_waiting,
+             (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null) as leads_waiting,
              (select count(*)::int from crm.deals d join crm.stages s on s.id = d.stage_id
                where d.owner_id = u.id and d.status = 'open' and s.kind = 'open' and d.created_at < now() - make_interval(days => ${COLD_DAYS})
                  and not exists (select 1 from crm.activities a where a.deal_id = d.id and coalesce(a.done_at, a.created_at) > now() - make_interval(days => ${COLD_DAYS}))) as cold

@@ -171,9 +171,9 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     now: m('today.now'), call: m('action.call'), whatsapp: m('action.whatsapp'), open: m('action.open'), done: m('action.done'), markDone: m('action.markDone'), noPhone: m('action.noPhone'),
     completeOf: m('action.completeOf', { title: '%s' }), callOf: m('action.callOf', { name: '%s' }), whatsappOf: m('action.whatsappOf', { name: '%s' }),
     clock: m('today.leadClock', { time: '%s' }), clockLate: m('today.leadClockLate', { time: '%s' }),
-    more: { late: more('late'), today: more('today'), suggested: more('suggested') },
+    more: { late: more('late'), today: more('today'), suggested: q.backlog > 0 ? m('today.backlog', { count: q.backlog }) : null },
     groups: { late: m('today.group.late'), today: m('today.group.today'), suggested: m('today.group.suggested') },
-    emptyTitle: m('today.empty.title'), emptyBody: m('today.empty.body'),
+    emptyTitle: m('today.empty.title'), emptyBody: m('today.empty.body'), backlogLink: m('today.backlogLink'),
   }
 
   return (
