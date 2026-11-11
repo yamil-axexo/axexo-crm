@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getAccount, parentOptions } from '@/dal/accounts'
 import { sellers } from '@/dal/leads'
-import { Badge, Card, CardTitle, Field, KeyVal, PageHeader, Stat } from '@/ui/kit'
+import { fieldDefs } from '@/dal/fields'
+import { CustomFields } from '@/ui/fields'
+import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, Stat } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { ago, day, dayTime, money, num } from '@/lib/format'
 import { ACTIVITY, ALIAS_SYSTEM, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
@@ -24,6 +26,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
   const canReassign = !a.archived_at && ctx.can('account.reassign', a.market_code)
   const canSell = !a.archived_at && ctx.can('deal.create', a.market_code)
   const [people, parents] = canReassign ? await Promise.all([sellers(ctx, a.market_code), parentOptions(ctx, a.market_code)]) : [[], []]
+  const defs = await fieldDefs(ctx, 'account', a.market_code)
   const isParent = a.kind !== 'store'
   const openDeal = deals.find((d) => d.status === 'open')
   const today = new Date().toISOString().slice(0, 10)
@@ -118,6 +121,14 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
                   </li>
                 ))}
               </ul>
+            </Card>
+          )}
+
+          {defs.length > 0 && (
+            <Card data-testid="account-custom">
+              <CardTitle title={t('Campos adicionales', 'Additional fields')} />
+              <CustomFields defs={defs} values={a.custom} t={t} locale={locale}
+                action={canEdit ? <LinkButton href={`/comercios/${a.id}/campos`} size="sm" testId="custom-edit">{t('Editar campos', 'Edit fields')}</LinkButton> : undefined} />
             </Card>
           )}
 

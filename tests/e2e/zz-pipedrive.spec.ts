@@ -1,0 +1,78 @@
+import { test, expect } from '@playwright/test'
+import { loginAs, pageErrors } from './helpers'
+
+// Corre al final (zz-): la importación agrega cientos de registros y las demás pruebas cuentan sobre los datos sintéticos.
+test.describe.configure({ mode: 'serial' })
+
+test('administración importa Pipedrive completo desde la pantalla y ve qué entró y qué no', async ({ page }) => {
+  test.setTimeout(180_000)
+  const errors = pageErrors(page)
+  await loginAs(page, 'nora.salas')
+  await page.goto('/admin?tab=pipedrive')
+  await expect(page.getByTestId('import-status')).toContainText('sin correr')
+  await expect(page.getByTestId('import-no-token')).toHaveCount(0)
+  await page.getByTestId('import-full').click()
+  await expect(page.getByTestId('import-runner')).toBeVisible()
+  await expect(page.getByTestId('import-status')).toContainText('completa', { timeout: 150_000 })
+  await expect(page.getByTestId('import-phase')).toContainText('Terminó')
+
+  await expect(page.getByTestId('count-organization')).toContainText('520')
+  await expect(page.getByTestId('count-organization').getByTestId('count-created')).toHaveText('519')
+  await expect(page.getByTestId('count-organization')).toContainText('1 sin mercado identificable')
+  await expect(page.getByTestId('count-deal')).toContainText('1 embudo fuera de US y MX')
+  await expect(page.getByTestId('import-pipeline-row')).toHaveCount(3)
+  await expect(page.getByTestId('import-pipelines')).toContainText('US - Sales Orders')
+  await expect(page.getByTestId('mapping-account')).toContainText('Tax ID')
+  await expect(page.getByTestId('mapping-account')).toContainText('Solo los últimos 4 caracteres')
+  await expect(page.getByTestId('import-issues')).toContainText('CO - Pilot')
+  await expect(page.getByTestId('webhook-row')).toContainText('https://hooks.example.com/…')
+  await expect(page.getByTestId('import-users')).toContainText('Personas de Pipedrive: 3')
+  await expect(page.getByTestId('import-delta')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('un comercio importado muestra sus campos de Pipedrive y se pueden editar', async ({ page }) => {
+  await loginAs(page, 'nora.salas')
+  await page.goto('/buscar?q=EM-1001')
+  await page.getByRole('link', { name: /Abarrotes La Esperanza \(sintético\)/ }).first().click()
+  await expect(page.getByTestId('account-facts')).toBeVisible()
+  const card = page.getByTestId('account-custom')
+  await expect(card).toContainText('Monthly Volume')
+  await expect(card).toContainText('48,250.75')
+  await expect(card).toContainText('H2O, Lyca')
+  await expect(card).not.toContainText('XAXX')
+  await expect(page.getByTestId('account-aliases')).toContainText('EM-1001')
+  await card.getByTestId('custom-edit').click()
+  await expect(page).toHaveURL(/\/campos$/)
+  await page.getByTestId('custom-filter').fill('monthly')
+  const input = page.getByTestId('custom-input').filter({ hasText: 'Monthly Volume' }).locator('input')
+  await input.fill('51000')
+  await page.getByTestId('custom-save').click()
+  await expect(page.getByTestId('form-ok')).toContainText('1 campo')
+  await page.getByTestId('custom-back').click()
+  await expect(page.getByTestId('account-custom')).toContainText('51,000')
+})
+
+test('los embudos importados operan: un pedido se gana a mano, un alta no', async ({ page }) => {
+  await loginAs(page, 'nora.salas')
+  await page.goto('/buscar?q=Order 4471')
+  await page.getByRole('link', { name: /Order 4471/ }).first().click()
+  await expect(page.getByTestId('deal-items')).toContainText('SIM kit (synthetic)')
+  await page.getByTestId('deal-win').click()
+  await expect(page.getByTestId('deal-move')).toHaveCount(0)
+  await expect(page.locator('body')).toContainText('Ganado')
+
+  await page.goto('/buscar?q=Alta La Esperanza')
+  await page.getByRole('link', { name: /Alta La Esperanza/ }).first().click()
+  await expect(page.getByTestId('deal-custom')).toContainText('Field canvass')
+  await expect(page.getByTestId('deal-win')).toHaveCount(0)
+})
+
+test('quien vende en MX ve lo importado de su mercado y no la pestaña de migración', async ({ page }) => {
+  await loginAs(page, 'marco.pena')
+  const res = await page.goto('/admin?tab=pipedrive')
+  expect(res?.status()).toBe(404)
+  await page.goto('/pipelines')
+  await expect(page.locator('body')).toContainText('MX - D2D Store Enrollment')
+  await expect(page.locator('body')).not.toContainText('US - Sales Orders')
+})

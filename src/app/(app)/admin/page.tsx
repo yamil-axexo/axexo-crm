@@ -11,10 +11,14 @@ import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader, Pills, Ta
 import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
 import { ago, day, dayTime, num } from '@/lib/format'
 import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
-import { createApiClientAction, endMembershipAction, grantMembershipAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction } from './actions'
+import { configurePipelineAction, createApiClientAction, endMembershipAction, grantMembershipAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction } from './actions'
+import { PipedriveTab } from './pipedrive'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 
-const TABS = ['personas', 'embudos', 'entrada', 'integraciones', 'calidad', 'auditoria'] as const
+// La importación corre por pasos cortos; aun así se le da margen a cada llamada.
+export const maxDuration = 60
+
+const TABS = ['personas', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'auditoria'] as const
 type Tab = (typeof TABS)[number]
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; before?: string }> }) {
@@ -30,6 +34,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     embudos: t('Embudos y campos', 'Pipelines and fields'),
     entrada: t('Formularios y turnos', 'Forms and rotation'),
     integraciones: t('Integraciones', 'Integrations'),
+    pipedrive: 'Pipedrive',
     calidad: t('Calidad de datos', 'Data quality'),
     auditoria: t('Auditoría', 'Audit'),
   }
@@ -44,6 +49,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === 'embudos' && <Config />}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}
+      {tab === 'pipedrive' && <PipedriveTab ctx={ctx} />}
       {tab === 'calidad' && <Quality />}
       {tab === 'auditoria' && <Audit />}
     </>
@@ -104,17 +110,31 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               {d.stages.filter((s) => s.pipeline_id === p.id).map((s) => (
                 <tr key={s.position} className="table-row">
                   <td className="num text-muted">{s.position}</td>
-                  <td><span className="font-semibold text-strong">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2"><Badge tone="info">{t('espera a S5', 'waits for S5')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{t('solo por transacción', 'by transaction only')}</Badge></span>}</td>
+                  <td><span className="font-semibold text-strong">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2"><Badge tone="info">{t('espera a S5', 'waits for S5')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{p.close_by_transaction ? t('solo por transacción', 'by transaction only') : t('cierre manual', 'closed by hand')}</Badge></span>}</td>
                   <td className="text-[13.5px] text-muted-2">{[...(s.kind === 'open' ? ['next_step'] : []), ...s.required_fields].filter((v, i, a) => a.indexOf(v) === i).map((f) => t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f)).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : '—')}</td>
                   <td className="text-[13.5px] text-muted-2">{t(s.exit_es, s.exit_en) || '—'}</td>
                   <td className="num text-[13.5px]">{s.rot_days ? t(`${s.rot_days} días`, `${s.rot_days} days`) : '—'}</td>
                 </tr>
               ))}
             </Table>
+            {admin && (
+              <ActionForm action={configurePipelineAction} className="flex flex-wrap items-end gap-5 border-t border-line px-7 py-5" testId="pipeline-config">
+                <input type="hidden" name="pipeline_id" value={p.id} />
+                <label className="flex items-center gap-2 pb-3 text-[13.5px]"><input type="checkbox" name="close_by_transaction" className="h-4 w-4" defaultChecked={p.close_by_transaction} data-testid="pipeline-cbt" />{t('Se gana con la primera transacción (S5)', 'Won by the first transaction (S5)')}</label>
+                <Field label={t('Etapa que espera la transacción', 'Stage that waits for the transaction')}>
+                  <select name="awaiting_stage_id" className="input !w-64" defaultValue={d.stages.find((s) => s.pipeline_id === p.id && s.kind === 'awaiting_txn')?.id ?? ''}>
+                    <option value="">{t('Ninguna', 'None')}</option>
+                    {d.stages.filter((s) => s.pipeline_id === p.id && (s.kind === 'open' || s.kind === 'awaiting_txn')).map((s) => <option key={s.id} value={s.id}>{t(s.name_es, s.name_en)}</option>)}
+                  </select>
+                </Field>
+                <Submit variant="ghost" size="sm" testId="pipeline-config-save">{t('Guardar', 'Save')}</Submit>
+              </ActionForm>
+            )}
           </Card>
         ))}
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
           <Card><CardTitle title={t('Registro de campos', 'Field registry')} hint={t('Los campos por mercado son metadata: se agregan sin tocar el esquema.', 'Per-market fields are metadata: they are added without touching the schema.')} />
+            {d.imported.length > 0 && <p className="mb-4 text-[13.5px] text-muted-2" data-testid="imported-fields">{t('Importados de Pipedrive: ', 'Imported from Pipedrive: ')}{d.imported.map((x) => `${x.object} ${x.n}`).join(' · ')}. <Link href="/admin?tab=pipedrive" className="underline">{t('Ver el mapeo', 'See the mapping')}</Link></p>}
             <ul className="space-y-2.5">{d.fields.map((f) => <li key={`${f.object}${f.key}${f.market_code}`} className="flex items-center justify-between gap-3 text-[14px]"><span><code className="text-[12.5px] text-muted-2">{f.object}.{f.key}</code> <span className="ml-2 font-medium text-strong">{t(f.label_es, f.label_en)}</span></span><span className="flex gap-2"><Badge>{f.market_code ?? t('todos', 'all')}</Badge><Badge>{f.data_class}</Badge></span></li>)}</ul>
           </Card>
           <Card><CardTitle title={t('Motivos codificados', 'Coded reasons')} hint={t('Mismos códigos en todos los mercados; la etiqueta cambia con el idioma.', 'Same codes in every market; the label changes with the language.')} />

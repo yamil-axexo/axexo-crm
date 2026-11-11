@@ -7,6 +7,8 @@ import { env } from '@/env'
 import { createApiClient, endMembership, grantMembership, revokeApiClient, setRoutingMembers } from '@/domain/admin'
 import { ingestMetricsFile, ingestSalesAppEvent } from '@/domain/integrations'
 import { forbidden, invalid, type ActionResult } from '@/lib/errors'
+import { configurePipeline } from '@/domain/custom'
+import { cancelImport, importStep, purgeRaw, resumeImport, startImport, type Mode, type StepResult } from '@/domain/pipedrive/import'
 
 type R = ActionResult<unknown>
 
@@ -116,4 +118,48 @@ export async function simulateMetricsAction(_: R | null, fd: FormData): Promise<
     if (out.matched === 0) throw invalid('Ese ID no corresponde a ningún comercio.', 'That ID does not match any merchant.')
     return { message: [`Archivo cargado: ${out.matched} comercio, ${out.dealsWon} deal ganado por primera transacción.`, `File loaded: ${out.matched} merchant, ${out.dealsWon} deal won by first transaction.`] }
   })
+}
+
+export async function configurePipelineAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await configurePipeline(ctx, str(fd, 'pipeline_id'), { closeByTransaction: fd.get('close_by_transaction') === 'on', awaitingStageId: str(fd, 'awaiting_stage_id') || null })
+    return { message: ['Embudo actualizado.', 'Pipeline updated.'] }
+  })
+}
+
+// ---------------------------------------------------------------- migración desde Pipedrive
+export async function startImportAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const mode = str(fd, 'mode')
+    if (mode !== 'full' && mode !== 'delta' && mode !== 'remap') throw invalid('Modo no válido.', 'Invalid mode.')
+    await startImport(ctx, mode as Mode)
+    return { message: ['Importación iniciada. Deja esta pestaña abierta: avanza sola.', 'Import started. Keep this tab open: it moves forward on its own.'] }
+  })
+}
+
+export async function resumeImportAction(_: R | null, _fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await resumeImport(ctx)
+    return { message: ['Importación reanudada.', 'Import resumed.'] }
+  })
+}
+
+export async function cancelImportAction(_: R | null, _fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await cancelImport(ctx)
+    return { message: ['Importación detenida. Lo ya cargado se queda.', 'Import stopped. What was already loaded stays.'] }
+  })
+}
+
+export async function purgeRawAction(_: R | null, _fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const n = await purgeRaw(ctx)
+    return { message: [`Copia cruda vaciada: ${n} filas.`, `Raw copy emptied: ${n} rows.`] }
+  })
+}
+
+/** La pantalla llama a este paso una y otra vez mientras la corrida esté activa. Cada llamada trabaja unos segundos. */
+export async function importStepAction(): Promise<StepResult> {
+  const res = await runAction<StepResult>(async (ctx) => ({ data: await importStep(ctx), revalidate: [] }))
+  return res.ok && res.data ? res.data : { status: 'failed' }
 }
