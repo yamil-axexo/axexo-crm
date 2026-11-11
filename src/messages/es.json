@@ -233,5 +233,7 @@
   "leads.minutes": "{count} min",
   "leads.hours": "{count} h",
   "leads.days": "{count, plural, one {# día} other {# días}}",
+  "offline.banner": "Sin señal. Lo que ya está en pantalla se puede leer; para guardar o abrir otra cosa, reconéctate.",
+  "offline.tag": "sin señal",
   "common.at": "{date}, {time}"
 }

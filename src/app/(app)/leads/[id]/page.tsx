@@ -104,11 +104,11 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             {canWork && open && (
               <ActionForm action={addActivityAction} onOk="reset" className="mb-6">
                 <input type="hidden" name="lead_id" value={lead.id} />
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <select name="kind" className="input !w-40" aria-label={t('Tipo', 'Type')}>
                     <option value="note">{lab(t, ACTIVITY.note)}</option><option value="call">{lab(t, ACTIVITY.call)}</option>
                   </select>
-                  <input name="subject" className="input" required minLength={2} placeholder={t('¿Qué pasó?', 'What happened?')} />
+                  <input name="subject" className="input !w-auto min-w-[200px] flex-1" required minLength={2} placeholder={t('¿Qué pasó?', 'What happened?')} />
                   <Submit variant="ghost">{t('Agregar', 'Add')}</Submit>
                 </div>
               </ActionForm>
@@ -146,7 +146,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             {canAssign && open && (
               <ActionForm action={leadStepAction} className="mt-5">
                 <input type="hidden" name="id" value={lead.id} />
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <select name="owner_id" className="input" defaultValue={lead.owner_id ?? ''} aria-label={t('Reasignar a', 'Reassign to')}>
                     {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                   </select>

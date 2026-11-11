@@ -147,7 +147,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   </select>
                 </Field>
                 <label className="flex items-center gap-3 self-end pb-3 text-[14px]">
-                  <input type="checkbox" name="decision_maker_met" defaultChecked={deal.decision_maker_met} className="h-5 w-5 accent-[#ff7a1f]" data-testid="decision-maker-met" />
+                  <input type="checkbox" name="decision_maker_met" defaultChecked={deal.decision_maker_met} className="h-5 w-5" data-testid="decision-maker-met" />
                   {t('Ya hablé con el decisor', 'I have spoken with the decision-maker')}
                 </label>
                 <div className="col-span-2 flex justify-end"><Submit variant="ghost" testId="deal-save">{t('Guardar', 'Save')}</Submit></div>
@@ -182,11 +182,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             {ctx.can('activity.write', deal.market_code) && (
               <ActionForm action={addActivityAction} onOk="reset" className="mb-6">
                 <input type="hidden" name="deal_id" value={deal.id} />
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <select name="kind" className="input !w-40" aria-label={t('Tipo', 'Type')}>
                     <option value="note">{lab(t, ACTIVITY.note)}</option><option value="call">{lab(t, ACTIVITY.call)}</option><option value="meeting">{lab(t, ACTIVITY.meeting)}</option>
                   </select>
-                  <input name="subject" className="input" required minLength={2} placeholder={t('¿Qué pasó?', 'What happened?')} data-testid="note-subject" />
+                  <input name="subject" className="input !w-auto min-w-[200px] flex-1" required minLength={2} placeholder={t('¿Qué pasó?', 'What happened?')} data-testid="note-subject" />
                   <Submit variant="ghost" testId="note-add">{t('Agregar', 'Add')}</Submit>
                 </div>
               </ActionForm>

@@ -115,3 +115,20 @@ test('la pantalla de entrada pasa accesibilidad AA en los tres anchos', async ({
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${w.name}-login.png` })
   }
 })
+
+test('sin señal: aparece el aviso y guardar queda deshabilitado con su etiqueta; al volver la señal todo regresa', async ({ page, context }) => {
+  await loginAs(page, 'marco.pena')
+  await page.goto('/leads')
+  await page.getByTestId('new-lead').click()
+  const save = page.getByTestId('save-lead')
+  await expect(save).toBeEnabled()
+  await expect(page.getByTestId('offline-banner')).toHaveCount(0)
+  await context.setOffline(true)
+  await expect(page.getByTestId('offline-banner')).toContainText('Sin señal')
+  await expect(save).toHaveCSS('pointer-events', 'none')
+  await expect(save).toHaveCSS('border-top-style', 'dashed')
+  expect(await save.evaluate((el) => getComputedStyle(el, '::after').content)).toContain('sin señal')
+  await context.setOffline(false)
+  await expect(page.getByTestId('offline-banner')).toHaveCount(0)
+  await expect(save).toHaveCSS('pointer-events', 'auto')
+})

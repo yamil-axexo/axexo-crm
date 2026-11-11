@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Inbox, Kanban, Plus, Search, Store, Sun } from 'lucide-react'
@@ -155,5 +155,37 @@ export function AccountMenu({ initials, label, children }: { initials: string; l
         {children}
       </div>
     </div>
+  )
+}
+
+const onNetwork = (cb: () => void) => {
+  window.addEventListener('online', cb)
+  window.addEventListener('offline', cb)
+  return () => {
+    window.removeEventListener('online', cb)
+    window.removeEventListener('offline', cb)
+  }
+}
+
+/**
+ * Aviso sin conexión (handoff, sección 5). Mientras no hay señal, guardar queda deshabilitado con borde punteado
+ * y la etiqueta "sin señal" (regla en globals.css sobre html[data-offline]).
+ * La lectura sin conexión con datos guardados en el equipo no está construida: requiere decisión explícita (ADR-006).
+ */
+export function OfflineBanner({ text, tag }: { text: string; tag: string }) {
+  const offline = useSyncExternalStore(onNetwork, () => !navigator.onLine, () => false)
+  useEffect(() => {
+    const root = document.documentElement
+    if (offline) {
+      root.setAttribute('data-offline', '')
+      root.style.setProperty('--offline-tag', JSON.stringify(` · ${tag}`))
+    } else root.removeAttribute('data-offline')
+    return () => root.removeAttribute('data-offline')
+  }, [offline, tag])
+  if (!offline) return null
+  return (
+    <p role="status" className="border-b border-[#f0d9a8] bg-warn-bg px-4 py-2.5 text-center text-[14px] font-medium text-amber-text" data-testid="offline-banner">
+      {text}
+    </p>
   )
 }

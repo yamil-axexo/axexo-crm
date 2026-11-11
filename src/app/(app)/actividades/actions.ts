@@ -1,14 +1,8 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
-import { addActivity, completeTask } from '@/domain/activities'
+import { addActivity } from '@/domain/activities'
 import type { ActionResult } from '@/lib/errors'
-
-export async function completeTaskAction(_: ActionResult<unknown> | null, fd: FormData): Promise<ActionResult<unknown>> {
-  return runAction(async (ctx) => {
-    await completeTask(ctx, str(fd, 'id'))
-  })
-}
 
 export async function addActivityAction(_: ActionResult<unknown> | null, fd: FormData): Promise<ActionResult<unknown>> {
   return runAction(async (ctx) => {

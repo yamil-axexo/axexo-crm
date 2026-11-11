@@ -44,3 +44,6 @@ Guided tour, help pages, reports page, automations page, the Pipedrive parity pa
 
 ## Added after the first cut: Pipedrive replacement
 Read-only import of the Pipedrive configuration and records for US and MX, custom fields on merchants and deals, products on deals, and the first-transaction rule per pipeline. Detail and what is not migrated: `docs/pipedrive-migration.md`.
+
+## Added after the design handoff (11-Nov-2026)
+The interface follows the design handoff v1.1: dock navigation, Hoy as a work queue, the merchant record as a panel with Hilo, Árbol and Datos, the deals board with drag on desktop and a stage selector on mobile, and leads with a first-contact clock. Decisions, product rules and what was left out are in `docs/adr/ADR-006-design-v1-1.md`.

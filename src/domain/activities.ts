@@ -49,15 +49,3 @@ export async function addActivity(ctx: Ctx, raw: z.input<typeof input>): Promise
     return id
   })
 }
-
-export async function completeTask(ctx: Ctx, id: string): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ market_code: string; done_at: Date | null; kind: string }[]>`select market_code, done_at, kind from crm.activities where id = ${id} for update`
-    const a = rows[0]
-    if (!a) throw notFound()
-    ctx.assert('activity.write', a.market_code)
-    if (a.done_at) return
-    await tx`update crm.activities set done_at = now() where id = ${id}`
-    await audit(tx, ctx, 'activity.completed', 'activity', id, a.market_code, null, { kind: a.kind })
-  })
-}

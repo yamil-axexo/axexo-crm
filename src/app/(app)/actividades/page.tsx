@@ -2,10 +2,11 @@ import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { withUser } from '@/server/db'
 import { Card, Empty, PageHeader, Pills, Badge } from '@/ui/kit'
-import { ActionForm, Submit } from '@/ui/client'
+import { CompleteButton } from '@/ui/complete'
+import { sheetConfig, taskItem } from '@/server/sheet'
 import { day } from '@/lib/format'
 import { ACTIVITY, lab, qs } from '@/lib/labels'
-import { completeTaskAction } from './actions'
+import { completeItemAction } from '@/app/(app)/hoy/actions'
 
 type Row = { id: string; kind: string; subject: string; due_at: Date | null; done_at: Date | null; account_id: string | null; account_name: string | null; deal_id: string | null; owner_name: string | null }
 
@@ -20,6 +21,7 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
        ${view === 'done' ? tx`and a.done_at is not null and a.owner_id = ${ctx.user.id}` : view === 'team' ? tx`and a.done_at is null` : tx`and a.done_at is null and a.owner_id = ${ctx.user.id}`}
      order by ${view === 'done' ? tx`a.done_at desc` : tx`a.due_at nulls last`} limit 80`)
   const now = new Date()
+  const config = sheetConfig(ctx, now)
 
   return (
     <>
@@ -41,19 +43,14 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
             {rows.map((r) => {
               const late = !r.done_at && r.due_at && new Date(r.due_at) < now
               return (
-                <li key={r.id} className="flex items-center justify-between gap-5 border-t border-line px-7 py-4 first:border-t-0" data-testid="task-row">
-                  <Link href={r.deal_id ? `/deals/${r.deal_id}` : r.account_id ? `/comercios/${r.account_id}` : '#'} className="min-w-0 flex-1">
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-line px-4 py-4 first:border-t-0 md:px-7" data-testid="task-row">
+                  {!r.done_at && ctx.can('activity.write') && <CompleteButton item={taskItem(ctx, r, r.account_name ?? r.subject)} config={config} action={completeItemAction} />}
+                  <Link href={r.deal_id ? `/deals/${r.deal_id}` : r.account_id ? `/comercios/${r.account_id}` : '#'} className="min-w-0 flex-1 basis-[200px]">
                     <span className="block truncate text-[14.5px] font-semibold text-strong">{r.subject}</span>
                     <span className="mt-0.5 block truncate text-[13px] text-muted-2">{[r.account_name, view === 'team' ? r.owner_name : null].filter(Boolean).join(' · ') || '—'}</span>
                   </Link>
                   {r.kind === 'handoff' && <Badge tone="info">{lab(t, ACTIVITY.handoff)}</Badge>}
                   <span className={`w-28 text-right text-[13px] ${late ? 'font-semibold text-red-text' : 'text-muted-2'}`}>{day(r.done_at ?? r.due_at, locale)}</span>
-                  {!r.done_at && (
-                    <ActionForm action={completeTaskAction}>
-                      <input type="hidden" name="id" value={r.id} />
-                      <Submit variant="ghost" size="sm" testId="task-done">{t('Hecha', 'Done')}</Submit>
-                    </ActionForm>
-                  )}
                 </li>
               )
             })}

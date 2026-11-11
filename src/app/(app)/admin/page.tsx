@@ -252,7 +252,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <RevealOnce action={createApiClientAction} label={t('Copia esta llave ahora. No se vuelve a mostrar.', 'Copy this key now. It will not be shown again.')}>
             <div className="flex flex-wrap items-end gap-4">
               <Field label={t('Nombre del sistema', 'System name')}><input name="name" className="input !w-64" required minLength={3} data-testid="api-name" /></Field>
-              <fieldset className="flex gap-4 pb-3 text-[13.5px]"><legend className="sr-only">Scopes</legend>{API_SCOPES.map((s) => <label key={s} className="flex items-center gap-2"><input type="checkbox" name="scope" value={s} className="h-4 w-4" defaultChecked={s === 'events:write'} />{s}</label>)}</fieldset>
+              <fieldset className="flex flex-wrap gap-x-4 gap-y-2 pb-3 text-[13.5px]"><legend className="sr-only">Scopes</legend>{API_SCOPES.map((s) => <label key={s} className="flex items-center gap-2"><input type="checkbox" name="scope" value={s} className="h-4 w-4" defaultChecked={s === 'events:write'} />{s}</label>)}</fieldset>
               <Submit variant="ghost" testId="api-create">{t('Crear llave', 'Create key')}</Submit>
             </div>
           </RevealOnce>

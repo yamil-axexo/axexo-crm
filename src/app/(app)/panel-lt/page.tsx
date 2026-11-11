@@ -49,7 +49,7 @@ export default async function PanelLtPage() {
               <CardTitle title={m.name} hint={t(`Volumen 30 días: ${money(Number(m.volume_30d), m.currency, locale, true)}`, `Volume, 30 days: ${money(Number(m.volume_30d), m.currency, locale, true)}`)} />
               <ul className="space-y-3.5">
                 {steps.map((s) => (
-                  <li key={s.k} className="grid grid-cols-[190px_1fr_56px] items-center gap-4">
+                  <li key={s.k} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_56px] items-center gap-3 md:grid-cols-[190px_1fr_56px] md:gap-4">
                     <span className="text-[13.5px] text-muted-2">{s.k}</span>
                     <Bar value={s.v} max={max} />
                     <span className="num text-right text-[14px] font-semibold text-strong">{num(s.v, locale)}</span>
@@ -71,7 +71,7 @@ export default async function PanelLtPage() {
           {data.reasons.length === 0 ? <p className="text-[14px] text-muted">—</p> : (
             <ul className="space-y-3">
               {data.reasons.map((r) => (
-                <li key={`${r.market_code}${r.code}`} className="grid grid-cols-[210px_1fr_40px] items-center gap-4">
+                <li key={`${r.market_code}${r.code}`} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_40px] items-center gap-3 md:grid-cols-[210px_1fr_40px] md:gap-4">
                   <span className="truncate text-[13.5px] text-muted-2">{t(r.label_es, r.label_en)} · {r.market_code}</span><Bar value={r.n} max={maxReason} tone="bad" /><span className="num text-right text-[14px] font-semibold">{r.n}</span>
                 </li>
               ))}
@@ -83,7 +83,7 @@ export default async function PanelLtPage() {
           {data.noSale.length === 0 ? <p className="text-[14px] text-muted">—</p> : (
             <ul className="space-y-3">
               {data.noSale.map((r) => (
-                <li key={r.code} className="grid grid-cols-[210px_1fr_40px] items-center gap-4">
+                <li key={r.code} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_40px] items-center gap-3 md:grid-cols-[210px_1fr_40px] md:gap-4">
                   <span className="truncate text-[13.5px] text-muted-2">{t(r.label_es, r.label_en)}</span><Bar value={r.n} max={maxNoSale} /><span className="num text-right text-[14px] font-semibold">{r.n}</span>
                 </li>
               ))}

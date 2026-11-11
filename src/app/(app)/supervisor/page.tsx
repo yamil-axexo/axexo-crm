@@ -94,8 +94,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         {board.queue.length === 0 ? <div className="mt-6"><Empty title={t('Nada fuera de regla', 'Nothing off-rule')} /></div> : (
           <ul className="mt-5">
             {board.queue.map((e) => (
-              <li key={e.id} className="flex items-center justify-between gap-5 border-t border-line py-3.5 first:border-t-0" data-testid="exception-row">
-                <Link href={href(e)} className="min-w-0 flex-1">
+              <li key={e.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-line py-3.5 first:border-t-0" data-testid="exception-row">
+                <Link href={href(e)} className="min-w-0 flex-1 basis-[240px]">
                   <span className="block truncate text-[14.5px] font-semibold text-strong">{String(e.detail.title ?? e.detail.name ?? e.detail.customer_id ?? '')}</span>
                   <span className="mt-0.5 block truncate text-[13px] text-muted-2">{[lab(t, EXCEPTION[e.kind]?.label), e.owner_name ?? t('Sin dueño', 'No owner'), e.market_code, ago(e.opened_at, locale)].join(' · ')}</span>
                 </Link>

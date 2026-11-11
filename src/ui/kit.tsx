@@ -56,10 +56,10 @@ export function Badge({ children, tone = 'neutral', title }: { children: ReactNo
 
 export function Stat({ label, value, hint, tone, href, testId }: { label: string; value: ReactNode; hint?: string; tone?: Tone; href?: string; testId?: string }) {
   const body = (
-    <div className={cx('card h-full p-6', href && 'lift')} data-testid={testId}>
+    <div className={cx('card h-full min-w-0 p-4 md:p-6', href && 'lift')} data-testid={testId}>
       <p className="text-[13px] font-medium text-muted-2">{label}</p>
-      <p className={cx('num mt-2 text-[28px] leading-9 font-semibold', tone === 'bad' ? 'text-red-text' : tone === 'warn' ? 'text-amber-text' : tone === 'good' ? 'text-brand-text' : 'text-strong')}>{value}</p>
-      {hint && <p className="mt-3 text-[12.5px] text-muted">{hint}</p>}
+      <p className={cx('num mt-2 text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[28px] md:leading-9', tone === 'bad' ? 'text-red-text' : tone === 'warn' ? 'text-amber-text' : tone === 'good' ? 'text-brand-text' : 'text-strong')}>{value}</p>
+      {hint && <p className="mt-3 text-[13px] text-muted">{hint}</p>}
     </div>
   )
   return href ? <Link href={href}>{body}</Link> : body
@@ -131,9 +131,10 @@ export function Pills({ items, current, label }: { items: { href: string; label:
   )
 }
 
-export function Table({ head, children, testId }: { head: ReactNode; children: ReactNode; testId?: string }) {
+export function Table({ head, children, testId, label }: { head: ReactNode; children: ReactNode; testId?: string; label?: string }) {
   return (
-    <div className="overflow-x-auto">
+    // La tabla ancha se desplaza dentro de su caja: la región se enfoca para poder recorrerla con teclado.
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={label ?? 'Tabla / Table'}>
       <table className="w-full border-collapse" data-testid={testId}>
         <thead className="table-head">
           <tr>{head}</tr>
