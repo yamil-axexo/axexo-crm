@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { withUser, withoutUser, systemUserId } from '@/server/db'
 import { can, type Capability, type Membership, type Role } from '@/domain/policy'
 import { translator, type Locale, type T } from '@/lib/format'
+import { messages, type M } from '@/lib/messages'
 import { forbidden } from '@/lib/errors'
 
 export const SESSION_COOKIE = 'contigo_session'
@@ -28,6 +29,7 @@ export type Ctx = {
   markets: Market[]
   locale: Locale
   t: T
+  m: M
   isAdmin: boolean
   isGlobal: boolean
   can: (cap: Capability, market?: string | null) => boolean
@@ -68,6 +70,7 @@ export async function loadCtx(userId: string, localeOverride?: Locale): Promise<
       markets: list,
       locale,
       t: translator(locale),
+      m: messages(locale),
       isAdmin: memberships.some((m) => m.role === 'admin'),
       isGlobal: memberships.some((m) => m.role === 'admin' || m.role === 'lt'),
       can: (cap, market) => can(memberships, cap, market),

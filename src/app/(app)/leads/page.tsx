@@ -26,7 +26,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         desc={t('Todo lead entra con dueño y tiempo de respuesta. Los de formulario se reparten solos por turno.', 'Every lead comes in with an owner and a response time. Form leads are distributed in rotation.')}
         actions={
           ctx.can('lead.create') ? (
-            <Dialog trigger={t('Nuevo lead', 'New lead')} title={t('Nuevo lead', 'New lead')} variant="primary" testId="new-lead">
+            <Dialog trigger={t('Nuevo lead', 'New lead')} title={t('Nuevo lead', 'New lead')} variant="primary" testId="new-lead" hash="nuevo">
               <ActionForm action={createLeadAction} className="grid grid-cols-2 gap-4">
                 <Field label={t('Mercado', 'Market')}>
                   <select name="market" className="input" defaultValue={live[0]?.code}>

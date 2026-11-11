@@ -26,7 +26,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
         desc={t('La cuenta es el centro: su árbol, sus contactos, sus IDs en otros sistemas y todo lo que ha pasado con ella.', 'The account is the center: its tree, its contacts, its IDs in other systems and everything that has happened with it.')}
         actions={
           ctx.can('account.create') ? (
-            <Dialog trigger={t('Nuevo comercio', 'New merchant')} title={t('Nuevo comercio', 'New merchant')} variant="primary" testId="new-account">
+            <Dialog trigger={t('Nuevo comercio', 'New merchant')} title={t('Nuevo comercio', 'New merchant')} variant="primary" testId="new-account" hash="nuevo">
               <ActionForm action={createAccountAction} className="grid grid-cols-2 gap-4">
                 <Field label={t('Mercado', 'Market')}><select name="market" className="input">{live.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>
                 <Field label={t('Tipo', 'Type')}><select name="kind" className="input">{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>

@@ -1,74 +1,80 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { CalendarCheck, Inbox, KanbanSquare, Store, ListTodo, Users, LineChart, Settings, Search, LogOut } from 'lucide-react'
+import { LineChart, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
-import { NavLink } from '@/ui/client'
+import { dockCounts } from '@/dal/boards'
+import { AccountMenu, Dock, SearchBox, type DockItem } from '@/ui/shell'
 import { ROLE_LABEL } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join('')
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireCtx()
-  const { t } = ctx
-  const roles = [...new Set(ctx.memberships.map((m) => `${t(ROLE_LABEL[m.role].es, ROLE_LABEL[m.role].en)}${m.market ? ` · ${m.market}` : ''}`))].join(', ')
-  const showTeam = ctx.can('board.supervisor') || ctx.can('board.lt')
+  const { t, m } = ctx
+  const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
   const showAdmin = ctx.can('config.manage') || ctx.can('audit.read')
+  const counts = await dockCounts(ctx)
+
+  // Nunca más de 4 destinos: lo nuevo entra como vista dentro de uno de ellos (handoff, sección 4).
+  const items: DockItem[] = [
+    { key: 'today', href: '/hoy', label: m('nav.today'), match: ['/hoy', '/actividades'] },
+    { key: 'leads', href: '/leads', label: m('nav.leads'), match: ['/leads'], badge: counts.leadsWaiting, badgeLabel: m('nav.leadsWaiting', { count: counts.leadsWaiting }) },
+    { key: 'deals', href: '/pipelines', label: m('nav.deals'), match: ['/pipelines', '/deals'] },
+    { key: 'merchants', href: '/comercios', label: m('nav.merchants'), match: ['/comercios'] },
+  ]
+  const create = [
+    ...(ctx.can('lead.create') ? [{ href: '/leads#nuevo', label: m('nav.create.lead') }] : []),
+    ...(ctx.can('account.create') ? [{ href: '/comercios#nuevo', label: m('nav.create.merchant') }] : []),
+  ]
+  const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
 
   return (
-    <div className="flex min-h-full">
-      <aside className="on-ink rail sticky top-0 flex h-screen w-[250px] shrink-0 flex-col px-5 py-7" data-testid="sidebar">
-        <Link href="/hoy" className="mb-9 block px-2">
-          <Image src="/contigo-on-dark.png" alt="axexo CONTIGO" width={180} height={44} priority className="h-9 w-auto" />
+    <div className="min-h-full">
+      <header className="sticky top-0 z-30 flex h-[60px] items-center gap-4 border-b border-line bg-surface px-4 md:h-16 md:gap-6 md:px-8 min-[1200px]:h-[72px] min-[1200px]:px-10" data-testid="topbar">
+        <Link href="/hoy" className="shrink-0" aria-label="axexo CONTIGO">
+          <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={129} height={32} priority className="h-7 w-auto md:h-8" />
         </Link>
-        <nav aria-label={t('Principal', 'Main')} className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
-          <NavLink href="/hoy" testId="nav-hoy"><CalendarCheck size={18} />{t('Hoy', 'Today')}</NavLink>
-          <NavLink href="/leads" testId="nav-leads"><Inbox size={18} />Leads</NavLink>
-          <NavLink href="/pipelines" testId="nav-pipelines"><KanbanSquare size={18} />Pipelines</NavLink>
-          <NavLink href="/comercios" testId="nav-comercios"><Store size={18} />{t('Comercios', 'Merchants')}</NavLink>
-          <NavLink href="/actividades" testId="nav-actividades"><ListTodo size={18} />{t('Actividades', 'Activities')}</NavLink>
-          {showTeam && <p className="eyebrow mt-7 mb-2 px-4">{t('Equipo', 'Team')}</p>}
-          {ctx.can('board.supervisor') && <NavLink href="/supervisor" testId="nav-supervisor"><Users size={18} />{t('Supervisión', 'Supervision')}</NavLink>}
-          {ctx.can('board.lt') && <NavLink href="/panel-lt" testId="nav-panel-lt"><LineChart size={18} />{t('Panel del LT', 'Leadership panel')}</NavLink>}
-          {showAdmin && <p className="eyebrow mt-7 mb-2 px-4">{t('Configurar', 'Configure')}</p>}
-          {showAdmin && <NavLink href="/admin" testId="nav-admin"><Settings size={18} />{t('Administración', 'Administration')}</NavLink>}
-        </nav>
-        <div className="mt-6 rounded-[20px] bg-white/6 p-4">
-          <p className="text-[14px] font-semibold text-white" data-testid="me-name">{ctx.user.name}</p>
-          <p className="mt-0.5 text-[12px] text-[#9aa0bd]" data-testid="me-roles">{roles}</p>
-          <div className="mt-3 flex items-center gap-2">
-            <form action={setLocale}>
-              <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />
-              <button className="rounded-full border border-white/15 px-3 py-1.5 text-[12px] font-semibold text-white/80 hover:bg-white/10" data-testid="locale-toggle">
-                {ctx.locale === 'es' ? 'EN' : 'ES'}
-              </button>
-            </form>
-            <form action={logout}>
-              <button className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-[12px] font-semibold text-white/80 hover:bg-white/10" data-testid="logout">
-                <LogOut size={13} />
-                {t('Salir', 'Sign out')}
-              </button>
-            </form>
-          </div>
-        </div>
-      </aside>
-      <div className="min-w-0 flex-1">
-        <div className="mx-auto max-w-[1280px] px-12 pt-8 pb-20">
-          <form action="/buscar" method="get" role="search" className="mb-10 flex items-center gap-3">
-            <div className="relative w-full max-w-xl">
-              <Search size={17} className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted" />
-              <input
-                name="q"
-                type="search"
-                className="input !h-12 !rounded-full !bg-surface !pl-11"
-                placeholder={t('Busca por nombre, teléfono o ID externo', 'Search by name, phone or external ID')}
-                aria-label={t('Buscar', 'Search')}
-                data-testid="global-search"
-              />
-            </div>
+        <SearchBox placeholder={m('top.search')} label={m('top.searchLabel')} />
+        <div className="ml-auto flex items-center gap-2 md:gap-3">
+          <Link href="/buscar" aria-label={m('top.searchLabel')} className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-strong md:hidden" data-testid="search-link">
+            <Search size={20} strokeWidth={1.75} aria-hidden />
+          </Link>
+          <form action={setLocale}>
+            <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />
+            <button aria-label={`${ctx.locale.toUpperCase()}: ${m('top.language')}`} className="press hidden h-10 min-w-11 items-center justify-center rounded-full border border-line px-3 text-[13px] font-semibold text-strong hover:bg-green-50 md:inline-flex" data-testid="locale-toggle">
+              {ctx.locale.toUpperCase()}
+            </button>
           </form>
-          <main>{children}</main>
+          <AccountMenu initials={initials(ctx.user.name)} label={`${initials(ctx.user.name)}: ${m('top.account')}`}>
+            <div className="border-b border-line px-3 pt-2 pb-3">
+              <p className="text-[15px] font-semibold text-strong" data-testid="me-name">{ctx.user.name}</p>
+              <p className="text-[13px] text-muted" data-testid="me-roles">{roles}</p>
+            </div>
+            <div className="py-1">
+              {ctx.can('board.supervisor') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>}
+              {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
+              {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}
+            </div>
+            <form action={setLocale} className="border-t border-line pt-1 md:hidden">
+              <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />
+              <button role="menuitem" className={`${menuLink} w-full`}>{m('top.language')}</button>
+            </form>
+            <form action={logout} className="border-t border-line pt-1">
+              <button role="menuitem" className={`${menuLink} w-full`} data-testid="logout"><LogOut size={20} strokeWidth={1.75} aria-hidden />{m('top.signOut')}</button>
+            </form>
+          </AccountMenu>
         </div>
-      </div>
+      </header>
+      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
+      <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} />
     </div>
   )
 }

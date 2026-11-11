@@ -10,7 +10,7 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: [['list']],
-  use: { baseURL: `http://localhost:${port}`, trace: 'retain-on-failure', locale: 'es-MX' },
+  use: { baseURL: `http://localhost:${port}`, trace: 'retain-on-failure', locale: 'es-MX', viewport: { width: 1440, height: 900 } },
   webServer: {
     command: './scripts/start-standalone.sh',
     url: `http://localhost:${port}/api/health`,

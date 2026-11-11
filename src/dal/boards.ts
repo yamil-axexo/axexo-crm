@@ -180,3 +180,13 @@ export async function track(ctx: Ctx, event: string): Promise<void> {
                select 1 from crm.usage_events where user_id = ${ctx.user.id} and event = ${event} and at > now() - interval '1 hour')`
   })
 }
+
+/** Lo que el dock necesita saber en cada pantalla: cuántos leads propios (o sin dueño, si puede repartir) siguen sin primer contacto. */
+export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number }> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ n: number }[]>`
+      select count(*)::int as n from crm.leads l
+       where l.status = 'new' and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.assign')}))`
+    return { leadsWaiting: rows[0]?.n ?? 0 }
+  })
+}

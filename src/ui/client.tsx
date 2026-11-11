@@ -52,7 +52,7 @@ export function ActionForm({ action, children, className, onOk, testId }: { acti
           </p>
         )}
         {state?.ok && state.message && (
-          <p role="status" data-testid="form-ok" className="mt-4 rounded-2xl bg-brand/12 px-4 py-3 text-[13.5px] font-medium text-brand-text">
+          <p role="status" data-testid="form-ok" className="mt-4 rounded-[10px] bg-green-100 px-4 py-3 text-[13.5px] font-medium text-brand-text">
             {state.message}
           </p>
         )}
@@ -61,8 +61,21 @@ export function ActionForm({ action, children, className, onOk, testId }: { acti
   )
 }
 
-export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md', testId }: { trigger: ReactNode; title: string; children: ReactNode; variant?: 'primary' | 'ghost' | 'quiet' | 'danger'; size?: 'sm' | 'md'; testId?: string }) {
+export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md', testId, hash }: { trigger: ReactNode; title: string; children: ReactNode; variant?: 'primary' | 'ghost' | 'quiet' | 'danger'; size?: 'sm' | 'md'; testId?: string; hash?: string }) {
   const ref = useRef<HTMLDialogElement>(null)
+  // El botón crear del dock enlaza a la lista con un ancla (#nuevo): el diálogo se abre solo.
+  useEffect(() => {
+    if (!hash) return
+    const check = () => {
+      if (window.location.hash === `#${hash}` && ref.current && !ref.current.open) {
+        ref.current.showModal()
+        history.replaceState(null, '', window.location.pathname + window.location.search)
+      }
+    }
+    check()
+    window.addEventListener('hashchange', check)
+    return () => window.removeEventListener('hashchange', check)
+  }, [hash])
   return (
     <>
       <button type="button" className={buttonClass(variant, size)} onClick={() => ref.current?.showModal()} data-testid={testId}>
@@ -71,7 +84,7 @@ export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md
       <dialog
         ref={ref}
         aria-label={title}
-        className="m-auto w-[min(560px,92vw)] rounded-[26px] border border-line bg-surface p-0 text-fg shadow-2xl backdrop:bg-ink/55"
+        className="m-auto w-[min(560px,92vw)] animate-pop rounded-[16px] border border-line bg-surface p-0 text-fg shadow-[var(--cg-shadow-float)] backdrop:bg-black/40"
         onClick={(e) => {
           if (e.target === ref.current) ref.current?.close()
         }}

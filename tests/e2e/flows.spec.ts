@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { loginAs } from './helpers'
+import { loginAs, openMenu } from './helpers'
 
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()
 
@@ -33,10 +33,11 @@ test.describe('sesión y acceso', () => {
     await loginAs(page, 'marco.pena')
     await expect(page.getByTestId('me-roles')).toHaveText('Ventas · MX')
     await page.getByTestId('locale-toggle').click()
-    await expect(page.getByTestId('nav-hoy')).toHaveText('Today')
+    await expect(page.getByTestId('nav-today')).toHaveText('Today')
     await expect(page.getByTestId('me-roles')).toHaveText('Sales · MX')
     await page.getByTestId('locale-toggle').click()
-    await expect(page.getByTestId('nav-hoy')).toHaveText('Hoy')
+    await expect(page.getByTestId('nav-today')).toHaveText('Hoy')
+    await openMenu(page)
     await page.getByTestId('logout').click()
     await expect(page).toHaveURL(/\/login$/)
     await page.goto('/hoy')
@@ -72,6 +73,7 @@ test.describe('sesión y acceso', () => {
     await expect(page.getByTestId('new-lead')).toHaveCount(0)
     await page.goto('/comercios')
     await expect(page.getByTestId('new-account')).toHaveCount(0)
+    await openMenu(page)
     await page.getByTestId('nav-panel-lt').click()
     await expect(page.getByTestId('lt-market-MX')).toBeVisible()
     await expect(page.getByTestId('lt-market-US')).toBeVisible()

@@ -16,3 +16,17 @@ export const pageErrors = (page: Page) => {
   })
   return errors
 }
+
+/** Abre el menú de la cuenta (avatar): ahí viven Mi equipo, Panel del LT, Administración y Salir. */
+export async function openMenu(page: Page) {
+  const panel = page.getByTestId('me-panel')
+  if (!(await panel.isVisible())) await page.getByTestId('me-menu').click()
+  await expect(panel).toBeVisible()
+}
+
+/** Los tres anchos del handoff: desktop (>= 1200), tablet (768 a 1199) y móvil (< 768). */
+export const WIDTHS = [
+  { name: 'desktop', width: 1440, height: 900 },
+  { name: 'tablet', width: 1024, height: 768 },
+  { name: 'movil', width: 390, height: 844 },
+] as const

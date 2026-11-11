@@ -5,11 +5,11 @@ export const cx = (...parts: (string | false | null | undefined)[]) => parts.fil
 
 export function PageHeader({ eyebrow, title, desc, actions }: { eyebrow?: string; title: string; desc?: string; actions?: ReactNode }) {
   return (
-    <header className="mb-9 flex flex-wrap items-end justify-between gap-6">
+    <header className="mb-7 flex flex-wrap items-end justify-between gap-5">
       <div className="max-w-2xl">
-        {eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>}
-        <h1 className="text-[34px] leading-[1.1] font-bold">{title}</h1>
-        {desc && <p className="mt-3 text-[15px] text-muted-2">{desc}</p>}
+        {eyebrow && <p className="eyebrow mb-1">{eyebrow}</p>}
+        <h1 className="text-[28px] leading-9 font-semibold">{title}</h1>
+        {desc && <p className="mt-1.5 text-[15px] text-muted">{desc}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
     </header>
@@ -28,7 +28,7 @@ export function CardTitle({ title, hint, right }: { title: string; hint?: string
   return (
     <div className="mb-5 flex items-start justify-between gap-4">
       <div>
-        <h2 className="text-[18px] font-semibold">{title}</h2>
+        <h2 className="text-[18px] leading-[26px] font-semibold">{title}</h2>
         {hint && <p className="mt-1 text-[13px] text-muted">{hint}</p>}
       </div>
       {right}
@@ -39,16 +39,16 @@ export function CardTitle({ title, hint, right }: { title: string; hint?: string
 type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'info' | 'accent'
 const TONES: Record<Tone, string> = {
   neutral: 'bg-surface-3 text-muted-2',
-  good: 'bg-brand/15 text-brand-text',
-  warn: 'bg-amber/15 text-amber-text',
-  bad: 'bg-red/12 text-red-text',
-  info: 'bg-sky/12 text-sky',
-  accent: 'bg-blue/15 text-blue-text',
+  good: 'bg-green-100 text-brand-text',
+  warn: 'bg-warn-bg text-amber-text',
+  bad: 'bg-risk-bg text-red-text',
+  info: 'bg-surface-3 text-strong',
+  accent: 'bg-green-100 text-brand-text',
 }
 
 export function Badge({ children, tone = 'neutral', title }: { children: ReactNode; tone?: Tone; title?: string }) {
   return (
-    <span title={title} className={cx('inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-semibold whitespace-nowrap', TONES[tone])}>
+    <span title={title} className={cx('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[13px] font-medium whitespace-nowrap', TONES[tone])}>
       {children}
     </span>
   )
@@ -58,7 +58,7 @@ export function Stat({ label, value, hint, tone, href, testId }: { label: string
   const body = (
     <div className={cx('card h-full p-6', href && 'lift')} data-testid={testId}>
       <p className="text-[13px] font-medium text-muted-2">{label}</p>
-      <p className={cx('display num mt-2 text-[34px] leading-none font-bold', tone === 'bad' ? 'text-red-text' : tone === 'warn' ? 'text-amber-text' : tone === 'good' ? 'text-brand-text' : 'text-strong')}>{value}</p>
+      <p className={cx('num mt-2 text-[28px] leading-9 font-semibold', tone === 'bad' ? 'text-red-text' : tone === 'warn' ? 'text-amber-text' : tone === 'good' ? 'text-brand-text' : 'text-strong')}>{value}</p>
       {hint && <p className="mt-3 text-[12.5px] text-muted">{hint}</p>}
     </div>
   )
@@ -66,16 +66,16 @@ export function Stat({ label, value, hint, tone, href, testId }: { label: string
 }
 
 const BTN = {
-  primary: 'grad-bg text-on-sun sun-shadow hover:brightness-105',
-  ghost: 'bg-surface text-strong border border-line-2 hover:bg-surface-2',
+  primary: 'grad-bg text-on-sun hover:brightness-110',
+  ghost: 'bg-surface text-strong border border-line-2 hover:bg-green-50',
   quiet: 'text-muted-2 hover:bg-surface-3',
-  danger: 'bg-red/10 text-red-text hover:bg-red/15',
+  danger: 'bg-risk-bg text-red-text hover:brightness-95',
 } as const
 
 export function buttonClass(variant: keyof typeof BTN = 'ghost', size: 'sm' | 'md' = 'md') {
   return cx(
-    'inline-flex cursor-pointer items-center justify-center gap-2 rounded-full font-semibold whitespace-nowrap transition disabled:cursor-not-allowed disabled:opacity-50',
-    size === 'sm' ? 'h-9 px-4 text-[13px]' : 'h-11 px-6 text-[14px]',
+    'press inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50',
+    size === 'sm' ? 'h-9 px-3.5 text-[13px]' : 'h-11 px-5 text-[15px]',
     BTN[variant],
   )
 }
@@ -100,7 +100,7 @@ export function Field({ label, hint, children, className }: { label: string; hin
 
 export function Empty({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-line-2 px-8 py-14 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[16px] border border-dashed border-line-2 px-8 py-12 text-center">
       <p className="text-[15px] font-semibold text-strong">{title}</p>
       {hint && <p className="mt-2 max-w-md text-[13.5px] text-muted">{hint}</p>}
       {action && <div className="mt-5">{action}</div>}
@@ -119,12 +119,12 @@ export function Pills({ items, current, label }: { items: { href: string; label:
           aria-current={i.key === current ? 'page' : undefined}
           data-testid={`pill-${i.key || 'all'}`}
           className={cx(
-            'inline-flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-semibold transition',
-            i.key === current ? 'bg-ink text-white' : 'bg-surface text-muted-2 border border-line hover:bg-surface-2',
+            'press inline-flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-medium',
+            i.key === current ? 'bg-ink text-white' : 'bg-surface text-strong border border-line hover:bg-green-50',
           )}
         >
           {i.label}
-          {i.count !== undefined && <span className={cx('num text-[12px]', i.key === current ? 'text-white/70' : 'text-muted')}>{i.count}</span>}
+          {i.count !== undefined && <span className={cx('num text-[13px]', i.key === current ? 'text-on-black' : 'text-muted')}>· {i.count}</span>}
         </Link>
       ))}
     </nav>

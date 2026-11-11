@@ -1,0 +1,159 @@
+'use client'
+
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Inbox, Kanban, Plus, Search, Store, Sun } from 'lucide-react'
+import { cx } from '@/ui/kit'
+
+const ICONS = { today: Sun, leads: Inbox, deals: Kanban, merchants: Store } as const
+export type DockItem = { key: keyof typeof ICONS; href: string; label: string; match: string[]; badge?: number; badgeLabel?: string }
+
+function useDismiss(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [open, close])
+  return ref
+}
+
+/**
+ * Dock: la misma navegación en desktop, tablet y móvil (handoff, secciones 4 y 5).
+ * Cuatro destinos y crear. En móvil es la barra inferior; desde 768 px flota abajo al centro.
+ */
+export function Dock({ items, label, createLabel, create }: { items: DockItem[]; label: string; createLabel: string; create: { href: string; label: string }[] }) {
+  const path = usePathname()
+  const active = items.findIndex((i) => i.match.some((m) => path === m || path.startsWith(m + '/')))
+  const [open, setOpen] = useState(false)
+  const menu = useDismiss(open, () => setOpen(false))
+  return (
+    <nav
+      aria-label={label}
+      data-testid="dock"
+      className="dock on-ink fixed inset-x-0 bottom-0 z-40 flex items-center gap-1 px-2 pt-2 pb-[max(10px,env(safe-area-inset-bottom))] md:inset-x-auto md:bottom-6 md:left-1/2 md:-translate-x-1/2 md:gap-2 md:rounded-full md:p-2"
+    >
+      <div className="relative flex flex-1 md:flex-none">
+        <span
+          aria-hidden
+          className="dock-pill absolute inset-y-0 left-0 w-1/4 rounded-[14px] md:rounded-full"
+          style={{ transform: `translateX(${Math.max(active, 0) * 100}%)`, opacity: active < 0 ? 0 : 1 }}
+        />
+        {items.map((it, i) => {
+          const Icon = ICONS[it.key]
+          const on = i === active
+          return (
+            <Link
+              key={it.key}
+              href={it.href}
+              aria-current={on ? 'page' : undefined}
+              data-testid={`nav-${it.key}`}
+              className={cx(
+                'dock-item press relative z-10 flex h-[62px] w-1/4 flex-col items-center justify-center gap-1 rounded-[14px] text-[12px] md:h-[52px] md:w-[112px] md:flex-row md:gap-2 md:rounded-full md:text-[14px] min-[1200px]:w-[128px]',
+                on ? 'font-semibold text-black' : 'font-medium text-on-black hover:text-white',
+              )}
+            >
+              <Icon size={20} strokeWidth={1.75} aria-hidden />
+              <span>{it.label}</span>
+              {it.badge ? (
+                <span className="absolute top-1.5 right-3 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn-bg px-1 text-[12px] font-semibold text-[#9a6200] md:static" aria-label={it.badgeLabel} data-testid={`nav-${it.key}-badge`}>
+                  {it.badge > 99 ? '99+' : it.badge}
+                </span>
+              ) : null}
+            </Link>
+          )
+        })}
+      </div>
+      {create.length > 0 && (
+        <div ref={menu} className="relative flex shrink-0 items-center md:pl-2">
+          <span aria-hidden className="mr-2 hidden h-7 w-px bg-black-line md:block" />
+          <button
+            type="button"
+            aria-label={createLabel}
+            aria-expanded={open}
+            aria-haspopup="menu"
+            onClick={() => setOpen((v) => !v)}
+            data-testid="dock-create"
+            className="press glow-hover inline-flex h-12 w-12 items-center justify-center rounded-full bg-neon text-black shadow-[var(--cg-glow-ring)] md:h-[52px] md:w-[52px]"
+          >
+            <Plus size={22} strokeWidth={2} aria-hidden className={cx('transition-transform duration-200', open && 'rotate-45')} />
+          </button>
+          {open && (
+            <div role="menu" className="on-ink absolute right-0 bottom-[calc(100%+12px)] w-52 animate-pop rounded-[16px] bg-black p-2 shadow-[var(--cg-shadow-float)]" data-testid="dock-create-menu">
+              {create.map((c) => (
+                <Link key={c.href} href={c.href} role="menuitem" onClick={() => setOpen(false)} className="flex h-11 items-center rounded-[10px] px-3 text-[15px] font-medium text-white hover:bg-graphite">
+                  {c.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </nav>
+  )
+}
+
+/** Buscar: un campo arriba; en desktop la tecla "/" lleva el cursor ahí. */
+export function SearchBox({ placeholder, label }: { placeholder: string; label: string }) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return
+      e.preventDefault()
+      ref.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+  return (
+    <form action="/buscar" method="get" role="search" className="relative hidden w-full max-w-[424px] md:block">
+      <Search size={18} strokeWidth={1.75} aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+      <input ref={ref} name="q" type="search" className="input !bg-surface-2 !pr-12 !pl-11" placeholder={placeholder} aria-label={label} data-testid="global-search" />
+      <kbd aria-hidden className="pointer-events-none absolute top-1/2 right-3 hidden -translate-y-1/2 rounded-md border border-line bg-surface px-2 text-[12px] font-medium text-muted min-[1200px]:block">/</kbd>
+    </form>
+  )
+}
+
+/** Cuenta: lo que no es un destino del dock vive aquí (equipo, panel del LT, administración, salir). */
+export function AccountMenu({ initials, label, children }: { initials: string; label: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useDismiss(open, () => setOpen(false))
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+        data-testid="me-menu"
+        className="press inline-flex h-10 w-10 items-center justify-center rounded-full bg-teal text-[13px] font-semibold text-white"
+      >
+        {initials}
+      </button>
+      <div
+        role="menu"
+        hidden={!open}
+        onClick={(e) => {
+          // Elegir un destino cierra el menú; los formularios (idioma, salir) siguen su envío normal.
+          if ((e.target as HTMLElement).closest('a')) setOpen(false)
+        }}
+        className="absolute top-[calc(100%+10px)] right-0 z-50 w-72 animate-pop rounded-[16px] border border-line bg-surface p-2 shadow-[var(--cg-shadow-lift)]"
+        data-testid="me-panel"
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
