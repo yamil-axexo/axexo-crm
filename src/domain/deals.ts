@@ -94,9 +94,24 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
   })
 }
 
-export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }): Promise<void> {
+/**
+ * Mover un deal de etapa. `next` deja el próximo paso en la misma transacción: el tablero lo pide cuando falta
+ * (handoff, sección 6: "cambiar de etapa pide próximo paso si no hay uno") y así mover y programar no quedan a medias.
+ */
+export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const d = await loadDeal(tx, dealId)
+    if (next) {
+      const step = clean(next.step)
+      if (!step || step.length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(next.due)) throw invalid('Escribe el próximo paso y su fecha.', 'Enter the next step and its date.')
+      ctx.assert('deal.edit', d.market_code)
+      await tx`update crm.deals set next_step = ${step}, next_step_due = ${next.due} where id = ${dealId} and status = 'open'`
+      await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by)
+               values (${d.market_code}, ${d.account_id}, ${dealId}, 'task', ${step}, ${`${next.due}T15:00:00Z`}, ${d.owner_id ?? ctx.user.id}, ${ctx.user.id})`
+      await audit(tx, ctx, 'deal.updated', 'deal', dealId, d.market_code, { next_step: d.next_step }, { next_step: step, next_step_due: next.due })
+      d.next_step = step
+      d.next_step_due = next.due
+    }
     ctx.assert('deal.move', d.market_code)
     if (d.status !== 'open') throw invalid('Este deal ya está cerrado.', 'This deal is already closed.')
     if (toStageId === d.stage_id) return
@@ -124,7 +139,9 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       if (missing.length) {
         const es = missing.map((m) => FIELD_LABEL[m]?.es ?? m).join(', ')
         const en = missing.map((m) => FIELD_LABEL[m]?.en ?? m).join(', ')
-        throw new DomainError('stage_gate', `Para pasar a "${stage.name_es}" falta: ${es}.`, `To move to "${stage.name_en}" you still need: ${en}.`)
+        // Cuando lo único que falta es el próximo paso, la pantalla lo puede pedir ahí mismo.
+        throw new DomainError(missing.length === 1 && missing[0] === 'next_step' ? 'next_step_required' : 'stage_gate',
+          `Para pasar a "${stage.name_es}" falta: ${es}.`, `To move to "${stage.name_en}" you still need: ${en}.`)
       }
       await tx`update crm.deals set stage_id = ${toStageId}, stage_entered_at = now(),
                 status = ${stage.kind === 'won' ? 'won' : 'open'}, won_at = ${stage.kind === 'won' ? tx`now()` : null},

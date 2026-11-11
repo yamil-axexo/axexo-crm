@@ -145,7 +145,7 @@ test.describe('leads', () => {
     }
     await loginAs(page, 'fernando.ibarra')
     await page.goto('/leads?status=new')
-    const owner = async (n: string) => (await page.getByTestId('lead-row').filter({ hasText: n }).locator('td').nth(2).innerText()).trim()
+    const owner = async (n: string) => (await page.getByTestId('lead-row').filter({ hasText: n }).getByTestId('lead-owner-cell').innerText()).trim()
     const [oa, ob] = [await owner(a), await owner(b)]
     expect(['Marco Peña', 'Lucía Vega']).toContain(oa)
     expect(['Marco Peña', 'Lucía Vega']).toContain(ob)

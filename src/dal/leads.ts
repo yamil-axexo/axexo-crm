@@ -17,6 +17,7 @@ export type LeadListItem = {
   first_touch_at: Date | null
   created_at: Date
   duplicate_of: string | null
+  phone: string | null
 }
 
 export type LeadFilters = { market?: string; status?: string; owner?: string; q?: string; before?: string }
@@ -39,7 +40,7 @@ export async function listLeads(ctx: Ctx, f: LeadFilters): Promise<{ items: Lead
       : f.status ? tx`and l.status = ${f.status}` : tx``
     const rows = await tx<LeadListItem[]>`
       select l.id, l.market_code, l.business_name, l.contact_name, l.locality, l.motor, l.source, l.status, l.owner_id, u.full_name as owner_name,
-             l.sla_due_at, l.first_touch_at, l.created_at, l.duplicate_of
+             l.sla_due_at, l.first_touch_at, l.created_at, l.duplicate_of, l.phone
         from crm.leads l left join crm.users u on u.id = l.owner_id
        where true ${base} ${status} ${cursor}
        order by l.created_at desc, l.id desc limit ${LEAD_PAGE + 1}`

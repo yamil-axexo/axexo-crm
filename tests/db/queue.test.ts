@@ -2,7 +2,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { ctxFor, owner, systemContext } from './helpers'
 import { completeItem } from '@/domain/queue'
 import { getQueue, getTeamQueue } from '@/dal/queue'
-import { createLead } from '@/domain/leads'
+import { createLead, takeLead } from '@/domain/leads'
+import { moveDeal } from '@/domain/deals'
 import { addActivity } from '@/domain/activities'
 import { evaluateRules } from '@/domain/rules'
 import { withUser } from '@/server/db'
@@ -149,5 +150,44 @@ describe('cola de Hoy: qué entra y en qué grupo', () => {
     expect(marco.late).toBeGreaterThanOrEqual(1)
     expect(new Set(team.map((r) => r.id)).size).toBe(team.length)
     expect(await getTeamQueue(await ctxFor('marco.pena'))).toEqual([])
+  })
+})
+
+describe('tomar un lead y mover un negocio', () => {
+  it('"Tomar y llamar": un lead sin dueño queda de quien lo toma; el de otra persona no se quita', async () => {
+    const fernando = await ctxFor('fernando.ibarra')
+    const marco = await ctxFor('marco.pena')
+    const mk = async (owner: string | null) =>
+      (await one(admin<{ id: string }[]>`
+        insert into crm.leads (market_code, source, motor, business_name, contact_name, phone, status, owner_id, sla_due_at)
+        values ('MX', 'manual', 'd2d', ${`Lead Sin Dueño ${tag()}`}, 'Persona', ${'+52555' + Math.floor(1000000 + Math.random() * 8999999)}, 'new', ${owner}, now() + interval '30 minutes') returning id`)).id
+    const free = await mk(null)
+    await takeLead(fernando, free)
+    expect((await one(admin`select owner_id, assigned_at from crm.leads where id = ${free}`)).owner_id).toBe(fernando.user.id)
+    expect((await admin`select 1 from crm.audit_events where object_id = ${free} and action = 'lead.taken'`).length).toBe(1)
+    await takeLead(fernando, free) // repetir no cambia nada
+    expect((await admin`select 1 from crm.audit_events where object_id = ${free} and action = 'lead.taken'`).length).toBe(1)
+    const taken = await mk(marco.user.id)
+    await expect(takeLead(fernando, taken)).rejects.toMatchObject({ code: 'invalid' })
+    expect((await one(admin`select owner_id from crm.leads where id = ${taken}`)).owner_id).toBe(marco.user.id)
+    // quien vende en otro mercado ni siquiera lo ve
+    await expect(takeLead(await ctxFor('sam.ortiz'), free)).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('mover de etapa pide próximo paso si no hay uno, y lo guarda en la misma operación', async () => {
+    const marco = await ctxFor('marco.pena')
+    const d = await one(admin<{ id: string; stage_id: string; pipeline_id: string; account_id: string }[]>`
+      select d.id, d.stage_id, d.pipeline_id, d.account_id from crm.deals d join crm.stages s on s.id = d.stage_id join crm.users u on u.id = d.owner_id
+       where u.full_name = 'Marco Peña' and d.status = 'open' and s.code = 'interes' order by d.created_at desc limit 1`)
+    const to = (await one(admin<{ id: string }[]>`select id from crm.stages where pipeline_id = ${d.pipeline_id} and code = 'visitada'`)).id
+    await admin`update crm.deals set next_step = null, next_step_due = null where id = ${d.id}`
+    await expect(moveDeal(marco, d.id, to)).rejects.toMatchObject({ code: 'next_step_required' })
+    await expect(moveDeal(marco, d.id, to, undefined, { step: ' ', due: tomorrow })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(moveDeal(marco, d.id, to, undefined, { step: 'Volver con la dueña', due: 'mañana' })).rejects.toMatchObject({ code: 'invalid' })
+    expect((await one(admin`select stage_id, next_step from crm.deals where id = ${d.id}`))).toMatchObject({ stage_id: d.stage_id, next_step: null })
+    await moveDeal(marco, d.id, to, undefined, { step: 'Volver con la dueña', due: tomorrow })
+    expect(await one(admin`select stage_id, next_step, next_step_due::text as due from crm.deals where id = ${d.id}`)).toMatchObject({ stage_id: to, next_step: 'Volver con la dueña', due: tomorrow })
+    expect((await admin`select 1 from crm.activities where deal_id = ${d.id} and kind = 'task' and done_at is null and subject = 'Volver con la dueña'`).length).toBe(1)
+    expect((await admin`select 1 from crm.deal_stage_events where deal_id = ${d.id} and to_stage_id = ${to}`).length).toBe(1)
   })
 })

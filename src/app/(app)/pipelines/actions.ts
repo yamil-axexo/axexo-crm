@@ -15,6 +15,15 @@ export async function moveDealAction(_: R | null, fd: FormData): Promise<R> {
   })
 }
 
+/** Mover desde el tablero (arrastre en desktop, selector en móvil). Puede traer el próximo paso si el deal no tenía. */
+export async function boardMoveAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const step = str(fd, 'next_step')
+    await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, step ? { step, due: str(fd, 'next_step_due') } : undefined)
+    return { message: ['Etapa actualizada.', 'Stage updated.'] }
+  })
+}
+
 export async function updateDealAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const amount = str(fd, 'amount').replace(/[, ]/g, '')

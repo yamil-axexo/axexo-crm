@@ -264,6 +264,15 @@
     body:has(.ficha-panel) .dock { left: calc(50% - 240px) !important; }
   }
 
+  /* Tablero de Negocios: la tarjeta se levanta al pasar el mouse; al arrastrar se inclina y crece con borde neón. */
+  .board-card { transition: transform var(--cg-dur-hover) var(--cg-ease-standard), box-shadow var(--cg-dur-hover) var(--cg-ease-standard); }
+  .board-card:hover { transform: translateY(-2px); box-shadow: var(--cg-shadow-lift); }
+  .board-card[data-dragging] { transform: rotate(-2deg) scale(1.03); border-color: var(--cg-neon); box-shadow: var(--cg-glow-ring); }
+  .board-card[data-warn] { background: #fffaf0; }
+  .board-col[data-over] { outline: 2px solid var(--cg-neon); outline-offset: -2px; }
+  .board-select { display: block; }
+  @media (min-width: 1200px) and (pointer: fine) { .board-select { display: none; } }
+
   /* Cola de Hoy: al completar, el círculo se llena y la fila se pliega. */
   .q-check { transition: border-color var(--cg-dur-hover) var(--cg-ease-standard), background var(--cg-dur-hover) var(--cg-ease-standard); }
   .q-check:hover { border-color: var(--cg-green-600); background: var(--cg-green-50); }

@@ -68,14 +68,19 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
           from crm.deals d join crm.accounts a on a.id = d.account_id left join crm.users u on u.id = d.owner_id
          where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}) x
        where rn <= ${BOARD_LIMIT}`
-    const totals = await tx<{ stage_id: string; n: number; amount: string | null; revisits: number }[]>`
-      select d.stage_id, count(*)::int as n, sum(d.amount_minor)::text as amount, count(*) filter (where d.revisit_needed)::int as revisits
+    const totals = await tx<{ stage_id: string; n: number; amount: string | null; revisits: number; no_step: number }[]>`
+      select d.stage_id, count(*)::int as n, sum(d.amount_minor)::text as amount, count(*) filter (where d.revisit_needed)::int as revisits,
+             count(*) filter (where d.next_step is null or d.next_step_due is null)::int as no_step
         from crm.deals d where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner} group by d.stage_id`
+    // Cada negocio lleva su moneda: el resumen suma por moneda, sin convertir.
+    const amounts = await tx<{ currency: string; amount: string }[]>`
+      select d.currency, sum(d.amount_minor)::text as amount from crm.deals d
+       where d.pipeline_id = ${pipelineId} and d.status = 'open' and d.amount_minor is not null ${owner} group by d.currency order by sum(d.amount_minor) desc`
     const closed = await tx<{ won: number; lost: number }[]>`
       select count(*) filter (where d.status = 'won' and d.won_at > now() - interval '30 days')::int as won,
              count(*) filter (where d.status = 'lost' and d.lost_at > now() - interval '30 days')::int as lost
         from crm.deals d where d.pipeline_id = ${pipelineId} ${owner}`
-    return { pipeline, stages: [...stages], deals: [...deals], totals: [...totals], closed: closed[0] ?? { won: 0, lost: 0 } }
+    return { pipeline, stages: [...stages], deals: [...deals], totals: [...totals], amounts: [...amounts], closed: closed[0] ?? { won: 0, lost: 0 } }
   })
 }
 

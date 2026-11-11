@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
-import { assignLead, convertLead, createLead, disqualifyLead, markContacted, qualifyLead, MOTORS } from '@/domain/leads'
+import { assignLead, convertLead, createLead, disqualifyLead, markContacted, qualifyLead, takeLead, MOTORS } from '@/domain/leads'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -23,6 +23,12 @@ export async function createLeadAction(_: R | null, fd: FormData): Promise<R> {
   })
   if (res.ok && id) redirect(`/leads/${id}`)
   return res
+}
+
+export async function takeLeadAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await takeLead(ctx, str(fd, 'id'))
+  })
 }
 
 export async function leadStepAction(_: R | null, fd: FormData): Promise<R> {

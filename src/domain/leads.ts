@@ -157,6 +157,19 @@ export async function disqualifyLead(ctx: Ctx, leadId: string, reasonCode: strin
   })
 }
 
+/** "Tomar y llamar": quien vende se queda con un lead sin dueño. Si ya es suyo no cambia nada; si es de otra persona, no se lo quita. */
+export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
+  await withUser(ctx.user.id, async (tx) => {
+    const lead = await loadLead(tx, leadId)
+    ctx.assert('lead.work', lead.market_code)
+    if (!['new', 'contacted'].includes(lead.status)) throw invalid('Este lead ya se trabajó.', 'This lead was already worked.')
+    if (lead.owner_id === ctx.user.id) return
+    if (lead.owner_id) throw invalid('Este lead ya tiene dueño. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
+    await tx`update crm.leads set owner_id = ${ctx.user.id}, assigned_at = now() where id = ${leadId} and owner_id is null`
+    await audit(tx, ctx, 'lead.taken', 'lead', leadId, lead.market_code, { owner_id: null }, { owner_id: ctx.user.id })
+  })
+}
+
 export async function assignLead(ctx: Ctx, leadId: string, ownerId: string): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const lead = await loadLead(tx, leadId)
