@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, Clock, MessageCircle, Phone } from 'lucide-react'
 import { cx } from '@/ui/kit'
-import type { ActionResult } from '@/lib/errors'
+import { CompleteSheet, fill, showToast, type CompleteAction, type SheetConfig } from '@/ui/complete'
 
 export type QueueGroup = 'late' | 'today' | 'suggested'
 export type QueueItem = {
@@ -33,31 +33,18 @@ export type QueueLabels = {
   done: string
   markDone: string
   noPhone: string
-  cancel: string
-  complete: string
-  result: string
-  next: string
-  when: string
-  save: string
-  saveClose: string
-  missingNext: string
-  other: string
   /** Plantillas con %s: el cliente pone el dato que cambia. */
   completeOf: string
   callOf: string
   whatsappOf: string
-  afterCall: string
   clock: string
   clockLate: string
   more: Record<QueueGroup, string | null>
   groups: Record<QueueGroup, string>
   emptyTitle: string
   emptyBody: string
-  queue: string
 }
-export type CompleteAction = (prev: ActionResult<{ toast: string }> | null, data: FormData) => Promise<ActionResult<{ toast: string }>>
 
-const fill = (template: string, value: string) => template.replace('%s', value)
 const CHIP = {
   risk: 'bg-risk-bg text-red-text',
   warn: 'bg-warn-bg text-amber-text',
@@ -82,20 +69,14 @@ export function Queue({
   items,
   counts,
   labels,
-  nextOptions,
-  whenOptions,
-  defaultWhen,
-  minDate,
+  sheet: config,
   now: serverNow,
   action,
 }: {
   items: QueueItem[]
   counts: Record<QueueGroup, number>
   labels: QueueLabels
-  nextOptions: { value: string; label: string }[]
-  whenOptions: { value: string; label: string }[]
-  defaultWhen: string
-  minDate: string
+  sheet: SheetConfig
   now: string
   action: CompleteAction
 }) {
@@ -103,13 +84,7 @@ export function Queue({
   const [gone, setGone] = useState<string[]>([])
   const [leaving, setLeaving] = useState<string | null>(null)
   const [sheet, setSheet] = useState<{ item: QueueItem; afterCall: boolean } | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [next, setNext] = useState('')
-  const [when, setWhen] = useState(defaultWhen)
-  const [pending, startTransition] = useTransition()
   const [now, setNow] = useState(() => Date.parse(serverNow))
-  const dialog = useRef<HTMLDialogElement>(null)
   const awaiting = useRef<{ item: QueueItem; left: boolean } | null>(null)
 
   const live = items.filter((i) => !gone.includes(i.key))
@@ -123,22 +98,7 @@ export function Queue({
     return () => clearInterval(id)
   }, [ticking])
 
-  useEffect(() => {
-    if (!toast) return
-    const id = setTimeout(() => setToast(null), 2600)
-    return () => clearTimeout(id)
-  }, [toast])
-
-  const openSheet = useCallback((item: QueueItem, afterCall = false) => {
-    setError(null)
-    setNext('')
-    setWhen(defaultWhen)
-    setSheet({ item, afterCall })
-  }, [defaultWhen])
-
-  useEffect(() => {
-    if (sheet && dialog.current && !dialog.current.open) dialog.current.showModal()
-  }, [sheet])
+  const openSheet = useCallback((item: QueueItem, afterCall = false) => setSheet({ item, afterCall }), [])
 
   // Llamar y WhatsApp sacan a la persona de la app. Al volver, la hoja pregunta cómo le fue.
   useEffect(() => {
@@ -159,30 +119,17 @@ export function Queue({
     awaiting.current = { item, left: false }
   }
 
-  const submit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!sheet) return
-    const data = new FormData(e.currentTarget)
-    if (!data.get('next')) {
-      setError(labels.missingNext)
-      return
-    }
-    const key = sheet.item.key
-    startTransition(async () => {
-      const res = await action(null, data)
-      if (!res.ok) {
-        setError(res.error)
-        return
-      }
-      dialog.current?.close()
-      setLeaving(key)
-      setToast(res.data?.toast ?? null)
-      setTimeout(() => {
-        setGone((g) => [...g, key])
-        setLeaving(null)
-        router.refresh()
-      }, 420)
-    })
+  // Al guardar: la fila se pliega (420 ms), sale de la cola y el servidor manda la cola nueva.
+  const done = (text: string | null) => {
+    const key = sheet?.item.key
+    showToast(text)
+    if (!key) return
+    setLeaving(key)
+    setTimeout(() => {
+      setGone((g) => [...g, key])
+      setLeaving(null)
+      router.refresh()
+    }, 420)
   }
 
   const clockChip = (item: QueueItem, onBlack: boolean) => {
@@ -329,100 +276,8 @@ export function Queue({
         </>
       )}
 
-      <dialog
-        ref={dialog}
-        aria-labelledby="sheet-title"
-        onClose={() => setSheet(null)}
-        onClick={(e) => {
-          if (e.target === dialog.current) dialog.current?.close()
-        }}
-        className="sheet on-ink m-auto w-[min(560px,100vw)] rounded-[16px] p-0 max-md:mb-0 max-md:w-full max-md:max-w-none max-md:rounded-b-none"
-        data-testid="complete-sheet"
-      >
-        {sheet && (
-          <form onSubmit={submit} className="p-6 pb-[max(24px,env(safe-area-inset-bottom))] md:p-8">
-            <span aria-hidden className="mx-auto mb-5 block h-1 w-10 rounded-full bg-black-line md:hidden" />
-            <input type="hidden" name="type" value={sheet.item.type} />
-            <input type="hidden" name="id" value={sheet.item.id} />
-            <p className="text-[13px] text-on-black">{labels.complete}</p>
-            <h2 id="sheet-title" className="mt-0.5 text-[18px] leading-[26px] font-semibold" data-testid="sheet-title">
-              {sheet.afterCall ? fill(labels.afterCall, sheet.item.name) : sheet.item.title}
-            </h2>
-
-            <Choices name="result" legend={labels.result} options={sheet.item.results} defaultValue={sheet.item.defaultResult} />
-            <Choices name="next" legend={labels.next} options={nextOptions} value={next} onChange={setNext} />
-            {next !== 'none' && (
-              <>
-                <Choices name="when_choice" legend={labels.when} options={[...whenOptions, { value: 'other', label: labels.other }]} value={whenOptions.some((o) => o.value === when) ? when : 'other'} onChange={(v) => setWhen(v === 'other' ? '' : v)} />
-                {!whenOptions.some((o) => o.value === when) && (
-                  <input type="date" required min={minDate} value={when} onChange={(e) => setWhen(e.target.value)} aria-label={labels.other} className="input mt-3 !border-black-line !bg-graphite !text-white [color-scheme:dark]" data-testid="sheet-date" />
-                )}
-              </>
-            )}
-            <input type="hidden" name="when" value={next === 'none' ? '' : when} />
-
-            {error && (
-              <p role="alert" className="mt-5 rounded-[10px] bg-[#3a1512] px-4 py-3 text-[14px] font-medium text-[#ffb4ab]" data-testid="sheet-error">
-                {error}
-              </p>
-            )}
-            <div className="mt-7 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-              <button type="button" onClick={() => dialog.current?.close()} className="press inline-flex h-12 items-center justify-center rounded-[10px] px-5 text-[15px] font-medium text-on-black hover:text-white">
-                {labels.cancel}
-              </button>
-              <button type="submit" disabled={pending} aria-busy={pending} className="press glow-hover inline-flex h-12 items-center justify-center rounded-[10px] bg-neon px-6 text-[15px] font-semibold text-black disabled:opacity-60" data-testid="sheet-save">
-                {next === 'none' ? labels.saveClose : labels.save}
-              </button>
-            </div>
-          </form>
-        )}
-      </dialog>
-
-      <div aria-live="polite" role="status" className="pointer-events-none fixed inset-x-0 bottom-[104px] z-50 flex justify-center px-4 md:bottom-[112px]">
-        {toast && (
-          <p className="toast pointer-events-auto max-w-[560px] rounded-[12px] px-5 py-3 text-[15px] font-medium" data-testid="toast">
-            {toast}
-          </p>
-        )}
-      </div>
+      <CompleteSheet target={sheet} config={config} action={action} onClose={() => setSheet(null)} onDone={done} />
     </div>
-  )
-}
-
-/** Una pregunta de la hoja: chips de una sola elección (radios reales, se operan con teclado). */
-function Choices({
-  name,
-  legend,
-  options,
-  value,
-  defaultValue,
-  onChange,
-}: {
-  name: string
-  legend: string
-  options: { value: string; label: string }[]
-  value?: string
-  defaultValue?: string | null
-  onChange?: (v: string) => void
-}) {
-  return (
-    <fieldset className="mt-6" data-testid={`choices-${name}`}>
-      <legend className="mb-2.5 text-[15px] font-semibold">{legend}</legend>
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <label key={o.value} className="choice inline-flex h-11 cursor-pointer items-center rounded-full border border-black-line px-4 text-[15px] font-medium md:h-10">
-            <input
-              type="radio"
-              name={name}
-              value={o.value}
-              className="sr-only"
-              {...(value !== undefined ? { checked: value === o.value, onChange: () => onChange?.(o.value) } : { defaultChecked: defaultValue === o.value })}
-            />
-            <span>{o.label}</span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
   )
 }
 

@@ -44,6 +44,18 @@ export function longDay(d: Date, locale: Locale, timeZone = 'UTC'): string {
   return locale === 'es' ? text.replace(',', '') : text
 }
 
+/** Fecha de un evento del hilo: "Hoy, 09:12" si fue hoy; si no, "lun 9 nov" (con año cuando no es el actual). */
+export function threadDate(d: Date | string, locale: Locale, timeZone = 'UTC', now = new Date()): string {
+  const date = typeof d === 'string' ? new Date(d) : d
+  if (isoDay(date, timeZone) === isoDay(now, timeZone)) return `${locale === 'en' ? 'Today' : 'Hoy'}, ${clock(date, locale, timeZone)}`
+  const label = weekday(date, locale, timeZone)
+  return date.getUTCFullYear() === now.getUTCFullYear() ? label : `${label} ${date.getUTCFullYear()}`
+}
+
+/** "nov 2026": desde cuándo vale una atribución. */
+export const monthYear = (d: Date | string, locale: Locale, timeZone = 'UTC') =>
+  new Intl.DateTimeFormat(tag(locale), { month: 'short', year: 'numeric', timeZone }).format(typeof d === 'string' ? new Date(d) : d).replace('.', '').replace(' de ', ' ')
+
 export function clock(d: Date, locale: Locale, timeZone = 'UTC'): string {
   return new Intl.DateTimeFormat(tag(locale), { hour: 'numeric', minute: '2-digit', timeZone }).format(d)
 }

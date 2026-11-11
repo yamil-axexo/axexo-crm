@@ -34,3 +34,16 @@ export const WIDTHS = [
 
 /** Conexión directa a la base de pruebas, solo para preparar un caso que la interfaz no deja crear (por ejemplo, una tarea vencida). */
 export const testDb = () => postgres(process.env.MIGRATION_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:5433/contigo_test', { max: 1, onnotice: () => {} })
+
+/** Cambia de pestaña en la ficha del comercio (Hilo, Árbol, Datos). */
+export async function fichaTab(page: Page, tab: 'hilo' | 'arbol' | 'datos') {
+  await page.getByTestId(`tab-${tab}`).click()
+  await expect(page.getByTestId(`tab-${tab}`)).toHaveAttribute('aria-current', 'page')
+}
+
+/** El ID del comercio cuya ficha está abierta, sea como panel sobre la lista (?ficha=) o a pantalla completa (/comercios/<id>). */
+export async function fichaId(page: Page): Promise<string> {
+  await expect(page.getByTestId('ficha')).toBeVisible()
+  const url = new URL(page.url())
+  return url.searchParams.get('ficha') ?? url.pathname.split('/').pop()!
+}

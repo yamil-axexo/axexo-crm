@@ -61,7 +61,7 @@ export function ActionForm({ action, children, className, onOk, testId }: { acti
   )
 }
 
-export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md', testId, hash }: { trigger: ReactNode; title: string; children: ReactNode; variant?: 'primary' | 'ghost' | 'quiet' | 'danger'; size?: 'sm' | 'md'; testId?: string; hash?: string }) {
+export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md', testId, hash, triggerClass }: { trigger: ReactNode; title: string; children: ReactNode; variant?: 'primary' | 'ghost' | 'quiet' | 'danger'; size?: 'sm' | 'md'; testId?: string; hash?: string; triggerClass?: string }) {
   const ref = useRef<HTMLDialogElement>(null)
   // El botón crear del dock enlaza a la lista con un ancla (#nuevo): el diálogo se abre solo.
   useEffect(() => {
@@ -78,7 +78,7 @@ export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md
   }, [hash])
   return (
     <>
-      <button type="button" className={buttonClass(variant, size)} onClick={() => ref.current?.showModal()} data-testid={testId}>
+      <button type="button" className={triggerClass ?? buttonClass(variant, size)} onClick={() => ref.current?.showModal()} data-testid={testId}>
         {trigger}
       </button>
       <dialog
@@ -89,7 +89,7 @@ export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md
           if (e.target === ref.current) ref.current?.close()
         }}
       >
-        <div className="p-8">
+        <div className="p-6 md:p-8">
           <div className="mb-6 flex items-start justify-between gap-4">
             <h2 className="text-[20px] font-semibold">{title}</h2>
             <button type="button" onClick={() => ref.current?.close()} aria-label="Cerrar / Close" className="rounded-full px-3 py-1 text-[13px] font-semibold text-muted hover:bg-surface-3">

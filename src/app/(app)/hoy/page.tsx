@@ -3,8 +3,8 @@ import { requireCtx, systemCtx } from '@/server/context'
 import { track } from '@/dal/boards'
 import { getQueue, getTeamQueue, QUEUE_PAGE, type QueueRow } from '@/dal/queue'
 import { ensureRulesFresh } from '@/domain/rules'
-import { NEXTS } from '@/domain/queue'
-import { addDays, ago, clock, daysSince, isoDay, longDay, weekday } from '@/lib/format'
+import { resultOptions, sheetConfig } from '@/server/sheet'
+import { ago, clock, daysSince, longDay, weekday } from '@/lib/format'
 import type { MessageKey } from '@/lib/messages'
 import { cx } from '@/ui/kit'
 import { CountUp, Queue, type QueueItem, type QueueLabels } from '@/ui/queue'
@@ -22,7 +22,6 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
   await track(ctx, team ? 'view.hoy.equipo' : 'view.hoy')
   const tz = ctx.markets[0]?.timezone ?? 'UTC'
   const now = new Date()
-  const today = isoDay(now, tz)
 
   const scope = leads ? (
     <nav aria-label={m('today.scope')} className="inline-flex rounded-full border border-line bg-surface p-1" data-testid="scope">
@@ -104,7 +103,6 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
 
   const q = await getQueue(ctx)
   const href = (r: QueueRow) => (r.type === 'lead' ? `/leads/${r.id}` : r.dealId ? `/deals/${r.dealId}` : r.accountId ? `/comercios/${r.accountId}` : r.leadId ? `/leads/${r.leadId}` : r.type === 'suggestion' ? '/supervisor' : '/actividades')
-  const results = (keys: string[]) => keys.map((k) => ({ value: k, label: m(`complete.result.${k}` as MessageKey) }))
 
   const view = (r: QueueRow): QueueItem => {
     const name = r.name ?? r.subject
@@ -116,7 +114,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
         context: `${m(r.kind === 'web_form' ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
         chip: r.group === 'late' ? { text: m('today.chip.late'), tone: 'risk' } : { text: m('today.chip.today'), tone: 'warn' },
         clock: r.due ? r.due.toISOString() : null,
-        results: results(['reached', 'no_answer', 'later']),
+        results: resultOptions(ctx, ['reached', 'no_answer', 'later']),
         defaultResult: null,
       }
     if (r.type === 'suggestion')
@@ -125,7 +123,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
         title: m(`suggest.${r.kind}` as MessageKey, { name }),
         context: m(`ctx.${r.kind}` as MessageKey, { days: r.detail.since ? daysSince(String(r.detail.since), now) : 0 }),
         chip: { text: m('today.chip.suggested'), tone: 'suggested' },
-        results: results(['done', 'reached', 'no_answer', 'later']),
+        results: resultOptions(ctx, ['done', 'reached', 'no_answer', 'later']),
         defaultResult: 'done',
       }
     const timed = r.due && !r.due.toISOString().endsWith(DATE_ONLY)
@@ -146,7 +144,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
             : timed
               ? { text: clock(r.due, locale, tz), tone: r.due < now ? 'warn' : 'neutral' }
               : { text: m('today.chip.today'), tone: 'neutral' },
-      results: results(['done', 'reached', 'no_answer', 'later']),
+      results: resultOptions(ctx, ['done', 'reached', 'no_answer', 'later']),
       defaultResult: 'done',
     }
   }
@@ -169,40 +167,19 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     q.counts.suggested ? m('today.breakdown.suggested', { count: q.counts.suggested }) : null,
   ].filter(Boolean)
 
-  const tomorrow = addDays(today, 1)
-  const dow = new Date(`${today}T12:00:00Z`).getUTCDay()
-  const monday = addDays(today, ((8 - dow) % 7 || 7))
-  const whenOptions = [
-    { value: today, label: m('complete.when.today') },
-    { value: tomorrow, label: m('complete.when.tomorrow') },
-    { value: addDays(today, 3), label: weekday(addDays(today, 3), locale) },
-    ...(monday !== tomorrow && monday !== addDays(today, 3) ? [{ value: monday, label: weekday(monday, locale) }] : []),
-  ]
   const labels: QueueLabels = {
-    now: m('today.now'), call: m('action.call'), whatsapp: m('action.whatsapp'), open: m('action.open'), done: m('action.done'), markDone: m('action.markDone'),
-    noPhone: m('action.noPhone'), cancel: m('action.cancel'), complete: m('complete.title'), result: m('complete.result'), next: m('complete.next'),
-    when: m('complete.when'), save: m('complete.save'), saveClose: m('complete.saveClose'), missingNext: m('complete.missingNext'), other: m('complete.when.other'),
-    completeOf: m('action.completeOf', { title: '%s' }), callOf: m('action.callOf', { name: '%s' }), whatsappOf: m('action.whatsappOf', { name: '%s' }), afterCall: m('complete.afterCall', { name: '%s' }),
+    now: m('today.now'), call: m('action.call'), whatsapp: m('action.whatsapp'), open: m('action.open'), done: m('action.done'), markDone: m('action.markDone'), noPhone: m('action.noPhone'),
+    completeOf: m('action.completeOf', { title: '%s' }), callOf: m('action.callOf', { name: '%s' }), whatsappOf: m('action.whatsappOf', { name: '%s' }),
     clock: m('today.leadClock', { time: '%s' }), clockLate: m('today.leadClockLate', { time: '%s' }),
     more: { late: more('late'), today: more('today'), suggested: more('suggested') },
     groups: { late: m('today.group.late'), today: m('today.group.today'), suggested: m('today.group.suggested') },
-    emptyTitle: m('today.empty.title'), emptyBody: m('today.empty.body'), queue: m('today.queue'),
+    emptyTitle: m('today.empty.title'), emptyBody: m('today.empty.body'),
   }
 
   return (
     <>
       {header(m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
-      <Queue
-        items={items}
-        counts={q.counts}
-        labels={labels}
-        nextOptions={NEXTS.map((n) => ({ value: n, label: m(`complete.next.${n}` as MessageKey) }))}
-        whenOptions={whenOptions}
-        defaultWhen={tomorrow}
-        minDate={today}
-        now={now.toISOString()}
-        action={completeItemAction}
-      />
+      <Queue items={items} counts={q.counts} labels={labels} sheet={sheetConfig(ctx, now)} now={now.toISOString()} action={completeItemAction} />
     </>
   )
 }

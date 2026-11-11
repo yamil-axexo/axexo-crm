@@ -5,6 +5,7 @@ import { LineChart, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, SearchBox, type DockItem } from '@/ui/shell'
+import { ToastHost } from '@/ui/complete'
 import { ROLE_LABEL } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
@@ -75,6 +76,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </header>
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} />
+      <ToastHost />
     </div>
   )
 }

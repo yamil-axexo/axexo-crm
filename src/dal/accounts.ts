@@ -17,18 +17,28 @@ export type AccountListItem = {
   children: number
   last_txn_at: Date | null
   txn_count_30d: number | null
+  has_deal: boolean
+  phone: string | null
 }
 
-export type AccountFilters = { q?: string; market?: string; lifecycle?: string; owner?: string; kind?: string; after?: string }
+export type AccountFilters = { q?: string; market?: string; lifecycle?: string; owner?: string; kind?: string; after?: string; ver?: string }
+export type AccountCounts = { all: number; risk: number; idle: number; nostep: number }
 export const ACCOUNT_PAGE = 40
 
 /** PERF-02 / PERF-05 / UX-02: lista por llave (nombre, id) y búsqueda por nombre, teléfono o cualquier alias. */
-export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items: AccountListItem[]; next: string | null; total: number }> {
+export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items: AccountListItem[]; next: string | null; total: number; counts: AccountCounts }> {
   return withUser(ctx.user.id, async (tx) => {
     const q = (f.q ?? '').trim()
     const digits = q.replace(/[^\d]/g, '')
     const scope = ctx.markets.map((m) => m.code) // AUTHZ-07: filtro explícito por mercado, además de RLS
-    const where = tx`
+    // Salud (src/lib/health.ts) y "sin próximo paso", en SQL: los filtros de la lista cuentan con la misma regla que pinta cada fila.
+    const openDeal = tx`exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open')`
+    const risk = tx`a.lifecycle in ('at_risk', 'inactive', 'churned')`
+    const idle = tx`(a.lifecycle = 'onboarding' or (a.lifecycle = 'prospect' and ${openDeal}))`
+    const nostep = tx`(a.lifecycle <> 'churned'
+      and not exists (select 1 from crm.activities x where x.account_id = a.id and x.done_at is null and x.kind in ('task', 'handoff', 'call', 'meeting', 'email'))
+      and not exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open' and d.next_step is not null and d.next_step_due >= current_date))`
+    const base = tx`
       a.archived_at is null and a.market_code = any(${scope}::text[])
       ${f.market ? tx`and a.market_code = ${f.market}` : tx``}
       ${f.lifecycle ? tx`and a.lifecycle = ${f.lifecycle}` : tx``}
@@ -37,23 +47,47 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items
       ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'}
                     ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
                     or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) like ${'%' + q.toUpperCase() + '%'}))` : tx``}`
+    const where = tx`${base} ${f.ver === 'riesgo' ? tx`and ${risk}` : f.ver === 'sin-transaccionar' ? tx`and ${idle}` : f.ver === 'sin-paso' ? tx`and ${nostep}` : tx``}`
     const [aName, aId] = (f.after ?? '').split('|')
     const cursor = aName !== undefined && aId ? tx`and (a.name_norm, a.id) > (${aName}, ${aId}::uuid)` : tx``
     const rows = await tx<(AccountListItem & { name_norm: string })[]>`
       select a.id, a.market_code, a.name, a.name_norm, a.kind, a.segment, a.lifecycle, a.locality, a.region, a.owner_id, u.full_name as owner_name,
              p.name as parent_name,
              (select count(*)::int from crm.accounts c where c.parent_id = a.id and c.archived_at is null) as children,
-             mm.last_txn_at, mm.txn_count_30d
+             mm.last_txn_at, mm.txn_count_30d, ${openDeal} as has_deal, a.phone
         from crm.accounts a
         left join crm.users u on u.id = a.owner_id
         left join crm.accounts p on p.id = a.parent_id
         left join lateral (select m.last_txn_at, m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = a.id order by m.as_of desc limit 1) mm on true
        where ${where} ${cursor}
        order by a.name_norm, a.id limit ${ACCOUNT_PAGE + 1}`
-    const total = await tx<{ n: number }[]>`select count(*)::int as n from crm.accounts a where ${where}`
+    const counts = await tx<AccountCounts[]>`
+      select count(*)::int as "all", count(*) filter (where ${risk})::int as risk, count(*) filter (where ${idle})::int as idle, count(*) filter (where ${nostep})::int as nostep
+        from crm.accounts a where ${base}`
+    const c = counts[0]!
     const items = rows.slice(0, ACCOUNT_PAGE)
     const last = items[items.length - 1]
-    return { items, next: rows.length > ACCOUNT_PAGE && last ? `${last.name_norm}|${last.id}` : null, total: total[0]?.n ?? 0 }
+    const total = f.ver === 'riesgo' ? c.risk : f.ver === 'sin-transaccionar' ? c.idle : f.ver === 'sin-paso' ? c.nostep : c.all
+    return { items, next: rows.length > ACCOUNT_PAGE && last ? `${last.name_norm}|${last.id}` : null, total, counts: c }
+  })
+}
+
+export type TreeNode = { id: string; name: string; kind: string; lifecycle: string; depth: number; has_deal: boolean; owner_name: string | null; children: number }
+
+/** Vista Árbol de la lista: organizaciones y cadenas con lo que cuelga de ellas, en orden de jerarquía. */
+export async function listTree(ctx: Ctx, f: { market?: string }): Promise<TreeNode[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<TreeNode[]>`
+      select a.id, a.name, a.kind, a.lifecycle, cardinality(a.ancestor_ids) as depth, u.full_name as owner_name,
+             exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open') as has_deal,
+             (select count(*)::int from crm.accounts c where c.parent_id = a.id and c.archived_at is null) as children
+        from crm.accounts a left join crm.users u on u.id = a.owner_id
+       where a.archived_at is null and a.market_code = any(${ctx.markets.map((m) => m.code)}::text[])
+         ${f.market ? tx`and a.market_code = ${f.market}` : tx``}
+         and (a.parent_id is not null or exists (select 1 from crm.accounts c where c.parent_id = a.id and c.archived_at is null))
+       order by (select coalesce(string_agg(p.name_norm, '/' order by o.ord), '') from unnest(a.ancestor_ids) with ordinality o(pid, ord) join crm.accounts p on p.id = o.pid) || '/' || a.name_norm, a.id
+       limit 300`
+    return [...rows]
   })
 }
 
@@ -79,7 +113,7 @@ export async function getAccount(ctx: Ctx, id: string) {
     const account = rows[0]
     if (!account) return null
     const ancestors = account.ancestor_ids.length
-      ? await tx<{ id: string; name: string }[]>`select id, name from crm.accounts where id = any(${account.ancestor_ids}::uuid[])
+      ? await tx<{ id: string; name: string; kind: string }[]>`select id, name, kind from crm.accounts where id = any(${account.ancestor_ids}::uuid[])
           order by array_position(${account.ancestor_ids}::uuid[], id)`
       : []
     // DAT-01: roll-up de todo lo que cuelga de esta cuenta, a cualquier profundidad.
@@ -92,8 +126,10 @@ export async function getAccount(ctx: Ctx, id: string) {
         from crm.accounts d
         left join lateral (select m.txn_count_30d, m.volume_minor_30d, m.currency from crm.merchant_metrics_daily m where m.account_id = d.id order by m.as_of desc limit 1) mm on true
        where d.ancestor_ids @> array[${id}::uuid] and d.archived_at is null`
-    const children = await tx<{ id: string; name: string; kind: string; lifecycle: string; locality: string | null; owner_name: string | null; txn_count_30d: number | null }[]>`
+    const children = await tx<{ id: string; name: string; kind: string; lifecycle: string; locality: string | null; owner_name: string | null; txn_count_30d: number | null; since: Date; has_deal: boolean }[]>`
       select c.id, c.name, c.kind, c.lifecycle, c.locality, u.full_name as owner_name,
+             coalesce((select max(x.effective_from) from crm.account_attributions x where x.account_id = c.id and x.layer = 'channel' and x.effective_to is null), c.created_at) as since,
+             exists (select 1 from crm.deals d where d.account_id = c.id and d.status = 'open') as has_deal,
              (select m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = c.id order by m.as_of desc limit 1) as txn_count_30d
         from crm.accounts c left join crm.users u on u.id = c.owner_id
        where c.parent_id = ${id} and c.archived_at is null order by c.name limit 60`
@@ -116,13 +152,13 @@ export async function getAccount(ctx: Ctx, id: string) {
         from crm.merchant_metrics_daily where account_id = ${id} order by as_of desc limit 1`
     const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; owner_name: string | null }[]>`
       select a.id, a.kind, a.subject, a.due_at, u.full_name as owner_name from crm.activities a left join crm.users u on u.id = a.owner_id
-       where a.account_id = ${id} and a.kind in ('task','handoff') and a.done_at is null order by a.due_at nulls last limit 10`
+       where a.account_id = ${id} and a.kind in ('task', 'handoff', 'call', 'meeting', 'email') and a.done_at is null order by a.due_at nulls last limit 10`
     // ACT-01: un solo timeline con actividades, visitas de la Sales App, cambios de etapa y cambios de dueño.
     const timeline = await tx<TimelineItem[]>`
       select * from (
         select a.created_at as at, a.kind, a.subject as title, a.body, u.full_name as actor,
-               jsonb_build_object('done', a.done_at is not null, 'source', a.source) as meta
-          from crm.activities a left join crm.users u on u.id = a.created_by where a.account_id = ${id}
+               jsonb_build_object('done', a.done_at is not null, 'source', a.source, 'outcome', a.outcome) as meta
+          from crm.activities a left join crm.users u on u.id = a.created_by where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
         union all
         select v.checked_in_at, 'visit', v.outcome, v.note, coalesce(u.full_name, v.salesperson_ref),
                jsonb_build_object('rejection', v.rejection_code, 'revisit', v.revisit, 'minutes', v.duration_seconds / 60, 'decision_maker', v.decision_maker_seen)
@@ -175,19 +211,24 @@ export async function searchAll(ctx: Ctx, q: string) {
   if (term.length < 2) return { accounts: [], leads: [], deals: [] }
   return withUser(ctx.user.id, async (tx) => {
     const digits = term.replace(/[^\d]/g, '')
-    const accounts = await tx<{ id: string; name: string; market_code: string; lifecycle: string; locality: string | null; via: string | null }[]>`
+    const accounts = await tx<{ id: string; name: string; market_code: string; lifecycle: string; locality: string | null; via: string | null; has_deal: boolean }[]>`
       select a.id, a.name, a.market_code, a.lifecycle, a.locality,
+             exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open') as has_deal,
              (select al.system || ' ' || al.external_id from crm.account_aliases al where al.account_id = a.id and al.valid_to is null
                and upper(al.external_id) like ${'%' + term.toUpperCase() + '%'} limit 1) as via
         from crm.accounts a
        where a.archived_at is null and a.market_code = any(${ctx.markets.map((m) => m.code)}::text[])
          and (a.name_norm like ${'%'} || app.norm(${term}) || ${'%'} or a.name_norm % app.norm(${term})
              ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
+             or exists (select 1 from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
+                         where ac.account_id = a.id and ac.valid_to is null
+                           and (app.norm(c.full_name) like ${'%'} || app.norm(${term}) || ${'%'} ${digits.length >= 4 ? tx`or c.phone like ${'%' + digits + '%'}` : tx``}))
              or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) like ${'%' + term.toUpperCase() + '%'}))
        order by similarity(a.name_norm, app.norm(${term})) desc limit 12`
     const leads = await tx<{ id: string; business_name: string; market_code: string; status: string }[]>`
       select id, business_name, market_code, status from crm.leads
        where app.norm(business_name) like ${'%'} || app.norm(${term}) || ${'%'} or app.norm(contact_name) like ${'%'} || app.norm(${term}) || ${'%'}
+          ${digits.length >= 4 ? tx`or phone like ${'%' + digits + '%'}` : tx``}
        order by created_at desc limit 8`
     const deals = await tx<{ id: string; title: string; market_code: string; status: string }[]>`
       select id, title, market_code, status from crm.deals where app.norm(title) like ${'%'} || app.norm(${term}) || ${'%'} order by created_at desc limit 8`
