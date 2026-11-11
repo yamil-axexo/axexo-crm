@@ -21,7 +21,7 @@ export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: n
     with cond as (
       select 'lead_sla'::text as kind, 'high'::text as severity, l.market_code, null::uuid as account_id, null::uuid as deal_id, l.id as lead_id, l.owner_id,
              jsonb_build_object('name', l.business_name, 'due', l.sla_due_at) as detail, 'lead_sla:' || l.id as dedupe_key
-        from crm.leads l where l.status = 'new' and l.sla_due_at < now()
+        from crm.leads l where l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()
       union all
       select 'revisit_due', 'high', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title, 'due', d.revisit_due, 'reason', d.revisit_reason), 'revisit_due:' || d.id
@@ -70,7 +70,7 @@ export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: n
     select c.market_code, c.kind, c.severity, c.account_id, c.deal_id, c.lead_id, c.owner_id, c.detail, c.dedupe_key
       from cond c
      where not exists (select 1 from crm.exceptions e where e.dedupe_key = c.dedupe_key and e.resolved_at is null)
-       and not exists (select 1 from crm.exceptions e where e.dedupe_key = c.dedupe_key and e.resolution = 'dismissed' and e.resolved_at > now() - interval '7 days')
+       and not exists (select 1 from crm.exceptions e where e.dedupe_key = c.dedupe_key and e.resolution in ('dismissed', 'scheduled') and e.resolved_at > now() - interval '7 days')
     on conflict do nothing`
 
   await tx`update crm.settings set value = to_jsonb(now()) where key = 'rules_last_run'`

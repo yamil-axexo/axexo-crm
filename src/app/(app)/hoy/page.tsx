@@ -1,151 +1,208 @@
 import Link from 'next/link'
 import { requireCtx, systemCtx } from '@/server/context'
-import { getToday, track } from '@/dal/boards'
+import { track } from '@/dal/boards'
+import { getQueue, getTeamQueue, QUEUE_PAGE, type QueueRow } from '@/dal/queue'
 import { ensureRulesFresh } from '@/domain/rules'
-import { Card, CardTitle, Stat, Badge, Empty, PageHeader } from '@/ui/kit'
-import { ActionForm, Submit } from '@/ui/client'
-import { ago, day, pct } from '@/lib/format'
-import { EXCEPTION, lab } from '@/lib/labels'
-import { completeTaskAction } from '@/app/(app)/actividades/actions'
+import { NEXTS } from '@/domain/queue'
+import { addDays, ago, clock, daysSince, isoDay, longDay, weekday } from '@/lib/format'
+import type { MessageKey } from '@/lib/messages'
+import { cx } from '@/ui/kit'
+import { CountUp, Queue, type QueueItem, type QueueLabels } from '@/ui/queue'
+import { completeItemAction } from './actions'
 
-export default async function HoyPage() {
+/** Las tareas con fecha pero sin hora se guardan a esta hora UTC: no se muestran como una hora real. */
+const DATE_ONLY = 'T15:00:00.000Z'
+
+export default async function HoyPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
   const ctx = await requireCtx()
-  const { t, locale } = ctx
+  const { m, locale } = ctx
+  const leads = ctx.can('board.supervisor')
+  const team = leads && (await searchParams).ver === 'equipo'
   await ensureRulesFresh(await systemCtx())
-  await track(ctx, 'view.hoy')
-  const d = await getToday(ctx)
-  const c = d.counts
-  const sells = ctx.can('lead.work')
-  const first = ctx.user.name.split(' ')[0]
+  await track(ctx, team ? 'view.hoy.equipo' : 'view.hoy')
+  const tz = ctx.markets[0]?.timezone ?? 'UTC'
+  const now = new Date()
+  const today = isoDay(now, tz)
 
-  const exceptionHref = (e: (typeof d.exceptions)[number]) => (e.deal_id ? `/deals/${e.deal_id}` : e.lead_id ? `/leads/${e.lead_id}` : e.account_id ? `/comercios/${e.account_id}` : '/supervisor')
+  const scope = leads ? (
+    <nav aria-label={m('today.scope')} className="inline-flex rounded-full border border-line bg-surface p-1" data-testid="scope">
+      {[
+        { href: '/hoy', label: m('today.me'), on: !team, id: 'scope-me' },
+        { href: '/hoy?ver=equipo', label: m('today.team'), on: team, id: 'scope-team' },
+      ].map((s) => (
+        <Link key={s.id} href={s.href} aria-current={s.on ? 'page' : undefined} data-testid={s.id} className={cx('press inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium', s.on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')}>
+          {s.label}
+        </Link>
+      ))}
+    </nav>
+  ) : null
 
-  return (
-    <>
-      <PageHeader
-        eyebrow={day(new Date(), locale, ctx.markets[0]?.timezone)}
-        title={t(`Hola, ${first}`, `Hi, ${first}`)}
-        desc={
-          sells
-            ? t('Esto es lo que necesita tu atención hoy, en orden de urgencia.', 'This is what needs your attention today, most urgent first.')
-            : t('Un resumen de lo que pasa en tu alcance.', 'A summary of what is happening in your scope.')
-        }
-      />
-
-      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-        <Stat testId="stat-leads-overdue" label={t('Leads fuera de tiempo', 'Leads past response time')} value={c.leads_overdue} tone={c.leads_overdue ? 'bad' : 'good'} hint={t(`${c.leads_open} abiertos`, `${c.leads_open} open`)} href="/leads?owner=me&status=overdue" />
-        <Stat testId="stat-tasks" label={t('Tareas para hoy', 'Tasks due today')} value={c.tasks_due} tone={c.tasks_overdue ? 'warn' : undefined} hint={t(`${c.tasks_overdue} vencidas`, `${c.tasks_overdue} overdue`)} href="/actividades" />
-        <Stat testId="stat-revisits" label={t('Revisitas al decisor', 'Decision-maker revisits')} value={c.revisits} tone={c.revisits ? 'warn' : undefined} hint={t(`${c.deals_open} deals abiertos`, `${c.deals_open} open deals`)} href="/pipelines?owner=me" />
-        <Stat testId="stat-awaiting" label={t('Esperando primera venta', 'Awaiting first sale')} value={c.deals_awaiting} hint={t('Se ganan cuando S5 reporta la venta', 'Won when S5 reports the sale')} href="/pipelines?owner=me" />
+  const header = (title: string, value: number, sub: string, id: string) => (
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p className="eyebrow first-letter:uppercase">{m('today.date', { date: longDay(now, locale, tz) })}</p>
+        <h1 className="num mt-1 text-[28px] leading-9 font-semibold" data-testid="today-title">
+          <CountUp value={value} text={title} id={id} />
+        </h1>
+        {sub && <p className="mt-1 text-[15px] text-muted" data-testid="today-breakdown">{sub}</p>}
       </div>
+      {scope}
+    </header>
+  )
 
-      <div className="mt-8 grid grid-cols-1 gap-8 xl:grid-cols-2">
-        <Card data-testid="today-attention">
-          <CardTitle
-            title={t('Necesita tu atención', 'Needs your attention')}
-            hint={t('Lo detectan las reglas; desaparece solo cuando lo resuelves.', 'Detected by rules; it clears itself once you resolve it.')}
-            right={c.exceptions > d.exceptions.length ? <Badge>{`${d.exceptions.length} / ${c.exceptions}`}</Badge> : undefined}
-          />
-          {d.exceptions.length === 0 ? (
-            <Empty title={t('Nada urgente', 'Nothing urgent')} hint={t('No tienes excepciones abiertas.', 'You have no open exceptions.')} />
-          ) : (
-            <ul className="-mx-2">
-              {d.exceptions.map((e) => (
-                <li key={e.id}>
-                  <Link href={exceptionHref(e)} className="row-hover flex items-center justify-between gap-4 rounded-2xl px-3 py-3.5">
-                    <span className="min-w-0">
-                      <span className="block truncate text-[14.5px] font-semibold text-strong">{String(e.detail.title ?? e.detail.name ?? '')}</span>
-                      <span className="mt-0.5 block text-[13px] text-muted-2">
-                        {lab(t, EXCEPTION[e.kind]?.label)} · {ago(e.opened_at, locale)}
-                      </span>
+  if (team) {
+    const rows = (await getTeamQueue(ctx)).sort((a, b) => b.late - a.late || b.leads_waiting - a.leads_waiting || b.cold - a.cold)
+    const need = rows.filter((r) => r.late > 2 || r.leads_waiting > 0).length
+    const first = (name: string) => name.split(' ')[0]!
+    const hint = (r: (typeof rows)[number]) =>
+      r.late > 2 ? m('team.hint.late', { name: first(r.full_name) }) : r.leads_waiting > 0 ? m('team.hint.leads') : r.cold > 0 ? m('team.hint.cold') : m('team.hint.ok')
+    const cell = 'num text-[15px] md:text-right'
+    return (
+      <>
+        {header(m('team.attention', { count: need }), need, `${m('team.count', { count: rows.length })} · ${m('team.coldNote')}`, 'equipo')}
+        {rows.length === 0 ? (
+          <div className="card px-8 py-12 text-center text-[15px] text-muted" data-testid="team-empty">{m('team.empty')}</div>
+        ) : (
+          <div className="card overflow-hidden" data-testid="team-table">
+            <div aria-hidden className="hidden grid-cols-[minmax(0,1.4fr)_96px_140px_120px_minmax(0,1.6fr)] gap-4 border-b border-line px-5 py-3 text-[13px] font-medium text-muted md:grid">
+              <span>{m('team.person')}</span>
+              <span className="text-right">{m('team.late')}</span>
+              <span className="text-right">{m('team.leads')}</span>
+              <span className="text-right">{m('team.cold')}</span>
+              <span>{m('team.hint')}</span>
+            </div>
+            <ul className="divide-y divide-line">
+              {rows.map((r) => (
+                <li key={r.id} data-testid="team-row">
+                  <Link href={`/supervisor?owner=${r.id}`} className="row-hover grid grid-cols-3 gap-x-4 gap-y-2 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_96px_140px_120px_minmax(0,1.6fr)] md:items-center md:px-5">
+                    <span className="col-span-3 min-w-0 md:col-span-1">
+                      <span className="block truncate text-[15px] font-medium text-strong">{r.full_name}</span>
+                      <span className="block text-[13px] text-muted">{r.market_code}</span>
                     </span>
-                    <Badge tone={e.severity === 'high' ? 'bad' : e.severity === 'medium' ? 'warn' : 'neutral'}>{lab(t, EXCEPTION[e.kind]?.action)}</Badge>
+                    <span className={cell}>
+                      <span className="block text-[13px] text-muted md:hidden">{m('team.late')}</span>
+                      <span className={cx('inline-flex min-w-8 justify-center rounded-full px-2.5 py-0.5 font-medium', r.late > 2 ? 'bg-risk-bg text-red-text' : 'text-strong')} data-testid="team-late" data-risk={r.late > 2 ? '' : undefined}>{r.late}</span>
+                    </span>
+                    <span className={cell}>
+                      <span className="block text-[13px] text-muted md:hidden">{m('team.leads')}</span>
+                      <span className={cx('inline-flex min-w-8 justify-center rounded-full px-2.5 py-0.5 font-medium', r.leads_waiting > 0 ? 'bg-warn-bg text-amber-text' : 'text-strong')}>{r.leads_waiting}</span>
+                    </span>
+                    <span className={cell}>
+                      <span className="block text-[13px] text-muted md:hidden">{m('team.cold')}</span>
+                      <span className="inline-flex min-w-8 justify-center px-2.5 py-0.5 font-medium text-strong">{r.cold}</span>
+                    </span>
+                    <span className="col-span-3 text-[14px] text-muted-2 md:col-span-1">{hint(r)}</span>
                   </Link>
                 </li>
               ))}
             </ul>
-          )}
-        </Card>
+          </div>
+        )}
+      </>
+    )
+  }
 
-        <Card data-testid="today-tasks">
-          <CardTitle title={t('Tus tareas', 'Your tasks')} right={<Link href="/actividades" className="text-[13px] font-semibold text-blue-text">{t('Ver todas', 'See all')}</Link>} />
-          {d.tasks.length === 0 ? (
-            <Empty title={t('Sin tareas abiertas', 'No open tasks')} hint={t('Cada deal abierto lleva un próximo paso; aparecerá aquí.', 'Every open deal carries a next step; it will show up here.')} />
-          ) : (
-            <ul className="-mx-2">
-              {d.tasks.map((task) => {
-                const late = task.due_at && new Date(task.due_at) < new Date()
-                return (
-                  <li key={task.id} className="flex items-center justify-between gap-4 rounded-2xl px-3 py-3">
-                    <Link href={task.deal_id ? `/deals/${task.deal_id}` : task.account_id ? `/comercios/${task.account_id}` : '/actividades'} className="min-w-0">
-                      <span className="block truncate text-[14.5px] font-semibold text-strong">{task.subject}</span>
-                      <span className="mt-0.5 block truncate text-[13px] text-muted-2">
-                        {task.account_name ?? '—'} · <span className={late ? 'font-semibold text-red-text' : ''}>{day(task.due_at, locale)}</span>
-                      </span>
-                    </Link>
-                    <ActionForm action={completeTaskAction}>
-                      <input type="hidden" name="id" value={task.id} />
-                      <Submit variant="ghost" size="sm">{t('Hecha', 'Done')}</Submit>
-                    </ActionForm>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </Card>
+  const q = await getQueue(ctx)
+  const href = (r: QueueRow) => (r.type === 'lead' ? `/leads/${r.id}` : r.dealId ? `/deals/${r.dealId}` : r.accountId ? `/comercios/${r.accountId}` : r.leadId ? `/leads/${r.leadId}` : r.type === 'suggestion' ? '/supervisor' : '/actividades')
+  const results = (keys: string[]) => keys.map((k) => ({ value: k, label: m(`complete.result.${k}` as MessageKey) }))
 
-        <Card data-testid="today-leads">
-          <CardTitle title={t('Leads por atender', 'Leads to work')} right={<Link href="/leads?owner=me&status=open" className="text-[13px] font-semibold text-blue-text">{t('Ver todos', 'See all')}</Link>} />
-          {d.leads.length === 0 ? (
-            <Empty title={t('Sin leads pendientes', 'No pending leads')} />
-          ) : (
-            <ul className="-mx-2">
-              {d.leads.map((l) => {
-                const late = l.status === 'new' && new Date(l.sla_due_at) < new Date()
-                return (
-                  <li key={l.id}>
-                    <Link href={`/leads/${l.id}`} className="row-hover flex items-center justify-between gap-4 rounded-2xl px-3 py-3">
-                      <span className="min-w-0">
-                        <span className="block truncate text-[14.5px] font-semibold text-strong">{l.business_name}</span>
-                        <span className="mt-0.5 block text-[13px] text-muted-2">{[l.locality, l.market_code].filter(Boolean).join(' · ')}</span>
-                      </span>
-                      {l.status === 'new' ? (
-                        <Badge tone={late ? 'bad' : 'accent'}>{late ? t('Fuera de tiempo', 'Past response time') : t(`Vence ${ago(l.sla_due_at, locale)}`, `Due ${ago(l.sla_due_at, locale)}`)}</Badge>
-                      ) : (
-                        <Badge tone="info">{t('Contactado', 'Contacted')}</Badge>
-                      )}
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </Card>
+  const view = (r: QueueRow): QueueItem => {
+    const name = r.name ?? r.subject
+    const base = { key: `${r.type}:${r.id}`, type: r.type, id: r.id, group: r.group, name, href: href(r), tel: r.phone ? `tel:${r.phone}` : null, wa: r.phone ? `https://wa.me/${r.phone.slice(1)}` : null, clock: null as string | null }
+    if (r.type === 'lead')
+      return {
+        ...base,
+        title: m('action.callOf', { name }),
+        context: `${m(r.kind === 'web_form' ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
+        chip: r.group === 'late' ? { text: m('today.chip.late'), tone: 'risk' } : { text: m('today.chip.today'), tone: 'warn' },
+        clock: r.due ? r.due.toISOString() : null,
+        results: results(['reached', 'no_answer', 'later']),
+        defaultResult: null,
+      }
+    if (r.type === 'suggestion')
+      return {
+        ...base,
+        title: m(`suggest.${r.kind}` as MessageKey, { name }),
+        context: m(`ctx.${r.kind}` as MessageKey, { days: r.detail.since ? daysSince(String(r.detail.since), now) : 0 }),
+        chip: { text: m('today.chip.suggested'), tone: 'suggested' },
+        results: results(['done', 'reached', 'no_answer', 'later']),
+        defaultResult: 'done',
+      }
+    const timed = r.due && !r.due.toISOString().endsWith(DATE_ONLY)
+    const parts = [
+      r.name && !r.subject.toLowerCase().includes(r.name.toLowerCase()) ? r.name : null,
+      r.group === 'late' && r.due ? m('ctx.task.late', { date: weekday(r.due, locale, tz) }) : null,
+      r.stage ? m('ctx.task.stage', { stage: r.stage }) : null,
+    ].filter(Boolean)
+    return {
+      ...base,
+      title: r.subject,
+      context: parts.join(' · '),
+      chip:
+        r.group === 'late'
+          ? { text: m('today.chip.late'), tone: 'risk' }
+          : !r.due
+            ? { text: m('today.chip.noDate'), tone: 'warn' }
+            : timed
+              ? { text: clock(r.due, locale, tz), tone: r.due < now ? 'warn' : 'neutral' }
+              : { text: m('today.chip.today'), tone: 'neutral' },
+      results: results(['done', 'reached', 'no_answer', 'later']),
+      defaultResult: 'done',
+    }
+  }
 
-        <Card data-testid="today-field">
-          <CardTitle title={t('Campo, últimos 7 días', 'Field, last 7 days')} hint={t('Las visitas se registran en la Sales App. Aquí solo se leen.', 'Visits are recorded in the Sales App. They are read-only here.')} />
-          <dl className="grid grid-cols-3 gap-4">
-            <div><dt className="text-[13px] text-muted">{t('Visitas', 'Visits')}</dt><dd className="display num mt-1 text-[28px] font-bold text-strong">{c.visits_7d}</dd></div>
-            <div><dt className="text-[13px] text-muted">{t('Con venta', 'With a sale')}</dt><dd className="display num mt-1 text-[28px] font-bold text-strong">{c.sales_7d}</dd></div>
-            <div><dt className="text-[13px] text-muted">{t('Efectividad', 'Effectiveness')}</dt><dd className="display num mt-1 text-[28px] font-bold text-strong">{pct(c.sales_7d, c.visits_7d)}</dd></div>
-          </dl>
-          {d.revisits.length > 0 && (
-            <>
-              <p className="eyebrow mt-7 mb-2">{t('Revisitas pendientes', 'Pending revisits')}</p>
-              <ul className="-mx-2">
-                {d.revisits.map((r) => (
-                  <li key={r.id}>
-                    <Link href={`/deals/${r.id}`} className="row-hover flex items-center justify-between gap-4 rounded-2xl px-3 py-2.5">
-                      <span className="truncate text-[14px] font-medium text-strong">{r.title}</span>
-                      <span className="text-[13px] text-muted-2">{day(r.revisit_due, locale)}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Card>
-      </div>
+  // Orden de urgencia: lead con reloj > vencidos > hoy por hora > sugeridos. El primero es la tarjeta "Ahora".
+  const rank = (r: QueueRow) => (r.type === 'lead' ? 0 : r.group === 'late' ? 1 : r.group === 'today' ? 2 : 3)
+  const far = 8.64e15
+  const items = q.rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => rank(a.r) - rank(b.r) || (a.r.due?.getTime() ?? far) - (b.r.due?.getTime() ?? far) || a.i - b.i)
+    .map(({ r }) => view(r))
+
+  const total = q.counts.late + q.counts.today + q.counts.suggested
+  const shown = { late: 0, today: 0, suggested: 0 }
+  for (const i of items) shown[i.group]++
+  const more = (g: keyof typeof shown) => (q.counts[g] > shown[g] && shown[g] >= QUEUE_PAGE ? m('today.more', { count: q.counts[g] - shown[g] }) : null)
+  const breakdown = [
+    q.counts.late ? m('today.breakdown.late', { count: q.counts.late }) : null,
+    q.counts.today ? m('today.breakdown.today', { count: q.counts.today }) : null,
+    q.counts.suggested ? m('today.breakdown.suggested', { count: q.counts.suggested }) : null,
+  ].filter(Boolean)
+
+  const tomorrow = addDays(today, 1)
+  const dow = new Date(`${today}T12:00:00Z`).getUTCDay()
+  const monday = addDays(today, ((8 - dow) % 7 || 7))
+  const whenOptions = [
+    { value: today, label: m('complete.when.today') },
+    { value: tomorrow, label: m('complete.when.tomorrow') },
+    { value: addDays(today, 3), label: weekday(addDays(today, 3), locale) },
+    ...(monday !== tomorrow && monday !== addDays(today, 3) ? [{ value: monday, label: weekday(monday, locale) }] : []),
+  ]
+  const labels: QueueLabels = {
+    now: m('today.now'), call: m('action.call'), whatsapp: m('action.whatsapp'), open: m('action.open'), done: m('action.done'), markDone: m('action.markDone'),
+    noPhone: m('action.noPhone'), cancel: m('action.cancel'), complete: m('complete.title'), result: m('complete.result'), next: m('complete.next'),
+    when: m('complete.when'), save: m('complete.save'), saveClose: m('complete.saveClose'), missingNext: m('complete.missingNext'), other: m('complete.when.other'),
+    completeOf: m('action.completeOf', { title: '%s' }), callOf: m('action.callOf', { name: '%s' }), whatsappOf: m('action.whatsappOf', { name: '%s' }), afterCall: m('complete.afterCall', { name: '%s' }),
+    clock: m('today.leadClock', { time: '%s' }), clockLate: m('today.leadClockLate', { time: '%s' }),
+    more: { late: more('late'), today: more('today'), suggested: more('suggested') },
+    groups: { late: m('today.group.late'), today: m('today.group.today'), suggested: m('today.group.suggested') },
+    emptyTitle: m('today.empty.title'), emptyBody: m('today.empty.body'), queue: m('today.queue'),
+  }
+
+  return (
+    <>
+      {header(m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
+      <Queue
+        items={items}
+        counts={q.counts}
+        labels={labels}
+        nextOptions={NEXTS.map((n) => ({ value: n, label: m(`complete.next.${n}` as MessageKey) }))}
+        whenOptions={whenOptions}
+        defaultWhen={tomorrow}
+        minDate={today}
+        now={now.toISOString()}
+        action={completeItemAction}
+      />
     </>
   )
 }

@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test'
+import postgres from 'postgres'
 
 /** Entra como una persona sintética desde la pantalla de login (solo existe fuera de producción). */
 export async function loginAs(page: Page, persona: string) {
@@ -30,3 +31,6 @@ export const WIDTHS = [
   { name: 'tablet', width: 1024, height: 768 },
   { name: 'movil', width: 390, height: 844 },
 ] as const
+
+/** Conexión directa a la base de pruebas, solo para preparar un caso que la interfaz no deja crear (por ejemplo, una tarea vencida). */
+export const testDb = () => postgres(process.env.MIGRATION_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:5433/contigo_test', { max: 1, onnotice: () => {} })

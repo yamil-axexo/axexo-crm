@@ -16,39 +16,6 @@ export type ExceptionItem = {
   opened_at: Date
 }
 
-export async function getToday(ctx: Ctx) {
-  return withUser(ctx.user.id, async (tx) => {
-    const me = ctx.user.id
-    const leads = await tx<{ id: string; business_name: string; status: string; sla_due_at: Date; market_code: string; locality: string | null }[]>`
-      select id, business_name, status, sla_due_at, market_code, locality from crm.leads
-       where owner_id = ${me} and status in ('new','contacted') order by (status = 'new') desc, sla_due_at limit 6`
-    const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; account_id: string | null; account_name: string | null; deal_id: string | null }[]>`
-      select a.id, a.kind, a.subject, a.due_at, a.account_id, ac.name as account_name, a.deal_id
-        from crm.activities a left join crm.accounts ac on ac.id = a.account_id
-       where a.owner_id = ${me} and a.kind in ('task','handoff') and a.done_at is null order by a.due_at nulls last limit 8`
-    const mine = await tx<ExceptionItem[]>`
-      select e.id, e.market_code, e.kind, e.severity, e.account_id, e.deal_id, e.lead_id, e.owner_id, null::text as owner_name, e.detail, e.opened_at
-        from crm.exceptions e where e.resolved_at is null and e.owner_id = ${me}
-       order by case e.severity when 'high' then 0 when 'medium' then 1 else 2 end, e.opened_at limit 8`
-    const counts = await tx<{ leads_open: number; leads_overdue: number; tasks_due: number; tasks_overdue: number; deals_open: number; deals_awaiting: number; revisits: number; exceptions: number; team_exceptions: number; visits_7d: number; sales_7d: number }[]>`
-      select (select count(*)::int from crm.leads where owner_id = ${me} and status in ('new','contacted','qualified')) as leads_open,
-             (select count(*)::int from crm.leads where owner_id = ${me} and status = 'new' and sla_due_at < now()) as leads_overdue,
-             (select count(*)::int from crm.activities where owner_id = ${me} and kind in ('task','handoff') and done_at is null and due_at < now() + interval '1 day') as tasks_due,
-             (select count(*)::int from crm.activities where owner_id = ${me} and kind in ('task','handoff') and done_at is null and due_at < now()) as tasks_overdue,
-             (select count(*)::int from crm.deals where owner_id = ${me} and status = 'open') as deals_open,
-             (select count(*)::int from crm.deals d join crm.stages s on s.id = d.stage_id where d.owner_id = ${me} and d.status = 'open' and s.kind = 'awaiting_txn') as deals_awaiting,
-             (select count(*)::int from crm.deals where owner_id = ${me} and status = 'open' and revisit_needed) as revisits,
-             (select count(*)::int from crm.exceptions where resolved_at is null and owner_id = ${me}) as exceptions,
-             (select count(*)::int from crm.exceptions where resolved_at is null) as team_exceptions,
-             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = ${me} and v.business_date > current_date - 7) as visits_7d,
-             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = ${me} and v.business_date > current_date - 7 and v.outcome = 'sale') as sales_7d`
-    const revisits = await tx<{ id: string; title: string; revisit_due: string | null; revisit_reason: string | null; account_id: string }[]>`
-      select id, title, revisit_due::text, revisit_reason, account_id from crm.deals
-       where owner_id = ${me} and status = 'open' and revisit_needed order by revisit_due nulls last limit 5`
-    return { leads: [...leads], tasks: [...tasks], exceptions: [...mine], counts: counts[0]!, revisits: [...revisits] }
-  })
-}
-
 export type RepRow = {
   id: string
   full_name: string
@@ -74,7 +41,7 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
     const reps = await tx<RepRow[]>`
       select u.id, u.full_name, m.market_code, t.name as team,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status in ('new','contacted','qualified')) as leads_open,
-             (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.sla_due_at < now()) as leads_overdue,
+             (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()) as leads_overdue,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.created_at > now() - interval '14 days' and l.first_touch_at <= l.sla_due_at) as sla_met,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.created_at > now() - interval '14 days' and (l.first_touch_at is not null or l.sla_due_at < now())) as sla_judged,
              (select count(*)::int from crm.deals d where d.owner_id = u.id and d.status = 'open') as deals_open,
@@ -186,7 +153,7 @@ export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number }> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ n: number }[]>`
       select count(*)::int as n from crm.leads l
-       where l.status = 'new' and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.assign')}))`
+       where l.status = 'new' and l.first_touch_at is null and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.assign')}))`
     return { leadsWaiting: rows[0]?.n ?? 0 }
   })
 }

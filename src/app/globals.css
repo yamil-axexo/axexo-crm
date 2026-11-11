@@ -167,6 +167,7 @@
 @keyframes complete-fill { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 @keyframes row-fold { to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-width: 0; } }
 @keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes now-out { 40% { box-shadow: var(--cg-glow-active); transform: none; opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
 
 @layer base {
   html, body { height: 100%; }
@@ -237,6 +238,23 @@
   .dock-pill { background: var(--cg-grad-active); box-shadow: var(--cg-glow-active); transition: transform var(--cg-dur-nav) var(--cg-ease-standard), width var(--cg-dur-nav) var(--cg-ease-standard), opacity var(--cg-dur-nav) var(--cg-ease-standard); }
   .dock-item[aria-current='page'] svg { animation: icon-bounce var(--cg-dur-icon) var(--cg-ease-standard) both; }
   .content-enter { animation: rise var(--cg-dur-enter) var(--cg-ease-enter) both; }
+
+  /* Cola de Hoy: al completar, el círculo se llena y la fila se pliega. */
+  .q-check { transition: border-color var(--cg-dur-hover) var(--cg-ease-standard), background var(--cg-dur-hover) var(--cg-ease-standard); }
+  .q-check:hover { border-color: var(--cg-green-600); background: var(--cg-green-50); }
+  .q-row[data-leaving] { overflow: hidden; max-height: 180px; animation: row-fold var(--cg-dur-complete) var(--cg-ease-standard) forwards; }
+  .q-row[data-leaving] .q-check { background: var(--cg-neon); border-color: var(--cg-neon); box-shadow: var(--cg-glow-active); }
+  .q-row[data-leaving] .q-check svg { opacity: 1; animation: complete-fill var(--cg-dur-complete) var(--cg-ease-standard) both; }
+  .now-card[data-leaving] { animation: now-out var(--cg-dur-complete) var(--cg-ease-standard) forwards; }
+  /* Hoja "Completar": diálogo centrado desde 768 px; hoja inferior en móvil. Negra en los dos. */
+  .sheet { background: #000; color: #fff; border: 1px solid rgba(61, 220, 151, 0.28); box-shadow: var(--cg-shadow-float); }
+  .sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
+  .sheet[open] { animation: sheet-in var(--cg-dur-enter) var(--cg-ease-enter) both; }
+  .choice { transition: background var(--cg-dur-hover) var(--cg-ease-standard), border-color var(--cg-dur-hover) var(--cg-ease-standard), box-shadow var(--cg-dur-hover) var(--cg-ease-standard); }
+  .choice:has(:checked) { background: var(--cg-neon); border-color: var(--cg-neon); color: #000; box-shadow: var(--cg-glow-active); }
+  .choice:has(:focus-visible) { outline: 2px solid var(--cg-neon); outline-offset: 2px; box-shadow: 0 0 0 6px rgba(61, 220, 151, 0.25); }
+  .toast { background: #000; color: #fff; box-shadow: var(--cg-glow-ring); animation: sheet-in var(--cg-dur-enter) var(--cg-ease-enter) both; }
+  .drawn { stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw 700ms var(--cg-ease-standard) 120ms forwards; }
 }
 
 @media (prefers-reduced-motion: reduce) {

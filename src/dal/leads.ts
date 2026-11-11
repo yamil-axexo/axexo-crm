@@ -34,7 +34,7 @@ export async function listLeads(ctx: Ctx, f: LeadFilters): Promise<{ items: Lead
       ${f.owner === 'me' ? tx`and l.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and l.owner_id is null` : f.owner ? tx`and l.owner_id = ${f.owner}` : tx``}
       ${f.q ? tx`and (app.norm(l.business_name) like ${'%' + f.q.toLowerCase() + '%'} or app.norm(l.contact_name) like ${'%' + f.q.toLowerCase() + '%'})` : tx``}`
     const status =
-      f.status === 'overdue' ? tx`and l.status = 'new' and l.sla_due_at < now()`
+      f.status === 'overdue' ? tx`and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()`
       : f.status === 'open' ? tx`and l.status in ('new','contacted','qualified')`
       : f.status ? tx`and l.status = ${f.status}` : tx``
     const rows = await tx<LeadListItem[]>`
@@ -45,7 +45,7 @@ export async function listLeads(ctx: Ctx, f: LeadFilters): Promise<{ items: Lead
        order by l.created_at desc, l.id desc limit ${LEAD_PAGE + 1}`
     const counts = await tx<{ k: string; n: number }[]>`
       select k, count(*)::int as n from (
-        select unnest(array[l.status, case when l.status = 'new' and l.sla_due_at < now() then 'overdue' end,
+        select unnest(array[l.status, case when l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now() then 'overdue' end,
                             case when l.status in ('new','contacted','qualified') then 'open' end]) as k
           from crm.leads l where true ${base}) x where k is not null group by k`
     const items = rows.slice(0, LEAD_PAGE)

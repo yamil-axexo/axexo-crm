@@ -50,3 +50,15 @@ describe('mensajes ES y EN', () => {
     }
   })
 })
+
+describe('fechas en letras (handoff, sección 7)', () => {
+  it('la fecha corta lleva día de la semana y mes en letras, sin números de mes', async () => {
+    const { weekday, longDay, addDays, isoDay } = await import('@/lib/format')
+    expect(weekday('2026-11-12', 'es')).toBe('jue 12 nov')
+    expect(weekday('2026-11-12', 'en')).toBe('Thu, Nov 12')
+    expect(longDay(new Date('2026-11-11T18:00:00Z'), 'es', 'America/Mexico_City')).toBe('miércoles 11 de noviembre')
+    expect(longDay(new Date('2026-11-11T18:00:00Z'), 'en', 'America/New_York')).toBe('Wednesday, November 11')
+    expect(isoDay(new Date('2026-11-12T03:00:00Z'), 'America/Mexico_City')).toBe('2026-11-11')
+    expect(addDays('2026-12-30', 3)).toBe('2027-01-02')
+  })
+})

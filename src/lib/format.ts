@@ -29,6 +29,29 @@ export function day(d: Date | string | null | undefined, locale: Locale, timeZon
   return new Intl.DateTimeFormat(tag(locale), { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(date)
 }
 
+/** Fecha corta con día de la semana, para elegir o confirmar un próximo paso: "jue 12 nov" o "Thu, Nov 12". */
+export function weekday(d: Date | string | null | undefined, locale: Locale, timeZone = 'UTC'): string {
+  if (!d) return '—'
+  const date = typeof d === 'string' ? new Date(d.length === 10 ? `${d}T12:00:00Z` : d) : d
+  const parts = new Intl.DateTimeFormat(tag(locale), { weekday: 'short', day: 'numeric', month: 'short', timeZone }).formatToParts(date)
+  const get = (type: string) => (parts.find((p) => p.type === type)?.value ?? '').replace('.', '')
+  return locale === 'en' ? `${get('weekday')}, ${get('month')} ${get('day')}` : `${get('weekday')} ${get('day')} ${get('month')}`
+}
+
+/** Fecha larga del encabezado de Hoy: "miércoles 11 de noviembre". */
+export function longDay(d: Date, locale: Locale, timeZone = 'UTC'): string {
+  const text = new Intl.DateTimeFormat(tag(locale), { weekday: 'long', day: 'numeric', month: 'long', timeZone }).format(d)
+  return locale === 'es' ? text.replace(',', '') : text
+}
+
+export function clock(d: Date, locale: Locale, timeZone = 'UTC'): string {
+  return new Intl.DateTimeFormat(tag(locale), { hour: 'numeric', minute: '2-digit', timeZone }).format(d)
+}
+
+/** La fecha de hoy (AAAA-MM-DD) en una zona horaria, y esa fecha más n días. */
+export const isoDay = (d: Date, timeZone = 'UTC') => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+export const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
+
 export function dayTime(d: Date | string | null | undefined, locale: Locale, timeZone = 'UTC'): string {
   if (!d) return '—'
   const date = typeof d === 'string' ? new Date(d) : d
