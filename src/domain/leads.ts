@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { withUser, type Tx } from '@/server/db'
+import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
@@ -228,10 +228,10 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: { linkAccountI
     const nextStep = market.locale === 'en' ? 'Call to schedule the first meeting' : 'Llamar para agendar la primera visita'
     await tx`insert into crm.deals (id, market_code, pipeline_id, stage_id, account_id, lead_id, owner_id, title, currency, next_step, next_step_due, created_by)
              values (${dealId}, ${lead.market_code}, ${pipe.id}, ${pipe.stage_id}, ${accountId}, ${leadId}, ${ownerId},
-                     ${(market.locale === 'en' ? 'Onboarding: ' : 'Alta: ') + lead.business_name}, ${market.currency}, ${nextStep}, current_date + 2, ${ctx.user.id})`
+                     ${(market.locale === 'en' ? 'Onboarding: ' : 'Alta: ') + lead.business_name}, ${market.currency}, ${nextStep}, ${marketToday(tx, lead.market_code)} + 2, ${ctx.user.id})`
     await tx`insert into crm.deal_stage_events (deal_id, market_code, to_stage_id, actor_id) values (${dealId}, ${lead.market_code}, ${pipe.stage_id}, ${ctx.user.id})`
     await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by)
-             values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, (current_date + 2 + time '10:00'), ${ownerId}, ${ctx.user.id})`
+             values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, ((${marketToday(tx, lead.market_code)} + 2 + time '15:00') at time zone 'UTC'), ${ownerId}, ${ctx.user.id})`
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`
     await audit(tx, ctx, 'lead.converted', 'lead', leadId, lead.market_code, { status: 'qualified' }, { status: 'converted', account_id: accountId, deal_id: dealId })
     await emit(tx, 'lead.converted', 'lead', leadId, lead.market_code, { account_id: accountId, deal_id: dealId })

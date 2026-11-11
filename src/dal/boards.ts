@@ -1,5 +1,5 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { marketToday, withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { isUuid } from '@/lib/ids'
 
@@ -50,8 +50,8 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
              (select count(*)::int from crm.exceptions e where e.owner_id = u.id and e.resolved_at is null and e.kind = 'stalled_deal') as stalled,
              (select count(*)::int from crm.deals d where d.owner_id = u.id and d.status = 'open' and d.revisit_needed) as revisits,
              (select count(*)::int from crm.deals d join crm.stages s on s.id = d.stage_id where d.owner_id = u.id and d.status = 'open' and s.kind = 'awaiting_txn') as awaiting,
-             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = u.id and v.business_date > current_date - 7) as visits_7d,
-             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = u.id and v.business_date > current_date - 7 and v.outcome = 'sale') as sales_7d,
+             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = u.id and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7) as visits_7d,
+             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = u.id and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7 and v.outcome = 'sale') as sales_7d,
              (select count(*)::int from crm.accounts a where a.owner_id = u.id and a.archived_at is null) as accounts
         from crm.users u join crm.memberships m on m.user_id = u.id and m.role = 'rep' and (m.valid_to is null or m.valid_to > now())
         left join crm.teams t on t.id = m.team_id
@@ -135,7 +135,7 @@ export async function getLtPanel(ctx: Ctx) {
        where d.status = 'lost' and d.market_code = any(app.full_markets()) group by 1, 2, 3, 4 order by n desc limit 8`
     const noSale = await tx<{ code: string; label_es: string; label_en: string; n: number }[]>`
       select r.code, r.label_es, r.label_en, count(*)::int as n from crm.visits v join crm.loss_reasons r on r.code = v.rejection_code
-       where v.business_date > current_date - 14 and v.market_code = any(app.full_markets()) group by 1, 2, 3 order by n desc limit 6`
+       where v.business_date > ${marketToday(tx, tx`v.market_code`)} - 14 and v.market_code = any(app.full_markets()) group by 1, 2, 3 order by n desc limit 6`
     return { markets: [...rows], reasons: [...reasons], noSale: [...noSale] }
   })
 }

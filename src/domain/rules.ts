@@ -1,5 +1,5 @@
 import 'server-only'
-import { withUser, type Tx } from '@/server/db'
+import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { notFound } from '@/lib/errors'
@@ -25,7 +25,7 @@ export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: n
       union all
       select 'revisit_due', 'high', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title, 'due', d.revisit_due, 'reason', d.revisit_reason), 'revisit_due:' || d.id
-        from crm.deals d where d.status = 'open' and d.revisit_needed and d.revisit_due <= current_date
+        from crm.deals d where d.status = 'open' and d.revisit_needed and d.revisit_due <= ${marketToday(tx, tx`d.market_code`)}
       union all
       select 'activation_risk', 'high', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title, 'since', d.stage_entered_at), 'activation_risk:' || d.id
@@ -35,7 +35,7 @@ export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: n
       select 'no_next_step', 'medium', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title), 'no_next_step:' || d.id
         from crm.deals d join crm.stages s on s.id = d.stage_id
-       where d.status = 'open' and s.kind = 'open' and (d.next_step is null or d.next_step_due is null or d.next_step_due < current_date - 2)
+       where d.status = 'open' and s.kind = 'open' and (d.next_step is null or d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)} - 2)
       union all
       select 'stalled_deal', 'medium', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title, 'since', d.stage_entered_at, 'limit_days', s.rot_days), 'stalled_deal:' || d.id

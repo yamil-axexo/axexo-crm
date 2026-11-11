@@ -1,5 +1,5 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { marketToday, withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { isUuid } from '@/lib/ids'
 
@@ -38,7 +38,7 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items
     const idle = tx`(a.lifecycle = 'onboarding' or (a.lifecycle = 'prospect' and ${openDeal}))`
     const nostep = tx`(a.lifecycle <> 'churned'
       and not exists (select 1 from crm.activities x where x.account_id = a.id and x.done_at is null and x.kind in ('task', 'handoff', 'call', 'meeting', 'email'))
-      and not exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open' and d.next_step is not null and d.next_step_due >= current_date))`
+      and not exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open' and d.next_step is not null and d.next_step_due >= ${marketToday(tx, tx`a.market_code`)}))`
     const base = tx`
       a.archived_at is null and a.market_code = any(${scope}::text[])
       ${f.market ? tx`and a.market_code = ${f.market}` : tx``}

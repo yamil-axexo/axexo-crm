@@ -57,3 +57,12 @@ export async function dbHealth(): Promise<{ ok: boolean }> {
   const rows = await withoutUser((tx) => tx<{ ok: boolean }[]>`select app.system_user_id() is not null as ok`)
   return { ok: rows[0]?.ok === true }
 }
+
+/**
+ * "Hoy" de un mercado, en SQL: la fecha de calendario en su zona horaria (DATA-04) y no la del servidor.
+ * El servidor corre en UTC y cambia de día a las 18:00 de Ciudad de México: con `current_date`, una tarea de hoy
+ * salía vencida y un próximo paso de hoy contaba como faltante durante toda la tarde.
+ * `market` es una columna (fragmento de SQL) o un código de mercado.
+ */
+export const marketToday = (tx: Tx, market: postgres.Fragment | string) =>
+  tx`(now() at time zone coalesce((select mk.timezone from crm.markets mk where mk.code = ${market}), 'UTC'))::date`

@@ -36,6 +36,7 @@ An independent committee of four reviewers (functional QA, security and controls
 - **Links that crashed pages.** Repeated or malformed URL parameters are ignored instead of returning a 500.
 - **Calling.** When the merchant has no phone, call and WhatsApp use its contact's phone; contact and lead phones are tappable.
 - **No signal.** Links, stage moves and take-a-lead do not fire while offline; the person stays on the screen with a notice.
+- **"Today" is the market's day.** Rules and lists compared dates against the server's UTC day, which turns over at 18:00 in Mexico City: for the rest of the evening a next step due today counted as missing, and a revisit alert fired a day early. Every comparison now uses the market's calendar day (`marketToday` in `src/server/db.ts`); a unit test fails if `current_date` or a sliced ISO date comes back into `src`. The task created when a lead converts is a dated task instead of one at 10:00 UTC.
 - Smaller ones: tree view order, tablet-portrait record at full screen, account menu above the record panel, dock sizes, search by CONTIGO ID, long text wrapping, contrast of the revisit notice, Spanish wording ("negocio").
 
 What the committee raised that is a decision, not a fix, is listed in the committee report delivered with the pull request.

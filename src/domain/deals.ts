@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { withUser, type Tx } from '@/server/db'
+import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, newId, clean } from '@/domain/common'
@@ -83,7 +83,7 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
     if (next.next_step && !next.next_step_due) throw invalid('Ponle fecha al próximo paso.', 'Give the next step a date.')
     if (d.next_step && !next.next_step) throw invalid('Un negocio abierto lleva próximo paso: cámbialo, no lo borres.', 'An open deal carries a next step: change it, do not clear it.')
     if (next.next_step_due && String(next.next_step_due) !== String(d.next_step_due)) {
-      const ok = await tx<{ ok: boolean }[]>`select ${String(next.next_step_due)}::date >= current_date - 1 as ok`
+      const ok = await tx<{ ok: boolean }[]>`select ${String(next.next_step_due)}::date >= ${marketToday(tx, d.market_code)} as ok`
       if (!ok[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
     }
     if (next.decision_maker_id) {
@@ -112,7 +112,7 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       const step = clean(next.step)
       if (!step || step.length < 2 || step.length > 200 || !/^\d{4}-\d{2}-\d{2}$/.test(next.due)) throw invalid('Escribe el próximo paso (hasta 200 letras) y su fecha.', 'Enter the next step (up to 200 characters) and its date.')
       assertNoProhibited(step)
-      const range = await tx<{ ok: boolean }[]>`select ${next.due}::date >= current_date - 1 as ok`
+      const range = await tx<{ ok: boolean }[]>`select ${next.due}::date >= ${marketToday(tx, d.market_code)} as ok`
       if (!range[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
       ctx.assert('deal.edit', d.market_code)
       await tx`update crm.deals set next_step = ${step}, next_step_due = ${next.due} where id = ${dealId} and status = 'open'`
@@ -186,7 +186,7 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
   const v = parsed.data
   assertNoProhibited(v.title, v.nextStep)
   return withUser(ctx.user.id, async (tx) => {
-    const range = await tx<{ ok: boolean }[]>`select ${v.nextStepDue}::date >= current_date - 1 as ok`
+    const range = await tx<{ ok: boolean }[]>`select ${v.nextStepDue}::date >= ${marketToday(tx, tx`(select market_code from crm.accounts where id = ${v.accountId})`)} as ok`
     if (!range[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
     const accs = await tx<{ market_code: string; owner_id: string | null }[]>`select market_code, owner_id from crm.accounts where id = ${v.accountId} and archived_at is null`
     const acc = accs[0]

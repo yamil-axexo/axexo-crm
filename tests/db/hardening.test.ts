@@ -4,7 +4,7 @@ import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './h
 import { addActivity } from '@/domain/activities'
 import { completeItem } from '@/domain/queue'
 import { getQueue } from '@/dal/queue'
-import { listTree, searchAll } from '@/dal/accounts'
+import { listAccounts, listTree, searchAll } from '@/dal/accounts'
 import { createLead, intakeFromForm } from '@/domain/leads'
 import { moveDeal, updateDeal } from '@/domain/deals'
 import { evaluateRules } from '@/domain/rules'
@@ -143,6 +143,25 @@ describe('hallazgos de QA', () => {
     await expect(updateDeal(marco, d.id, { nextStep: '', nextStepDue: '' })).rejects.toMatchObject({ code: 'invalid' })
     await expect(updateDeal(marco, d.id, { nextStep: 'Volver', nextStepDue: '2020-01-01' })).rejects.toMatchObject({ code: 'invalid' })
     await expect(updateDeal(marco, d.id, { nextStep: 'Volver con contrato', nextStepDue: tomorrow })).resolves.toBeUndefined()
+  })
+
+  it('S-05: "hoy" es el día del mercado, no el del servidor: un próximo paso de hoy vale y uno de ayer no, a cualquier hora', async () => {
+    const marco = await ctxFor('marco.pena')
+    const d = await one(admin<{ id: string; market_code: string; account_id: string }[]>`
+      select id, market_code, account_id from crm.deals where owner_id = ${marco.user.id} and status = 'open' and next_step is not null order by id limit 1`)
+    const m = await one(admin<{ today: string; yesterday: string }[]>`
+      select ((now() at time zone timezone)::date)::text as today, ((now() at time zone timezone)::date - 1)::text as yesterday from crm.markets where code = ${d.market_code}`)
+    await expect(updateDeal(marco, d.id, { nextStep: 'Volver', nextStepDue: m.yesterday })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(updateDeal(marco, d.id, { nextStep: 'Volver hoy', nextStepDue: m.today })).resolves.toBeUndefined()
+    // Con el próximo paso para hoy, el comercio no cuenta como "sin próximo paso" (antes sí, de 18:00 a medianoche).
+    await admin`update crm.activities set done_at = now() where account_id = ${d.account_id} and done_at is null`
+    const acc = await one(admin<{ name: string }[]>`select name from crm.accounts where id = ${d.account_id}`)
+    const list = await listAccounts(marco, { ver: 'sin-paso', q: acc.name })
+    expect(list.items.map((a) => a.id)).not.toContain(d.account_id)
+    await admin`update crm.deals set next_step_due = ${m.yesterday}::date where account_id = ${d.account_id} and status = 'open'`
+    const after = await listAccounts(marco, { ver: 'sin-paso', q: acc.name })
+    expect(after.items.map((a) => a.id)).toContain(d.account_id)
+    await admin`update crm.deals set next_step_due = ${m.today}::date + 1 where account_id = ${d.account_id} and status = 'open'`
   })
 
   it('QA-12: atender una sugerencia cierra los demás avisos abiertos del mismo negocio', async () => {
