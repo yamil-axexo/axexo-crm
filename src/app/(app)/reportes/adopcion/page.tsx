@@ -78,7 +78,7 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
           </>
         )}
       </Card>
-      <p className="mt-4 text-[13px] text-muted">{t('Una actividad es una nota, llamada, reunión, tarea, correo o visita que la persona registró a mano. Lo que llega solo de la Sales App, de los datos de ventas o de una importación no cuenta.', 'An activity is a note, call, meeting, task, email or visit the person logged by hand. Anything that arrives on its own from the Sales App, S5 or an import does not count.')}</p>
+      <p className="mt-4 text-[13px] text-muted">{t('Una actividad es una nota, llamada, reunión, tarea, correo o visita que la persona registró a mano. Lo que llega solo de la Sales App, de los datos de ventas o de una importación no cuenta.', 'An activity is a note, call, meeting, task, email or visit the person logged by hand. Anything that arrives on its own from the Sales App, the sales data or an import does not count.')}</p>
     </>
   )
 }

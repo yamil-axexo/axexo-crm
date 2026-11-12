@@ -50,7 +50,7 @@ export const SOURCE: Record<string, Pair> = {
 export const EXCEPTION: Record<string, { label: Pair; action: Pair }> = {
   lead_sla: { label: ['Lead sin atender a tiempo', 'Lead past its response time'], action: ['Contactar hoy', 'Reach out today'] },
   revisit_due: { label: ['Revisita al decisor pendiente', 'Decision-maker revisit due'], action: ['Volver con el decisor', 'Go back to the decision-maker'] },
-  activation_risk: { label: ['Alta sin primera venta', 'Signed up, no first sale yet'], action: ['Ayudar a hacer la primera venta', 'Help them make the first sale'] },
+  activation_risk: { label: ['Alta sin primera venta', 'Enrolled, no first sale yet'], action: ['Ayudar a hacer la primera venta', 'Help them make the first sale'] },
   no_next_step: { label: ['Negocio sin próximo paso', 'Deal with no next step'], action: ['Definir próximo paso', 'Set the next step'] },
   stalled_deal: { label: ['Negocio estancado', 'Stalled deal'], action: ['Mover o cerrar', 'Move it or close it'] },
   reactivation: { label: ['Comercio en riesgo', 'Merchant at risk'], action: ['Llamar para reactivar', 'Call to reactivate'] },

@@ -84,7 +84,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
     <>
       <PageHeader
         title={teamView ? t('Mi equipo', 'My team') : t('Avisos del mercado', 'Market alerts')}
-        desc={teamView ? t('El equipo de un vistazo y la cola de lo que se salió de la regla. Nadie captura nada extra para alimentar esta pantalla.', 'The team at a glance and the queue of what broke a rule. Nobody enters anything extra to feed this screen.') : t('La cola de lo que se salió de la regla en tus mercados.', 'The queue of what broke a rule in your markets.')}
+        desc={teamView ? t('El equipo de un vistazo y lo que quedó pendiente de atender. Nadie captura nada extra para alimentar esta pantalla.', 'The team at a glance and what still needs attention. Nobody enters anything extra to feed this screen.') : t('Lo que quedó pendiente de atender en tus mercados.', 'What still needs attention in your markets.')}
         actions={<>
           {canReport && <LinkButton href={qs('/reportes/cerrados', { mercado: sp.market, equipo: team })} testId="team-closed-link">{t('Negocios cerrados', 'Closed deals')}</LinkButton>}
           {canReport && <LinkButton href={qs('/reportes/campo', { mercado: sp.market, equipo: team })} variant="quiet" testId="team-field-link">{t('Reporte de campo', 'Field report')}</LinkButton>}

@@ -143,7 +143,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 {lead.status === 'qualified' && pipes.length === 0 && (
                   <p className="w-full rounded-[10px] bg-warn-bg px-4 py-3 text-[14px] font-medium text-amber-text" data-testid="lead-no-pipeline">
                     {t(`${market.name} todavía no tiene un embudo de ventas, así que este lead no se puede convertir hoy. Queda calificado y no se pierde: pide a administración que lo configure en Administración, Embudos y campos.`,
-                       `${market.name} has no sales pipeline yet, so this lead cannot be converted today. It stays qualified and is not lost: ask an admin to set one up in Admin, Pipelines and fields.`)}
+                       `${market.name} has no sales pipeline yet, so this lead cannot be converted today. It stays qualified and is not lost: ask administration to set one up in Administration, Pipelines and fields.`)}
                   </p>
                 )}
                 {lead.status === 'qualified' && pipes.length > 0 && (

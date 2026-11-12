@@ -110,7 +110,7 @@
   "ctx.no_next_step": "Deal with no next step",
   "ctx.stalled_deal": "{days, plural, one {# day} other {# days}} in the same stage",
   "ctx.revisit_due": "The last visit did not find the decision-maker",
-  "ctx.activation_risk": "Signed up, no first sale yet",
+  "ctx.activation_risk": "Enrolled, no first sale yet",
   "ctx.reactivation": "Merchant at risk",
   "ctx.unowned_account": "Merchant with no owner",
   "ctx.duplicate_suspect": "Same phone as another merchant",

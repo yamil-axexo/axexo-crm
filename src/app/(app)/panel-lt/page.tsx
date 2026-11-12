@@ -172,7 +172,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
       </div>
 
       <Card className="mt-6 @container" pad={false} data-testid="lt-by-pipeline">
-        <div className="px-5 pt-5 @2xl:px-7 @2xl:pt-6"><CardTitle title={t('Por embudo', 'By pipeline')} hint={t(`Cada tipo de venta en su línea. Leads, ganados y perdidos: ${when}. Abiertos y esperando venta: hoy.`, `Each sales type on its own line. Leads, won and lost: ${when}. Open and awaiting sale: today.`)} /></div>
+        <div className="px-5 pt-5 @2xl:px-7 @2xl:pt-6"><CardTitle title={t('Por embudo', 'By pipeline')} hint={t(`Cada tipo de venta en su línea. Leads, ganados y perdidos: ${when}. Abiertos y esperando venta: hoy.`, `Each sale type on its own line. Leads, won and lost: ${when}. Open and awaiting sale: today.`)} /></div>
         {slices(data.pipelines, 'embudo')}
       </Card>
       <Card className="mt-6 @container" pad={false} data-testid="lt-by-team">

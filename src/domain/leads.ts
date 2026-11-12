@@ -114,7 +114,7 @@ async function insertLead(
   // El tipo de venta tiene que existir: uno de los de siempre o el de un embudo activo del mercado.
   if (!(MOTORS as readonly string[]).includes(v.motor)) {
     const known = await tx`select 1 from crm.pipelines where market_code = ${v.market} and motor = ${v.motor} and is_active limit 1`
-    if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sales type from the list.')
+    if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sale type from the list.')
   }
   const phone = v.phone ? toE164(v.phone, market.phoneCc) : null
   if (v.phone && !phone) throw invalid('El teléfono no parece válido.', 'The phone number does not look valid.')
@@ -363,7 +363,7 @@ export async function updateLeadDetails(ctx: Ctx, leadId: string, input: { motor
     const motor = input.motor?.trim() || lead.motor
     if (motor !== lead.motor && !(MOTORS as readonly string[]).includes(motor)) {
       const known = await tx`select 1 from crm.pipelines where market_code = ${lead.market_code} and motor = ${motor} and is_active limit 1`
-      if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sales type from the list.')
+      if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sale type from the list.')
     }
     const type = input.accountType?.trim() || null
     const role = input.contactRole ? z.enum(CONTACT_ROLES).safeParse(input.contactRole) : null
@@ -490,7 +490,7 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     if (usable.length === 0) {
       throw new DomainError('no_pipeline',
         `${market.name} todavía no tiene un embudo de ventas. El lead queda calificado y no se pierde: pide a administración que lo configure (Administración, Embudos y campos) y vuelve a convertirlo.`,
-        `${market.name} has no sales pipeline yet. The lead stays qualified and is not lost: ask an admin to set one up (Admin, Pipelines and fields), then convert it again.`)
+        `${market.name} has no sales pipeline yet. The lead stays qualified and is not lost: ask administration to set one up (Administration, Pipelines and fields), then convert it again.`)
     }
     const pipe = opts.pipelineId
       ? usable.find((p) => p.id === opts.pipelineId)
