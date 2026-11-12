@@ -129,7 +129,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                       {cell(4, r.no_next_step > 0 ? <Badge tone="bad">{r.no_next_step}</Badge> : 0)}
                       {cell(5, r.revisits > 0 ? <Badge tone="warn">{r.revisits}</Badge> : 0)}
                       {cell(6, r.awaiting)}
-                      {cell(7, <span data-testid="rep-visits">{r.visits_7d} / {r.sales_7d} <span className="text-muted">({pct(r.sales_7d, r.visits_7d, locale)})</span></span>)}
+                      {cell(7, <span data-testid="rep-visits">{r.visits_7d} / {r.sales_7d}{r.visits_7d > 0 && <span className="text-muted"> ({pct(r.sales_7d, r.visits_7d, locale)})</span>}</span>)}
                       {cell(8, <span data-testid="rep-sales">{sales(r)}</span>)}
                       {cell(9, <Link href={qs('/comercios', { owner: r.id, market: r.market_code })} className="text-blue-text underline">{r.accounts}</Link>)}
                     </li>

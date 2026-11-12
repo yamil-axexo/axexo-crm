@@ -69,6 +69,58 @@ Not done here, on purpose:
 - **A catalog of street reps** and a "street rep" field on the merchant (E16.F3, E16.F4). The name lives on each visit, with suggestions from the names already used in the market; there is no list to maintain or to change in bulk when someone leaves.
 - **Telling the person who receives a reassigned merchant.** The confirmation and the notice are for whoever reassigns; CONTIGO still has no notifications.
 
+## Changes after committee 2 (waves 1 to 3) / Cambios después del comité 2 (olas 1 a 3)
+The second committee (11-Nov-2026) walked the app as the real teams. What it asked for was built in three waves of packages, each on its own branch and database, and merged with `--no-ff` into `design-v1` (wave 1 and wave 2) and into `rc/olas-1-3` (wave 3 and this section).
+
+### What was built, by package
+| Wave | Package | What it brought | Migration |
+|---|---|---|---|
+| 1 | `diseno` | Entry page, first sign-in with a checklist per role, help. | `0009_onboarding` |
+| 1 | `campo` | The visit as an activity, visits counted once, the sheet and the merchant record for street work (section above). | `0010_field_work` |
+| 1 | `reparto` | Distribution of the book: who is a current owner, supervisors see and hand out what nobody carries, by place or territory, one record or a whole book. | `0011_distribution` |
+| 1 | `admin` | Lead routing never hands a lead to someone who cannot sell in the market, origin and dated consent of web leads, stages edited by hand survive the import, audit filters, status page. | `0012_admin_controls` |
+| 2 | `leads` | Conversion with account type and contact role, first-contact clock in business hours, lead list with search and bulk close, "it exists and X carries it" in search, pass a lead or release it. | `0013_leads` |
+| 2 | `liderazgo` | Closed deals with CSV export, Leadership panel with a dated exchange rate, adoption, Mi equipo, board filters, weekly field report, one home screen per role. | `0014_leadership` |
+| 2 | `operaciones` | Orders with product lines, two next-step lanes (Sales and Operations) that reach Hoy, handoff and Operations queue, return with a reason, Operations fields, notices inside the app, bulk close, win by hand with the real close date. | `0015_operations` |
+| 2 | `b2b` | Account type catalog and hierarchy, fields by sale type, manageable stages, on hold, loss reasons by sale type, corporate contacts. | `0016_b2b` |
+| 2 | `contenido` | Report a problem from any screen, help and first steps rewritten against the screens. | `0017_problem_reports` |
+| 3 | `vocabulario` | One vocabulary in Spanish and English (`docs/glosario.md`), `<html lang>` and the first language follow the person, tests that guard the wording. | none |
+| 3 | `contenido2` | Help, first steps, training and entry page brought up to wave 2. | none |
+| 3 | integration | The guide uses the glossary and only names controls that exist; no long dashes anywhere, "s/d" and "n/a" mark a missing value; the next-step list is enforced in the domain, not only by the sheet; the Administration tab for problem reports is "Problemas reportados"; board filters fold behind "Filtros" on phones and "Míos" is an option of the person selector; entry page screenshots retaken on the final product; database tests start from a fresh database per file. | none |
+
+### Migrations 0009 to 0017
+| Migration | One line | Changes row-level policies |
+|---|---|---|
+| `0009_onboarding` | `crm.user_onboarding`: each person's first-steps list, marked and hidden by its owner only. | Yes: one policy on the new table (own row). |
+| `0010_field_work` | "Visit" as an activity kind with outcome and visitor name; `crm.visit_log` counts Sales App and hand-logged visits once. | No. |
+| `0011_distribution` | Current owner per market (`app.owner_roles`, `app.owner_keys`), place and territory on the merchant, indexes for thousands of merchants. | Yes: read and update on `crm.accounts` and `crm.leads` are replaced so supervisors see and move records with no current owner. |
+| `0012_admin_controls` | Routing skips people without a current sales role (`app.can_sell_in`, `app.rr_next`), web lead origin and consent date, hand-edited stages, audit indexes, `app.system_status`. | No policy is created or dropped. |
+| `0013_leads` | Account type and contact role on the lead, `crm.market_hours` and `app.business_due`, `app.hand_lead` (pass or release), `app.search_others`. | Yes: three policies on the new `crm.market_hours` (everyone reads, administration writes). Lead policies are unchanged: passing a lead goes through `app.hand_lead`. |
+| `0014_leadership` | Who loaded the exchange rate and when, `app.adoption` (counts, no content), indexes for closed deals. | No. |
+| `0015_operations` | Order pipelines with lines, Operations stages and second owner, `crm.ops_catalog`, `crm.deal_ops_checks`, `crm.notices`, separation of duties as a trigger (`app.deals_ops_guard`). | Yes: ten policies on the new tables and on `crm.deal_items`. |
+| `0016_b2b` | `crm.account_types`, fields by sale type, archived stages, on hold (`crm.deal_pause_guard`), loss reasons by sale type, contact roles, one catalog shared with `0013`. | Yes: three policies on the new `crm.account_types`. |
+| `0017_problem_reports` | `crm.problem_reports`: a person's reports and administration's answer. | Yes: three policies on the new table. |
+
+The cycle `reset`, nine times `down`, `up` runs clean with seeded data (see Verification).
+
+### Decisions taken by default, to be confirmed by Yamil
+Nobody could be asked while the waves were built. Each of these is the choice the builder left written, with the reason; all are small to change.
+1. **A seller can pass their own lead to a teammate** who sells in the same market, or release it. It goes through `app.hand_lead`; the lead policy still does not let a seller write a lead that stops being theirs.
+2. **One next-step sheet and one rule.** The lists for store sales, B2B and Operations live in one place (`NEXT_SETS`); the sheet picks by who completes and by sale type.
+3. **Business hours are Monday to Friday, 9:00 to 18:00**, in the market's time zone, until administration changes them per market. The first-contact clock only runs inside them.
+4. **A returned deal arrives as a task.** The return becomes the seller's next step, due today in Hoy, with the reason Operations chose. There is no separate notice, email or Slack.
+5. **Supervisors and market leads appear in Mi equipo only if they carry records** of their own.
+6. **Operations reads the audit log and the alerts of its markets** (`audit.read`, `exception.read`).
+7. **Anyone with access can report a problem**; administration answers and marks it attended.
+8. **"s/d" (Spanish) and "n/a" (English) mark a missing value**, with "Sin dato" / "No data" as its title and accessible name. Long dashes are not used, in sentences or alone.
+
+### Verification of the release candidate (12-Nov-2026)
+Run on `rc/olas-1-3` with its own databases and ports:
+- `pnpm typecheck`, `pnpm lint`, `pnpm scan:prohibited`: clean.
+- `pnpm test`: 383 tests in 30 files, green twice in a row and with the file order shuffled. Every file of `tests/db` now starts from a freshly seeded database (`tests/db/fresh-db.ts` recreates it from a template copy), so the result no longer depends on the order between files; the fixed order by path that wave 2 added is gone.
+- `pnpm build` and `pnpm e2e`: 282 end-to-end tests in 22 files against the standalone build.
+- Migration cycle on seeded data: `reset`, nine times `down` (0017 back to 0009), `up`. Row counts are the same before and after (439 merchants, 337 deals, 84 leads, 249 activities) and every table of schema `crm` keeps forced row-level security.
+
 ## Deliberately not built
 - **Terminales tab** in the merchant record. It was not part of this build's data; decided by Yamil on 11-Nov-2026.
 - **Offline reading with data stored on the device.** The no-signal banner and disabled saving are built. The cached read (Hoy queue and the last merchants opened) is not: it stores merchant data on the device, which touches access and retention controls. Turning it on needs an explicit decision from Michael Essiet or Dan Mulligan together with whoever owns the SOX and SOC controls. `[pending: owner of SOX/SOC controls]`
@@ -82,4 +134,4 @@ Not done here, on purpose:
 - Pseudo-localization (+35%) is not in CI.
 
 ## Verification
-`pnpm test` (database and unit), `pnpm e2e` (every acceptance criterion of handoff section 6 at 1440, 1024 and 390 px, plus axe with WCAG 2.2 AA tags on every screen).
+`pnpm test` (database and unit), `pnpm e2e` (every acceptance criterion of handoff section 6 at 1440, 1024 and 390 px, plus axe with WCAG 2.2 AA tags on every screen). Counts for the release candidate are in "Verification of the release candidate" above.

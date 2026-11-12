@@ -59,4 +59,4 @@ Package `admin` (migration `0012_admin_controls`). Rules and their reasons: `doc
 | Status page | `/estado` for admin and leadership: environment, version, migrations, data freshness, integrations, who administers, what is undefined, what is not there yet | GOB-02, GOB-04 |
 | Pipelines | Stage names in ES and EN, stall days and entry requirements editable from Administration, audited. Creating pipelines, stages or fields is still not on screen | PIPE-01, DAT-05 (still partial) |
 | Web forms | UTM parameters, `gclid`, `fbclid` and the email consent with date and wording stored on the lead and shown in its detail (E3.F6 and E3.F7 of the requirements; page, referrer and other click identifiers not yet) | LEAD-03 |
-| Read-only | Leadership sees a "Solo lectura" mark and cannot run "Evaluar reglas ahora"; whoever runs it is audited | SEG-01 |
+| Read-only | Leadership sees a "Solo lectura" mark and cannot run "Actualizar avisos" (the rule evaluation in Mi equipo); whoever runs it is audited | SEG-01 |

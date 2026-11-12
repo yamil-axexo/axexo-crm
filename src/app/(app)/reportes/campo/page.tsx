@@ -99,7 +99,7 @@ export default async function FieldReportPage({ searchParams }: { searchParams: 
                     <span className="block text-[14.5px] font-semibold text-strong [overflow-wrap:anywhere]">{r.owner_name ?? t('Sin asignar', 'No owner')}{multi ? ` · ${r.market_code}` : ''}</span>
                     <span className="block text-[13.5px] text-muted-2">{r.team_name ?? t('Sin equipo', 'No team')}</span>
                     <span className="num block text-[14px] text-strong"><span className={lbl}>{t('Visitas: ', 'Visits: ')}</span>{num(r.visits, locale)}</span>
-                    <span className="num block text-[14px] text-strong"><span className={lbl}>{t('Con venta: ', 'With a sale: ')}</span>{num(r.sales, locale)} <span className="text-muted">({pct(r.sales, r.visits, locale)})</span></span>
+                    <span className="num block text-[14px] text-strong"><span className={lbl}>{t('Con venta: ', 'With a sale: ')}</span>{num(r.sales, locale)}{r.visits > 0 && <span className="text-muted"> ({pct(r.sales, r.visits, locale)})</span>}</span>
                   </li>
                 ))}
               </ul>

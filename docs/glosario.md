@@ -27,6 +27,7 @@ Paquete `vocabulario`, 12-nov-2026; la integración final lo extendió a la guí
 | Tienda activa sin nada pendiente | Al día | All caught up | pintarla como "Sin próximo paso" en ámbar |
 | Paso de Ventas a Operaciones | entrega a Operaciones | handoff | handoff (en español) |
 | Lista de trabajo de Operaciones | Cola de Operaciones | Operations queue | |
+| Pestaña de Administración con lo que el equipo manda desde "Reportar un problema" | Problemas reportados | Reported problems | Reportes / Reports (esos son los de liderazgo: Negocios cerrados, Reporte de campo, Adopción) |
 | Punto de venta (en inglés) | punto de venta, tienda | store | point of sale, PDV |
 | Meta de primer contacto de un lead | meta de primer contacto; "Primer contacto a tiempo" | first-contact goal; "First contact on time" | SLA, lead time |
 | Pantalla de escritorio | computadora | computer | desktop (en español) |

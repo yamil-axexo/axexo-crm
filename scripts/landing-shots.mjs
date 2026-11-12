@@ -61,7 +61,13 @@ const SCREENS = [
   ['leads', 'marco.pena', '/leads'],
   ['negocios', 'marco.pena', '/pipelines'],
   ['comercio', 'marco.pena', (size) => (size === 'd' ? `/comercios?ficha=${account}` : `/comercios/${account}`)],
-  ['equipo', 'fernando.ibarra', '/supervisor'],
+  // En el teléfono, Mi equipo se captura a la altura de la primera persona: arriba solo hay botones y la explicación de las columnas.
+  ['equipo', 'fernando.ibarra', '/supervisor', null, async (page) => {
+    await page.evaluate(() => {
+      const first = document.querySelector('[data-testid="rep-attempt"]')
+      if (first && window.innerWidth < 600) window.scrollTo(0, first.getBoundingClientRect().top + window.scrollY - 330)
+    })
+  }],
   // El panel se captura a la altura de los mercados: leads, etapas, primer intento y contacto logrado.
   ['panel', 'luis.tovar', '/panel-lt', null, async (page) => {
     await page.evaluate(() => {

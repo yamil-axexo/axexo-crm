@@ -55,7 +55,7 @@ describe('próximo paso: el dominio valida la lista de quien lo deja y del tipo 
   it('al completar una tarea vale la misma lista, y un paso fuera de ella no completa nada', async () => {
     const marco = await ctxFor('marco.pena')
     const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Lista completar ${tag()}`, segment: 'd2d', force: true })
-    const pipe = (await admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'd2d' and archived_at is null order by position limit 1`)[0]!.id
+    const pipe = (await admin<{ id: string }[]>`select md5('contigo:p-mx-d2d')::uuid as id`)[0]!.id
     const deal = await createDeal(marco, { accountId: acc.id!, pipelineId: pipe, title: `Lista completar ${tag()}`, nextStep: 'Llamar para confirmar', nextStepDue: tomorrow })
     const task = (await admin<{ id: string }[]>`select id from crm.activities where deal_id = ${deal} and done_at is null and kind = 'task'`)[0]!
     await expect(completeItem(marco, { type: 'task', id: task.id, result: 'done', next: 'training', when: tomorrow })).rejects.toMatchObject({ code: 'invalid' })
