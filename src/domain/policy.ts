@@ -33,11 +33,19 @@ export const CAPABILITIES = {
   'account.merge': ['admin'],
   'activity.write': [...SELLERS, 'ops'],
   'exception.resolve': [...MANAGERS, 'ops', 'rep'],
-  'board.supervisor': [...MANAGERS, 'lt'],
+  // Operaciones ve el tablero y la cola de avisos de sus mercados: ya resolvía avisos, ahora los ve juntos.
+  'board.supervisor': [...MANAGERS, 'lt', 'ops'],
   // Evaluar las reglas a mano abre y cierra excepciones para todos: es un cambio de datos, así que Leadership (solo lectura) no lo corre.
   'rules.run': MANAGERS,
   'board.lt': ['admin', 'lt', 'market_lead'],
-  'audit.read': ['admin', 'lt', 'market_lead'],
+  // La bitácora se lee en solo lectura y dentro del alcance: leadership toda, quien lidera y operaciones la de sus mercados (RLS).
+  'audit.read': ['admin', 'lt', 'market_lead', 'ops'],
+  // Reportes de resultados (negocios cerrados, reporte semanal de campo). Supervisión ve y exporta lo de su equipo.
+  // Exportar es una lectura que sale de CONTIGO: lleva permiso propio y deja evento en la bitácora con filtros y filas.
+  'report.view': ['admin', 'lt', 'market_lead', 'supervisor'],
+  'report.export': ['admin', 'lt', 'market_lead', 'supervisor'],
+  // Adopción: conteos de uso por persona. No la ve supervisión ni ventas.
+  'adoption.read': ['admin', 'lt', 'market_lead'],
   'config.manage': ['admin'],
   'integration.operate': ['admin'],
   // Página de estado: ambiente, versión, frescura de los datos e integraciones. La ven quien administra y quien responde por los controles.

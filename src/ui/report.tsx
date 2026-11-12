@@ -1,0 +1,103 @@
+import Link from 'next/link'
+import type { ReactNode } from 'react'
+import type { Locale, T } from '@/lib/format'
+import { day } from '@/lib/format'
+import { METRICS, type MetricKey } from '@/lib/metric-defs'
+import { PERIOD_KEYS, PERIOD_LABEL, type Period, type PeriodKey } from '@/lib/periods'
+import { NavSelect } from '@/ui/board'
+import { buttonClass, cx } from '@/ui/kit'
+
+/** "Cómo se calcula": la definición de una cifra, a un toque y sin salir de la pantalla. */
+export function Def({ t, k, testId }: { t: T; k: MetricKey; testId?: string }) {
+  const d = METRICS[k]
+  const row = (label: string, text: string) => (
+    <div className="mt-2 first:mt-0"><dt className="text-[12px] font-semibold text-muted-2">{label}</dt><dd className="text-[13px] text-strong">{text}</dd></div>
+  )
+  return (
+    <details className="mt-1" data-testid={testId ?? `def-${k}`}>
+      <summary className="inline-flex min-h-11 cursor-pointer items-center text-[13px] font-medium text-brand-text underline underline-offset-2">{t('Cómo se calcula', 'How it is calculated')}</summary>
+      <dl className="rounded-[12px] bg-surface-3 px-3.5 py-3">
+        {row(t('Qué cuenta', 'What it counts'), t(d.what[0], d.what[1]))}
+        {'num' in d && row(t('Numerador', 'Numerator'), t(d.num[0], d.num[1]))}
+        {'den' in d && row(t('Denominador', 'Denominator'), t(d.den[0], d.den[1]))}
+        {row(t('Ventana', 'Window'), t(d.window[0], d.window[1]))}
+        {row(t('Fuente', 'Source'), t(d.source[0], d.source[1]))}
+      </dl>
+    </details>
+  )
+}
+
+/** Una cifra con su nombre, su enlace a la lista que la respalda y su definición. */
+export function Metric({ t, k, value, hint, href, label, tone, testId }: { t: T; k: MetricKey; value: ReactNode; hint?: string; href?: string; label?: string; tone?: 'good' | 'warn'; testId?: string }) {
+  const d = METRICS[k]
+  const text = <span className={cx('num text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[26px] md:leading-9', tone === 'good' ? 'text-brand-text' : tone === 'warn' ? 'text-amber-text' : 'text-strong')}>{value}</span>
+  return (
+    <div className="card min-w-0 p-4 md:p-5" data-testid={testId}>
+      <p className="text-[13px] font-medium text-muted-2">{label ?? t(d.label[0], d.label[1])}</p>
+      <p className="mt-1.5">
+        {href ? <Link href={href} className="inline-flex min-h-11 items-center underline decoration-line-2 underline-offset-4 hover:decoration-brand" data-testid={testId ? `${testId}-link` : undefined} aria-label={`${label ?? t(d.label[0], d.label[1])}: ${t('ver la lista', 'see the list')}`}>{text}</Link> : text}
+      </p>
+      {hint && <p className="text-[13px] text-muted">{hint}</p>}
+      <Def t={t} k={k} />
+    </div>
+  )
+}
+
+export const periodText = (t: T, locale: Locale, p: Period) =>
+  p.from === p.to ? day(p.from, locale) : t(`del ${day(p.from, locale)} al ${day(p.to, locale)}`, `${day(p.from, locale)} to ${day(p.to, locale)}`)
+
+export type Option = { value: string; label: string }
+
+/**
+ * Filtros de un reporte: cada selector navega a la misma pantalla con el filtro en la URL, así la vista se puede compartir.
+ * El rango de fechas es un formulario GET normal (funciona sin JavaScript) que conserva los demás filtros.
+ */
+export function ReportFilters({ t, locale, base, params, period, periods = PERIOD_KEYS, selects }: {
+  t: T
+  locale: Locale
+  base: string
+  params: Record<string, string | undefined>
+  period?: Period
+  periods?: readonly PeriodKey[]
+  selects: { name: string; label: string; all: string; options: Option[]; testId?: string }[]
+}) {
+  const href = (patch: Record<string, string | undefined>) => {
+    const sp = new URLSearchParams()
+    for (const [k, v] of Object.entries({ ...params, ...patch })) if (v) sp.set(k, v)
+    const s = sp.toString()
+    return s ? `${base}?${s}` : base
+  }
+  const pHref = (k: PeriodKey) => href({ periodo: k, desde: k === 'rango' && period ? period.from : undefined, hasta: k === 'rango' && period ? period.to : undefined })
+  return (
+    <div className="mb-6 flex flex-wrap items-end gap-x-3 gap-y-3" data-testid="report-filters">
+      {period && (
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[12.5px] font-semibold text-muted-2">{t('Periodo', 'Period')}</span>
+          <NavSelect label={t('Periodo', 'Period')} value={pHref(period.key)} testId="filter-periodo"
+            options={periods.map((k) => ({ href: pHref(k), label: t(PERIOD_LABEL[k][0], PERIOD_LABEL[k][1]) }))} />
+        </label>
+      )}
+      {selects.filter((s) => s.options.length > 0).map((s) => (
+        <label key={s.name} className="block min-w-0">
+          <span className="mb-1 block text-[12.5px] font-semibold text-muted-2">{s.label}</span>
+          <NavSelect label={s.label} value={href({})} testId={s.testId ?? `filter-${s.name}`}
+            options={[{ href: href({ [s.name]: undefined }), label: s.all }, ...s.options.map((o) => ({ href: href({ [s.name]: o.value }), label: o.label }))]} />
+        </label>
+      ))}
+      {period?.key === 'rango' && (
+        <form method="get" action={base} className="flex flex-wrap items-end gap-3" data-testid="range-form">
+          {Object.entries(params).filter(([k, v]) => v && k !== 'desde' && k !== 'hasta').map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+          <label className="block"><span className="mb-1 block text-[12.5px] font-semibold text-muted-2">{t('Desde', 'From')}</span><input type="date" name="desde" defaultValue={period.from} className="input !w-auto" required /></label>
+          <label className="block"><span className="mb-1 block text-[12.5px] font-semibold text-muted-2">{t('Hasta', 'To')}</span><input type="date" name="hasta" defaultValue={period.to} className="input !w-auto" required /></label>
+          <button type="submit" className={buttonClass('ghost')} data-testid="range-apply">{t('Aplicar', 'Apply')}</button>
+        </form>
+      )}
+      {period && <p className="basis-full text-[13px] text-muted" data-testid="period-text">{t(`Periodo: ${periodText(t, locale, period)}. Cada mercado cuenta sus días en su zona horaria.`, `Period: ${periodText(t, locale, period)}. Each market counts its days in its own time zone.`)}</p>}
+    </div>
+  )
+}
+
+/** Enlace de descarga. Es un <a> normal: la descarga la responde una ruta del servidor, que valida el permiso y deja el evento. */
+export function ExportLink({ href, children, testId }: { href: string; children: ReactNode; testId?: string }) {
+  return <a href={href} download className={buttonClass('ghost')} data-testid={testId ?? 'export-csv'}>{children}</a>
+}
