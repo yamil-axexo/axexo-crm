@@ -69,7 +69,9 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
       if (visit ? !isOneOf(VISIT_RESULTS, result) : !(isOneOf(RESULTS, result) || (isOneOf(OPS_RESULTS, result) && ctx.can('deal.ops', a.market_code)))) {
         throw visit ? invalid('Elige cómo terminó la visita.', 'Choose how the visit ended.') : invalid('Elige cómo te fue.', 'Choose how it went.')
       }
-      await tx`update crm.activities set done_at = now(), outcome = ${result}, visited_by = ${visit ? visitor : null},
+      // Un resultado de Operaciones se guarda aparte: el resultado general de la tarea queda en "hecho".
+      const opsResult = !visit && !isOneOf(RESULTS, result) ? result : null
+      await tx`update crm.activities set done_at = now(), outcome = ${opsResult ? 'done' : result}, ops_outcome = ${opsResult}, visited_by = ${visit ? visitor : null},
                 body = ${note ? tx`nullif(concat_ws(E'\n', body, ${note}::text), '')` : tx`body`} where id = ${id}`
       await audit(tx, ctx, 'activity.completed', 'activity', id, market, null, { kind: a.kind, outcome: result, next, ...(visit ? { origin: 'manual' } : {}) })
       if (visit && isOneOf(VISIT_RESULTS, result)) await applyVisitOutcome(tx, ctx, { market, accountId, outcome: result, day: null, returnOn: when })

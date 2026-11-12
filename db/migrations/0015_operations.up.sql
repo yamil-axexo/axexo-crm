@@ -36,10 +36,9 @@ alter table crm.accounts add column merchant_ref text check (merchant_ref is nul
 -- 5) El próximo paso de un negocio es una tarea de su responsable: así llega a Hoy. deal_step dice de cuál carril es.
 alter table crm.activities add column deal_step text check (deal_step is null or deal_step in ('sales','ops'));
 create index activities_deal_step_idx on crm.activities (deal_id, deal_step) where done_at is null and deal_step is not null;
-alter table crm.activities drop constraint activities_outcome_check;
-alter table crm.activities add constraint activities_outcome_check
-  check (outcome is null or outcome in ('reached','no_answer','later','done','sale','no_sale','revisit',
-                                        'docs_received','sent_provider','approved','rejected','training_done','waiting'));
+-- Cómo terminó una tarea de Operaciones. El resultado general (outcome) queda en 'done': los resultados de ventas y de visita no cambian.
+alter table crm.activities add column ops_outcome text
+  check (ops_outcome is null or ops_outcome in ('docs_received','sent_provider','approved','rejected','training_done','waiting'));
 -- Lo que ya existe: cada negocio abierto con próximo paso con fecha y sin tarea abierta recibe la suya.
 insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, source, deal_step)
 select d.market_code, d.account_id, d.id, 'task', d.next_step, (d.next_step_due::text || 'T15:00:00Z')::timestamptz, d.owner_id, d.owner_id, 'rule', 'sales'

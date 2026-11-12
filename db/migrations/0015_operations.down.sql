@@ -4,11 +4,8 @@ drop table if exists crm.notices;
 drop table if exists crm.deal_ops_checks;
 drop table if exists crm.ops_catalog;
 drop function if exists app.ops_markets();
--- Las tareas creadas por próximos pasos quedan como tareas normales; los resultados de Operaciones pasan a "hecho".
-update crm.activities set outcome = 'done' where outcome in ('docs_received','sent_provider','approved','rejected','training_done','waiting');
-alter table crm.activities drop constraint activities_outcome_check;
-alter table crm.activities add constraint activities_outcome_check
-  check (outcome is null or outcome in ('reached','no_answer','later','done','sale','no_sale','revisit'));
+-- Las tareas creadas por próximos pasos quedan como tareas normales.
+alter table crm.activities drop column ops_outcome;
 drop index if exists crm.activities_deal_step_idx;
 alter table crm.activities drop column deal_step;
 alter table crm.accounts drop column merchant_ref;

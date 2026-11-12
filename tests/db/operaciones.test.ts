@@ -95,6 +95,7 @@ describe('el próximo paso de un negocio llega a Hoy, con un carril para Ventas 
     await expect(completeItem(jade, { type: 'task', id: mine!.id, result: 'docs_received', next: 'none', when: '' })).rejects.toBeTruthy()
     const out = await completeItem(tom, { type: 'task', id: mine!.id, result: 'docs_received', next: 'provider', when: tomorrow })
     expect(out.next).toContain('proveedor')
+    expect(await one(admin`select outcome, ops_outcome from crm.activities where id = ${mine!.id}`)).toMatchObject({ outcome: 'done', ops_outcome: 'docs_received' })
     const d2 = await one(admin<{ next_step: string; ops_next_step: string }[]>`select next_step, ops_next_step from crm.deals where id = ${id}`)
     expect(d2.next_step).toBe('Llamar al dueño')
     expect(d2.ops_next_step).toBe(out.next)
