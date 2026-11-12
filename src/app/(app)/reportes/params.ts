@@ -10,18 +10,20 @@ export function reportFilters(sp: ReportParams, o: ReportOptions) {
   const inMarket = <X extends { market_code: string }>(x: X) => !market || x.market_code === market
   const pipeline = o.pipelines.some((p) => p.id === sp.embudo && inMarket(p)) ? sp.embudo : undefined
   const team = sp.equipo === 'none' ? 'none' : o.teams.some((t) => t.id === sp.equipo && inMarket(t)) ? sp.equipo : undefined
-  const owner = sp.persona === 'none' ? 'none' : isUuid(sp.persona) && o.people.some((p) => p.id === sp.persona) ? sp.persona : undefined
+  // Cualquier persona se acepta: el reporte ya está acotado al alcance de quien mira, y un negocio cerrado puede ser de alguien que ya no vende.
+  const owner = sp.persona === 'none' ? 'none' : isUuid(sp.persona) ? sp.persona : undefined
   const result = sp.resultado === 'won' || sp.resultado === 'lost' ? sp.resultado : undefined
   return { market, pipeline, team, owner, result }
 }
 
 /** Las opciones de cada selector, acotadas al mercado (y al equipo) ya elegidos. */
-export function reportSelects(t: (es: string, en: string) => string, o: ReportOptions, f: { market?: string; team?: string }) {
+export function reportSelects(t: (es: string, en: string) => string, o: ReportOptions, f: { market?: string; team?: string; owner?: string }) {
   const multi = o.markets.length > 1
   const inMarket = <X extends { market_code: string }>(x: X) => !f.market || x.market_code === f.market
   const tag = (code: string) => (multi && !f.market ? `${code} · ` : '')
   const people = new Map<string, string>()
   for (const p of o.people.filter(inMarket)) if (!f.team || (f.team === 'none' ? !p.team_id : p.team_id === f.team)) people.set(p.id, p.full_name)
+  if (isUuid(f.owner) && !people.has(f.owner)) people.set(f.owner, o.people.find((p) => p.id === f.owner)?.full_name ?? t('La persona elegida', 'The chosen person'))
   return {
     market: { name: 'mercado', label: t('Mercado', 'Market'), all: t('Todos los mercados', 'All markets'), options: multi ? o.markets.map((m) => ({ value: m.code, label: m.name })) : [] },
     pipeline: { name: 'embudo', label: t('Embudo', 'Pipeline'), all: t('Todos los embudos', 'All pipelines'), options: o.pipelines.filter(inMarket).map((p) => ({ value: p.id, label: `${tag(p.market_code)}${p.name}` })) },
