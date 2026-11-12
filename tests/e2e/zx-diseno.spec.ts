@@ -208,7 +208,7 @@ test.describe('bienvenida y ayuda', () => {
     await loginAs(page, 'paula.mendez')
     // el recordatorio de Hoy lleva su anillo de avance
     const nudge = page.getByTestId('hoy-onboarding')
-    await expect(nudge).toContainText('0 de 7 hechos')
+    await expect(nudge).toContainText('0 de 8 hechos')
     await expect(nudge.locator('svg circle').first()).toBeAttached()
     await nudge.getByTestId('hoy-onboarding-open').click()
     await expect(page).toHaveURL(/\/bienvenida$/)
@@ -225,11 +225,11 @@ test.describe('bienvenida y ayuda', () => {
     const bar = welcome.getByRole('progressbar')
     await expect(bar).toHaveAttribute('aria-valuenow', '0')
     const toggles = welcome.getByTestId('step-toggle')
-    for (let n = 0; n < 7; n++) {
+    for (let n = 0; n < 8; n++) {
       await toggles.nth(n).click()
-      await expect(page.getByTestId('onboarding-progress')).toHaveText(`${n + 1} de 7`)
+      await expect(page.getByTestId('onboarding-progress')).toHaveText(`${n + 1} de 8`)
     }
-    await expect(bar).toHaveAttribute('aria-valuenow', '7')
+    await expect(bar).toHaveAttribute('aria-valuenow', '8')
     await expect(page.getByTestId('onboarding-complete')).toContainText('Listo, Paula. Ya diste tus primeros pasos.')
 
     // con todo hecho, Hoy deja de recordarlo
@@ -241,12 +241,12 @@ test.describe('bienvenida y ayuda', () => {
     // desmarcar uno quita la celebración y el recordatorio vuelve con su avance
     await page.goto('/bienvenida')
     await expect(page.getByTestId('onboarding-complete')).toBeVisible()
-    await page.getByTestId('step-help').getByTestId('step-toggle').click()
+    await page.getByTestId('step-report').getByTestId('step-toggle').click()
     await expect(page.getByTestId('onboarding-complete')).toHaveCount(0)
-    await expect(page.getByTestId('onboarding-progress')).toHaveText('6 de 7')
-    await expect(page.getByTestId('step-help')).toHaveAttribute('data-done', 'false')
+    await expect(page.getByTestId('onboarding-progress')).toHaveText('7 de 8')
+    await expect(page.getByTestId('step-report')).toHaveAttribute('data-done', 'false')
     await page.goto('/hoy')
-    await expect(page.getByTestId('hoy-onboarding')).toContainText('6 de 7 hechos')
+    await expect(page.getByTestId('hoy-onboarding')).toContainText('7 de 8 hechos')
     expect(errors).toEqual([])
   })
 
@@ -286,7 +286,7 @@ test.describe('bienvenida y ayuda', () => {
     await help.getByTestId('help-chip-leads').click()
     await expect(help.getByTestId('help-chip-leads')).toHaveAttribute('aria-pressed', 'true')
     await expect(help.locator('section[data-testid^="help-topic-"]')).toHaveCount(1)
-    await expect(items).toHaveCount(3)
+    await expect(items).toHaveCount(8)
     await help.getByTestId('help-chip-leads').click()
     await expect(items).toHaveCount(all)
 

@@ -16,7 +16,7 @@ for (const w of WIDTHS) {
       await page.goto('/login')
       await expect(page.locator('h1')).toHaveText('Cada comercio, con su próximo paso.')
       await expect(page.getByTestId('landing-roles').locator('h3')).toHaveText(['Ventas', 'Supervisión', 'Líder de mercado', 'Operaciones', 'Leadership', 'Administración'])
-      await expect(page.getByTestId('landing-status').getByText('Próximamente')).toHaveCount(3)
+      await expect(page.getByTestId('landing-status').getByText('Todavía no', { exact: true })).toHaveCount(3)
       const faq = page.getByTestId('landing-faq').locator('details')
       await expect(faq).toHaveCount(6)
       await faq.first().locator('summary').click()
@@ -33,7 +33,7 @@ test('la entrada cambia a inglés completa', async ({ page }) => {
   await page.getByTestId('locale-toggle').click()
   await expect(page.locator('h1')).toHaveText('Every merchant, with its next step.')
   await expect(page.getByTestId('landing-roles').locator('h3')).toHaveText(['Sales', 'Supervisor', 'Market lead', 'Operations', 'Leadership', 'Admin'])
-  await expect(page.getByTestId('landing-status').getByText('Coming soon')).toHaveCount(3)
+  await expect(page.getByTestId('landing-status').getByText('Not yet', { exact: true })).toHaveCount(3)
   await page.getByTestId('locale-toggle').click()
   await expect(page.locator('h1')).toHaveText('Cada comercio, con su próximo paso.')
 })
@@ -47,23 +47,23 @@ test('primer ingreso: bienvenida con el paso a paso de su rol y una lista que se
   await expect(page.getByTestId('welcome-track')).toHaveText('Ventas')
   await expect(page.getByTestId('welcome-title')).toHaveText('Te damos la bienvenida a CONTIGO, Lucía.')
   await expect(page.getByTestId('how-step')).toHaveCount(4)
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('0 de 7')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('0 de 8')
 
   // marcar y desmarcar
   const first = page.getByTestId('step-today')
   await first.getByTestId('step-toggle').click()
   await expect(first).toHaveAttribute('data-done', 'true')
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 7')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
   await page.getByTestId('step-complete').getByTestId('step-toggle').click()
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('2 de 7')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('2 de 8')
   await first.getByTestId('step-toggle').click()
   await expect(first).toHaveAttribute('data-done', 'false')
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 7')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
 
   // en Hoy queda el recordatorio con el avance, y se puede esconder
   await page.getByTestId('welcome-go').click()
   await expect(page).toHaveURL(/\/hoy$/)
-  await expect(page.getByTestId('hoy-onboarding')).toContainText('1 de 7 hechos')
+  await expect(page.getByTestId('hoy-onboarding')).toContainText('1 de 8 hechos')
   await page.getByTestId('hoy-onboarding-hide').click()
   await expect(page.getByTestId('hoy-onboarding')).toHaveCount(0)
 
@@ -71,7 +71,7 @@ test('primer ingreso: bienvenida con el paso a paso de su rol y una lista que se
   await openMenu(page)
   await page.getByTestId('nav-welcome').click()
   await expect(page).toHaveURL(/\/bienvenida$/)
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 7')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
   await page.getByTestId('onboarding-show').click()
   await expect(page.getByTestId('onboarding-hide')).toBeVisible()
 
@@ -81,7 +81,7 @@ test('primer ingreso: bienvenida con el paso a paso de su rol y una lista que se
 })
 
 test('cada rol recibe su propio recorrido', async ({ page }) => {
-  for (const [persona, label, steps] of [['fernando.ibarra', 'Supervisión', 7], ['ana.robles', 'Líder de mercado', 6], ['valeria.soto', 'Operaciones', 6], ['luis.tovar', 'Leadership', 4], ['nora.salas', 'Administración', 6]] as const) {
+  for (const [persona, label, steps] of [['fernando.ibarra', 'Supervisión', 8], ['ana.robles', 'Líder de mercado', 7], ['valeria.soto', 'Operaciones', 6], ['luis.tovar', 'Leadership', 5], ['nora.salas', 'Administración', 8]] as const) {
     await loginAs(page, persona)
     await page.goto('/bienvenida')
     await expect(page.getByTestId('welcome-track'), persona).toHaveText(label)
@@ -100,10 +100,10 @@ test('ayuda: se filtra al escribir y por rol, y está en el menú', async ({ pag
   await page.getByTestId('help-mine').click()
   expect(await items.count()).toBeLessThan(all) // lo de administración no es de quien vende
   await page.getByTestId('help-all').click()
-  await page.getByTestId('help-search').fill('señal')
+  await page.getByTestId('help-search').fill('pantalla de inicio')
   await expect(items).toHaveCount(1)
   await items.first().locator('summary').click()
-  await expect(items.first().locator('p')).toContainText('aviso')
+  await expect(items.first().locator('p')).toContainText('navegador')
   await page.getByTestId('help-search').fill('zzzz')
   await expect(page.getByTestId('help-empty')).toBeVisible()
 })
