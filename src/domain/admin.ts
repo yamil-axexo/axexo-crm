@@ -83,14 +83,14 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
   if (!global && !v.market) throw invalid('Ese rol necesita un mercado.', 'That role needs a market.')
   if (!emailInDomains(v.email, allowedDomains) && !v.email.endsWith('@contigo.test')) {
     throw invalid(
-      `Ese dominio no está admitido. La persona necesita una cuenta de ${domainList(allowedDomains, 'o')}.`,
-      `That domain is not allowed. The person needs a ${domainList(allowedDomains, 'or')} account.`,
+      `Ese dominio no está admitido. La persona necesita una cuenta de ${domainList(allowedDomains, 'o')}. Para darle acceso con otro correo, quien administra CONTIGO tiene que pedirle esa cuenta a quien administra las cuentas de Google de la empresa.`,
+      `That domain is not allowed. The person needs a ${domainList(allowedDomains, 'or')} account. To give access to anyone else, whoever administers CONTIGO has to ask the person who manages the company’s Google accounts for that account.`,
     )
   }
   if (v.role === 'admin' && !v.confirmAdmin) {
     throw invalid(
-      'Administración puede dar y quitar accesos, crear llaves de API y cambiar la configuración. Marca la casilla para confirmar que se lo quieres dar.',
-      'Administration can grant and remove access, create API keys and change the configuration. Tick the box to confirm you want to grant it.',
+      'Administración ve y cambia todo, en todos los mercados: da y quita accesos, crea llaves de API y cambia la configuración. Marca la casilla para confirmar que se la quieres dar.',
+      'Administration sees and changes everything, in every market: it grants and removes access, creates API keys and changes the configuration. Tick the box to confirm you want to grant it.',
     )
   }
   return withUser(ctx.user.id, async (tx) => {
@@ -111,7 +111,12 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
     if (expires) await assertFutureDay(tx, expires, market)
     await tx`insert into crm.memberships (user_id, market_code, role, team_id, valid_to)
              values (${userId}, ${market}, ${v.role}, ${teamId}, ${expires ? endOfDay(tx, expires, market) : null})`
-    await audit(tx, ctx, 'membership.granted', 'user', userId, market, null, { role: v.role, market, team_id: teamId, expires })
+    // Dar Administración deja escrito el alcance que se confirmó, si el correo es de otro dominio que el de quien la da y si tiene fecha de fin.
+    const at = (e: string) => e.slice(e.lastIndexOf('@') + 1).toLowerCase()
+    await audit(tx, ctx, 'membership.granted', 'user', userId, market, null, {
+      role: v.role, market, team_id: teamId, expires,
+      ...(v.role === 'admin' ? { scope: 'all_markets', confirmed: true, external: at(v.email) !== at(ctx.user.email) } : {}),
+    })
     return { userId, supervisorWithoutTeam: v.role === 'supervisor' && !teamId, expires }
   })
 }

@@ -123,6 +123,13 @@ export type GrantLabels = {
   expiresHint: string
   adminConfirm: string
   adminHint: string
+  /** Confirmación de Administración: el alcance con todas sus letras y, debajo, a quién y hasta cuándo. Plantillas con {email}, {domain} y {date}. */
+  adminScope: string
+  adminFor: string
+  adminNoEmail: string
+  adminOtherDomain: string
+  adminExpires: string
+  adminNoExpiry: string
   supervisorWarn: string
   globalHint: string
 }
@@ -131,7 +138,11 @@ export type GrantLabels = {
  * Campos de "Dar acceso". Lo que se pide depende del rol: Administración y Leadership no llevan mercado ni equipo;
  * Administración pide una confirmación aparte; una supervisión sin equipo avisa antes de guardar.
  */
-export function GrantFields({ roles, markets, teams, labels, today }: { roles: { value: string; label: string }[]; markets: { code: string; name: string }[]; teams: { id: string; name: string; market: string }[]; labels: GrantLabels; today: string }) {
+export function GrantFields({ roles, markets, teams, labels, today, ownDomain, locale = 'es' }: { roles: { value: string; label: string }[]; markets: { code: string; name: string }[]; teams: { id: string; name: string; market: string }[]; labels: GrantLabels; today: string; /** Dominio del correo de quien da el acceso: un correo de otro dominio se señala al confirmar Administración. */ ownDomain?: string; locale?: 'es' | 'en' }) {
+  const [email, setEmail] = useState('')
+  const [expires, setExpires] = useState('')
+  const domain = email.includes('@') ? email.slice(email.lastIndexOf('@') + 1).trim().toLowerCase() : ''
+  const expiresText = /^\d{4}-\d{2}-\d{2}$/.test(expires) ? new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${expires}T12:00:00Z`)) : ''
   // De entrada, el rol más común y el de menor alcance: Ventas. Administración se elige a propósito.
   const [role, setRole] = useState(roles.some((r) => r.value === 'rep') ? 'rep' : (roles[0]?.value ?? 'rep'))
   const [market, setMarket] = useState(markets[0]?.code ?? '')
@@ -143,7 +154,7 @@ export function GrantFields({ roles, markets, teams, labels, today }: { roles: {
     <>
       <label className="col-span-2 block">
         <span className={field}>{labels.email}</span>
-        <input name="email" type="email" className="input" required data-testid="grant-email" />
+        <input name="email" type="email" className="input" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="grant-email" />
         <span className="mt-1.5 block text-[12px] text-muted">{labels.emailHint}</span>
       </label>
       <label className="col-span-2 block">
@@ -180,12 +191,18 @@ export function GrantFields({ roles, markets, teams, labels, today }: { roles: {
       )}
       <label className="col-span-2 block">
         <span className={field}>{labels.expires}</span>
-        <input name="expires" type="date" className="input" min={today} data-testid="grant-expires" />
+        <input name="expires" type="date" className="input" min={today} value={expires} onChange={(e) => setExpires(e.target.value)} data-testid="grant-expires" />
         <span className="mt-1.5 block text-[12px] text-muted">{labels.expiresHint}</span>
       </label>
       {role === 'admin' && (
         <div className="col-span-2 rounded-[10px] bg-warn-bg px-4 py-3" data-testid="grant-admin-confirm">
-          <p className="text-[13.5px] font-medium text-amber-text">{labels.adminHint}</p>
+          <p className="text-[14.5px] font-semibold text-strong" data-testid="grant-admin-scope">{labels.adminScope}</p>
+          <p className="mt-1.5 text-[13.5px] font-medium text-amber-text">{labels.adminHint}</p>
+          <ul className="mt-3 space-y-1 text-[13.5px] text-strong" data-testid="grant-admin-who">
+            <li data-testid="grant-admin-for">{email.trim() ? labels.adminFor.replace('{email}', email.trim()) : labels.adminNoEmail}</li>
+            {domain && ownDomain && domain !== ownDomain && <li className="font-semibold text-amber-text" data-testid="grant-admin-external">{labels.adminOtherDomain.replace('{domain}', domain)}</li>}
+            <li data-testid="grant-admin-until">{expiresText ? labels.adminExpires.replace('{date}', expiresText) : labels.adminNoExpiry}</li>
+          </ul>
           <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-[14px] font-semibold text-strong">
             <input type="checkbox" name="confirm_admin" className="h-5 w-5 shrink-0" data-testid="grant-admin-check" />
             {labels.adminConfirm}
