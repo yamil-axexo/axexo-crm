@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { HABITS, HELP, HELP_TOPICS, INTRO, LANDING, PHOTOS, SHOT_ALT, STEPS, TRACK_LABEL, TRAINING, trackOf, type HelpTopic, type L, type Track } from '@/content/guide'
+import { homePath, type Role } from '@/domain/policy'
+import { screenLabel } from '@/lib/screens'
 import { browserLocale } from '@/server/context'
 
 const TRACKS = Object.keys(TRACK_LABEL) as Track[]
@@ -22,6 +24,18 @@ for (const k of Object.keys(SHOT_ALT) as (keyof typeof SHOT_ALT)[]) add(`shot:${
 for (const k of Object.keys(PHOTOS) as (keyof typeof PHOTOS)[]) add(`photo:${k}`, PHOTOS[k].alt)
 for (const k of Object.keys(HELP_TOPICS) as (keyof typeof HELP_TOPICS)[]) add(`topic:${k}`, HELP_TOPICS[k])
 JSON.stringify(LANDING, (_k, v) => { if (v && typeof v === 'object' && typeof v.es === 'string' && typeof v.en === 'string') add('landing', v as L); return v })
+
+/** Las pantallas de la app con ruta fija (sin segmentos dinámicos), también las anidadas: /reportes/cerrados, /admin/operaciones. */
+function staticRoutes(dir: string, prefix = ''): string[] {
+  const out: string[] = []
+  for (const d of readdirSync(dir, { withFileTypes: true })) {
+    if (!d.isDirectory() || d.name.startsWith('[')) continue
+    const route = `${prefix}/${d.name}`
+    if (existsSync(join(dir, d.name, 'page.tsx'))) out.push(route)
+    out.push(...staticRoutes(join(dir, d.name), route))
+  }
+  return out
+}
 
 describe('guía: entrada, primer ingreso y ayuda', () => {
   it('cada rol tiene su recorrido, con pasos de clave única y enlace dentro de la app', () => {
@@ -74,7 +88,7 @@ describe('guía: entrada, primer ingreso y ayuda', () => {
 
   it('cada paso apunta a una pantalla que existe, y cada pestaña de Administración citada existe', () => {
     const app = join(process.cwd(), 'src/app/(app)')
-    const routes = readdirSync(app, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(app, d.name, 'page.tsx'))).map((d) => `/${d.name}`)
+    const routes = staticRoutes(app)
     const tabs = /const TABS = \[([^\]]+)\]/.exec(readFileSync(join(app, 'admin/page.tsx'), 'utf8'))![1]!.split(',').map((x) => x.trim().replace(/'/g, ''))
     expect(routes).toContain('/reportar')
     for (const tr of TRACKS) {
@@ -93,6 +107,56 @@ describe('guía: entrada, primer ingreso y ayuda', () => {
     for (const s of STEPS.ops) expect(s.href, s.key).not.toMatch(/^\/(supervisor|leads)/)
   })
 
+  it('cada rol empieza donde aterriza al entrar y recibe los pasos de lo que ya hace', () => {
+    const HOME: [Track, Role][] = [['rep', 'rep'], ['supervisor', 'supervisor'], ['lead', 'market_lead'], ['ops', 'ops'], ['lt', 'lt'], ['admin', 'admin']]
+    for (const [track, role] of HOME) {
+      const home = homePath([{ role, market: role === 'admin' || role === 'lt' ? null : 'MX', teamId: null }])
+      expect(STEPS[track][0]!.href.split('?')[0], track).toBe(home)
+    }
+    const keys = (tr: Track) => STEPS[tr].map((s) => s.key)
+    for (const k of ['convert', 'visit']) expect(keys('rep'), k).toContain(k)
+    for (const k of ['distribute', 'closed']) expect(keys('supervisor'), k).toContain(k)
+    for (const k of ['queue', 'take', 'return', 'ops-fields']) expect(keys('ops'), k).toContain(k)
+    for (const k of ['distribute', 'weekly']) expect(keys('lead'), k).toContain(k)
+    for (const k of ['rotation', 'territories', 'fx', 'reports']) expect(keys('admin'), k).toContain(k)
+    expect(STEPS.admin.find((s) => s.key === 'rotation')!.why.es).toMatch(/Horario hábil por mercado/)
+    expect(STEPS.ops.find((s) => s.key === 'ops-fields')!.why.es).toMatch(/Merchant ID/)
+  })
+
+  it('la regla del piloto se dice con las palabras del producto, en la entrada y en los primeros pasos', () => {
+    const deal = readFileSync(join(process.cwd(), 'src/app/(app)/deals/[id]/page.tsx'), 'utf8')
+    expect(deal).toContain(LANDING.status.rule.es)
+    expect(deal).toContain(LANDING.status.rule.en)
+    expect(STEPS.admin.find((s) => s.key === 'win-rule')!.why.es).toContain(LANDING.status.rule.es)
+    expect(HELP.find((h) => h.id === 'deal-won')!.a.es).toMatch(/fecha real de cierre/)
+  })
+
+  it('Administración, pestaña por pestaña: nombra todas las que existen', () => {
+    const admin = readFileSync(join(process.cwd(), 'src/app/(app)/admin/page.tsx'), 'utf8')
+    const block = /const labels: Record<Tab, string> = \{([\s\S]*?)\n  \}/.exec(admin)![1]!
+    const names = [...block.matchAll(/t\('([^']+)', '([^']+)'\)/g)].map((m) => [m[1]!, m[2]!] as const)
+    expect(names.length).toBeGreaterThanOrEqual(8)
+    const config = INTRO.admin.how.find((h) => h.visual && 'shot' in h.visual && h.visual.shot === 'admin')!
+    for (const [es, en] of names) {
+      expect(config.text.es, es).toContain(es)
+      expect(config.text.en, en).toContain(en)
+    }
+    expect(config.text.es).toContain('Pipedrive')
+    // la sección de Operaciones vive dentro de Administración, como una más
+    expect(admin).toContain("label: t('Operaciones', 'Operations')")
+    expect(config.text.es).toMatch(/Auditoría y Operaciones\.$/)
+    expect(config.text.en).toMatch(/Audit and Operations\.$/)
+  })
+
+  it('cada pantalla con ruta fija tiene nombre para "Reportar un problema"', () => {
+    const t = (es: string) => es
+    for (const route of staticRoutes(join(process.cwd(), 'src/app/(app)'))) expect(screenLabel(t, route), route).not.toBe(route)
+    expect(screenLabel(t, '/admin/operaciones')).toBe('Administración, Operaciones')
+    expect(screenLabel(t, '/admin')).toBe('Administración')
+    expect(screenLabel(t, '/operaciones')).toBe('Cola de Operaciones')
+    expect(screenLabel(t, '/reportes/cerrados')).toBe('Negocios cerrados')
+  })
+
   it('la ayuda cubre todos los temas, dice la regla del piloto y lo que CONTIGO no hace todavía', () => {
     for (const topic of Object.keys(HELP_TOPICS) as HelpTopic[]) expect(HELP.filter((h) => h.topic === topic).length, topic).toBeGreaterThanOrEqual(3)
     const won = HELP.find((h) => h.id === 'deal-won')!
@@ -101,7 +165,12 @@ describe('guía: entrada, primer ingreso y ayuda', () => {
     const limits = HELP.filter((h) => h.topic === 'limits')
     expect(limits.every((h) => h.a.es.startsWith('No') || h.a.es.startsWith('Todavía no') || h.a.es.startsWith('CONTIGO no'))).toBe(true)
     const said = limits.map((h) => `${h.q.es} ${h.a.es}`).join(' ')
-    for (const word of [/Sales App/, /sin conexión/, /fotos/, /correo/]) expect(said).toMatch(word)
+    for (const word of [/Sales App/, /datos de ventas/, /sin conexión/, /fotos/, /correo/, /Slack/, /mapa/, /app para instalar/]) expect(said).toMatch(word)
+    // lo que ya hace no figura como pendiente: exportar, registrar visitas, repartir en bloque y pedidos
+    for (const h of limits) expect(`${h.q.es} ${h.a.es}`, h.id).not.toMatch(/exporta|pedido|repart/i)
+    // y lo que entró en la ola 2 tiene su pregunta
+    const ids = HELP.map((h) => h.id)
+    for (const id of ['lead-convert', 'lead-hours', 'lead-pass', 'lead-bulk', 'deal-pause', 'deal-bulk', 'account-type', 'account-parent', 'merchant-order', 'ops-queue', 'ops-handoff', 'ops-return', 'ops-fields', 'notice-note', 'closed-deals', 'panel-how', 'fx-rate', 'adoption', 'field-report', 'role-home', 'admin-fx', 'admin-hours']) expect(ids, id).toContain(id)
     // respuestas cortas: caben en un párrafo
     for (const h of HELP) {
       expect(h.a.es.length, h.id).toBeLessThanOrEqual(420)

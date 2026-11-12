@@ -286,7 +286,7 @@ test.describe('bienvenida y ayuda', () => {
     await help.getByTestId('help-chip-leads').click()
     await expect(help.getByTestId('help-chip-leads')).toHaveAttribute('aria-pressed', 'true')
     await expect(help.locator('section[data-testid^="help-topic-"]')).toHaveCount(1)
-    await expect(items).toHaveCount(8)
+    await expect(items).toHaveCount(17) // Leads: las 8 de la ola 2 más conversión, horario hábil, pasar y soltar, búsqueda, cierre en bloque y demás (ola 3)
     await help.getByTestId('help-chip-leads').click()
     await expect(items).toHaveCount(all)
 
