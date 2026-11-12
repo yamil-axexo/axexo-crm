@@ -202,8 +202,10 @@ test.describe('pasada final (ola 3): cada rol empieza en su pantalla y la ayuda 
     await expect(page.locator('main')).toContainText('Horario hábil por mercado')
     await page.goto('/admin?tab=embudos')
     for (const text of ['Tasa de cambio a USD', 'Orden de las etapas', 'Qué pide cada formulario web', 'Crear embudo', 'Crear campo']) await expect(page.locator('main')).toContainText(text)
-    await openMenu(page)
-    await expect(page.getByTestId('nav-ops-config')).toHaveText('Catálogos de Operaciones')
+    // lo de Operaciones se configura dentro de Administración
+    await page.getByRole('link', { name: 'Operaciones', exact: true }).first().click()
+    await expect(page).toHaveURL(/\/admin\/operaciones$/)
+    for (const text of ['Embudos y etapas', 'Etapas de Operaciones', 'Productos', 'Motivos de devolución a Ventas']) await expect(page.locator('main')).toContainText(text)
     // ventas: convertir, pasar y soltar, con el nombre que usa la ayuda
     await loginAs(page, 'diana.cruz')
     await page.goto('/leads')
@@ -232,7 +234,7 @@ test.describe('pasada final (ola 3): cada rol empieza en su pantalla y la ayuda 
     await help.getByTestId('help-clear').click()
     for (const topic of ['ops', 'numbers']) await expect(help.getByTestId(`help-topic-${topic}`).getByTestId('help-item').first()).toBeVisible()
     // "Reportar un problema" llama a las pantallas nuevas por su nombre
-    for (const [from, name] of [['/operaciones', 'Cola de Operaciones'], ['/reportes/cerrados', 'Negocios cerrados'], ['/reportes/campo', 'Reporte de campo'], ['/admin/operaciones', 'Catálogos de Operaciones'], ['/admin', 'Administración']] as const) {
+    for (const [from, name] of [['/operaciones', 'Cola de Operaciones'], ['/reportes/cerrados', 'Negocios cerrados'], ['/reportes/campo', 'Reporte de campo'], ['/admin/operaciones', 'Administración, Operaciones'], ['/admin', 'Administración']] as const) {
       await page.goto(`/reportar?desde=${from}`)
       await expect(page.getByTestId('report-screen'), from).toHaveText(name)
     }

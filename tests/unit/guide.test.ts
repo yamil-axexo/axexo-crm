@@ -142,13 +142,16 @@ describe('guía: entrada, primer ingreso y ayuda', () => {
       expect(config.text.en, en).toContain(en)
     }
     expect(config.text.es).toContain('Pipedrive')
-    expect(config.text.es).toContain('Catálogos de Operaciones')
+    // la sección de Operaciones vive dentro de Administración, como una más
+    expect(admin).toContain("label: t('Operaciones', 'Operations')")
+    expect(config.text.es).toMatch(/Auditoría y Operaciones\.$/)
+    expect(config.text.en).toMatch(/Audit and Operations\.$/)
   })
 
   it('cada pantalla con ruta fija tiene nombre para "Reportar un problema"', () => {
     const t = (es: string) => es
     for (const route of staticRoutes(join(process.cwd(), 'src/app/(app)'))) expect(screenLabel(t, route), route).not.toBe(route)
-    expect(screenLabel(t, '/admin/operaciones')).toBe('Catálogos de Operaciones')
+    expect(screenLabel(t, '/admin/operaciones')).toBe('Administración, Operaciones')
     expect(screenLabel(t, '/admin')).toBe('Administración')
     expect(screenLabel(t, '/operaciones')).toBe('Cola de Operaciones')
     expect(screenLabel(t, '/reportes/cerrados')).toBe('Negocios cerrados')

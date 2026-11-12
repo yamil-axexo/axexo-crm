@@ -16,7 +16,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/campo', 'Reporte de campo', 'Field report'],
   ['/reportes/adopcion', 'Adopción', 'Adoption'],
   // Va antes de /admin: la primera ruta que coincide es la que nombra la pantalla.
-  ['/admin/operaciones', 'Catálogos de Operaciones', 'Operations catalogs'],
+  ['/admin/operaciones', 'Administración, Operaciones', 'Administration, Operations'],
   ['/admin', 'Administración', 'Administration'],
   ['/estado', 'Estado de CONTIGO', 'CONTIGO status'],
   ['/bienvenida', 'Primeros pasos', 'First steps'],

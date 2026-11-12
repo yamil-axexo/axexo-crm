@@ -574,8 +574,8 @@ const HOW = {
   config: {
     title: { es: 'Administración, pestaña por pestaña', en: 'Administration, tab by tab' },
     text: {
-      es: 'Personas y acceso, Territorios, Embudos y campos, Formularios y turnos, Integraciones, Pipedrive, Calidad de datos, Reportes y Auditoría. Aparte, en tu menú, Catálogos de Operaciones.',
-      en: 'People and access, Territories, Pipelines and fields, Forms and rotation, Integrations, Pipedrive, Data quality, Reports and Audit. Separately, in your menu, Operations catalogs.',
+      es: 'Personas y acceso, Territorios, Embudos y campos, Formularios y turnos, Integraciones, Pipedrive, Calidad de datos, Reportes, Auditoría y Operaciones.',
+      en: 'People and access, Territories, Pipelines and fields, Forms and rotation, Integrations, Pipedrive, Data quality, Reports, Audit and Operations.',
     },
     visual: { shot: 'admin' },
   },
@@ -1251,7 +1251,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'admin-ops-catalogs', topic: 'admin', tracks: ['admin'],
     q: { es: '¿Dónde se configuran los pedidos, las etapas de Operaciones y sus catálogos?', en: 'Where are orders, Operations stages and their catalogs set up?' },
-    a: { es: 'En tu menú, "Catálogos de Operaciones": qué embudos admiten varios negocios abiertos y líneas de producto, cuáles son etapas de Operaciones, productos, proveedores, documentos requeridos y motivos de devolución a Ventas.', en: 'In your menu, "Operations catalogs": which pipelines allow several open deals and product lines, which stages are Operations stages, products, providers, required documents and reasons for sending back to Sales.' },
+    a: { es: 'En Administración, la sección "Operaciones": qué embudos admiten varios negocios abiertos y líneas de producto, cuáles son etapas de Operaciones, productos, proveedores, documentos requeridos y motivos de devolución a Ventas.', en: 'In Administration, the "Operations" section: which pipelines allow several open deals and product lines, which stages are Operations stages, products, providers, required documents and reasons for sending back to Sales.' },
   },
 
   // ------------------------------------------------------------ lo que no hace todavía
@@ -1443,7 +1443,7 @@ export const TRAINING: Record<Track, Training> = {
       { es: 'Turnos de leads: cómo rota, qué es el respaldo y qué mide el reloj de primer contacto.', en: 'Lead rotations: how they rotate, what the fallback is and what the first-contact clock measures.' },
       { es: 'Horario hábil por mercado y territorios: dónde se cambian y a quién le toca cada territorio.', en: 'Business hours by market and territories: where they are changed and who covers each territory.' },
       { es: 'Embudos y campos: agregar, mover y archivar etapas; crear un embudo, un campo, un tipo de cuenta o un motivo de pérdida.', en: 'Pipelines and fields: add, move and archive stages; create a pipeline, a field, an account type or a loss reason.' },
-      { es: 'La tasa de cambio a USD y los Catálogos de Operaciones: etapas de Operaciones, productos, proveedores y documentos.', en: 'The exchange rate to USD and the Operations catalogs: Operations stages, products, providers and documents.' },
+      { es: 'La tasa de cambio a USD y la sección Operaciones de Administración: etapas de Operaciones, productos, proveedores y documentos.', en: 'The exchange rate to USD and the Operations section of Administration: Operations stages, products, providers and documents.' },
       { es: 'La regla de cierre por embudo: primera transacción o a mano, y la regla del piloto.', en: 'The closing rule per pipeline: first transaction or by hand, and the pilot rule.' },
       { es: 'Calidad de datos: registros sin dueño por mercado y fusionar duplicados.', en: 'Data quality: unowned records per market and merging duplicates.' },
       { es: 'La pestaña Pipedrive: qué no se trajo y cómo leer "No cargados".', en: 'The Pipedrive tab: what was not brought over and how to read "Not loaded".' },
