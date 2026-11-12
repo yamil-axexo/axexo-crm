@@ -1,11 +1,12 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { Activity, CircleHelp, Eye, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, CircleHelp, Eye, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
+import { ReportLink } from '@/ui/report'
 import { LogHost } from '@/ui/log'
 import { logConfig } from '@/server/sheet'
 import { ROLE_LABEL, isReadOnly } from '@/domain/policy'
@@ -79,6 +80,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>
               <Link href="/ayuda" role="menuitem" className={menuLink} data-testid="nav-help"><CircleHelp size={20} strokeWidth={1.75} aria-hidden />{m('top.help')}</Link>
+              <ReportLink className={menuLink} testId="nav-report"><LifeBuoy size={20} strokeWidth={1.75} aria-hidden />{t('Reportar un problema', 'Report a problem')}</ReportLink>
             </div>
             <form action={setLocale} className="border-t border-line pt-1 md:hidden">
               <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />

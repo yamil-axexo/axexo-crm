@@ -16,6 +16,7 @@ import { PipedriveTab } from './pipedrive'
 import { PeopleTab, accessFilter } from './people'
 import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
+import { ReportesTab, reportFilter } from './reportes'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
@@ -23,10 +24,10 @@ import { readerTimeZone } from '@/server/timezone'
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
 
-const TABS = ['personas', 'territorios', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'auditoria'] as const
+const TABS = ['personas', 'territorios', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'reportes', 'auditoria'] as const
 type Tab = (typeof TABS)[number]
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; acceso?: string } & AuditParams> }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; acceso?: string; reportes?: string } & AuditParams> }) {
   const ctx = await requireCtx()
   const admin = ctx.can('config.manage')
   if (!admin && !ctx.can('audit.read')) notFound()
@@ -44,6 +45,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     integraciones: t('Integraciones', 'Integrations'),
     pipedrive: 'Pipedrive',
     calidad: t('Calidad de datos', 'Data quality'),
+    reportes: t('Reportes', 'Reports'),
     auditoria: t('Auditoría', 'Audit'),
   }
   const live = ctx.markets.filter((m) => m.status === 'live')
@@ -65,6 +67,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === 'integraciones' && <Integrations />}
       {tab === 'pipedrive' && <PipedriveTab ctx={ctx} />}
       {tab === 'calidad' && <Quality />}
+      {tab === 'reportes' && <ReportesTab ctx={ctx} filter={reportFilter(sp.reportes)} />}
       {tab === 'auditoria' && <AuditTab ctx={ctx} sp={sp} />}
     </>
   )
