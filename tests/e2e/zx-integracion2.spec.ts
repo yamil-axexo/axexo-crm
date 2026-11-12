@@ -8,6 +8,7 @@ test.afterAll(() => sql.end())
 const tag = () => Math.random().toString(36).slice(2, 7)
 const uid = async (key: string) => (await sql<{ id: string }[]>`select md5(${'contigo:' + key})::uuid as id`)[0]!.id
 const spanish = (page: Page) => page.context().addCookies([{ name: 'contigo_locale', value: 'es', url: page.url() }])
+const SHOTS = process.env.E2E_SHOTS
 const dayIn = (tz: string, offset = 0) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(Date.now() + offset * 86400000))
 
 async function clean(page: Page, label: string) {
@@ -198,15 +199,18 @@ test.describe('un negocio en pausa no aparece como frío', () => {
       await page.goto(`/pipelines/${pipe}?quietos=30`)
       await expect(page.getByTestId('quiet-list')).toContainText(quiet)
       await expect(page.getByTestId('quiet-list')).not.toContainText(paused)
-      // los motivos del cierre en bloque son los del embudo B2B, no los de tienda
+      // los motivos del cierre en bloque (aparecen al elegir un negocio) son los del embudo B2B, no los de tienda
+      await page.getByTestId('bulk-row').filter({ hasText: quiet }).locator('input[type=checkbox]').check()
       await expect(page.getByTestId('bulk-reason').locator('option[value=b2b_postponed]')).toHaveCount(1)
       await expect(page.getByTestId('bulk-reason').locator('option[value=store_closed_down]')).toHaveCount(0)
       await expect(page.getByTestId('bulk-reason')).not.toContainText('La tienda cerró')
       await clean(page, `negocios quietos ${w.name}`)
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-quietos-${w.width}.png` })
       // el tablero: filtros de equipo y persona (liderazgo), filtro "En pausa" (b2b) y negocios quietos (operaciones) caben juntos
       await page.goto(`/pipelines/${pipe}`)
       for (const id of ['pipeline-select', 'board-team', 'board-person', 'pill-all', 'filter-no-step', 'filter-paused', 'view-list', 'quiet-filter']) await expect(page.getByTestId(id), id).toBeVisible()
       await clean(page, `tablero con todos los filtros ${w.name}`)
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-tablero-${w.width}.png` })
       await page.getByTestId('filter-paused').click()
       await expect(page).toHaveURL(/paso=pausa/)
       await expect(page.getByText(/En pausa · se revisa/).first()).toBeVisible()
@@ -289,6 +293,7 @@ test.describe('pantalla de inicio por rol', () => {
     expect(labels).not.toContain('Catálogos de Operaciones')
     const last = await page.getByTestId('logout').boundingBox()
     expect(last!.y + last!.height).toBeLessThanOrEqual(844)
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-menu-390.png` })
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
     await page.keyboard.press('Escape')
     await page.goto('/admin')
@@ -296,6 +301,7 @@ test.describe('pantalla de inicio por rol', () => {
     expect(new Set(pills).size, pills.join(' | ')).toBe(pills.length)
     expect(pills).toEqual(expect.arrayContaining(['Operaciones', 'Reportes', 'Auditoría']))
     await clean(page, 'administración en teléfono')
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-admin-390.png` })
     await page.getByTestId('pill-operaciones').click()
     await expect(page).toHaveURL(/\/admin\/operaciones$/)
     await page.getByTestId('ops-config-back').click()

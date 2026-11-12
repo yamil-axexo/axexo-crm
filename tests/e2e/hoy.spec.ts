@@ -21,6 +21,12 @@ for (const w of WIDTHS) {
                  where id in (select a.id from crm.activities a join crm.users u on u.id = a.owner_id
                                where u.full_name = 'Marco Peña' and a.done_at is null and a.kind = 'task' and a.due_at > now() - interval '1 day'
                                order by a.id limit 2)`
+      // Los relojes de lead del seed vencen entre 7 y 56 minutos después de sembrar. Con la suite más larga, este archivo ya
+      // corre después de eso, y un lead con el reloj vencido pasa al grupo "Vencido" antes que las tareas. Las pruebas de
+      // este archivo parten de leads con el reloj todavía corriendo: se les devuelve el margen aquí, no se deja al azar.
+      await sql`update crm.leads set sla_due_at = now() + interval '45 minutes'
+                 where status = 'new' and first_touch_at is null and sla_due_at is not null and sla_due_at < now() + interval '15 minutes'
+                   and owner_id = (select id from crm.users where full_name = 'Marco Peña')`
       await sql.end()
     })
 
