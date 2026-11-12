@@ -69,7 +69,7 @@ Not done here, on purpose:
 - **A catalog of street reps** and a "street rep" field on the merchant (E16.F3, E16.F4). The name lives on each visit, with suggestions from the names already used in the market; there is no list to maintain or to change in bulk when someone leaves.
 - **Telling the person who receives a reassigned merchant.** The confirmation and the notice are for whoever reassigns; CONTIGO still has no notifications.
 
-## Changes after committee 2 (waves 1 to 3) / Cambios después del comité 2 (olas 1 a 3)
+## Changes after committee 2 (waves 1 to 4) / Cambios después del comité 2 (olas 1 a 4)
 The second committee (11-Nov-2026) walked the app as the real teams. What it asked for was built in three waves of packages, each on its own branch and database, and merged with `--no-ff` into `design-v1` (wave 1 and wave 2) and into `rc/olas-1-3` (wave 3 and this section).
 
 ### What was built, by package
@@ -120,6 +120,38 @@ Run on `rc/olas-1-3` with its own databases and ports:
 - `pnpm test`: 383 tests in 30 files, green twice in a row and with the file order shuffled. Every file of `tests/db` now starts from a freshly seeded database (`tests/db/fresh-db.ts` recreates it from a template copy), so the result no longer depends on the order between files; the fixed order by path that wave 2 added is gone.
 - `pnpm build` and `pnpm e2e`: 282 end-to-end tests in 22 files against the standalone build.
 - Migration cycle on seeded data: `reset`, nine times `down` (0017 back to 0009), `up`. Row counts are the same before and after (439 merchants, 337 deals, 84 leads, 249 activities) and every table of schema `crm` keeps forced row-level security.
+
+### Wave 4: acceptance round (12-Nov-2026)
+Two packages built in parallel after the acceptance round and merged with `--no-ff` into `design-v1`, plus what the integrator closed.
+
+| Package | What it brought | Migration |
+|---|---|---|
+| `ajustes-campo` | Street seller catalog by market and team (not users), visits by who visited in the field report and its CSV, "Visited by" filter in Merchants; winning by hand completes what is missing in the same sheet, closes open tasks and notifies the seller; Operations cannot win before the handover; the handover asks for what the stage requires, including an additional deal field (`field:<key>`); the onboarding checklist applies by pipeline; a duplicate Merchant ID warns and asks to confirm; a visit with no sale asks why; street loss reasons by market; sellers see their own closed deals. | `0018_field_adjustments` |
+| `ajustes-lider` | A new lead is noticed inside CONTIGO: dock counter and tab title refresh every minute, opt-in browser alert, lead watch on Mi equipo; the notice of a team with no supervisor on Mi equipo; Leads filters by sale type and team; Closed deals and its CSV say how a deal was won and who marked it; the won rule comes from each pipeline's real setting; granting Administration names its scope, who gets it and until when, and logs the confirmation; readable audit detail; B2B deals propose the account's own pipeline. | none |
+| integration | Conflicts resolved in `admin/page.tsx`, `supervisor/page.tsx`, `guide.ts` and `lib/audit.ts`. Then: US time is said by name ("11:00 AM Eastern", "hora del Este") with the reader's local time in parentheses when the browser is in another zone, and threads, audit log, Status and Adoption name the zone they use (`zoneName`, `marketTime`, `OwnTime`); a converted lead inherits its territory or the sheet asks (`territoryFor`); "Take this store" (`takeAccount`); the default next step lands on a working day (`marketWorkday`, `workday`); the quiet-deals filter folds into Filters on phones; wording ("Para avanzar", "quien decide", "Administration"); three help questions. | none |
+
+`0018_field_adjustments`: `crm.street_sellers` with forced row-level security and three policies (read by market, insert and update through `app.can_manage_street`), `app.visitor_names` replaced to suggest the catalog first, `activities.no_sale_code`, an index on the normalized Merchant ID, eight street loss reasons scoped to MX (an `update`), `pipelines.ops_checklist` (default true, false for order pipelines). The way up drops, renames and deletes nothing and disables no trigger; the way down drops what it added. There is no `0019`.
+
+**Decisions taken by default in wave 4, to be confirmed by Yamil**
+1. **Territory on conversion.** With one territory, the merchant is born in it. With two or more, the lead's city decides; when it does not, the conversion sheet asks and the domain refuses to guess (`pick_territory`).
+2. **Who can take an unassigned store.** Supervision and the market lead, any store of their scope; a seller, only the stores in their own territories, which is the limit the database already had in `accounts_upd`. Otherwise the record says to ask supervision or the market lead. Taking a store is logged as `account.reassigned`.
+3. **Sellers see their own closed deals** (`report.own`), with no export.
+4. **The default next step skips the days the market does not work** (its business hours; Monday to Friday by default). A date the person picks by hand is not moved.
+5. **The local time is computed in the browser** (`OwnTime`), with no cookie and no page reload, so it also works on screens that never saved the reader's zone.
+
+**Left open after wave 4**
+- The return from Operations still stores its reason as text in the seller's language; storing the code and showing it in the reader's language needs the reason on the next-step activity and in every place that shows the step.
+- Administration has no screen yet to edit what a stage asks for beyond the fixed list (`field:<key>`), to switch `pipelines.ops_checklist`, or to change who a street seller reports to.
+- First steps for Sales are the same in every market (stores before leads); the US and B2B variants are not written.
+- The no-sale reason "No estaba el decisor" comes from `0004_pipedrive_mirror` and still reads that way; changing it in every environment needs a data migration.
+
+### Verification after wave 4 (12-Nov-2026)
+Run on `design-v1` with the integrator's databases (`contigo_unit`, `contigo_test`, `contigo_cycle`) and default ports:
+- `pnpm typecheck`, `pnpm lint`, `pnpm scan:prohibited`: clean.
+- `pnpm test`: 425 tests in 34 files, green twice in a row.
+- `pnpm build` and `pnpm e2e`: 303 end-to-end tests in 25 files against the standalone build.
+- Migration cycle on seeded data: `reset`, ten times `down` (0018 back to 0009), `up`.
+- Walked with Playwright at 1440 and 390 px, in Spanish and in English: winning by hand from the card, the visit sheet, the field report and its two CSV files, Mi equipo with the lead watch and street sellers, closed deals, granting Administration. No overflow and no console errors.
 
 ## Deliberately not built
 - **Terminales tab** in the merchant record. It was not part of this build's data; decided by Yamil on 11-Nov-2026.

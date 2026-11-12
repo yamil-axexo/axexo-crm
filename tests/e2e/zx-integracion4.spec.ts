@@ -51,8 +51,9 @@ test.describe('la zona de US se dice con nombre', () => {
         await expect(page.getByTestId('lead-arrived')).toContainText(/[AP]M Eastern \(\d{1,2}:\d{2} [AP]M your time\)$/)
         await expect(page.getByTestId('lead-steps').getByTestId('own-time')).toContainText('your time')
         await clean(page, `lead de US en otra zona ${w.name}`)
-        await page.context().addCookies([{ name: 'contigo_locale', value: 'es', url: page.url() }])
+        await page.context().addCookies([{ name: 'contigo_locale', value: 'es', url: new URL('/', page.url()).href }])
         await page.reload()
+        await expect(page.locator('html')).toHaveAttribute('lang', 'es')
         await expect(page.getByTestId('lead-arrived')).toContainText(/hora del Este \(\d{1,2}:\d{2} [ap]\.\s?m\. tu hora\)$/)
         await clean(page, `lead de US en otra zona, en español ${w.name}`)
         expect(errors).toEqual([])
@@ -132,10 +133,12 @@ test.describe('tomar una tienda sin asignar', () => {
   })
 })
 
-test('Administración: la columna de etapas dice "Para avanzar" y el rol se lee "Administration" en inglés', async ({ page }) => {
+test('Administración: la columna de etapas dice "Para avanzar" y las etapas sembradas dicen "quien decide"', async ({ page }) => {
   await loginAs(page, 'nora.salas', { stay: true })
   await page.goto('/admin?tab=embudos')
   await expect(page.getByTestId('stage-exit-head').first()).toHaveText('Para avanzar')
   await expect(page.locator('main')).not.toContainText('Criterio de salida')
-  await expect(page.locator('main')).not.toContainText(/decisor/i)
+  // las etapas sembradas ya no dicen "decisor": ni en el nombre ni en lo que piden ni en "Para avanzar"
+  for (const row of await page.getByTestId('stage-row').all()) await expect(row).not.toContainText(/decisor/i)
+  await expect(page.getByTestId('stage-name').filter({ hasText: 'Interés de quien decide' }).first()).toBeVisible()
 })

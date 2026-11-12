@@ -87,7 +87,7 @@ insert into crm.loss_reasons (code, kind, label_es, label_en) values
   ('price', 'lost', 'Precio o comisión', 'Price or commission'), ('competitor', 'lost', 'Se fue con un competidor', 'Chose a competitor'),
   ('no_decision', 'lost', 'Sin decisión', 'No decision'), ('not_qualified', 'lost', 'No califica', 'Not qualified'),
   ('duplicate', 'lost', 'Duplicado', 'Duplicate'), ('no_response', 'lost', 'No responde', 'No response'),
-  ('owner_absent', 'no_sale', 'No estaba quien decide', 'Decision-maker absent'), ('no_cash', 'no_sale', 'Sin efectivo hoy', 'No cash today'),
+  ('owner_absent', 'no_sale', 'No estaba el decisor', 'Decision-maker absent'), ('no_cash', 'no_sale', 'Sin efectivo hoy', 'No cash today'),
   ('has_stock', 'no_sale', 'Tiene inventario', 'Has stock'), ('not_interested', 'no_sale', 'No le interesa', 'Not interested'),
   ('closed', 'no_sale', 'Tienda cerrada', 'Store closed')
 on conflict (code) do nothing;

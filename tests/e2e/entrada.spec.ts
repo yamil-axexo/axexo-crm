@@ -81,7 +81,7 @@ test('primer ingreso: bienvenida con el paso a paso de su rol y una lista que se
 })
 
 test('cada rol recibe su propio recorrido', async ({ page }) => {
-  for (const [persona, label, steps] of [['fernando.ibarra', 'Supervisión', 8], ['ana.robles', 'Líder de mercado', 7], ['valeria.soto', 'Operaciones', 6], ['luis.tovar', 'Leadership', 5], ['nora.salas', 'Administración', 8]] as const) {
+  for (const [persona, label, steps] of [['fernando.ibarra', 'Supervisión', 9], ['ana.robles', 'Líder de mercado', 7], ['valeria.soto', 'Operaciones', 6], ['luis.tovar', 'Leadership', 5], ['nora.salas', 'Administración', 9]] as const) {
     await loginAs(page, persona)
     await page.goto('/bienvenida')
     await expect(page.getByTestId('welcome-track'), persona).toHaveText(label)
