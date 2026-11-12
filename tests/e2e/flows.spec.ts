@@ -120,7 +120,8 @@ test.describe('leads', () => {
     await expect(page).toHaveURL(/\/deals\//)
     await expect(page.locator('h1')).toHaveText(`Alta: ${name}`)
     await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Tienda visitada')
-    await expect(page.getByTestId('next-step')).toHaveValue('Llamar para agendar la primera visita')
+    // ola 2: la tarea que el lead ya traía es el próximo paso del negocio; no se crea otra para lo mismo
+    await expect(page.getByTestId('next-step')).toHaveValue(`Enviar propuesta a ${name}`)
     await page.getByTestId('deal-account').click()
     await expect(page.locator('h1')).toHaveText(name)
     await fichaTab(page, 'datos')
