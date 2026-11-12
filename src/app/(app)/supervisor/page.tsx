@@ -269,7 +269,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         <CardTitle
           title={t('Pendientes del equipo', 'Team alerts')}
           hint={board.rulesAt ? t(`Actualizado ${ago(board.rulesAt, locale)}. Un pendiente se cierra solo cuando se corrige.`, `Updated ${ago(board.rulesAt, locale)}. An alert clears itself once it is fixed.`) : undefined}
-          right={<Badge tone={totalOpen ? 'warn' : 'good'}>{t(`${totalOpen} abiertos`, `${totalOpen} open`)}</Badge>}
+          right={<span data-testid="exception-open"><Badge tone={totalOpen ? 'warn' : 'good'}>{t(`${totalOpen} abiertos`, `${totalOpen} open`)}</Badge></span>}
         />
         <Pills
           label={t('Tipo', 'Type')}
