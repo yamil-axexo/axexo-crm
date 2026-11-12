@@ -247,7 +247,8 @@ describe('panel del LT', () => {
       expect(teams.reduce((n, x) => n + x.leads, 0)).toBe(mk.leads)
     }
     // D2D y B2B van en líneas separadas
-    const mx = d.pipelines.filter((x) => x.market_code === 'MX').map((x) => x.motor)
+    // (otras pruebas de la corrida pueden dejar más embudos en México, por ejemplo los importados de Pipedrive: se miran los del seed)
+    const mx = d.pipelines.filter((x) => x.market_code === 'MX' && ['Alta de tiendas (D2D)', 'Cadenas y distribuidores'].includes(x.name)).map((x) => x.motor)
     expect(mx).toEqual(['d2d', 'b2b'])
     expect(d.teams.filter((x) => x.market_code === 'MX').map((x) => x.name)).toEqual(expect.arrayContaining(['D2D Centro', 'B2B México']))
     const closed = await getClosedDeals(luis, p, {}, 1)
@@ -381,8 +382,11 @@ describe('el hilo del comercio y Mi equipo', () => {
   it('Mi equipo trae a todos los que venden, con equipo, y a quien no tiene equipo en su propio grupo', async () => {
     const ana = await ctxFor('ana.robles')
     const board = await getSupervisorBoard(ana, {})
-    expect(board.reps.map((r) => r.full_name).sort()).toEqual(['Diana Cruz', 'Iván Ríos', 'Lucía Vega', 'Marco Peña'])
-    expect(new Set(board.reps.map((r) => r.team))).toEqual(new Set(['D2D Centro', 'B2B México']))
+    // Las cuatro personas de ventas del seed, cada una con su equipo. Otra prueba de la corrida (la importación de Pipedrive)
+    // puede haber dado acceso a más gente: no cambia lo que se comprueba aquí.
+    const seed = ['Diana Cruz', 'Iván Ríos', 'Lucía Vega', 'Marco Peña']
+    expect(board.reps.map((r) => r.full_name).filter((n) => seed.includes(n)).sort()).toEqual(seed)
+    expect(new Set(board.reps.filter((r) => seed.includes(r.full_name)).map((r) => r.team))).toEqual(new Set(['D2D Centro', 'B2B México']))
     expect(board.metricsAsOf).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     const marco = board.reps.find((r) => r.full_name === 'Marco Peña')!
     expect(marco.txn_30d).toBeGreaterThan(0)
@@ -390,7 +394,7 @@ describe('el hilo del comercio y Mi equipo', () => {
     expect(marco.txn_cmp_30d).toBeLessThanOrEqual(marco.txn_30d!)
     const d2d = (await getReportOptions(ana)).teams.find((t) => t.name === 'D2D Centro')!
     expect((await getSupervisorBoard(ana, { team: d2d.id })).reps.map((r) => r.full_name).sort()).toEqual(['Lucía Vega', 'Marco Peña'])
-    expect((await getSupervisorBoard(ana, { team: 'none' })).reps).toEqual([])
+    expect((await getSupervisorBoard(ana, { team: 'none' })).reps.filter((r) => seed.includes(r.full_name))).toEqual([])
     // Una supervisora que lleva comercios propios y una persona de ventas sin equipo también aparecen.
     const db = owner()
     const paula = await personaId('paula.mendez')
@@ -402,7 +406,7 @@ describe('el hilo del comercio y Mi equipo', () => {
       const b = await getSupervisorBoard(ana, {})
       expect(b.reps.find((r) => r.full_name === 'Paula Méndez')).toMatchObject({ role: 'supervisor', team: 'B2B México', accounts: 1 })
       expect(b.reps.find((r) => r.full_name === 'Iván Ríos')).toMatchObject({ team: null, team_id: null })
-      expect((await getSupervisorBoard(ana, { team: 'none' })).reps.map((r) => r.full_name)).toEqual(['Iván Ríos'])
+      expect((await getSupervisorBoard(ana, { team: 'none' })).reps.map((r) => r.full_name).filter((n) => seed.includes(n))).toEqual(['Iván Ríos'])
     } finally {
       await db`update crm.accounts set owner_id = ${ivan} where id = ${acc!.id}`
       await db`update crm.memberships set team_id = (select id from crm.teams where name = 'B2B México') where user_id = ${ivan}`

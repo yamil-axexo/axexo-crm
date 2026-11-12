@@ -136,7 +136,7 @@ describe('entrega a Operaciones, devolución y ganado a mano en los reportes', (
     const robert = await ctxFor('robert.hale')
     const tz = 'America/New_York'
     const today = todayIn(tz)
-    const name = `Integra pedidos ${tag()}`
+    const name = `Ola dos pedidos ${tag()}` // no empieza con "Integra ": ese prefijo lo limpia la prueba de integración de la ola 1
     const acc = await createAccount(jade, { market: 'US', kind: 'store', name, segment: 'orders', force: true })
     const orders = await uid('p-us-orders')
     const review = await stage('p-us-orders', 'review')
