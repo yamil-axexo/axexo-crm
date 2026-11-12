@@ -14,6 +14,8 @@ import { getUsers } from '@/dal/admin'
 import { getB2bConfig } from '@/dal/b2b'
 import { closeRules, getClosedDeals, getReportOptions, marketPeriods } from '@/dal/reports'
 import { diffRows } from '@/lib/audit'
+import { withUser } from '@/server/db'
+import { evaluateRules } from '@/domain/rules'
 import { HELP, LANDING, STEPS } from '@/content/guide'
 
 // Ola 4, paquete ajustes-lider: lo que la ronda de aceptación dejó abierto para liderazgo de México B2B y para administración y LT.
@@ -25,6 +27,10 @@ const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toLoc
 const outbox = (type: string, id: string) => admin<{ payload: Record<string, unknown> }[]>`
   select payload from crm.outbox_events where event_type = ${type} and aggregate_id = ${id} order by created_at`
 const DOMAINS = ['axexo.com', 'emida.com', 'emida.net']
+/** Una cuenta corporativa nueva, sin negocios, a nombre de la persona. */
+const b2bAccount = async (ownerId: string) => (await one(admin<{ id: string }[]>`
+  insert into crm.accounts (market_code, kind, name, segment, lifecycle, owner_id, account_type, country)
+  values ('MX', 'chain', ${`Cadena de Prueba ${tag()}`}, 'b2b', 'prospect', ${ownerId}, 'chain', 'MX') returning id`)).id
 
 describe('el lead nuevo avisa dentro de CONTIGO', () => {
   it('cada asignación deja lead.assigned en los avisos para otros sistemas', async () => {
@@ -110,7 +116,10 @@ describe('filtros que faltaban', () => {
 
   it('el equipo elegido en Mi equipo también filtra los pendientes y lo por repartir', async () => {
     const ana = await ctxFor('ana.robles')
+    const sys = await systemContext()
+    await withUser(sys.user.id, (tx) => evaluateRules(tx))
     const all = await getSupervisorBoard(ana, { market: 'MX' })
+    expect(Object.values(all.byKind).reduce((n, x) => n + x, 0)).toBeGreaterThan(0)
     const teams = (await getReportOptions(ana)).teams.filter((x) => x.market_code === 'MX')
     const b2b = teams.find((x) => /b2b/i.test(x.name))!
     const people = await teamPeople(ana, b2b.id)
@@ -125,8 +134,7 @@ describe('filtros que faltaban', () => {
   it('con "En pausa" cada columna del tablero cuenta y suma solo lo que se ve', async () => {
     const diana = await ctxFor('diana.cruz')
     const pipe = (await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b'`)).id
-    const account = (await one(admin<{ id: string }[]>`select id from crm.accounts where owner_id = ${diana.user.id} and market_code = 'MX' and archived_at is null
-      and not exists (select 1 from crm.deals d where d.account_id = crm.accounts.id and d.status = 'open') limit 1`)).id
+    const account = await b2bAccount(diana.user.id)
     const deal = await createDeal(diana, { accountId: account, pipelineId: pipe, title: `Pausa contador ${tag()}`, nextStep: 'Enviar propuesta', nextStepDue: day(1) })
     await pauseDeal(diana, deal, { reason: 'Presupuesto en enero', reviewOn: day(15) })
     const paused = await getBoard(diana, pipe, { paused: true })
@@ -157,7 +165,7 @@ describe('B2B', () => {
       values ('MX', 'distributor', ${`ISO Prueba ${tag()}`}, 'b2b', 'prospect', ${ana.user.id}, 'iso', 'MX') returning id`)
     const agent = await one(admin<{ id: string }[]>`
       insert into crm.accounts (market_code, kind, name, segment, lifecycle, owner_id, account_type, country, parent_id, ancestor_ids)
-      values ('MX', 'distributor', ${`Agente Prueba ${tag()}`}, 'b2b', 'prospect', ${ana.user.id}, 'iso_agent', 'MX', ${iso.id}, ${admin.array([iso.id])}::uuid[]) returning id`)
+      values ('MX', 'distributor', ${`Agente Prueba ${tag()}`}, 'b2b', 'prospect', ${ana.user.id}, 'iso_agent', 'MX', ${iso.id}, ${[iso.id]}::uuid[]) returning id`)
     const data = (await getAccount(ana, iso.id))!
     const offered = data.pipelines.filter((p) => p.stages.length > 0).sort((x, y) => Number(y.motor === data.account.segment) - Number(x.motor === data.account.segment))
     expect(offered[0]!.motor).toBe('b2b')
@@ -191,8 +199,7 @@ describe('leadership y administración', () => {
       select p.id, (select s.id from crm.stages s where s.pipeline_id = p.id and s.kind = 'won' and s.archived_at is null limit 1) as won
         from crm.pipelines p where p.market_code = 'MX' and p.motor = 'b2b'`)
     await admin`update crm.pipelines set close_by_transaction = false where id = ${pipe.id}`
-    const account = (await one(admin<{ id: string }[]>`select id from crm.accounts where owner_id = ${diana.user.id} and market_code = 'MX' and archived_at is null
-      and not exists (select 1 from crm.deals d where d.account_id = crm.accounts.id and d.status = 'open') limit 1`)).id
+    const account = await b2bAccount(diana.user.id)
     const title = `Ganado a mano ${tag()}`
     const deal = await createDeal(diana, { accountId: account, pipelineId: pipe.id, title, nextStep: 'Firmar', nextStepDue: day(1) })
     // Se gana a mano saltando los requisitos de etapa en la base: aquí importa el reporte, no el paso por cada etapa.
