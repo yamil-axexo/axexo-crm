@@ -349,3 +349,34 @@ insert into crm.saved_views (user_id, object, name, filters, is_shared) values
 
 -- Las personas de prueba ya pasaron por la bienvenida: entran directo a Hoy. La prueba del primer ingreso borra su fila antes de entrar.
 insert into crm.user_onboarding (user_id) select id from crm.users where is_synthetic on conflict do nothing;
+
+-- operaciones
+-- Etapas de Operaciones en el alta de dealers de US: al entrar a carriers, el negocio pasa a la cola de Operaciones.
+update crm.stages set is_ops = true where pipeline_id = pg_temp.uid('p-us-dealer') and code in ('carrier', 'awaiting');
+-- Embudo de pedidos de US: varios negocios abiertos por comercio, con líneas de producto; se gana a mano.
+insert into crm.pipelines (id, market_code, motor, name, position, close_by_transaction, multi_open, has_items) values
+  (pg_temp.uid('p-us-orders'), 'US', 'orders', 'Sales orders', 2, false, true, true);
+insert into crm.stages (id, pipeline_id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, is_ops)
+select pg_temp.uid('s-us-orders-' || c), pg_temp.uid('p-us-orders'), pos, c, es, en, k, pr, rot, req::text[], xes, xen, ops from (values
+  (1, 'captured', 'Pedido capturado', 'Order captured', 'open', 40, 7, '{}', 'Pedido con sus líneas', 'Order with its lines', false),
+  (2, 'review', 'Revisión de Operaciones', 'Operations review', 'open', 70, 5, '{items}', 'Operaciones confirma y surte', 'Operations confirms and fulfills', true),
+  (3, 'fulfilled', 'Surtido', 'Fulfilled', 'won', 100, 0, '{}', '', '', false),
+  (4, 'lost', 'Cancelado', 'Cancelled', 'lost', 0, 0, '{}', '', '', false)
+) v(pos, c, es, en, k, pr, rot, req, xes, xen, ops);
+insert into crm.products (id, name, code, unit, market_code, unit_price_minor) values
+  (pg_temp.uid('prod-us-sim'), 'SIM kit', 'SIM-KIT', 'unit', 'US', 250),
+  (pg_temp.uid('prod-us-topup'), 'Top-up card pack', 'TOPUP-50', 'pack', 'US', 4500),
+  (pg_temp.uid('prod-us-pos'), 'Counter terminal', 'POS-1', 'unit', 'US', 12900),
+  (pg_temp.uid('prod-mx-chip'), 'Chip prepago', 'CHIP', 'pieza', 'MX', 3500),
+  (pg_temp.uid('prod-mx-term'), 'Terminal de mostrador', 'TERM-1', 'pieza', 'MX', 189900);
+insert into crm.ops_catalog (market_code, kind, code, label_es, label_en, position) values
+  ('US', 'provider', 'carrier_north', 'Operador Norte', 'North carrier', 1),
+  ('US', 'provider', 'carrier_coast', 'Operador Costa', 'Coast carrier', 2),
+  ('MX', 'provider', 'red_centro', 'Red Centro', 'Central network', 1),
+  ('US', 'document', 'application', 'Solicitud firmada', 'Signed application', 1),
+  ('US', 'document', 'address_proof', 'Comprobante de domicilio', 'Proof of address', 2),
+  ('US', 'document', 'reseller_permit', 'Permiso de revendedor', 'Reseller permit', 3),
+  ('MX', 'document', 'solicitud', 'Solicitud firmada', 'Signed application', 1),
+  ('MX', 'document', 'domicilio', 'Comprobante de domicilio', 'Proof of address', 2);
+insert into crm.field_definitions (object, key, label_es, label_en, data_type, options, market_code, data_class) values
+  ('deal', 'account_type', 'Tipo de cuenta', 'Account type', 'select', '["ACH","Prepaid"]', 'US', 'internal');
