@@ -200,7 +200,9 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           <CardTitle
             title={t('Vendedores de calle', 'Street sellers')}
             hint={t('Quienes visitan tiendas sin ser usuarios de CONTIGO, bajo la persona que lleva la cartera. Visitas de los últimos 7 días y tiendas distintas visitadas en 30 días, según "¿Quién visitó?" en cada visita.', 'The people who visit stores without being CONTIGO users, under the person who owns the book. Visits in the last 7 days and distinct stores visited in 30 days, from "Who visited?" on each visit.')}
-            right={streetMarkets.length > 0 ? (
+          />
+          {streetMarkets.length > 0 && (
+            <div className="mb-4">
               <Dialog trigger={t('Agregar vendedor de calle', 'Add street seller')} title={t('Agregar vendedor de calle', 'Add street seller')} testId="street-add">
                 <ActionForm action={addStreetSellerAction} onOk="close">
                   {streetMarkets.length > 1
@@ -216,8 +218,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                   <div className="mt-5 flex justify-end"><Submit testId="street-save">{t('Agregar', 'Add')}</Submit></div>
                 </ActionForm>
               </Dialog>
-            ) : undefined}
-          />
+            </div>
+          )}
           {streetByOwner.length === 0 ? <Empty title={t('Todavía no hay vendedores de calle', 'No street sellers yet')} hint={t('Agrégalos aquí, o aparecerán solos cuando alguien escriba su nombre al registrar una visita.', 'Add them here, or they will show up on their own when someone writes their name while logging a visit.')} /> : (
             <ul>
               {streetByOwner.map((g) => (
@@ -227,9 +229,9 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                     {g.rows.map((r) => {
                       const entry = street.find((x) => x.market_code === r.market_code && x.name.toLowerCase() === r.name.toLowerCase())
                       return (
-                        <li key={r.name} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[14px]" data-testid="street-row">
-                          <span className="min-w-0 flex-1 basis-[200px] text-strong [overflow-wrap:anywhere]"><Link href={qs('/comercios', { visito: r.name, market: r.market_code })} className="underline-offset-2 hover:underline" data-testid="street-link">{r.name}</Link>{!r.listed && <span className="ml-2 text-[12.5px] text-muted">{t('fuera del catálogo', 'not in the list')}</span>}</span>
-                          <span className="num text-muted-2" data-testid="street-numbers">{t(`${r.visits_7d} ${r.visits_7d === 1 ? 'visita' : 'visitas'}, ${r.sales_7d} con venta · ${r.stores_30d} ${r.stores_30d === 1 ? 'tienda' : 'tiendas'} en 30 días`, `${r.visits_7d} ${r.visits_7d === 1 ? 'visit' : 'visits'}, ${r.sales_7d} with a sale · ${r.stores_30d} ${r.stores_30d === 1 ? 'store' : 'stores'} in 30 days`)}</span>
+                        <li key={r.name} className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[14px]" data-testid="street-row">
+                          <span className="min-w-0 flex-1 basis-[160px] text-strong [overflow-wrap:anywhere]"><Link href={qs('/comercios', { visito: r.name, market: r.market_code })} className="underline-offset-2 hover:underline" data-testid="street-link">{r.name}</Link>{!r.listed && <span className="ml-2 text-[12.5px] text-muted">{t('fuera del catálogo', 'not in the list')}</span>}</span>
+                          <span className="num min-w-0 max-w-full text-muted-2 [overflow-wrap:anywhere]" data-testid="street-numbers">{t(`${r.visits_7d} ${r.visits_7d === 1 ? 'visita' : 'visitas'}, ${r.sales_7d} con venta · ${r.stores_30d} ${r.stores_30d === 1 ? 'tienda' : 'tiendas'} en 30 días`, `${r.visits_7d} ${r.visits_7d === 1 ? 'visit' : 'visits'}, ${r.sales_7d} with a sale · ${r.stores_30d} ${r.stores_30d === 1 ? 'store' : 'stores'} in 30 days`)}</span>
                           {entry && ctx.can('street.manage', r.market_code) && (
                             <ConfirmButton action={updateStreetSellerAction} fields={{ id: entry.id, end: '1' }} label={t('Dar de baja', 'Remove')} title={t(`¿Dar de baja a ${r.name}?`, `Remove ${r.name}?`)}
                               body={t('Deja de sugerirse en "¿Quién visitó?". Sus visitas anteriores se conservan.', 'They stop being suggested under "Who visited?". Their earlier visits are kept.')}
