@@ -12,6 +12,7 @@ import { resultOptions, sheetConfig } from '@/server/sheet'
 import { buttonClass } from '@/ui/kit'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
+import { LeadAnswers } from '../answers'
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireCtx()
@@ -198,6 +199,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               </div>
             </Card>
           )}
+          <LeadAnswers ctx={ctx} leadId={lead.id} />
           <Card data-testid="lead-owner">
             <CardTitle title={t('Dueño', 'Owner')} />
             <p className="text-[15px] font-semibold text-strong">{lead.owner_name ?? t('Sin dueño', 'No owner')}</p>

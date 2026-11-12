@@ -15,6 +15,8 @@ import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { KIND, MOTOR, lab, qs } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
 import { createAccountAction } from './actions'
+import { accountTypeOptions, intakeFields } from '@/dal/b2b'
+import { IntakeFields } from '@/ui/intake'
 import { Ficha, fichaTab, type FichaTab } from './ficha'
 import { flat } from '@/server/params'
 
@@ -43,6 +45,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
     repartir && repartoMarket ? getTargets(ctx, [repartoMarket]) : Promise.resolve([]),
   ])
   const nodes = treeData.nodes
+  const [typeOptions, intake] = ctx.can('account.create') ? await Promise.all([accountTypeOptions(ctx), intakeFields(ctx)]) : [[], []]
   await track(ctx, 'view.comercios')
   const multi = ctx.markets.length > 1
   // El estado de la lista vive en la URL: abrir o cerrar la ficha no pierde filtros, búsqueda ni página.
@@ -84,7 +87,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
             <Dialog trigger={t('Nuevo comercio', 'New merchant')} title={t('Nuevo comercio', 'New merchant')} variant="primary" testId="new-account" hash="nuevo">
               <ActionForm action={createAccountAction} className="grid grid-cols-2 gap-4">
                 <Field label={t('Mercado', 'Market')}><select name="market" className="input">{live.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></Field>
-                <Field label={t('Tipo', 'Type')}><select name="kind" className="input">{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
+                <Field label={t('Tipo de cuenta', 'Account type')}><select name="kind" className="input" data-testid="account-type">{typeOptions.map((x) => <option key={x.code} value={x.code}>{t(x.label_es, x.label_en)}</option>)}</select></Field>
                 <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="name" className="input" required minLength={2} data-testid="account-name" /></Field>
                 <Field label={t('Canal', 'Channel')}><select name="segment" className="input">{Object.entries(MOTOR).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="account-phone" /></Field>
@@ -95,6 +98,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                     <select name="territory_id" className="input" data-testid="account-territory"><option value="">{t('Según quien lo crea', 'Based on who creates it')}</option>{place.territories.map((x) => <option key={x.id} value={x.id}>{multi ? `${x.market_code} · ${x.name}` : x.name}</option>)}</select>
                   </Field>
                 )}
+                <IntakeFields defs={intake} locale={locale} legend={t('Para calificar (lo que falte se completa después en la ficha)', 'To qualify (anything missing can be filled in later on the record)')} yes={t('Sí', 'Yes')} no={t('No', 'No')} />
                 <label className="col-span-2 flex items-center gap-3 text-[14px] text-muted-2"><input type="checkbox" name="force" className="h-4 w-4" data-testid="account-force" />{t('Crear de todos modos si se parece a uno que ya existe', 'Create anyway if it looks like an existing one')}</label>
                 <div className="col-span-2 flex justify-end"><Submit testId="save-account">{t('Guardar comercio', 'Save merchant')}</Submit></div>
               </ActionForm>
@@ -255,7 +259,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                           <span className="block min-w-0">
                             <span className="block truncate text-[15px] leading-6 font-medium text-strong">{a.name}</span>
                             <span className="block truncate text-[13px] text-muted">
-                              {[lab(t, KIND[a.kind]), a.kind !== 'store' ? m('merchants.size.children', { count: a.children }) : a.parent_name ? m('merchants.size.under', { name: a.parent_name }) : m('merchants.size.independent'), a.locality, a.territory, multi ? a.market_code : null].filter(Boolean).join(' · ')}
+                              {[a.type_es ? t(a.type_es, a.type_en ?? a.type_es) : lab(t, KIND[a.kind]), a.kind !== 'store' ? m('merchants.size.children', { count: a.children }) : a.parent_name ? m('merchants.size.under', { name: a.parent_name }) : a.account_type === 'store' ? null : m('merchants.size.independent'), a.locality, a.territory, multi ? a.market_code : null].filter(Boolean).join(' · ')}
                             </span>
                             {/* En teléfono la columna de dueño no cabe: quien ve comercios de varias personas lo lee aquí. */}
                             {wide && <span className="block truncate text-[13px] text-muted @2xl:hidden" data-testid="row-owner">{a.owner_name ? `${a.owner_name}${a.owner_current ? '' : t(' · sin dueño vigente', ' · no current owner')}` : a.parent_name ? m('merchants.viaChain') : m('merchants.noOwner')}</span>}

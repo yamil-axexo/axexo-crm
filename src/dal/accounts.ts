@@ -24,6 +24,10 @@ export type AccountListItem = {
   txn_count_30d: number | null
   has_deal: boolean
   phone: string | null
+  /** Tipo de cuenta del catálogo (tienda, sucursal, cadena, corporativo, distribuidor, ISO...), con su nombre en los dos idiomas. */
+  account_type: string
+  type_es: string | null
+  type_en: string | null
 }
 
 export type { AccountFilters }
@@ -41,7 +45,9 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items
              (a.owner_id is not null and (a.market_code || ':' || a.owner_id::text) = any(${keys})) as owner_current,
              t.name as territory, p.name as parent_name,
              (select count(*)::int from crm.accounts c where c.parent_id = a.id and c.archived_at is null) as children,
-             mm.last_txn_at, mm.txn_count_30d, ${openDeal} as has_deal, a.phone
+             mm.last_txn_at, mm.txn_count_30d, ${openDeal} as has_deal, a.phone, a.account_type,
+             (select x.label_es from crm.account_types x where x.code = a.account_type and (x.market_code is null or x.market_code = a.market_code) order by x.market_code nulls last limit 1) as type_es,
+             (select x.label_en from crm.account_types x where x.code = a.account_type and (x.market_code is null or x.market_code = a.market_code) order by x.market_code nulls last limit 1) as type_en
         from crm.accounts a
         left join crm.users u on u.id = a.owner_id
         left join crm.territories t on t.id = a.territory_id

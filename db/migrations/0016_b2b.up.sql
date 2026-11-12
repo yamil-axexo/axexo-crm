@@ -162,3 +162,18 @@ alter table crm.contacts
 
 -- ---------------------------------------------------------------- 7) formularios web
 alter table crm.web_forms add column ask_fields text[] not null default '{}';   -- llaves de campos de lead que pide el formulario
+
+-- La página pública del formulario no tiene sesión: lee solo la etiqueta, el tipo y las opciones de los campos que pide.
+create function app.form_fields(p_slug text)
+returns table (key text, label_es text, label_en text, data_type text, options jsonb)
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select d.key, d.label_es, d.label_en, d.data_type, d.options
+    from crm.web_forms f
+    join crm.field_definitions d on d.object = 'lead' and d.key = any(f.ask_fields) and d.is_active and d.mapped_to is null
+     and d.data_class <> 'confidential' and d.data_type in ('text','number','select','date','boolean')
+     and (d.market_code is null or d.market_code = f.market_code) and (d.motor is null or d.motor = f.motor)
+   where f.slug = p_slug and f.is_active
+   order by d.position, d.key
+$$;
+revoke execute on function app.form_fields(text) from public;
+grant execute on function app.form_fields(text) to contigo_app;

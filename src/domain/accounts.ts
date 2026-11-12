@@ -10,7 +10,9 @@ export type Duplicate = { id: string; name: string; locality: string | null; own
 
 const createInput = z.object({
   market: z.string().length(2),
-  kind: z.enum(['organization', 'distributor', 'chain', 'store']),
+  kind: z.enum(['organization', 'distributor', 'chain', 'store']).optional().default('store'),
+  /** Tipo de cuenta del catálogo (tienda, sucursal, cadena, corporativo, distribuidor, ISO, agregador...). Si viene, manda sobre `kind`. */
+  accountType: z.string().trim().max(41).optional().default(''),
   name: z.string().trim().min(2).max(160),
   segment: z.enum(['d2d', 'b2b', 'dealer']),
   parentId: z.guid().or(z.literal('')).optional(),
@@ -43,18 +45,31 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
       const ter = await tx`select 1 from crm.territories where id = ${v.territoryId} and market_code = ${v.market} and archived_at is null`
       if (!ter[0]) throw invalid('Ese territorio no es de este mercado.', 'That territory does not belong to this market.')
     }
+    // El tipo de cuenta sale del catálogo del mercado y decide el nivel en el árbol. Sin tipo, vale el nivel (camino anterior).
+    let kind: string = v.kind
+    let accountType: string | null = null
+    if (v.accountType) {
+      const types = await tx<{ kind: string }[]>`
+        select kind from crm.account_types where code = ${v.accountType} and is_active and (market_code is null or market_code = ${v.market})
+         order by market_code nulls last limit 1`
+      if (types[0]) {
+        kind = types[0].kind
+        accountType = v.accountType
+      } else if (createInput.shape.kind.safeParse(v.accountType).success) kind = v.accountType
+      else throw invalid('Ese tipo de cuenta no existe en este mercado.', 'That account type does not exist in this market.')
+    }
     const id = await newId(tx)
     // Sin territorio elegido, la base pone el de quien lo crea cuando tiene uno solo en este mercado (0011_distribution).
-    await tx`insert into crm.accounts (id, market_code, kind, name, segment, parent_id, owner_id, territory_id, phone, locality, region, country, created_by)
-             values (${id}, ${v.market}, ${v.kind}, ${v.name}, ${v.segment}, ${v.parentId || null}, ${ctx.user.id}, ${v.territoryId || null}, ${phone},
+    await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, parent_id, owner_id, territory_id, phone, locality, region, country, created_by)
+             values (${id}, ${v.market}, ${kind}, ${accountType}, ${v.name}, ${v.segment}, ${v.parentId || null}, ${ctx.user.id}, ${v.territoryId || null}, ${phone},
                      ${clean(v.locality)}, ${clean(v.region)}, ${v.market}, ${ctx.user.id})`
     if (v.parentId) await tx`insert into crm.account_links (child_id, parent_id, created_by) values (${id}, ${v.parentId}, ${ctx.user.id})`
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
       (${id}, ${v.market}, 'origin', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id}),
       (${id}, ${v.market}, 'channel', 'team', ${v.segment}, ${v.segment.toUpperCase()}, ${ctx.user.id}),
       (${id}, ${v.market}, 'owner', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id})`
-    await audit(tx, ctx, 'account.created', 'account', id, v.market, null, { kind: v.kind, name: v.name, forced_duplicate: v.force })
-    await emit(tx, 'account.created', 'account', id, v.market, { kind: v.kind })
+    await audit(tx, ctx, 'account.created', 'account', id, v.market, null, { kind, account_type: accountType, name: v.name, forced_duplicate: v.force })
+    await emit(tx, 'account.created', 'account', id, v.market, { kind })
     return { id }
   })
 }

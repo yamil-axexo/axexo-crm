@@ -1,4 +1,5 @@
 import 'server-only'
+import { saveFormAnswers } from '@/domain/b2b'
 import { z } from 'zod'
 import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
@@ -177,6 +178,8 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       { market: form.market_code, motor: form.motor, businessName: p.business_name, contactName: p.contact_name, phone: p.phone, email: p.email, locality: p.locality, message: p.message },
       { source: 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin },
     )
+    // Lo que este formulario pide además de lo básico (por ejemplo, lo mínimo para calificar una cuenta B2B) queda en el lead.
+    await saveFormAnswers(tx, leadId, form.id, raw)
     await tx`update crm.inbound_events set status = 'processed', processed_at = now(), payload = ${tx.json({ form: slug, lead_id: leadId })}
              where id = ${seen[0].id}`
     return { leadId, duplicate: false }

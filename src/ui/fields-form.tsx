@@ -10,12 +10,16 @@ type Labels = { filter: string; save: string; yes: string; no: string; currency:
 export function CustomFieldsForm({ id, defs, values, action, locale, labels }: { id: string; defs: FieldDef[]; values: Record<string, unknown>; action: FormAction; locale: 'es' | 'en'; labels: Labels }) {
   const [q, setQ] = useState('')
   const [onlyFilled, setOnlyFilled] = useState(false)
+  // Campos condicionados (por ejemplo, los documentos según el tipo de persona): siguen lo que la persona va eligiendo.
+  const controls = new Set(defs.flatMap((d) => (d.applies_when ? [d.applies_when.key] : [])))
+  const [picked, setPicked] = useState<Record<string, unknown>>(() => Object.fromEntries([...controls].map((k) => [k, values[k]])))
+  const applies = (d: FieldDef) => !d.applies_when || picked[d.applies_when.key] === d.applies_when.equals
   const has = (k: string) => {
     const v = values[k]
     return !(v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0))
   }
   const needle = q.trim().toLowerCase()
-  const visible = (d: FieldDef) => (!needle || `${d.label_es} ${d.label_en}`.toLowerCase().includes(needle)) && (!onlyFilled || has(d.key))
+  const visible = (d: FieldDef) => applies(d) && (!needle || `${d.label_es} ${d.label_en}`.toLowerCase().includes(needle)) && (!onlyFilled || has(d.key))
   const shown = defs.filter(visible).length
   return (
     <ActionForm action={action} testId="custom-form">
@@ -38,7 +42,7 @@ export function CustomFieldsForm({ id, defs, values, action, locale, labels }: {
               {d.data_type === 'long_text' ? (
                 <textarea name={name} defaultValue={typeof v === 'string' ? v : ''} rows={3} className="input !h-auto py-2.5" />
               ) : d.data_type === 'select' ? (
-                <select name={name} defaultValue={typeof v === 'string' ? v : ''} className="input">
+                <select name={name} defaultValue={typeof v === 'string' ? v : ''} className="input" onChange={controls.has(d.key) ? (e) => setPicked((p) => ({ ...p, [d.key]: e.target.value })) : undefined}>
                   <option value="">—</option>
                   {[...new Set([...d.options, ...(typeof v === 'string' && v ? [v] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>

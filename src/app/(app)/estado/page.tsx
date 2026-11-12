@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { deployedVersion, env, ssoEnabled } from '@/env'
-import { getStatus } from '@/dal/admin'
+import { getStatus, getConfig } from '@/dal/admin'
+import { closeRuleChanges } from '@/dal/b2b'
 import { pipedriveConfigured } from '@/server/adapters/pipedrive'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
@@ -24,6 +25,8 @@ export default async function StatusPage() {
   if (!ctx.can('status.read')) notFound()
   const { t, locale } = ctx
   const [s, tz] = [await getStatus(ctx), await readerTimeZone(ctx)]
+  // Cómo se gana cada embudo y quién cambió esa regla por última vez (queda en la bitácora con cuántos negocios abiertos tocó).
+  const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
   const version = deployedVersion()
   const when = (d: string | null | undefined) => (d ? dayTime(d, locale, tz) : null)
@@ -161,6 +164,35 @@ export default async function StatusPage() {
             </ul>
           </Card>
         </div>
+
+        <Card data-testid="status-close-rules">
+          <CardTitle title={t('Cómo se gana cada embudo', 'How each pipeline is won')} hint={t('La regla de cierre vigente y los últimos cambios. Cambiarla aplica desde ese momento a los negocios abiertos.', 'The current closing rule and the latest changes. Changing it applies from that moment to open deals.')} />
+          <ul>
+            {config.pipelines.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line py-3 text-[14px] first:border-t-0" data-testid="status-close-rule">
+                <span className="font-medium text-strong">{p.market_code} · {p.name}</span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <Badge tone={p.close_by_transaction ? 'info' : 'neutral'}>{p.close_by_transaction ? t('Con la primera transacción', 'By the first transaction') : t('A mano', 'By hand')}</Badge>
+                  <span className="text-[13px] text-muted-2">{t(`${num(p.open_deals, locale)} ${p.open_deals === 1 ? 'negocio abierto' : 'negocios abiertos'}`, `${num(p.open_deals, locale)} open ${p.open_deals === 1 ? 'deal' : 'deals'}`)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {ruleChanges.length > 0 ? (
+            <ul className="mt-4 space-y-1.5 text-[13.5px] text-muted-2" data-testid="status-rule-changes">
+              {ruleChanges.map((c, i) => (
+                <li key={i} data-testid="status-rule-change">
+                  {t(
+                    `${when(c.at.toISOString())}: ${c.actor ?? 'Alguien'} cambió "${c.pipeline ?? 'un embudo'}" a ${c.by_transaction ? 'ganar con la primera transacción' : 'ganar a mano'}${c.open_deals !== null ? `; aplicó a ${c.open_deals === 1 ? '1 negocio abierto' : `${num(c.open_deals, locale)} negocios abiertos`}` : ''}.`,
+                    `${when(c.at.toISOString())}: ${c.actor ?? 'Someone'} changed "${c.pipeline ?? 'a pipeline'}" to ${c.by_transaction ? 'won by the first transaction' : 'won by hand'}${c.open_deals !== null ? `; it applied to ${c.open_deals === 1 ? '1 open deal' : `${num(c.open_deals, locale)} open deals`}` : ''}.`,
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 text-[13.5px] text-muted-2">{t('Nadie ha cambiado una regla de cierre todavía.', 'Nobody has changed a closing rule yet.')}</p>
+          )}
+        </Card>
 
         <Card data-testid="status-not-yet">
           <CardTitle title={t('Lo que todavía no está', 'What is not there yet')} hint={t('Para responderle al equipo sin prometer de más.', 'So you can answer the team without overpromising.')} />

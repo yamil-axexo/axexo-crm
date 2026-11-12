@@ -99,3 +99,27 @@ export async function closeRuleChanges(ctx: Ctx): Promise<{ at: Date; actor: str
     return [...rows]
   })
 }
+
+export type IntakeField = { key: string; label_es: string; label_en: string; data_type: string; options: string[]; market_code: string | null; motor: string | null }
+
+/** Campos que se piden al dar de alta un comercio a mano (lo mínimo para calificar), con su mercado y tipo de venta. */
+export async function intakeFields(ctx: Ctx): Promise<IntakeField[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<IntakeField[]>`
+      select key, label_es, label_en, data_type, options, market_code, motor from crm.field_definitions
+       where object = 'account' and is_active and in_intake and mapped_to is null and data_class <> 'confidential'
+         and data_type in ('text', 'number', 'select', 'date', 'boolean')
+       order by position, key`
+    return [...rows]
+  })
+}
+
+/** Catálogo de tipos de cuenta para el alta: los de todos los mercados y los de los mercados de la persona. */
+export async function accountTypeOptions(ctx: Ctx): Promise<{ code: string; label_es: string; label_en: string }[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ code: string; label_es: string; label_en: string; position: number }[]>`
+      select distinct on (t.code) t.code, t.label_es, t.label_en, t.position from crm.account_types t
+       where t.is_active and (t.market_code is null or t.market_code = any(app.my_markets())) order by t.code, t.market_code nulls last`
+    return [...rows].sort((a, b) => a.position - b.position)
+  })
+}

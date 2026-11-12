@@ -5,6 +5,7 @@ import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
 import { invalid, notFound } from '@/lib/errors'
+import { scrub } from '@/domain/pipedrive/mapping'
 
 // Paquete b2b (comité del 11-nov-2026): tipo de cuenta, pausa de un negocio y lo que administración configura desde la pantalla
 // (tipos de cuenta, etapas, embudos, campos, motivos de pérdida y formularios). Cada cambio deja evento en la bitácora.
@@ -436,4 +437,41 @@ export async function updateForm(ctx: Ctx, formId: string, input: { name: string
     await tx`update crm.web_forms set name = ${name.data}, ask_fields = ${ask}::text[] where id = ${formId}`
     await audit(tx, ctx, 'form.updated', 'form', formId, f.market_code, { name: f.name, ask_fields: f.ask_fields }, { name: name.data, ask_fields: ask })
   })
+}
+
+// ---------------------------------------------------------------- lo que pide un formulario web
+
+/**
+ * Guarda en el lead lo que el formulario web pidió además de lo básico (llegan como `x_<llave>`). Lo que no es un campo
+ * del formulario se ignora y un valor que no cuadra con su tipo se descarta: un formulario público nunca se rechaza por esto.
+ */
+export async function saveFormAnswers(tx: Tx, leadId: string, formId: string, raw: unknown): Promise<void> {
+  if (typeof raw !== 'object' || raw === null) return
+  const body = raw as Record<string, unknown>
+  const defs = await tx<{ key: string; data_type: string; options: string[] }[]>`
+    select d.key, d.data_type, d.options from crm.web_forms f
+      join crm.field_definitions d on d.object = 'lead' and d.key = any(f.ask_fields) and d.is_active and d.mapped_to is null and d.data_class <> 'confidential'
+       and (d.market_code is null or d.market_code = f.market_code) and (d.motor is null or d.motor = f.motor)
+     where f.id = ${formId}`
+  const custom: Record<string, string | number | boolean> = {}
+  for (const d of defs) {
+    const v = body[`x_${d.key}`]
+    const s = (typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : '').trim()
+    if (!s) continue
+    if (d.data_type === 'number') {
+      const n = Number(s)
+      if (Number.isFinite(n) && n >= 0 && n < 1e15) custom[d.key] = n
+    } else if (d.data_type === 'select') {
+      if (d.options.includes(s)) custom[d.key] = s
+    } else if (d.data_type === 'date') {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) custom[d.key] = s
+    } else if (d.data_type === 'boolean') {
+      if (s === 'true' || s === 'false') custom[d.key] = s === 'true'
+    } else if (d.data_type === 'text') {
+      // SEC-08: lo que llega del formulario público se guarda sin el dato prohibido.
+      const clean = scrub(s).slice(0, 300)
+      if (clean) custom[d.key] = clean
+    }
+  }
+  if (Object.keys(custom).length > 0) await tx`update crm.leads set custom = custom || ${tx.json(custom)} where id = ${leadId}`
 }

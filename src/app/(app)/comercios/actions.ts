@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
 import { addContact, createAccount, mergeAccounts, reassignAccounts, setParent, updateAccount } from '@/domain/accounts'
 import { invalid } from '@/lib/errors'
+import { updateCustom, type CustomInput } from '@/domain/custom'
 
 import type { ActionResult } from '@/lib/errors'
 
@@ -14,7 +15,7 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
   const res = await runAction(async (ctx) => {
     const out = await createAccount(ctx, {
       market: str(fd, 'market'),
-      kind: str(fd, 'kind') as 'store',
+      accountType: str(fd, 'kind'),
       name: str(fd, 'name'),
       segment: str(fd, 'segment') as 'd2d',
       parentId: str(fd, 'parent_id'),
@@ -33,6 +34,10 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
       )
     }
     id = out.id!
+    // Lo mínimo para calificar que se pidió en el alta (campos marcados "pedir al dar de alta"): se guarda como campos de la cuenta.
+    const intake: CustomInput = {}
+    for (const [k, v] of fd.entries()) if (k.startsWith('f_') && typeof v === 'string' && v.trim()) intake[k.slice(2)] = v
+    if (Object.keys(intake).length > 0) await updateCustom(ctx, 'account', id, intake)
   })
   if (res.ok && id) redirect(`/comercios/${id}`)
   return res

@@ -7,7 +7,7 @@ import { fieldDefs, fieldApplies } from '@/dal/fields'
 import { accountTypes, parentChoices } from '@/dal/b2b'
 import { setAccountTypeAction, setPrimaryContactAction } from '@/app/(app)/b2b-actions'
 import { sheetConfig, taskItem } from '@/server/sheet'
-import { CustomFields } from '@/ui/fields'
+import { CustomFields, FieldSections } from '@/ui/fields'
 import { Badge, Field, KeyVal, LinkButton, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CompleteButton } from '@/ui/complete'
@@ -517,8 +517,9 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           {defs.length > 0 && (
             <section className={section} data-testid="account-custom">
               <h3 className={cx(h3, 'mb-2')}>{t('Campos adicionales', 'Additional fields')}</h3>
-              <CustomFields defs={defs} values={a.custom} t={t} locale={locale}
+              <CustomFields defs={defs.filter((d) => !d.section)} values={a.custom} t={t} locale={locale}
                 action={canEdit ? <LinkButton href={`/comercios/${a.id}/campos`} size="sm" testId="custom-edit">{t('Editar campos', 'Edit fields')}</LinkButton> : undefined} />
+              <div className="mt-5"><FieldSections defs={defs} values={a.custom} t={t} locale={locale} /></div>
             </section>
           )}
 

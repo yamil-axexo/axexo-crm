@@ -22,6 +22,8 @@ export default async function PublicForm({ params, searchParams }: { params: Pro
   const form = rows[0]
   if (!form) notFound()
   const t = translator(form.locale)
+  // Lo que este formulario pide además de lo básico (lo elige administración). Ninguno es obligatorio: el lead no se pierde por un campo.
+  const extra = await withoutUser((tx) => tx<{ key: string; label_es: string; label_en: string; data_type: string; options: string[] }[]>`select key, label_es, label_en, data_type, options from app.form_fields(${slug})`)
   return (
     <main className="mx-auto max-w-[560px] px-6 py-14">
       <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={200} height={50} className="h-10 w-auto" />
@@ -39,6 +41,17 @@ export default async function PublicForm({ params, searchParams }: { params: Pro
           <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" required /></Field>
           <Field label={t('Correo (opcional)', 'Email (optional)')}><input name="email" type="email" className="input" /></Field>
           <Field label={t('Ciudad', 'City')}><input name="locality" className="input" /></Field>
+          {extra.map((d) => (
+            <Field key={d.key} label={`${t(d.label_es, d.label_en)} ${t('(opcional)', '(optional)')}`}>
+              {d.data_type === 'select' ? (
+                <select name={`x_${d.key}`} className="input" defaultValue="" data-testid="public-extra"><option value="">{t('Elige una opción', 'Pick an option')}</option>{d.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+              ) : d.data_type === 'boolean' ? (
+                <select name={`x_${d.key}`} className="input" defaultValue="" data-testid="public-extra"><option value="">{t('Elige una opción', 'Pick an option')}</option><option value="true">{t('Sí', 'Yes')}</option><option value="false">{t('No', 'No')}</option></select>
+              ) : (
+                <input name={`x_${d.key}`} className="input" type={d.data_type === 'number' ? 'number' : d.data_type === 'date' ? 'date' : 'text'} min={d.data_type === 'number' ? 0 : undefined} step={d.data_type === 'number' ? 'any' : undefined} maxLength={d.data_type === 'text' ? 300 : undefined} data-testid="public-extra" />
+              )}
+            </Field>
+          ))}
           <Field label={t('¿Algo que debamos saber?', 'Anything we should know?')}><textarea name="message" rows={3} className="input" maxLength={1000} /></Field>
           <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[14px] text-muted-2">
             <input type="checkbox" name="consent" className="mt-0.5 h-5 w-5 shrink-0" data-testid="public-consent" />

@@ -1,3 +1,4 @@
+drop function app.form_fields(text);
 alter table crm.web_forms drop column ask_fields;
 
 alter table crm.contacts drop column sms_capable, drop column preferred_locale;
