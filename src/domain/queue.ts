@@ -5,9 +5,9 @@ import { audit } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { assertOwned } from '@/domain/leads'
 import type { MessageKey } from '@/lib/messages'
-import { NEXTS, RESULTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, isOneOf, nextText, scheduleNext, shortNote, visitorName } from '@/domain/followup'
+import { NEXTS, OPS_RESULTS, RESULTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, isOneOf, nextText, scheduleNext, shortNote, visitorName } from '@/domain/followup'
 
-export { NEXTS, RESULTS, VISIT_RESULTS, type Next, type Result, type VisitResult } from '@/domain/followup'
+export { NEXTS, OPS_NEXTS, OPS_RESULTS, RESULTS, SALES_NEXTS, VISIT_RESULTS, type Next, type OpsResult, type Result, type VisitResult } from '@/domain/followup'
 export const ITEM_TYPES = ['task', 'lead', 'suggestion'] as const
 export type ItemType = (typeof ITEM_TYPES)[number]
 
@@ -29,7 +29,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  */
 export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Completed> {
   if (!isOneOf(ITEM_TYPES, raw.type) || !UUID.test(raw.id)) throw notFound()
-  if (!isOneOf(RESULTS, raw.result) && !isOneOf(VISIT_RESULTS, raw.result)) throw invalid('Elige cómo te fue.', 'Choose how it went.')
+  if (!isOneOf(RESULTS, raw.result) && !isOneOf(VISIT_RESULTS, raw.result) && !isOneOf(OPS_RESULTS, raw.result)) throw invalid('Elige cómo te fue.', 'Choose how it went.')
   // Los resultados de visita son solo de una visita: un lead o una sugerencia se cierran con los de siempre.
   if (raw.type !== 'task' && !isOneOf(RESULTS, raw.result)) throw invalid('Elige cómo te fue.', 'Choose how it went.')
   if (!isOneOf(NEXTS, raw.next)) throw invalid('Elige qué sigue. Si ya no hay nada más que hacer, elige cerrar.', 'Choose what comes next. If there is nothing left to do, choose close.')
@@ -52,18 +52,21 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
     let dealId: string | null = null
     let leadId: string | null = null
     let name = ''
+    let lane: 'sales' | 'ops' | null = null
 
     if (type === 'task') {
-      const rows = await tx<{ market_code: string; done_at: Date | null; kind: string; subject: string; account_id: string | null; deal_id: string | null; lead_id: string | null }[]>`
-        select market_code, done_at, kind, subject, account_id, deal_id, lead_id from crm.activities where id = ${id} for update`
+      const rows = await tx<{ market_code: string; done_at: Date | null; kind: string; subject: string; account_id: string | null; deal_id: string | null; lead_id: string | null; deal_step: 'sales' | 'ops' | null }[]>`
+        select market_code, done_at, kind, subject, account_id, deal_id, lead_id, deal_step from crm.activities where id = ${id} for update`
       const a = rows[0]
       if (!a) throw notFound()
       ctx.assert('activity.write', a.market_code)
       if (a.done_at) return { next: null, due: null }
       ;({ market_code: market, account_id: accountId, deal_id: dealId, lead_id: leadId } = a)
+      lane = a.deal_step
       // Una visita por hacer se completa diciendo cómo terminó la visita; lo demás, con los resultados de siempre.
       const visit = a.kind === 'visit'
-      if (visit ? !isOneOf(VISIT_RESULTS, result) : !isOneOf(RESULTS, result)) {
+      // Operaciones cierra sus tareas con sus propios resultados (documentos recibidos, enviado al proveedor, aprobado...).
+      if (visit ? !isOneOf(VISIT_RESULTS, result) : !(isOneOf(RESULTS, result) || (isOneOf(OPS_RESULTS, result) && ctx.can('deal.ops', a.market_code)))) {
         throw visit ? invalid('Elige cómo terminó la visita.', 'Choose how the visit ended.') : invalid('Elige cómo te fue.', 'Choose how it went.')
       }
       await tx`update crm.activities set done_at = now(), outcome = ${result}, visited_by = ${visit ? visitor : null},
@@ -124,7 +127,7 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
 
     if (next === 'none' || !when) return { next: null, due: null }
 
-    const subject = await scheduleNext(tx, ctx, { market, accountId, dealId, leadId, name, next, when, text, follows: id })
+    const subject = await scheduleNext(tx, ctx, { market, accountId, dealId, leadId, name, next, when, text, follows: id, lane })
     return { next: subject, due: when }
   })
 }

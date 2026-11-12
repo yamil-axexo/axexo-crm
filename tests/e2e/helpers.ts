@@ -6,7 +6,8 @@ export async function loginAs(page: Page, persona: string) {
   await page.context().clearCookies()
   await page.goto('/login')
   await page.getByTestId(`persona-${persona}`).click()
-  await expect(page).toHaveURL(/\/hoy$/)
+  // Operaciones entra a su cola; el resto, a Hoy.
+  await expect(page).toHaveURL(/\/(hoy|operaciones)$/)
 }
 
 export const pageErrors = (page: Page) => {

@@ -13,6 +13,9 @@ import { getOnboarding } from '@/domain/onboarding'
 import { Ring } from '@/ui/showcase/charts'
 import { hideOnboardingAction } from '@/app/(app)/bienvenida/actions'
 import { flat } from '@/server/params'
+import { myNotices } from '@/dal/ops'
+import { noticeSeenAction } from '@/app/(app)/operaciones/actions'
+import { ActionForm, Submit } from '@/ui/client'
 
 /** Las tareas con fecha pero sin hora se guardan a esta hora UTC: no se muestran como una hora real. */
 const DATE_ONLY = 'T15:00:00.000Z'
@@ -105,7 +108,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     )
   }
 
-  const [q, ob] = await Promise.all([getQueue(ctx), getOnboarding(ctx)])
+  const [q, ob, notices] = await Promise.all([getQueue(ctx), getOnboarding(ctx), myNotices(ctx)])
   const href = (r: QueueRow) => (r.type === 'lead' ? `/leads/${r.id}` : r.dealId ? `/deals/${r.dealId}` : r.accountId ? `/comercios/${r.accountId}` : r.leadId ? `/leads/${r.leadId}` : r.type === 'suggestion' ? '/supervisor' : '/actividades')
 
   const view = (r: QueueRow): QueueItem => {
@@ -197,6 +200,24 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
             <button className="inline-flex min-h-11 items-center rounded-full px-3 text-[14.5px] font-medium text-muted-2 underline hover:text-strong" data-testid="hoy-onboarding-hide">{t('Esconder', 'Hide')}</button>
           </form>
         </aside>
+      )}
+      {notices.length > 0 && (
+        <section aria-label={t('Avisos', 'Notices')} className="card mb-6 divide-y divide-line overflow-hidden" data-testid="hoy-notices">
+          <h2 className="px-4 py-3 text-[15px] font-semibold text-strong">{t(`Te avisaron (${notices.length})`, `You were notified (${notices.length})`)}</h2>
+          {notices.map((n) => (
+            <div key={n.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3" data-testid="hoy-notice">
+              <p className="min-w-[200px] flex-1 text-[14.5px] text-strong">
+                <span className="font-semibold">{n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
+                <span className="block text-muted-2">{n.body}</span>
+              </p>
+              <Link href={n.deal_id ? `/deals/${n.deal_id}` : `/comercios/${n.account_id}`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="hoy-notice-open">{t('Abrir', 'Open')}</Link>
+              <ActionForm action={noticeSeenAction}>
+                <input type="hidden" name="notice_id" value={n.id} />
+                <Submit variant="ghost" size="sm" testId="hoy-notice-seen">{t('Visto', 'Seen')}</Submit>
+              </ActionForm>
+            </div>
+          ))}
+        </section>
       )}
       <Queue items={items} counts={q.counts} labels={labels} sheet={sheetConfig(ctx, now)} now={now.toISOString()} action={completeItemAction} />
       <p className="mt-8 text-[14px]"><Link href="/actividades" className="font-medium text-blue-text underline" data-testid="all-activities">{m('today.all')}</Link></p>

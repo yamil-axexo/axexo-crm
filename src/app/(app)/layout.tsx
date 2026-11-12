@@ -7,7 +7,8 @@ import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
 import { LogHost } from '@/ui/log'
-import { logConfig } from '@/server/sheet'
+import { logConfig, opsVoice } from '@/server/sheet'
+import { opsWaiting } from '@/dal/ops'
 import { ROLE_LABEL, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
@@ -28,10 +29,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
 
+  // Operaciones no trabaja leads: en su lugar tiene su cola, con el conteo de lo que nadie ha tomado.
+  const ops = opsVoice(ctx)
+  const waiting = ctx.can('deal.ops') ? await opsWaiting(ctx) : 0
+  const queueLabel = t(`${waiting} ${waiting === 1 ? 'negocio sin tomar' : 'negocios sin tomar'} en la cola de Operaciones`, `${waiting} ${waiting === 1 ? 'deal' : 'deals'} not taken in the Operations queue`)
   // Nunca más de 4 destinos: lo nuevo entra como vista dentro de uno de ellos (handoff, sección 4).
   const items: DockItem[] = [
     { key: 'today', href: '/hoy', label: m('nav.today'), match: ['/hoy', '/actividades'] },
-    { key: 'leads', href: '/leads', label: m('nav.leads'), match: ['/leads'], badge: counts.leadsWaiting, badgeLabel: m('nav.leadsWaiting', { count: counts.leadsWaiting }) },
+    ops
+      ? { key: 'queue', href: '/operaciones', label: t('Cola', 'Queue'), match: ['/operaciones'], badge: waiting, badgeLabel: queueLabel }
+      : { key: 'leads', href: '/leads', label: m('nav.leads'), match: ['/leads'], badge: counts.leadsWaiting, badgeLabel: m('nav.leadsWaiting', { count: counts.leadsWaiting }) },
     { key: 'deals', href: '/pipelines', label: m('nav.deals'), match: ['/pipelines', '/deals'] },
     { key: 'merchants', href: '/comercios', label: m('nav.merchants'), match: ['/comercios'] },
   ]
@@ -73,6 +80,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {readOnly && <p className="mt-1 text-[12.5px] text-muted-2" data-testid="me-read-only">{t('Solo lectura: ves todo y no cambias nada.', 'Read-only: you see everything and change nothing.')}</p>}
             </div>
             <div className="py-1">
+              {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
+              {ctx.can('config.manage') && <Link href="/admin/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-config"><Settings size={20} strokeWidth={1.75} aria-hidden />{t('Catálogos de Operaciones', 'Operations catalogs')}</Link>}
               {ctx.can('board.supervisor') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>}
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}

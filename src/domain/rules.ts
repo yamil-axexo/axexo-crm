@@ -37,12 +37,12 @@ export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: n
       select 'no_next_step', 'medium', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title), 'no_next_step:' || d.id
         from crm.deals d join crm.stages s on s.id = d.stage_id
-       where d.status = 'open' and s.kind = 'open' and (d.next_step is null or d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)} - 2)
+       where d.status = 'open' and s.kind = 'open' and not s.is_ops and (d.next_step is null or d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)} - 2)
       union all
       select 'stalled_deal', 'medium', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title, 'since', d.stage_entered_at, 'limit_days', s.rot_days), 'stalled_deal:' || d.id
         from crm.deals d join crm.stages s on s.id = d.stage_id
-       where d.status = 'open' and s.kind = 'open' and s.rot_days > 0 and d.stage_entered_at < now() - make_interval(days => s.rot_days)
+       where d.status = 'open' and s.kind = 'open' and not s.is_ops and s.rot_days > 0 and d.stage_entered_at < now() - make_interval(days => s.rot_days)
       union all
       select 'reactivation', 'medium', a.market_code, a.id, null, null, a.owner_id,
              jsonb_build_object('name', a.name, 'since', a.lifecycle_at), 'reactivation:' || a.id

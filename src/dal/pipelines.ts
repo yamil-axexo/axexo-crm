@@ -30,6 +30,8 @@ export type Stage = {
   required_fields: string[]
   exit_es: string
   exit_en: string
+  /** Etapa de Operaciones: al entrar, el negocio pasa a su cola. */
+  is_ops: boolean
 }
 
 export type BoardDeal = {
@@ -48,23 +50,28 @@ export type BoardDeal = {
   stage_entered_at: Date
   decision_maker_id: string | null
   decision_maker_met: boolean
+  owner_id: string | null
+  ops_owner_name: string | null
+  ops_next_step: string | null
+  ops_next_step_due: string | null
 }
 
 export const BOARD_LIMIT = 40
 
 export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string; noStep?: boolean }) {
   return withUser(ctx.user.id, async (tx) => {
-    const pipes = await tx<{ id: string; market_code: string; motor: string; name: string }[]>`
-      select id, market_code, motor, name from crm.pipelines where id = ${pipelineId} and market_code = any(app.my_markets())`
+    const pipes = await tx<{ id: string; market_code: string; motor: string; name: string; close_by_transaction: boolean; has_items: boolean }[]>`
+      select id, market_code, motor, name, close_by_transaction, has_items from crm.pipelines where id = ${pipelineId} and market_code = any(app.my_markets())`
     const pipeline = pipes[0]
     if (!pipeline) return null
-    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en
+    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, is_ops
       from crm.stages where pipeline_id = ${pipelineId} order by position`
     const owner = f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : isUuid(f.owner) ? tx`and d.owner_id = ${f.owner}` : tx``
     const deals = await tx<BoardDeal[]>`
       select * from (
         select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
                d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
+               d.owner_id, (select o.full_name from crm.users o where o.id = d.ops_owner_id) as ops_owner_name, d.ops_next_step, d.ops_next_step_due::text,
                row_number() over (partition by d.stage_id order by ${f.noStep ? tx`d.amount_minor desc nulls last, d.created_at desc` : tx`d.revisit_needed desc, d.stage_entered_at`}) as rn
           from crm.deals d join crm.accounts a on a.id = d.account_id left join crm.users u on u.id = d.owner_id
          where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}
@@ -89,17 +96,18 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
 export async function getDeal(ctx: Ctx, id: string) {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<
-      (BoardDeal & { market_code: string; pipeline_id: string; pipeline_name: string; status: 'open' | 'won' | 'lost'; owner_id: string | null; loss_reason_code: string | null;
+      (BoardDeal & { market_code: string; pipeline_id: string; pipeline_name: string; status: 'open' | 'won' | 'lost'; loss_reason_code: string | null;
         loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string; custom: Record<string, unknown>; close_by_transaction: boolean })[]
     >`select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
              d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
-             d.market_code, d.pipeline_id, p.name as pipeline_name, d.status, d.owner_id, d.loss_reason_code, d.loss_note, d.won_at, d.lost_at, d.closed_by,
+             d.owner_id, (select o.full_name from crm.users o where o.id = d.ops_owner_id) as ops_owner_name, d.ops_next_step, d.ops_next_step_due::text,
+             d.market_code, d.pipeline_id, p.name as pipeline_name, d.status, d.loss_reason_code, d.loss_note, d.won_at, d.lost_at, d.closed_by,
              d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle, d.custom, p.close_by_transaction
         from crm.deals d join crm.accounts a on a.id = d.account_id join crm.pipelines p on p.id = d.pipeline_id left join crm.users u on u.id = d.owner_id
        where d.id = ${id}`
     const deal = rows[0]
     if (!deal) return null
-    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en
+    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, is_ops
       from crm.stages where pipeline_id = ${deal.pipeline_id} order by position`
     const contacts = await tx<{ id: string; full_name: string; role: string }[]>`
       select c.id, c.full_name, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
@@ -116,7 +124,7 @@ export async function getDeal(ctx: Ctx, id: string) {
       select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments from crm.deal_items where deal_id = ${id} order by position, created_at`
     const current = stages.find((s) => s.id === deal.stage_id)
     const next = current ? stages.find((s) => s.position === current.position + 1 && s.kind !== 'lost') : undefined
-    const missingNext = next && next.kind !== 'won' ? missingForStage(deal, next) : []
+    const missingNext = next && next.kind !== 'won' ? missingForStage({ ...deal, items_count: items.length }, next) : []
     return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext }
   })
 }

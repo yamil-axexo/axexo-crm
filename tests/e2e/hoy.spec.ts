@@ -121,6 +121,7 @@ for (const w of WIDTHS) {
 
 test('cola vacía: "Todo al día"', async ({ page }) => {
   await loginAs(page, 'valeria.soto')
+  await page.goto('/hoy') // Operaciones entra a su cola; Hoy sigue siendo su lista de pendientes
   await expect(page.getByTestId('today-title')).toContainText('Todo al día')
   await expect(page.getByTestId('queue-empty')).toContainText('Todo al día')
   await expect(page.getByTestId('now-card')).toHaveCount(0)

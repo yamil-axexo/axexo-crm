@@ -1,11 +1,14 @@
 import 'server-only'
 import type { Ctx } from '@/server/context'
-import { NEXTS, VISIT_RESULTS, type Result, type VisitResult } from '@/domain/queue'
+import { OPS_NEXTS, OPS_RESULTS, SALES_NEXTS, VISIT_RESULTS, type OpsResult, type Result, type VisitResult } from '@/domain/queue'
 import { BACKDATE_DAYS } from '@/domain/activities'
 import { addDays, isoDay, weekday } from '@/lib/format'
 import type { MessageKey } from '@/lib/messages'
 import type { SheetConfig, SheetItem } from '@/ui/complete'
 import type { LogConfig } from '@/ui/log'
+
+/** Quien es de Operaciones y no vende: la hoja le habla de documentos, proveedores y capacitación, no de llamadas y propuestas. */
+export const opsVoice = (ctx: Ctx): boolean => ctx.can('deal.ops') && !ctx.can('deal.create')
 
 /** Textos y opciones de la hoja "Completar" en el idioma y la zona horaria de quien la abre. */
 export function sheetConfig(ctx: Ctx, now = new Date()): SheetConfig {
@@ -22,7 +25,7 @@ export function sheetConfig(ctx: Ctx, now = new Date()): SheetConfig {
       note: ctx.t('Nota (opcional)', 'Note (optional)'), nextText: ctx.t('¿Qué hay que hacer?', 'What needs to be done?'),
       visitedBy: ctx.t('¿Quién visitó? (opcional)', 'Who visited? (optional)'), visitedByHint: ctx.t('Si no fuiste tú, escribe su nombre', 'If it was not you, write their name'),
     },
-    nextOptions: NEXTS.map((n) => ({ value: n, label: m(`complete.next.${n}` as MessageKey) })),
+    nextOptions: (opsVoice(ctx) ? OPS_NEXTS : SALES_NEXTS).map((n) => ({ value: n, label: m(`complete.next.${n}` as MessageKey) })),
     whenOptions: [
       { value: today, label: m('complete.when.today') },
       { value: tomorrow, label: m('complete.when.tomorrow') },
@@ -35,7 +38,7 @@ export function sheetConfig(ctx: Ctx, now = new Date()): SheetConfig {
   }
 }
 
-export const resultOptions = (ctx: Ctx, keys: readonly (Result | VisitResult)[]) => keys.map((k) => ({ value: k, label: ctx.m(`complete.result.${k}` as MessageKey) }))
+export const resultOptions = (ctx: Ctx, keys: readonly (Result | VisitResult | OpsResult)[]) => keys.map((k) => ({ value: k, label: ctx.m(`complete.result.${k}` as MessageKey) }))
 
 /**
  * Cómo se completa una tarea según lo que es: una visita por hacer pregunta cómo terminó la visita (hubo venta o alta,
@@ -44,7 +47,9 @@ export const resultOptions = (ctx: Ctx, keys: readonly (Result | VisitResult)[])
 export const taskResults = (ctx: Ctx, kind: string): Pick<SheetItem, 'results' | 'defaultResult' | 'visit'> =>
   kind === 'visit'
     ? { results: resultOptions(ctx, VISIT_RESULTS), defaultResult: null, visit: true }
-    : { results: resultOptions(ctx, ['done', 'reached', 'no_answer', 'later']), defaultResult: 'done' }
+    : opsVoice(ctx)
+      ? { results: resultOptions(ctx, OPS_RESULTS), defaultResult: null }
+      : { results: resultOptions(ctx, ['done', 'reached', 'no_answer', 'later']), defaultResult: 'done' }
 
 /** Una tarea abierta como registro que la hoja puede completar. */
 export const taskItem = (ctx: Ctx, task: { id: string; subject: string; kind?: string }, name: string): SheetItem => ({

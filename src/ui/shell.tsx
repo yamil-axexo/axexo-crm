@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Inbox, Kanban, Plus, Search, Store, Sun } from 'lucide-react'
+import { Inbox, Kanban, ListTodo, Plus, Search, Store, Sun } from 'lucide-react'
 import { cx } from '@/ui/kit'
 import { showToast } from '@/ui/complete'
 import { openLog } from '@/ui/log'
 
-const ICONS = { today: Sun, leads: Inbox, deals: Kanban, merchants: Store } as const
+const ICONS = { today: Sun, leads: Inbox, deals: Kanban, merchants: Store, queue: ListTodo } as const
 export type DockItem = { key: keyof typeof ICONS; href: string; label: string; match: string[]; badge?: number; badgeLabel?: string }
 
 function useDismiss(open: boolean, close: () => void) {

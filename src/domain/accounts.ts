@@ -12,7 +12,7 @@ const createInput = z.object({
   market: z.string().length(2),
   kind: z.enum(['organization', 'distributor', 'chain', 'store']),
   name: z.string().trim().min(2).max(160),
-  segment: z.enum(['d2d', 'b2b', 'dealer']),
+  segment: z.enum(['d2d', 'b2b', 'dealer', 'event', 'orders', 'other']),
   parentId: z.guid().or(z.literal('')).optional(),
   phone: z.string().trim().max(30).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
@@ -24,7 +24,17 @@ const createInput = z.object({
 /** DAT-04: antes de crear, se busca el duplicado en todo el mercado. Si aparece, se devuelve y no se crea. */
 export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>): Promise<{ id?: string; duplicates?: Duplicate[] }> {
   const parsed = createInput.safeParse(input)
-  if (!parsed.success) throw invalid('Revisa nombre, tipo y mercado.', 'Check the name, type and market.')
+  if (!parsed.success) {
+    // El error dice qué campo y por qué, no "revisa los datos".
+    const field = String(parsed.error.issues[0]?.path[0] ?? '')
+    if (field === 'name') throw invalid('Nombre: escribe entre 2 y 160 letras.', 'Name: enter between 2 and 160 characters.')
+    if (field === 'kind') throw invalid('Tipo: elige tienda, cadena, distribuidor u organización.', 'Type: pick store, chain, distributor or organization.')
+    if (field === 'segment') throw invalid('Canal: elige una opción de la lista.', 'Channel: pick an option from the list.')
+    if (field === 'market') throw invalid('Mercado: elige el mercado del comercio.', 'Market: pick the merchant’s market.')
+    if (field === 'phone') throw invalid('Teléfono: hasta 30 caracteres.', 'Phone: up to 30 characters.')
+    if (field === 'locality' || field === 'region') throw invalid('Ciudad y estado: hasta 120 letras cada uno.', 'City and state: up to 120 characters each.')
+    throw invalid('Revisa nombre, tipo y mercado.', 'Check the name, type and market.')
+  }
   const v = parsed.data
   ctx.assert('account.create', v.market)
   const market = ctx.market(v.market)

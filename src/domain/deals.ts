@@ -14,12 +14,15 @@ export type GateDeal = {
   next_step_due: string | Date | null
   decision_maker_id: string | null
   decision_maker_met: boolean
+  /** Cuántas líneas de producto lleva. Solo se revisa cuando la etapa pide 'items'. */
+  items_count?: number
 }
 
 export const FIELD_LABEL: Record<string, { es: string; en: string }> = {
   amount: { es: 'monto esperado', en: 'expected amount' },
   next_step: { es: 'próximo paso con fecha', en: 'next step with a date' },
   decision_maker: { es: 'decisor identificado y contactado', en: 'decision-maker identified and reached' },
+  items: { es: 'al menos una línea de producto', en: 'at least one product line' },
 }
 
 /**
@@ -33,6 +36,7 @@ export function missingForStage(deal: GateDeal, stage: { kind: StageKind; requir
   if (need.has('amount') && (deal.amount_minor === null || Number(deal.amount_minor) <= 0)) missing.push('amount')
   if (need.has('next_step') && !(deal.next_step && deal.next_step.trim() && deal.next_step_due)) missing.push('next_step')
   if (need.has('decision_maker') && !(deal.decision_maker_id && deal.decision_maker_met)) missing.push('decision_maker')
+  if (need.has('items') && !((deal.items_count ?? 0) > 0)) missing.push('items')
   return missing
 }
 
@@ -46,11 +50,44 @@ type DealRow = GateDeal & {
   status: 'open' | 'won' | 'lost'
   title: string
   revisit_needed: boolean
+  ops_owner_id: string | null
 }
+
+/**
+ * El próximo paso de un negocio es una tarea de su responsable, para que llegue a Hoy el día que toca.
+ * Hay dos carriles: 'sales' (quien vende) y 'ops' (quien lo lleva en Operaciones); cada uno tiene a lo más una tarea abierta.
+ */
+export async function syncDealStep(tx: Tx, ctx: Ctx, d: { id: string; market_code: string; account_id: string }, lane: 'sales' | 'ops', step: string | null, due: string | null, ownerId: string | null): Promise<void> {
+  const open = await tx<{ id: string }[]>`select id from crm.activities where deal_id = ${d.id} and deal_step = ${lane} and done_at is null order by created_at desc for update`
+  if (!step || !due || !ownerId) {
+    // Sin paso, sin fecha o sin responsable no hay tarea: la que hubiera deja de ser "el próximo paso".
+    if (open.length) await tx`update crm.activities set deal_step = null where id = any(${open.map((o) => o.id)}::uuid[])`
+    return
+  }
+  const at = `${due}T15:00:00Z`
+  if (open[0]) {
+    await tx`update crm.activities set subject = ${step}, due_at = ${at}, owner_id = ${ownerId} where id = ${open[0].id}`
+    if (open.length > 1) await tx`update crm.activities set deal_step = null where id = any(${open.slice(1).map((o) => o.id)}::uuid[])`
+    return
+  }
+  await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, deal_step)
+           values (${d.market_code}, ${d.account_id}, ${d.id}, 'task', ${step}, ${at}, ${ownerId}, ${ctx.user.id}, ${lane})`
+}
+
+/** ¿Hay una etapa de Operaciones desde la etapa actual (incluida) hasta antes de la de destino? Entonces avanzar es cosa de Operaciones. */
+async function crossesOps(tx: Tx, pipelineId: string, fromPos: number, toPos: number): Promise<boolean> {
+  if (toPos <= fromPos) return false
+  const rows = await tx`select 1 from crm.stages where pipeline_id = ${pipelineId} and is_ops and position >= ${fromPos} and position < ${toPos} limit 1`
+  return rows.length > 0
+}
+
+const OPS_ONLY = () => new DomainError('ops_only',
+  'Este negocio ya está con Operaciones: desde aquí solo Operaciones lo avanza, y nunca quien lo vendió.',
+  'This deal is with Operations now: from here only Operations moves it forward, never the person who sold it.', 403)
 
 async function loadDeal(tx: Tx, id: string): Promise<DealRow> {
   const rows = await tx<DealRow[]>`select id, market_code, pipeline_id, stage_id, account_id, owner_id, status, title, amount_minor, next_step,
-    next_step_due, decision_maker_id, decision_maker_met, revisit_needed from crm.deals where id = ${id} for update`
+    next_step_due, decision_maker_id, decision_maker_met, revisit_needed, ops_owner_id from crm.deals where id = ${id} for update`
   if (!rows[0]) throw notFound('No encontramos ese deal.', 'We could not find that deal.')
   return rows[0]
 }
@@ -95,17 +132,34 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
               next_step_due = ${next.next_step_due}, decision_maker_id = ${next.decision_maker_id}, decision_maker_met = ${next.decision_maker_met},
               revisit_needed = ${cleared ? false : d.revisit_needed}
               where id = ${dealId}`
+    if (v.nextStep !== undefined || v.nextStepDue !== undefined) {
+      await syncDealStep(tx, ctx, d, 'sales', next.next_step, next.next_step_due ? isoDate(next.next_step_due) : null, d.owner_id)
+    }
     await audit(tx, ctx, 'deal.updated', 'deal', dealId, d.market_code,
       { amount_minor: d.amount_minor === null ? null : Number(d.amount_minor), next_step: d.next_step, decision_maker_met: d.decision_maker_met },
       { amount_minor: next.amount_minor === null ? null : Number(next.amount_minor), next_step: next.next_step, decision_maker_met: next.decision_maker_met })
   })
 }
 
+/** Fecha (AAAA-MM-DD) de un valor que puede venir como Date de la base. */
+export const isoDate = (v: string | Date | null): string | null => (v === null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10))
+
+export type MoveExtra = {
+  /** Día real en que se ganó (AAAA-MM-DD), de hoy hacia atrás en la zona del mercado. Vacío es hoy. */
+  wonOn?: string
+  /** Motivo al devolver el negocio de Operaciones a Ventas. */
+  ret?: { reasonCode: string; note?: string }
+}
+
 /**
  * Mover un deal de etapa. `next` deja el próximo paso en la misma transacción: el tablero lo pide cuando falta
  * (handoff, sección 6: "cambiar de etapa pide próximo paso si no hay uno") y así mover y programar no quedan a medias.
+ *
+ * Entrega a Operaciones: al entrar a una etapa de Operaciones el negocio pasa a su cola y sale de la cancha de quien vende.
+ * Dentro de esas etapas solo avanza Operaciones, nunca quien lo vendió (la base lo repite con un trigger).
+ * Regresarlo a una etapa de Ventas pide motivo y le deja a quien vende una tarea para hoy.
  */
-export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }): Promise<void> {
+export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }, extra?: MoveExtra): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const d = await loadDeal(tx, dealId)
     if (next) {
@@ -116,8 +170,7 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       if (!range[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
       ctx.assert('deal.edit', d.market_code)
       await tx`update crm.deals set next_step = ${step}, next_step_due = ${next.due} where id = ${dealId} and status = 'open'`
-      await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by)
-               values (${d.market_code}, ${d.account_id}, ${dealId}, 'task', ${step}, ${`${next.due}T15:00:00Z`}, ${d.owner_id ?? ctx.user.id}, ${ctx.user.id})`
+      await syncDealStep(tx, ctx, d, 'sales', step, next.due, d.owner_id ?? ctx.user.id)
       await audit(tx, ctx, 'deal.updated', 'deal', dealId, d.market_code, { next_step: d.next_step }, { next_step: step, next_step_due: next.due })
       d.next_step = step
       d.next_step_due = next.due
@@ -125,17 +178,41 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     ctx.assert('deal.move', d.market_code)
     if (d.status !== 'open') throw invalid('Este negocio ya está cerrado.', 'This deal is already closed.')
     if (toStageId === d.stage_id) return
-    const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string; position: number }[]>`
-      select id, kind, required_fields, name_es, name_en, position from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id}`
+    const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string; position: number; is_ops: boolean }[]>`
+      select id, kind, required_fields, name_es, name_en, position, is_ops from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id}`
     const stage = stages[0]
     if (!stage) throw invalid('Esa etapa no es de este pipeline.', 'That stage is not part of this pipeline.')
+    const curs = await tx<{ position: number; is_ops: boolean }[]>`select position, is_ops from crm.stages where id = ${d.stage_id}`
+    const cur = curs[0]!
+    // Separación de funciones: lo que pasa por una etapa de Operaciones lo avanza Operaciones, y no quien vendió.
+    if (stage.kind !== 'lost' && (await crossesOps(tx, d.pipeline_id, cur.position, stage.position))) {
+      if (!ctx.can('deal.ops', d.market_code) || d.owner_id === ctx.user.id) throw OPS_ONLY()
+    }
+    const entering = stage.is_ops && !cur.is_ops && stage.kind !== 'lost'
+    const returning = cur.is_ops && !stage.is_ops && stage.kind === 'open' && stage.position < cur.position
+    let reason: { label_es: string; label_en: string } | undefined
+    if (returning) {
+      const code = extra?.ret?.reasonCode ?? ''
+      const rows = code ? await tx<{ label_es: string; label_en: string }[]>`
+        select label_es, label_en from crm.ops_catalog where kind = 'return_reason' and code = ${code} and is_active and (market_code is null or market_code = ${d.market_code})
+         order by market_code nulls last limit 1` : []
+      reason = rows[0]
+      if (!reason) throw new DomainError('return_reason_required', 'Para devolver el negocio a Ventas, elige el motivo.', 'To send the deal back to Sales, pick the reason.')
+      assertNoProhibited(extra?.ret?.note)
+      if ((extra?.ret?.note ?? '').trim().length > 300) throw invalid('Deja la nota del motivo en 300 caracteres o menos.', 'Keep the reason note to 300 characters or fewer.')
+    }
     // Avanzar saltando etapas no evita lo que piden las de en medio: se exige la suma de todas hasta la de destino.
     const skipped = await tx<{ required_fields: string[] }[]>`
       select s.required_fields from crm.stages s
        where s.pipeline_id = ${d.pipeline_id} and s.kind in ('open', 'awaiting_txn') and s.position < ${stage.position}
          and s.position > (select c.position from crm.stages c where c.id = ${d.stage_id})`
     const gate = { kind: stage.kind, required_fields: [...new Set([...stage.required_fields, ...skipped.flatMap((s) => s.required_fields)])] }
+    if (gate.required_fields.includes('items')) {
+      const n = await tx<{ n: number }[]>`select count(*)::int as n from crm.deal_items where deal_id = ${dealId}`
+      d.items_count = n[0]?.n ?? 0
+    }
 
+    let wonAt = tx`now()`
     if (stage.kind === 'won') {
       // PIPE-06: "la transacción cierra, no el vendedor".
       const pipe = await tx<{ close_by_transaction: boolean }[]>`select close_by_transaction from crm.pipelines where id = ${d.pipeline_id}`
@@ -144,10 +221,19 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
           'Un deal se gana solo cuando S5 reporta la primera transacción del comercio.',
           'A deal is won only when S5 reports the merchant’s first transaction.')
       }
+      // Ganar a mano: la fecha real de cierre es de hoy hacia atrás (en el día del mercado), nunca futura.
+      const on = (extra?.wonOn ?? '').trim()
+      if (on) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(on)) throw invalid('Elige la fecha en que se ganó.', 'Choose the date it was won.')
+        const chk = await tx<{ ok: boolean; today: boolean }[]>`
+          select ${on}::date <= ${marketToday(tx, d.market_code)} and ${on}::date >= ${marketToday(tx, d.market_code)} - 366 as ok, ${on}::date = ${marketToday(tx, d.market_code)} as today`
+        if (!chk[0]?.ok) throw invalid('La fecha de cierre es de hoy hacia atrás, nunca futura.', 'The close date is today or earlier, never in the future.')
+        if (!chk[0].today) wonAt = tx`(${on}::date + time '12:00') at time zone ${ctx.market(d.market_code).timezone}`
+      }
     }
     if (stage.kind === 'lost') {
-      const reason = loss?.reasonCode ? await tx`select 1 from crm.loss_reasons where code = ${loss.reasonCode} and kind = 'lost' and is_active` : []
-      if (!reason[0]) throw invalid('Elige el motivo de pérdida.', 'Pick the loss reason.')
+      const lossReason = loss?.reasonCode ? await tx`select 1 from crm.loss_reasons where code = ${loss.reasonCode} and kind = 'lost' and is_active` : []
+      if (!lossReason[0]) throw invalid('Elige el motivo de pérdida.', 'Pick the loss reason.')
       assertNoProhibited(loss?.note)
       await tx`update crm.deals set stage_id = ${toStageId}, status = 'lost', loss_reason_code = ${loss!.reasonCode}, loss_note = ${clean(loss!.note)},
                 lost_at = now(), closed_by = 'manual', stage_entered_at = now(), revisit_needed = false where id = ${dealId}`
@@ -161,13 +247,39 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
           `Para pasar a "${stage.name_es}" falta: ${es}.`, `To move to "${stage.name_en}" you still need: ${en}.`)
       }
       await tx`update crm.deals set stage_id = ${toStageId}, stage_entered_at = now(),
-                status = ${stage.kind === 'won' ? 'won' : 'open'}, won_at = ${stage.kind === 'won' ? tx`now()` : null},
-                closed_by = ${stage.kind === 'won' ? 'manual' : null} where id = ${dealId}`
+                status = ${stage.kind === 'won' ? 'won' : 'open'}, won_at = ${stage.kind === 'won' ? wonAt : null},
+                closed_by = ${stage.kind === 'won' ? 'manual' : null},
+                ops_entered_at = ${entering ? tx`now()` : tx`ops_entered_at`} where id = ${dealId}`
     }
     await tx`insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause)
              values (${dealId}, ${d.market_code}, ${d.stage_id}, ${toStageId}, ${ctx.user.id}, 'user')`
-    await audit(tx, ctx, 'deal.stage_changed', 'deal', dealId, d.market_code, { stage_id: d.stage_id }, { stage_id: toStageId, kind: stage.kind, reason: loss?.reasonCode ?? null })
+    await audit(tx, ctx, 'deal.stage_changed', 'deal', dealId, d.market_code, { stage_id: d.stage_id },
+      { stage_id: toStageId, kind: stage.kind, reason: loss?.reasonCode ?? null, ...(stage.kind === 'won' && extra?.wonOn ? { won_on: extra.wonOn } : {}) })
     await emit(tx, 'deal.stage_changed', 'deal', dealId, d.market_code, { from: d.stage_id, to: toStageId, kind: stage.kind })
+
+    if (entering) {
+      // Sale de la cancha de quien vende: su próximo paso queda cumplido y el negocio entra a la cola de Operaciones.
+      await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and deal_step = 'sales' and done_at is null`
+      await audit(tx, ctx, 'deal.handed_to_ops', 'deal', dealId, d.market_code, null, { stage_id: toStageId })
+      await syncDealStep(tx, ctx, d, 'ops', (await tx<{ s: string | null }[]>`select ops_next_step as s from crm.deals where id = ${dealId}`)[0]?.s ?? null,
+        isoDate((await tx<{ d: string | Date | null }[]>`select ops_next_step_due as d from crm.deals where id = ${dealId}`)[0]?.d ?? null), d.ops_owner_id)
+    }
+    if (returning && reason) {
+      const note = clean(extra?.ret?.note)
+      const owner = d.owner_id ? await tx<{ locale: string | null }[]>`select locale from crm.users where id = ${d.owner_id}` : []
+      const en = owner[0]?.locale === 'en'
+      const why = `${en ? reason.label_en : reason.label_es}${note ? `. ${note}` : ''}`
+      const step = (en ? `Operations sent back ${d.title}: ${why}` : `Operaciones devolvió ${d.title}: ${why}`).slice(0, 200)
+      const today = (await tx<{ d: string }[]>`select ${marketToday(tx, d.market_code)}::text as d`)[0]!.d
+      await tx`update crm.deals set next_step = ${step}, next_step_due = ${today}, ops_next_step = null, ops_next_step_due = null where id = ${dealId}`
+      await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and deal_step = 'ops' and done_at is null`
+      await syncDealStep(tx, ctx, d, 'sales', step, today, d.owner_id)
+      await audit(tx, ctx, 'deal.returned_to_sales', 'deal', dealId, d.market_code, { stage_id: d.stage_id }, { stage_id: toStageId, reason: extra!.ret!.reasonCode, note })
+    }
+    if (stage.kind === 'won' || stage.kind === 'lost') {
+      // Un negocio cerrado ya no tiene próximo paso pendiente en Hoy.
+      await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and deal_step is not null and done_at is null`
+    }
   })
 }
 
@@ -178,6 +290,8 @@ const createInput = z.object({
   amount: z.number().nonnegative().max(1e12).nullable().optional(),
   nextStep: z.string().trim().min(2).max(200),
   nextStepDue: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Etapa en la que nace. Vacío es la primera. Tiene que ser una etapa abierta de Ventas del mismo embudo. */
+  stageId: z.guid().or(z.literal('')).optional(),
 })
 
 export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): Promise<string> {
@@ -192,18 +306,34 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
     const acc = accs[0]
     if (!acc) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
     ctx.assert('deal.create', acc.market_code)
-    const st = await tx<{ id: string }[]>`select s.id from crm.stages s join crm.pipelines p on p.id = s.pipeline_id
-      where p.id = ${v.pipelineId} and p.market_code = ${acc.market_code} order by s.position limit 1`
-    if (!st[0]) throw invalid('Ese pipeline no es de este mercado.', 'That pipeline does not belong to this market.')
-    const open = await tx`select 1 from crm.deals where account_id = ${v.accountId} and pipeline_id = ${v.pipelineId} and status = 'open'`
+    const all = await tx<{ id: string; position: number; kind: StageKind; required_fields: string[]; is_ops: boolean; name_es: string; name_en: string; multi_open: boolean }[]>`
+      select s.id, s.position, s.kind, s.required_fields, s.is_ops, s.name_es, s.name_en, p.multi_open from crm.stages s join crm.pipelines p on p.id = s.pipeline_id
+      where p.id = ${v.pipelineId} and p.market_code = ${acc.market_code} order by s.position`
+    if (!all[0]) throw invalid('Ese pipeline no es de este mercado.', 'That pipeline does not belong to this market.')
+    const first = v.stageId ? all.find((x) => x.id === v.stageId) : all[0]
+    if (!first) throw invalid('Esa etapa no es de este embudo.', 'That stage is not part of this pipeline.')
+    // Nace en la etapa que le corresponde, con lo mismo que se pide para llegar ahí. Las etapas de Operaciones no son punto de partida.
+    if (first.kind !== 'open' || all.some((x) => x.is_ops && x.position <= first.position)) {
+      throw invalid('Un negocio nuevo nace en una etapa de Ventas. A Operaciones llega cuando lo entregas.', 'A new deal starts in a Sales stage. It reaches Operations when you hand it over.')
+    }
+    const need = [...new Set(all.filter((x) => x.position <= first.position && x.position > all[0]!.position).flatMap((x) => x.required_fields))]
+    const missing = missingForStage({ amount_minor: v.amount == null ? null : Math.round(v.amount * 100), next_step: v.nextStep, next_step_due: v.nextStepDue, decision_maker_id: null, decision_maker_met: false, items_count: 0 }, { kind: 'open', required_fields: need })
+    if (missing.length) {
+      throw new DomainError('stage_gate',
+        `Para empezar en "${first.name_es}" falta: ${missing.map((m) => FIELD_LABEL[m]?.es ?? m).join(', ')}. Créalo en una etapa anterior y avánzalo cuando lo tengas.`,
+        `To start in "${first.name_en}" you still need: ${missing.map((m) => FIELD_LABEL[m]?.en ?? m).join(', ')}. Create it in an earlier stage and move it once you have that.`)
+    }
+    // Un comercio lleva un negocio abierto por embudo, salvo en los embudos que admiten varios (pedidos, recompra).
+    const open = all[0].multi_open ? [] : await tx`select 1 from crm.deals where account_id = ${v.accountId} and pipeline_id = ${v.pipelineId} and status = 'open'`
     if (open[0]) throw invalid('Este comercio ya tiene un negocio abierto en ese embudo.', 'This merchant already has an open deal in that pipeline.')
     const id = await newId(tx)
     const ownerId = acc.owner_id ?? ctx.user.id
     await tx`insert into crm.deals (id, market_code, pipeline_id, stage_id, account_id, owner_id, title, amount_minor, currency, next_step, next_step_due, created_by)
-             values (${id}, ${acc.market_code}, ${v.pipelineId}, ${st[0].id}, ${v.accountId}, ${ownerId}, ${v.title},
+             values (${id}, ${acc.market_code}, ${v.pipelineId}, ${first.id}, ${v.accountId}, ${ownerId}, ${v.title},
                      ${v.amount == null ? null : Math.round(v.amount * 100)}, ${ctx.market(acc.market_code).currency}, ${v.nextStep}, ${v.nextStepDue}, ${ctx.user.id})`
-    await tx`insert into crm.deal_stage_events (deal_id, market_code, to_stage_id, actor_id) values (${id}, ${acc.market_code}, ${st[0].id}, ${ctx.user.id})`
-    await audit(tx, ctx, 'deal.created', 'deal', id, acc.market_code, null, { account_id: v.accountId, pipeline_id: v.pipelineId })
+    await tx`insert into crm.deal_stage_events (deal_id, market_code, to_stage_id, actor_id) values (${id}, ${acc.market_code}, ${first.id}, ${ctx.user.id})`
+    await syncDealStep(tx, ctx, { id, market_code: acc.market_code, account_id: v.accountId }, 'sales', v.nextStep, v.nextStepDue, ownerId)
+    await audit(tx, ctx, 'deal.created', 'deal', id, acc.market_code, null, { account_id: v.accountId, pipeline_id: v.pipelineId, stage_id: first.id })
     await emit(tx, 'deal.created', 'deal', id, acc.market_code, { account_id: v.accountId })
     return id
   })

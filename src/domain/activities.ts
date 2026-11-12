@@ -5,6 +5,7 @@ import type { Ctx } from '@/server/context'
 import { audit, newId, clean } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { assertNoProhibited } from '@/domain/guard'
+import { notifyFromNote } from '@/domain/ops'
 import { NEXTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, isOneOf, nextText, scheduleNext, visitorName } from '@/domain/followup'
 
 const input = z.object({
@@ -26,6 +27,8 @@ const input = z.object({
   nextText: z.string().optional().default(''),
   /** Una visita o una llamada registradas piden el próximo paso, igual que completar una tarea. */
   askNext: z.boolean().optional().default(false),
+  /** "Avisar a": persona con acceso al registro a quien le aparece el aviso en Hoy. Solo en notas. */
+  notify: z.guid().or(z.literal('')).optional().default(''),
 })
 export type ActivityInput = z.input<typeof input>
 export type Recorded = { id: string; kind: string; name: string; next: string | null; due: string | null }
@@ -126,6 +129,10 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
       kind: v.kind, account_id: accountId, ...(v.outcome ? { outcome: v.outcome } : {}), ...(v.kind === 'visit' && !planned ? { origin: 'manual', on: v.on || null, visited_by: visitor } : {}),
     })
     if (v.kind === 'visit' && isOneOf(VISIT_RESULTS, v.outcome)) await applyVisitOutcome(tx, ctx, { market: market!, accountId, outcome: v.outcome, day: v.on || null, returnOn: when })
+    if (v.notify) {
+      if (v.kind !== 'note' || !accountId) throw invalid('Solo se avisa desde una nota de un comercio o de un negocio.', 'You can only notify from a note on a merchant or a deal.')
+      await notifyFromNote(tx, ctx, { market: market!, userId: v.notify, accountId, dealId, activityId: id, body: [subject, clean(v.body)].filter(Boolean).join('. ') })
+    }
 
     if (!next || !when) return { id, kind: v.kind, name, next: null, due: null }
     const step = await scheduleNext(tx, ctx, { market: market!, accountId, dealId, leadId: v.leadId ?? null, name, next, when, text, follows: id })

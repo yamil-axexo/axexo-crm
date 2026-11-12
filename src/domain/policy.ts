@@ -27,6 +27,11 @@ export const CAPABILITIES = {
   // No crea negocios. Cada cambio queda en la bitácora con su nombre, igual que el de quien vende.
   'deal.edit': [...SELLERS, 'ops'],
   'deal.move': [...SELLERS, 'ops'],
+  // Operaciones trabaja su cola: toma negocios en etapas de Operaciones, los avanza, los devuelve a Ventas con motivo
+  // y mantiene sus campos (Merchant ID, proveedores, documentos, capacitación). Quien vende no tiene esta capacidad.
+  'deal.ops': ['admin', 'ops'],
+  // Cerrar en bloque los negocios sin movimiento: Operaciones, supervisión y quien lidera.
+  'deal.bulk_close': [...MANAGERS, 'ops'],
   'account.create': SELLERS,
   'account.edit': [...SELLERS, 'ops'],
   'account.reassign': MANAGERS,
