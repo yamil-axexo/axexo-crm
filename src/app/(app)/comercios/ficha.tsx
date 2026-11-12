@@ -21,6 +21,7 @@ import { addContactAction, setParentAction, updateAccountAction } from './action
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction } from '@/app/(app)/actividades/log-actions'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
+import { StagePicker } from '@/ui/ops'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 
 export const FICHA_TABS = ['hilo', 'arbol', 'datos'] as const
@@ -53,6 +54,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const canSell = !a.archived_at && ctx.can('deal.create', a.market_code)
   const isParent = a.kind !== 'store'
   const openDeal = deals.find((d) => d.status === 'open')
+  // Con un negocio abierto solo se ofrecen los embudos que admiten varios por comercio (pedidos, recompra).
+  const offered = pipelines.filter((p) => p.stages.length > 0 && (!openDeal || p.multi_open))
   const lastDeal = deals[0]
   const health = healthOf(a.lifecycle, !!openDeal)
   const today = isoDay(now, tz)
@@ -252,15 +255,16 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
 
       {callee?.who && <p className="-mt-2 text-[13px] text-muted" data-testid="callee">{m('record.callee', { name: callee.who })}</p>}
 
-      {canSell && !openDeal && pipelines.length > 0 && (
-        <Dialog trigger={t('Nuevo negocio', 'New deal')} title={t('Nuevo negocio', 'New deal')} variant="ghost" testId="new-deal">
+      {canSell && offered.length > 0 && (
+        <Dialog trigger={openDeal ? t('Nuevo pedido', 'New order') : t('Nuevo negocio', 'New deal')} title={t('Nuevo negocio', 'New deal')} variant="ghost" testId="new-deal">
           <ActionForm action={createDealAction} className="grid grid-cols-2 gap-4">
             <input type="hidden" name="account_id" value={a.id} />
-            <Field label="Pipeline" className="col-span-2"><select name="pipeline_id" className="input">{pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-            <Field label={t('Título', 'Title')} className="col-span-2"><input name="title" className="input" required defaultValue={`${t('Alta', 'Onboarding')}: ${a.name}`} /></Field>
+            <StagePicker pipelines={offered.map((p) => ({ id: p.id, name: p.name, stages: p.stages.map((s) => ({ id: s.id, name: t(s.name_es, s.name_en) })) }))}
+              labels={{ pipeline: t('Embudo', 'Pipeline'), stage: t('Etapa en la que empieza', 'Stage it starts in'), hint: t('Si ya va avanzado, elige su etapa: se pide lo mismo que para llegar ahí.', 'If it is already under way, pick its stage: it asks for the same as getting there.') }} />
+            <Field label={t('Título', 'Title')} className="col-span-2"><input name="title" className="input" required defaultValue={`${openDeal ? t('Pedido', 'Order') : t('Alta', 'Onboarding')}: ${a.name}`} data-testid="new-deal-title" /></Field>
             <Field label={t('Próximo paso', 'Next step')} className="col-span-2"><input name="next_step" className="input" required minLength={2} data-testid="new-deal-step" /></Field>
             <Field label={t('Fecha', 'Date')}><input name="next_step_due" type="date" className="input" required defaultValue={today} /></Field>
-            <Field label={t(`Monto (${market.currency})`, `Amount (${market.currency})`)}><input name="amount" className="input" inputMode="decimal" /></Field>
+            <Field label={t(`Monto (${market.currency}), opcional`, `Amount (${market.currency}), optional`)} hint={t('En un pedido, el monto sale de sus líneas.', 'On an order, the amount comes from its lines.')}><input name="amount" className="input" inputMode="decimal" /></Field>
             <div className="col-span-2 flex justify-end"><Submit testId="save-deal">{t('Crear negocio', 'Create deal')}</Submit></div>
           </ActionForm>
         </Dialog>

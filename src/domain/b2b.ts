@@ -128,11 +128,13 @@ export async function pauseDeal(ctx: Ctx, dealId: string, input: z.input<typeof 
     const ok = await tx<{ ok: boolean }[]>`select ${v.reviewOn}::date > ${marketToday(tx, d.market_code)} and ${v.reviewOn}::date <= ${marketToday(tx, d.market_code)} + 366 as ok`
     if (!ok[0]?.ok) throw invalid('La fecha de revisión va de mañana en adelante, dentro de un año.', 'The review date must be tomorrow or later, within a year.')
     // Las tareas abiertas del negocio se cierran como "para después" y queda una sola: revisarlo en la fecha elegida. Así vuelve a Hoy ese día.
+    // Lo que Operaciones tiene pendiente en el negocio (su carril) no se toca: la pausa es de quien vende.
     const closed = await tx`update crm.activities set done_at = now(), outcome = 'later'
-                             where deal_id = ${dealId} and done_at is null and kind in ('task', 'call', 'meeting', 'email') returning id`
+                             where deal_id = ${dealId} and done_at is null and kind in ('task', 'call', 'meeting', 'email') and deal_step is distinct from 'ops' returning id`
     const subject = ctx.t(`Revisar negocio en pausa: ${d.title}`, `Review deal on hold: ${d.title}`).slice(0, 200)
-    await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, body, due_at, owner_id, created_by, custom)
-             values (${d.market_code}, ${d.account_id}, ${dealId}, 'task', ${subject}, ${v.reason}, ${`${v.reviewOn}T15:00:00Z`}, ${d.owner_id ?? ctx.user.id}, ${ctx.user.id}, ${tx.json({ pause_review: true })})`
+    // La revisión es el próximo paso de quien vende (carril 'sales'): una sola tarea, la misma que muestra el negocio.
+    await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, body, due_at, owner_id, created_by, custom, deal_step)
+             values (${d.market_code}, ${d.account_id}, ${dealId}, 'task', ${subject}, ${v.reason}, ${`${v.reviewOn}T15:00:00Z`}, ${d.owner_id ?? ctx.user.id}, ${ctx.user.id}, ${tx.json({ pause_review: true })}, 'sales')`
     await tx`update crm.deals set paused_at = coalesce(paused_at, now()), paused_by = ${ctx.user.id}, pause_reason = ${v.reason}, pause_review_on = ${v.reviewOn},
               next_step = ${subject}, next_step_due = ${v.reviewOn} where id = ${dealId}`
     // Los avisos de "sin movimiento" abiertos se cierran con la pausa: no esperan a la siguiente evaluación de reglas.

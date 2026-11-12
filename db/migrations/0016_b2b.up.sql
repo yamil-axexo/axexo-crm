@@ -214,3 +214,25 @@ create trigger web_forms_account_type_check before insert or update of account_t
 alter table crm.leads drop constraint leads_contact_role_check;
 alter table crm.leads add constraint leads_contact_role_check
   check (contact_role is null or contact_role in ('owner','decision_maker','manager','staff','billing','executive','purchasing','finance','technology','legal','operations'));
+
+-- ---------------------------------------------------------------- 9) una etapa archivada ya no es de Operaciones
+-- La separación de funciones de 0015 (app.deals_ops_guard) cuenta las etapas de Operaciones entre la etapa actual y la de
+-- destino. Una etapa archivada ya no es parte del embudo: no bloquea a quien vende.
+create or replace function app.deals_ops_guard() returns trigger
+language plpgsql security definer set search_path = crm, app, pg_catalog as $$
+declare
+  v_uid uuid := app.current_user_id();
+  v_from int; v_to int; v_kind text; v_pipe uuid;
+begin
+  -- Sin identidad (migraciones) o con rol de administración (importación, integraciones de sistema) no aplica: la regla es para quien vende.
+  if new.stage_id is not distinct from old.stage_id or v_uid is null or app.is_admin() then return new; end if;
+  select position, pipeline_id into v_from, v_pipe from crm.stages where id = old.stage_id;
+  select position, kind into v_to, v_kind from crm.stages where id = new.stage_id;
+  if v_kind = 'lost' or v_to <= v_from then return new; end if;
+  if exists (select 1 from crm.stages s where s.pipeline_id = v_pipe and s.is_ops and s.archived_at is null and s.position >= v_from and s.position < v_to) then
+    if v_uid = old.owner_id or not (old.market_code = any(app.ops_markets())) then
+      raise exception 'only Operations moves a deal forward inside Operations stages' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end $$;

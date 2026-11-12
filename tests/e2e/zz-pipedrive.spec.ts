@@ -61,6 +61,9 @@ test('los embudos importados operan: un pedido se gana a mano, un alta no', asyn
   await page.getByRole('link', { name: /Order 4471/ }).first().click()
   await expect(page.getByTestId('deal-items')).toContainText('SIM kit (synthetic)')
   await page.getByTestId('deal-win').click()
+  // Ganar a mano pide la fecha real de cierre (hoy por defecto) y confirma.
+  await expect(page.getByTestId('win-rule')).toContainText('se gana a mano')
+  await page.getByTestId('deal-win-confirm').click()
   await expect(page.getByTestId('deal-move')).toHaveCount(0)
   await expect(page.locator('body')).toContainText('Ganado')
 

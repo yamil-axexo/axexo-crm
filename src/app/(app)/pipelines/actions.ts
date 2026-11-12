@@ -49,6 +49,7 @@ export async function createDealAction(_: R | null, fd: FormData): Promise<R> {
       amount: amount === '' ? null : Number(amount),
       nextStep: str(fd, 'next_step'),
       nextStepDue: str(fd, 'next_step_due'),
+      stageId: str(fd, 'stage_id'),
     })
   })
   if (res.ok && id) redirect(`/deals/${id}`)

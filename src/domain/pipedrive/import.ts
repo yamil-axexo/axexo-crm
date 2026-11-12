@@ -313,8 +313,8 @@ export async function applyConfig(tx: Tx, runId: string): Promise<void> {
     if (pipelineId) {
       await tx`update crm.pipelines set name = ${name}, position = ${position}, market_code = ${market} where id = ${pipelineId}`
     } else {
-      const row = await one(tx<{ id: string }[]>`insert into crm.pipelines (market_code, motor, name, position, close_by_transaction)
-        values (${market}, ${motor}, ${name}, ${position}, ${closesByTransaction(motor)}) returning id`)
+      const row = await one(tx<{ id: string }[]>`insert into crm.pipelines (market_code, motor, name, position, close_by_transaction, multi_open, has_items)
+        values (${market}, ${motor}, ${name}, ${position}, ${closesByTransaction(motor)}, ${motor === 'orders'}, ${motor === 'orders'}) returning id`)
       pipelineId = row!.id
       await saveRefs(tx, 'pipeline', [{ ext: p.external_id, id: pipelineId }])
     }

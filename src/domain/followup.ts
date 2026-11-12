@@ -11,15 +11,26 @@ export const RESULTS = ['reached', 'no_answer', 'later', 'done'] as const
 /** Cómo terminó una visita: hubo venta o alta, no hubo, o hay que volver con quien decide. */
 export const VISIT_RESULTS = ['sale', 'no_sale', 'revisit'] as const
 /** Qué sigue. "visit" deja una visita por hacer; "task" acepta un texto libre. */
-export const NEXTS = ['call', 'visit', 'proposal', 'meeting', 'contract', 'kickoff', 'testing', 'certification', 'task', 'none'] as const
+export const NEXTS = ['call', 'visit', 'proposal', 'meeting', 'contract', 'kickoff', 'testing', 'certification', 'docs', 'provider', 'training', 'task', 'none'] as const
 /**
- * Qué próximos pasos se ofrecen según el tipo de venta. La venta a cadenas, distribuidores e ISO (B2B) no visita tiendas:
- * ofrece reunión, propuesta, envío de contrato, arranque de integración, pruebas y certificación. Lo demás conserva las de tienda.
+ * Una sola regla para el próximo paso: qué se ofrece depende de quién completa y del tipo de venta.
+ * - Ventas (`default`): llamada, visita, propuesta, reunión.
+ * - Venta a cadenas, distribuidores e ISO (`b2b`): no visita tiendas; ofrece reunión, propuesta, envío de contrato, arranque
+ *   de integración, pruebas y certificación.
+ * - Operaciones (`ops`): documentos, proveedores y capacitación, sin importar el tipo de venta del negocio.
+ * "Otra tarea" está en las tres y siempre pide escribir qué sigue.
  */
-export const NEXT_SETS: Record<'default' | 'b2b', readonly (typeof NEXTS)[number][]> = {
+export const NEXT_SETS: Record<'default' | 'b2b' | 'ops', readonly (typeof NEXTS)[number][]> = {
   default: ['call', 'visit', 'proposal', 'meeting', 'task', 'none'],
   b2b: ['call', 'meeting', 'proposal', 'contract', 'kickoff', 'testing', 'certification', 'task', 'none'],
+  ops: ['docs', 'provider', 'training', 'task', 'none'],
 }
+/** Nombres del paquete operaciones para las mismas listas. */
+export const SALES_NEXTS = NEXT_SETS.default
+export const OPS_NEXTS = NEXT_SETS.ops
+/** Cómo terminó una tarea de Operaciones. */
+export const OPS_RESULTS = ['docs_received', 'sent_provider', 'approved', 'rejected', 'training_done', 'waiting', 'done'] as const
+export type OpsResult = (typeof OPS_RESULTS)[number]
 export type Result = (typeof RESULTS)[number]
 export type VisitResult = (typeof VISIT_RESULTS)[number]
 export type Next = (typeof NEXTS)[number]
@@ -64,7 +75,7 @@ export async function assertNextDate(tx: Tx, tz: string, when: string | null | u
   return when!
 }
 
-export type NextStep = { market: string; accountId: string | null; dealId: string | null; leadId: string | null; name: string; next: Exclude<Next, 'none'>; when: string; text?: string | null; follows: string }
+export type NextStep = { market: string; accountId: string | null; dealId: string | null; leadId: string | null; name: string; next: Exclude<Next, 'none'>; when: string; text?: string | null; follows: string; /** De qué carril era lo que se completó ('sales' u 'ops'); sin dato, lo decide el rol. */ lane?: 'sales' | 'ops' | null }
 
 /**
  * Deja programado el próximo paso: una tarea con fecha o, si lo que sigue es visitar, una visita por hacer.
@@ -75,13 +86,20 @@ export async function scheduleNext(tx: Tx, ctx: Ctx, p: NextStep): Promise<strin
   const subject = p.next === 'task' && p.text ? p.text : ctx.m(`complete.nextTitle.${p.next}` as MessageKey, { name: p.name })
   const kind = p.next === 'visit' ? 'visit' : 'task'
   const id = await newId(tx)
-  await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, due_at, owner_id, created_by)
-           values (${id}, ${p.market}, ${p.accountId}, ${p.dealId}, ${p.leadId}, ${kind}, ${subject}, ${`${p.when}T15:00:00Z`}, ${ctx.user.id}, ${ctx.user.id})`
+  // Dos carriles por negocio: el próximo paso de Operaciones no pisa el de quien vende.
+  const lane: 'sales' | 'ops' | null = !p.dealId ? null : p.lane ?? (ctx.can('deal.ops', p.market) && !ctx.can('deal.create', p.market) ? 'ops' : 'sales')
+  const editable = Boolean(p.dealId && ctx.can('deal.edit', p.market))
+  if (lane && editable) await tx`update crm.activities set deal_step = null where deal_id = ${p.dealId} and deal_step = ${lane} and done_at is null`
+  await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, due_at, owner_id, created_by, deal_step)
+           values (${id}, ${p.market}, ${p.accountId}, ${p.dealId}, ${p.leadId}, ${kind}, ${subject}, ${`${p.when}T15:00:00Z`}, ${ctx.user.id}, ${ctx.user.id}, ${lane && editable ? lane : null})`
   await audit(tx, ctx, 'activity.added', 'activity', id, p.market, null, { kind, account_id: p.accountId, follows: p.follows })
-  if (p.dealId && ctx.can('deal.edit', p.market)) {
-    const d = await tx<{ next_step: string | null }[]>`
-      update crm.deals set next_step = ${subject}, next_step_due = ${p.when} where id = ${p.dealId} and status = 'open' returning next_step`
-    if (d[0]) await audit(tx, ctx, 'deal.updated', 'deal', p.dealId, p.market, null, { next_step: subject, next_step_due: p.when })
+  if (p.dealId && editable) {
+    const d = lane === 'ops'
+      ? await tx<{ next_step: string | null }[]>`
+          update crm.deals set ops_next_step = ${subject}, ops_next_step_due = ${p.when}, ops_owner_id = coalesce(ops_owner_id, ${ctx.user.id}) where id = ${p.dealId} and status = 'open' returning ops_next_step as next_step`
+      : await tx<{ next_step: string | null }[]>`
+          update crm.deals set next_step = ${subject}, next_step_due = ${p.when} where id = ${p.dealId} and status = 'open' returning next_step`
+    if (d[0]) await audit(tx, ctx, 'deal.updated', 'deal', p.dealId, p.market, null, lane === 'ops' ? { ops_next_step: subject, ops_next_step_due: p.when } : { next_step: subject, next_step_due: p.when })
   }
   return subject
 }

@@ -361,3 +361,36 @@ insert into crm.stages (id, pipeline_id, position, code, name_es, name_en, kind,
   (pg_temp.uid('s-mx-b2b-alta'), pg_temp.uid('p-mx-b2b'), 7, 'alta', 'Alta y capacitación', 'Go-live and training', 'open', 80, 14, '{}', 'Cuenta dada de alta y equipo capacitado', 'Account live and team trained');
 -- El formulario web B2B pide lo mínimo para calificar.
 update crm.web_forms set ask_fields = '{b2b_points_of_sale,b2b_monthly_volume,b2b_integration}' where id = pg_temp.uid('f-mx-b2b');
+
+-- operaciones
+-- Etapas de Operaciones en el alta de dealers de US: al entrar a carriers, el negocio pasa a la cola de Operaciones.
+update crm.stages set is_ops = true where pipeline_id = pg_temp.uid('p-us-dealer') and code in ('carrier', 'awaiting');
+-- Embudo de pedidos de US: varios negocios abiertos por comercio, con líneas de producto; se gana a mano.
+insert into crm.pipelines (id, market_code, motor, name, position, close_by_transaction, multi_open, has_items) values
+  (pg_temp.uid('p-us-orders'), 'US', 'orders', 'Sales orders', 2, false, true, true);
+insert into crm.stages (id, pipeline_id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, is_ops)
+select pg_temp.uid('s-us-orders-' || c), pg_temp.uid('p-us-orders'), pos, c, es, en, k, pr, rot, req::text[], xes, xen, ops from (values
+  (1, 'captured', 'Pedido capturado', 'Order captured', 'open', 40, 7, '{}', 'Pedido con sus líneas', 'Order with its lines', false),
+  (2, 'review', 'Revisión de Operaciones', 'Operations review', 'open', 70, 5, '{items}', 'Operaciones confirma y surte', 'Operations confirms and fulfills', true),
+  (3, 'fulfilled', 'Surtido', 'Fulfilled', 'won', 100, 0, '{}', '', '', false),
+  (4, 'lost', 'Cancelado', 'Cancelled', 'lost', 0, 0, '{}', '', '', false)
+) v(pos, c, es, en, k, pr, rot, req, xes, xen, ops);
+insert into crm.products (id, name, code, unit, market_code, unit_price_minor) values
+  (pg_temp.uid('prod-us-sim'), 'SIM kit', 'OPS-SIM', 'unit', 'US', 250),
+  (pg_temp.uid('prod-us-topup'), 'Top-up card pack', 'OPS-TOPUP', 'pack', 'US', 4500),
+  (pg_temp.uid('prod-us-pos'), 'Counter terminal', 'OPS-POS', 'unit', 'US', 12900),
+  (pg_temp.uid('prod-mx-chip'), 'Chip prepago', 'OPS-CHIP', 'pieza', 'MX', 3500),
+  (pg_temp.uid('prod-mx-term'), 'Terminal de mostrador', 'OPS-TERM', 'pieza', 'MX', 189900);
+insert into crm.ops_catalog (market_code, kind, code, label_es, label_en, position) values
+  ('US', 'provider', 'carrier_north', 'Operador Norte', 'North carrier', 1),
+  ('US', 'provider', 'carrier_coast', 'Operador Costa', 'Coast carrier', 2),
+  ('MX', 'provider', 'red_centro', 'Red Centro', 'Central network', 1),
+  ('US', 'document', 'application', 'Solicitud firmada', 'Signed application', 1),
+  ('US', 'document', 'address_proof', 'Comprobante de domicilio', 'Proof of address', 2),
+  ('US', 'document', 'reseller_permit', 'Permiso de revendedor', 'Reseller permit', 3),
+  ('MX', 'document', 'solicitud', 'Solicitud firmada', 'Signed application', 1),
+  ('MX', 'document', 'domicilio', 'Comprobante de domicilio', 'Proof of address', 2);
+insert into crm.field_definitions (object, key, label_es, label_en, data_type, options, market_code, data_class) values
+  -- "Tipo de cuenta" es el del comercio (catálogo crm.account_types, paquete b2b). Lo que Operaciones anota en el negocio es
+  -- cómo opera la cuenta del dealer (ACH o prepago): lleva otro nombre para que no haya dos cosas llamadas igual.
+  ('deal', 'account_funding', 'Cuenta ACH o prepago', 'ACH or prepaid account', 'select', '["ACH","Prepaid"]', 'US', 'internal');

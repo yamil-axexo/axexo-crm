@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { cx } from '@/ui/kit'
 import { offlineBlocked, showToast } from '@/ui/complete'
 import type { ActionResult } from '@/lib/errors'
+import { GateFields, type GateLabels } from '@/ui/ops'
+import type { GateInfo } from '@/dal/ops'
 
 export type BoardCol = { id: string; code: string; name: string; color: string; count: number; amount: string | null; note: string | null; more: string | null }
 export type BoardCard = {
@@ -17,9 +19,14 @@ export type BoardCard = {
   extra: string | null
   href: string
   canMove: boolean
+  /** Título del negocio, cuando dice algo distinto del nombre del comercio. */
+  title?: string | null
+  /** Etapa "ganado" a la que esta persona puede llevarlo a mano; nulo si no le toca o el embudo cierra por transacción. */
+  winTo?: string | null
 }
-export type BoardLabels = { stages: string; stage: string; moveTo: string; moved: string; empty: string; nextTitle: string; nextBody: string; nextStep: string; nextDue: string; nextSave: string; cancel: string }
+export type BoardLabels = { stages: string; stage: string; moveTo: string; moved: string; empty: string; nextTitle: string; nextBody: string; nextStep: string; nextDue: string; nextSave: string; cancel: string; gate: GateLabels; win: { button: string; title: string; rule: string; date: string; hint: string; confirm: string } }
 type MoveAction = (prev: ActionResult<unknown> | null, data: FormData) => Promise<ActionResult<unknown>>
+export type BoardOps = { gateInfo: (dealId: string, stageId: string) => Promise<GateInfo | null>; gateMove: MoveAction; win: MoveAction }
 
 const CHIP = { ok: 'bg-green-100 text-brand-text', warn: 'bg-warn-bg text-amber-text', risk: 'bg-risk-bg text-red-text', neutral: 'bg-surface-3 text-strong' } as const
 const DESKTOP = '(min-width: 1200px) and (pointer: fine)'
@@ -35,7 +42,7 @@ const subscribe = (cb: () => void) => {
  * Tablero de Negocios (handoff, sección 5). Arrastre solo en desktop con mouse; en tablet y móvil cada tarjeta trae
  * un selector de etapa. Si al negocio le falta el próximo paso, mover lo pide antes de guardar.
  */
-export function Board({ id, cols, cards: initial, labels, minDate, action }: { id: string; cols: BoardCol[]; cards: BoardCard[]; labels: BoardLabels; minDate: string; action: MoveAction }) {
+export function Board({ id, cols, cards: initial, labels, minDate, action, ops }: { id: string; cols: BoardCol[]; cards: BoardCard[]; labels: BoardLabels; minDate: string; action: MoveAction; ops: BoardOps }) {
   const router = useRouter()
   const drag = useSyncExternalStore(subscribe, () => window.matchMedia(DESKTOP).matches, () => false)
   const [cards, setCards] = useState(initial)
@@ -50,6 +57,10 @@ export function Board({ id, cols, cards: initial, labels, minDate, action }: { i
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const dialog = useRef<HTMLDialogElement>(null)
+  const gateDialog = useRef<HTMLDialogElement>(null)
+  const winDialog = useRef<HTMLDialogElement>(null)
+  const [gate, setGate] = useState<{ card: BoardCard; to: string; info: GateInfo } | null>(null)
+  const [win, setWin] = useState<BoardCard | null>(null)
   const stageName = (id: string) => cols.find((c) => c.id === id)?.name ?? ''
 
   const move = (card: BoardCard, to: string, next?: { step: string; due: string }) => {
@@ -76,8 +87,32 @@ export function Board({ id, cols, cards: initial, labels, minDate, action }: { i
         setError(null)
         setAsk({ card, to })
         dialog.current?.showModal()
+      } else if (res.code === 'stage_gate' && !next) {
+        // El candado de etapa se resuelve aquí mismo: una hoja con lo que falta, sin mandar a otra pantalla.
+        const info = await ops.gateInfo(card.id, to)
+        if (info && info.missing.length > 0) {
+          setError(null)
+          setGate({ card, to, info })
+          gateDialog.current?.showModal()
+        } else showToast(res.error)
       } else if (next) setError(res.error)
       else showToast(res.error)
+    })
+  }
+
+  const submitExtra = (e: FormEvent<HTMLFormElement>, run: MoveAction, ref: { current: HTMLDialogElement | null }, card: BoardCard, to: string) => {
+    e.preventDefault()
+    if (offlineBlocked()) return
+    const data = new FormData(e.currentTarget)
+    data.set('deal_id', card.id)
+    data.set('stage_id', to)
+    startTransition(async () => {
+      const res = await run(null, data)
+      if (res.ok) {
+        ref.current?.close()
+        showToast(labels.moved.replace('%n', card.name).replace('%s', stageName(to) || labels.win.confirm))
+        router.refresh()
+      } else setError(res.error)
     })
   }
 
@@ -143,6 +178,7 @@ export function Board({ id, cols, cards: initial, labels, minDate, action }: { i
                     className={cx('board-card relative rounded-[12px] border bg-surface p-3', card.chip.tone === 'warn' ? 'border-[#f0d9a8]' : 'border-line', drag && card.canMove && 'cursor-grab')}
                   >
                     <Link href={card.href} draggable={false} className="block text-[15px] leading-[22px] font-medium text-strong after:absolute after:inset-0 after:rounded-[12px]" data-testid="deal-card">{card.name}</Link>
+                    {card.title && <p className="mt-0.5 truncate text-[13.5px] text-strong" data-testid="deal-card-title">{card.title}</p>}
                     <p className="num mt-0.5 truncate text-[13px] text-muted">{card.sub}</p>
                     <p className="mt-2 flex flex-wrap gap-1.5">
                       <span title={card.chip.title} className={cx('inline-flex max-w-full truncate rounded-full px-2.5 py-0.5 text-[13px] font-medium', CHIP[card.chip.tone])} data-testid="deal-chip">{card.chip.text}</span>
@@ -155,6 +191,9 @@ export function Board({ id, cols, cards: initial, labels, minDate, action }: { i
                           {cols.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                       </label>
+                    )}
+                    {card.winTo && (
+                      <button type="button" disabled={pending} onClick={() => { setError(null); setWin(card); winDialog.current?.showModal() }} className="press relative z-10 mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[10px] border border-line-2 bg-surface px-3 text-[14px] font-semibold text-brand-text hover:bg-green-50" data-testid="deal-card-win">{labels.win.button}</button>
                     )}
                   </li>
                 ))}
@@ -181,6 +220,39 @@ export function Board({ id, cols, cards: initial, labels, minDate, action }: { i
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={() => dialog.current?.close()} className="press inline-flex h-11 items-center rounded-[10px] px-4 text-[15px] font-medium text-strong hover:bg-green-50">{labels.cancel}</button>
               <button type="submit" disabled={pending} aria-busy={pending} className="press grad-bg inline-flex h-11 items-center rounded-[10px] px-5 text-[15px] font-semibold text-on-sun disabled:opacity-60" data-testid="next-dialog-save">{labels.nextSave}</button>
+            </div>
+          </form>
+        )}
+      </dialog>
+
+      <dialog ref={gateDialog} aria-labelledby="gate-title" onClose={() => setGate(null)} onClick={(e) => { if (e.target === gateDialog.current) gateDialog.current?.close() }} className="m-auto w-[min(480px,92vw)] rounded-[16px] border border-line bg-surface p-0 text-fg shadow-[var(--cg-shadow-float)] backdrop:bg-black/40" data-testid="gate-dialog">
+        {gate && (
+          <form onSubmit={(e) => submitExtra(e, ops.gateMove, gateDialog, gate.card, gate.to)} className="p-6 md:p-8">
+            <h2 id="gate-title" className="text-[18px] leading-[26px] font-semibold">{labels.gate.title.replace('%s', stageName(gate.to))}</h2>
+            <p className="mt-1 text-[14px] text-muted">{labels.gate.body.replace('%n', gate.card.name)}</p>
+            <GateFields info={gate.info} labels={labels.gate} minDate={minDate} dealHref={gate.card.href} />
+            {error && <p role="alert" className="mt-4 rounded-[10px] bg-risk-bg px-4 py-3 text-[14px] font-medium text-red-text" data-testid="gate-error">{error}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => gateDialog.current?.close()} className="press inline-flex h-11 items-center rounded-[10px] px-4 text-[15px] font-medium text-strong hover:bg-green-50">{labels.cancel}</button>
+              <button type="submit" disabled={pending} aria-busy={pending} className="press grad-bg inline-flex h-11 items-center rounded-[10px] px-5 text-[15px] font-semibold text-on-sun disabled:opacity-60" data-testid="gate-save">{labels.gate.save}</button>
+            </div>
+          </form>
+        )}
+      </dialog>
+
+      <dialog ref={winDialog} aria-labelledby="win-title" onClose={() => setWin(null)} onClick={(e) => { if (e.target === winDialog.current) winDialog.current?.close() }} className="m-auto w-[min(480px,92vw)] rounded-[16px] border border-line bg-surface p-0 text-fg shadow-[var(--cg-shadow-float)] backdrop:bg-black/40" data-testid="win-dialog">
+        {win && win.winTo && (
+          <form onSubmit={(e) => submitExtra(e, ops.win, winDialog, win, win.winTo!)} className="p-6 md:p-8">
+            <h2 id="win-title" className="text-[18px] leading-[26px] font-semibold">{labels.win.title.replace('%s', win.title ?? win.name)}</h2>
+            <p className="mt-3 rounded-[10px] bg-surface-2 px-4 py-3 text-[14px] text-muted-2" data-testid="win-rule">{labels.win.rule}</p>
+            <label className="mt-5 block text-[14px] font-medium">{labels.win.date}
+              <input name="won_on" type="date" required max={minDate} defaultValue={minDate} className="input mt-1.5" data-testid="win-date" />
+              <span className="mt-1 block text-[13px] font-normal text-muted">{labels.win.hint}</span>
+            </label>
+            {error && <p role="alert" className="mt-4 rounded-[10px] bg-risk-bg px-4 py-3 text-[14px] font-medium text-red-text">{error}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => winDialog.current?.close()} className="press inline-flex h-11 items-center rounded-[10px] px-4 text-[15px] font-medium text-strong hover:bg-green-50">{labels.cancel}</button>
+              <button type="submit" disabled={pending} aria-busy={pending} className="press grad-bg inline-flex h-11 items-center rounded-[10px] px-5 text-[15px] font-semibold text-on-sun disabled:opacity-60" data-testid="win-confirm">{labels.win.confirm}</button>
             </div>
           </form>
         )}

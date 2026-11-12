@@ -558,9 +558,12 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     await tx`insert into crm.deal_stage_events (deal_id, market_code, to_stage_id, actor_id) values (${dealId}, ${lead.market_code}, ${pipe.stage_id}, ${ctx.user.id})`
     // La historia del lead sigue al comercio y al negocio: mismas filas, ahora ligadas a los tres.
     const moved = await tx`update crm.activities set account_id = ${accountId}, deal_id = ${dealId} where lead_id = ${leadId}`
-    if (!carried) {
-      await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by)
-               values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, ((${marketToday(tx, lead.market_code)} + 2 + time '15:00') at time zone 'UTC'), ${ownerId}, ${ctx.user.id})`
+    // El próximo paso del negocio es una tarea del carril de quien vende (la regla de siempre): la que traía el lead o la nueva.
+    if (carried) {
+      await tx`update crm.activities set deal_step = 'sales' where id = ${carried.id}`
+    } else {
+      await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, deal_step)
+               values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, ((${marketToday(tx, lead.market_code)} + 2 + time '15:00') at time zone 'UTC'), ${ownerId}, ${ctx.user.id}, 'sales')`
     }
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`
     await audit(tx, ctx, 'lead.converted', 'lead', leadId, lead.market_code, { status: 'qualified' },

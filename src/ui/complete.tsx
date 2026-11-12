@@ -21,9 +21,12 @@ export type SheetItem = {
   motor?: string | null
 }
 
-/** Los próximos pasos que tocan según el tipo de venta. */
-export const nextFor = (config: Pick<SheetConfig, 'nextOptions' | 'nextSets'>, motor: string | null | undefined) => {
-  const set = config.nextSets[motor === 'b2b' ? 'b2b' : 'default']
+/**
+ * Los próximos pasos que tocan: a Operaciones se le ofrecen los suyos (documentos, proveedor, capacitación) sin importar el
+ * negocio; a quien vende, los del tipo de venta del registro (los de B2B no son los de tienda).
+ */
+export const nextFor = (config: Pick<SheetConfig, 'nextOptions' | 'nextSets' | 'voice'>, motor: string | null | undefined) => {
+  const set = config.nextSets[config.voice === 'ops' ? 'ops' : motor === 'b2b' ? 'b2b' : 'default']
   return config.nextOptions.filter((o) => set.includes(o.value))
 }
 
@@ -49,7 +52,9 @@ export type SheetConfig = {
     visitedByHint: string
   }
   nextOptions: { value: string; label: string }[]
-  nextSets: { default: string[]; b2b: string[] }
+  nextSets: { default: string[]; b2b: string[]; ops: string[] }
+  /** Quién completa: Operaciones ('ops') o ventas ('sales'). */
+  voice: 'ops' | 'sales'
   whenOptions: { value: string; label: string }[]
   defaultWhen: string
   minDate: string
