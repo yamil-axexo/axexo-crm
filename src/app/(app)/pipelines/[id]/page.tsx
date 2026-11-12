@@ -5,8 +5,8 @@ import { getBoard, listPipelines, BOARD_LIMIT } from '@/dal/pipelines'
 import { track } from '@/dal/boards'
 import { getReportOptions } from '@/dal/reports'
 import { isUuid } from '@/lib/ids'
-import { cx } from '@/ui/kit'
-import { Board, NavSelect, type BoardCard, type BoardCol } from '@/ui/board'
+import { cx, NoData } from '@/ui/kit'
+import { Board, FilterFold, NavSelect, type BoardCard, type BoardCol } from '@/ui/board'
 import { daysSince, isoDay, money, weekday } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { boardMoveAction } from '../actions'
@@ -48,7 +48,11 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, equipo: team, quietos: undefined, ...patch })
   const teams = (options?.teams ?? []).filter((x) => x.market_code === board.pipeline.market_code)
   const people = [...new Map((options?.people ?? []).filter((x) => x.market_code === board.pipeline.market_code && (!team || (team === 'none' ? !x.team_id : x.team_id === team))).map((x) => [x.id, x.full_name])).entries()]
-  const personValue = isUuid(sp.owner) || sp.owner === 'none' ? here({}) : here({ owner: undefined })
+  // Un solo control para "de quién": con el selector de persona, "Míos" es una de sus opciones; sin él, quedan las dos pastillas.
+  const personSelect = Boolean(options && people.length > 0)
+  const personValue = sp.owner === ctx.user.id ? here({ owner: 'me' }) : isUuid(sp.owner) || sp.owner === 'none' || sp.owner === 'me' ? here({}) : here({ owner: undefined })
+  // Cuántos filtros están puestos: lo dice el botón "Filtros" del teléfono.
+  const activeFilters = [team, sp.owner, sp.paso === 'sin' || sp.paso === 'pausa' ? sp.paso : undefined].filter(Boolean).length
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
@@ -110,28 +114,30 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         <div className="flex flex-wrap items-center gap-2">
           <NavSelect label={m('deals.pipeline')} value={here({})} testId="pipeline-select"
             options={pipelines.map((p) => ({ href: qs(`/pipelines/${p.id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, equipo: team }), label: `${ctx.markets.length > 1 ? `${p.market_code} · ` : ''}${p.name} (${p.open_deals})` }))} />
-          {options && teams.length > 0 && (
-            <NavSelect label={t('Equipo', 'Team')} value={here({})} testId="board-team"
-              options={[{ href: here({ equipo: undefined }), label: t('Todos los equipos', 'All teams') }, ...teams.map((x) => ({ href: here({ equipo: x.id, owner: sp.owner === 'me' ? 'me' : undefined }), label: x.name })), { href: here({ equipo: 'none', owner: sp.owner === 'me' ? 'me' : undefined }), label: t('Sin equipo', 'No team') }]} />
-          )}
-          {options && people.length > 0 && (
-            <NavSelect label={t('Persona', 'Person')} value={personValue} testId="board-person"
-              options={[{ href: here({ owner: undefined }), label: t('Todas las personas', 'Everyone') }, ...people.map(([pid, name]) => ({ href: here({ owner: pid }), label: name })), { href: here({ owner: 'none' }), label: t('Sin asignar', 'No owner') },
-                ...(isUuid(sp.owner) && !people.some(([pid]) => pid === sp.owner) ? [{ href: here({}), label: t('La persona elegida', 'The chosen person') }] : [])]} />
-          )}
-          <nav aria-label={m('deals.scope')} className="inline-flex rounded-full border border-line bg-surface p-1">
-            <Link href={here({ owner: undefined })} aria-current={sp.owner !== 'me' ? 'page' : undefined} className={seg(sp.owner !== 'me')} data-testid="pill-all">{m('merchants.scope.all')}</Link>
-            <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
-          </nav>
-          <nav aria-label={m('deals.filter')} className="inline-flex rounded-full border border-line bg-surface p-1">
-            <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' && sp.paso !== 'pausa' ? 'page' : undefined} className={seg(sp.paso !== 'sin' && sp.paso !== 'pausa')} data-testid="filter-all">{m('deals.filter.all')}</Link>
-            <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
-            <Link href={here({ paso: 'pausa' })} aria-current={sp.paso === 'pausa' ? 'page' : undefined} className={seg(sp.paso === 'pausa')} data-testid="filter-paused">{t(`En pausa (${paused})`, `On hold (${paused})`)}</Link>
-          </nav>
-          <nav aria-label={m('deals.view')} className="inline-flex rounded-full border border-line bg-surface p-1">
+          <nav aria-label={m('deals.view')} className="inline-flex rounded-full border border-line bg-surface p-1 md:order-last">
             <Link href={here({ vista: undefined })} aria-current={!listView ? 'page' : undefined} className={seg(!listView)} data-testid="view-board">{m('deals.view.board')}</Link>
             <Link href={here({ vista: 'lista' })} aria-current={listView ? 'page' : undefined} className={seg(listView)} data-testid="view-list">{m('deals.view.list')}</Link>
           </nav>
+          <FilterFold label={t('Filtros', 'Filters')} active={activeFilters}>
+            {options && teams.length > 0 && (
+              <NavSelect label={t('Equipo', 'Team')} value={here({})} testId="board-team"
+                options={[{ href: here({ equipo: undefined }), label: t('Todos los equipos', 'All teams') }, ...teams.map((x) => ({ href: here({ equipo: x.id, owner: sp.owner === 'me' ? 'me' : undefined }), label: x.name })), { href: here({ equipo: 'none', owner: sp.owner === 'me' ? 'me' : undefined }), label: t('Sin equipo', 'No team') }]} />
+            )}
+            {personSelect && (
+              <NavSelect label={t('Persona', 'Person')} value={personValue} testId="board-person"
+                options={[{ href: here({ owner: undefined }), label: t('Todas las personas', 'Everyone') }, { href: here({ owner: 'me' }), label: m('merchants.scope.mine') }, ...people.filter(([pid]) => pid !== ctx.user.id).map(([pid, name]) => ({ href: here({ owner: pid }), label: name })), { href: here({ owner: 'none' }), label: t('Sin asignar', 'No owner') },
+                  ...(isUuid(sp.owner) && sp.owner !== ctx.user.id && !people.some(([pid]) => pid === sp.owner) ? [{ href: here({}), label: t('La persona elegida', 'The chosen person') }] : [])]} />
+            )}
+            {!personSelect && <nav aria-label={m('deals.scope')} className="inline-flex rounded-full border border-line bg-surface p-1">
+              <Link href={here({ owner: undefined })} aria-current={sp.owner !== 'me' ? 'page' : undefined} className={seg(sp.owner !== 'me')} data-testid="pill-all">{m('merchants.scope.all')}</Link>
+              <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
+            </nav>}
+            <nav aria-label={m('deals.filter')} className="inline-flex rounded-full border border-line bg-surface p-1">
+              <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' && sp.paso !== 'pausa' ? 'page' : undefined} className={seg(sp.paso !== 'sin' && sp.paso !== 'pausa')} data-testid="filter-all">{m('deals.filter.all')}</Link>
+              <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
+              <Link href={here({ paso: 'pausa' })} aria-current={sp.paso === 'pausa' ? 'page' : undefined} className={seg(sp.paso === 'pausa')} data-testid="filter-paused">{t(`En pausa (${paused})`, `On hold (${paused})`)}</Link>
+            </nav>
+          </FilterFold>
         </div>
       </header>
 
@@ -200,7 +206,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
                       <span className="block truncate text-[13px] text-muted">{[generic(d) ? null : d.title, d.owner_name ?? m('deals.noOwner'), m('deals.days', { count: daysSince(d.stage_entered_at, now) })].filter(Boolean).join(' · ')}</span>
                     </span>
                     <span className="mt-1 block truncate text-[14px] text-strong @2xl:mt-0">{st ? t(st.name_es, st.name_en) : ''}</span>
-                    <span className="num hidden text-[14px] text-strong @2xl:block">{d.amount_minor ? money(Number(d.amount_minor), d.currency, locale) : '—'}</span>
+                    <span className="num hidden text-[14px] text-strong @2xl:block">{d.amount_minor ? money(Number(d.amount_minor), d.currency, locale) : <NoData locale={locale} />}</span>
                     <span className="mt-1.5 block @2xl:mt-0">
                       <span className={cx('inline-flex max-w-full truncate rounded-full px-2.5 py-0.5 text-[13px] font-medium', c.tone === 'warn' ? 'bg-warn-bg text-amber-text' : c.tone === 'risk' ? 'bg-risk-bg text-red-text' : 'bg-green-100 text-brand-text')}>{c.text}</span>
                     </span>

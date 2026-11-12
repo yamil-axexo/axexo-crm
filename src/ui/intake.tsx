@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { noData, noDataLabel } from '@/lib/no-data'
 
 export type IntakeDef = { key: string; label_es: string; label_en: string; data_type: string; options: string[]; market_code: string | null; motor: string | null }
 
@@ -30,9 +31,9 @@ export function IntakeFields({ defs, locale, legend, yes, no }: { defs: IntakeDe
         <label key={d.key} className="col-span-2 block min-w-0 sm:col-span-1" data-testid="intake-field">
           <span className="mb-1.5 block text-[13px] font-semibold text-muted-2">{locale === 'en' ? d.label_en : d.label_es}</span>
           {d.data_type === 'select' ? (
-            <select name={`f_${d.key}`} className="input" defaultValue=""><option value="">—</option>{d.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+            <select name={`f_${d.key}`} className="input" defaultValue=""><option value="" aria-label={noDataLabel(locale)}>{noData(locale)}</option>{d.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
           ) : d.data_type === 'boolean' ? (
-            <select name={`f_${d.key}`} className="input" defaultValue=""><option value="">—</option><option value="true">{yes}</option><option value="false">{no}</option></select>
+            <select name={`f_${d.key}`} className="input" defaultValue=""><option value="" aria-label={noDataLabel(locale)}>{noData(locale)}</option><option value="true">{yes}</option><option value="false">{no}</option></select>
           ) : (
             <input name={`f_${d.key}`} className="input" type={d.data_type === 'number' ? 'number' : d.data_type === 'date' ? 'date' : 'text'} step={d.data_type === 'number' ? 'any' : undefined} min={d.data_type === 'number' ? 0 : undefined} />
           )}

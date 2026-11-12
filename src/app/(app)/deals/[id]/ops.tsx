@@ -4,12 +4,12 @@ import { OPS_LABEL, DOCUMENT_STATUS, PROVIDER_STATUS, TRAINING_STATUS } from '@/
 import { Badge, Card, CardTitle, Field } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CopyValue } from '@/ui/ops'
-import { day, money } from '@/lib/format'
+import { day, money, noData } from '@/lib/format'
 import { addItemAction, merchantRefAction, opsCheckAction, opsStepAction, removeItemAction, returnDealAction, takeDealAction, trainingAction } from '@/app/(app)/operaciones/actions'
 
 /** Precio unitario con centavos: 2.50 no se muestra como 3. */
 const price = (minor: number | null, currency: string, locale: 'es' | 'en') =>
-  minor === null ? '—' : new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX', { style: 'currency', currency, currencyDisplay: 'code', minimumFractionDigits: 2 }).format(minor / 100)
+  minor === null ? noData(locale) : new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX', { style: 'currency', currency, currencyDisplay: 'code', minimumFractionDigits: 2 }).format(minor / 100)
 
 type Ops = NonNullable<Awaited<ReturnType<typeof getDealOps>>>
 type Item = { id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }

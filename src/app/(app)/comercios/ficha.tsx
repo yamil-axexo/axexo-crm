@@ -8,7 +8,7 @@ import { accountTypes, parentChoices } from '@/dal/b2b'
 import { setAccountTypeAction, setPrimaryContactAction } from '@/app/(app)/b2b-actions'
 import { sheetConfig, taskItem } from '@/server/sheet'
 import { CustomFields, FieldSections } from '@/ui/fields'
-import { Badge, Field, KeyVal, LinkButton, cx } from '@/ui/kit'
+import { Badge, Field, KeyVal, LinkButton, cx, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CompleteButton } from '@/ui/complete'
 import { CallLink, LogButton } from '@/ui/log'
@@ -435,8 +435,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                       ? `${t(`${num(metrics.prev_txn_count_30d, locale)} ${metrics.prev_txn_count_30d === 1 ? 'transacción' : 'transacciones'}`, `${num(metrics.prev_txn_count_30d, locale)} ${metrics.prev_txn_count_30d === 1 ? 'transaction' : 'transactions'}`)} · ${money(Number(metrics.prev_volume_minor_30d), metrics.currency, locale, true)}${salesDelta(metrics.txn_count_30d, metrics.prev_txn_count_30d)} · ${t(`al ${day(metrics.prev_as_of, locale)}`, `to ${day(metrics.prev_as_of, locale)}`)}`
                       : t('No hay dato de ese periodo', 'No data for that period')}</span></KeyVal>
                   )}
-                  <KeyVal k={t('Primera venta', 'First sale')}>{metrics?.first_txn_at ? day(metrics.first_txn_at, locale, tz) : '—'}</KeyVal>
-                  <KeyVal k={t('Última venta', 'Last sale')}>{metrics?.last_txn_at ? ago(metrics.last_txn_at, locale, now) : '—'}</KeyVal>
+                  <KeyVal k={t('Primera venta', 'First sale')}>{metrics?.first_txn_at ? day(metrics.first_txn_at, locale, tz) : <NoData locale={locale} />}</KeyVal>
+                  <KeyVal k={t('Última venta', 'Last sale')}>{metrics?.last_txn_at ? ago(metrics.last_txn_at, locale, now) : <NoData locale={locale} />}</KeyVal>
                 </>
               )}
               {a.territory && <KeyVal k={t('Territorio', 'Territory')}>{a.territory}</KeyVal>}
@@ -495,7 +495,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                   <p className="text-[13px] text-muted-2">
                     {c.phone ? <a href={`tel:${c.phone}`} className="font-medium text-blue-text underline" data-testid="contact-call">{phoneText(c.phone)}</a> : null}
                     {c.phone ? <> · <a href={`https://wa.me/${c.phone.slice(1)}`} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-text underline">WhatsApp</a></> : null}
-                    {c.phone && c.email ? ' · ' : ''}{c.email ?? (c.phone ? '' : '—')}
+                    {c.phone && c.email ? ' · ' : ''}{c.email ?? (c.phone ? '' : <NoData locale={locale} />)}
                   </p>
                   {canEdit && !c.is_primary && contacts.length > 1 && (
                     <ActionForm action={setPrimaryContactAction}>

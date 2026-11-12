@@ -1,6 +1,6 @@
 # Glosario de producto de axexo CONTIGO (ES y EN)
 
-Paquete `vocabulario`, 12-nov-2026. Lo cuidan `tests/unit/vocabulario.test.ts` (catálogos y textos del código) y `tests/e2e/zx-vocabulario.spec.ts` (texto a la vista por rol). Las reglas viven en `tests/support/vocab-rules.mjs`. La guía, la ayuda, la bienvenida y la entrada usan estos mismos términos.
+Paquete `vocabulario`, 12-nov-2026; la integración final lo extendió a la guía y a la marca de sin dato. Lo cuidan `tests/unit/vocabulario.test.ts` (catálogos, textos del código y la guía en `src/content/guide.ts`) y `tests/e2e/zx-vocabulario.spec.ts` (texto a la vista por rol, incluidas Ayuda y Primeros pasos). Las reglas viven en `tests/support/vocab-rules.mjs`. La guía, la ayuda, la bienvenida y la entrada usan estos mismos términos.
 
 ## Términos (un nombre para cada cosa)
 
@@ -31,12 +31,12 @@ Paquete `vocabulario`, 12-nov-2026. Lo cuidan `tests/unit/vocabulario.test.ts` (
 | Meta de primer contacto de un lead | meta de primer contacto; "Primer contacto a tiempo" | first-contact goal; "First contact on time" | SLA, lead time |
 | Pantalla de escritorio | computadora | computer | desktop (en español) |
 | Avisos que CONTIGO deja a otros sistemas | avisos para otros sistemas | notices for other systems | outbox |
-| Sin dato en una celda | — (solo, como marca) | — | guiones largos en una frase |
+| Sin dato en una celda o en un valor | s/d (con la explicación "Sin dato" al pasar el cursor y para el lector de pantalla) | n/a ("No data") | guiones largos, ni en una frase ni solos como marca |
 
 ## Reglas de redacción
 
 - Español neutro, sin voseo, con acentos y signos de apertura. "IA" en español, "AI" en inglés. "axexo" en minúscula, "CONTIGO" en mayúsculas.
-- Sin guiones largos (ni — ni –) en frases. Sin "exitosamente", "por favor ten en cuenta" ni "Listo." al inicio de cada mensaje: el mensaje dice qué pasó ("12 comercios pasaron a Lucía Vega").
+- Sin guiones largos (los dos signos de raya, el largo y el medio) en ningún texto a la vista ni en el código de `src` fuera de los comentarios. Un valor vacío se marca con "s/d" o "n/a" (`noData` en `src/lib/no-data.ts`, componente `NoData` en `src/ui/kit.tsx`). Sin "exitosamente", "por favor ten en cuenta" ni "Listo." al inicio de cada mensaje: el mensaje dice qué pasó ("12 comercios pasaron a Lucía Vega").
 - Un error dice qué pasó y qué hacer ("Alguien ya lleva este lead. Pide a tu supervisor que lo reasigne.").
 - En español nunca códigos ni nombres de tablas a la vista (`web_form`, `first_tx`, claves de rol o de etapa).
 - "Lead" se queda como término del equipo en los dos idiomas.

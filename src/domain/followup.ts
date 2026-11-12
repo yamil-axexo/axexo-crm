@@ -37,6 +37,33 @@ export type Next = (typeof NEXTS)[number]
 
 export const isOneOf = <T extends string>(list: readonly T[], v: string): v is T => (list as readonly string[]).includes(v)
 
+/** Quien es de Operaciones y no vende: su lista de próximos pasos es la de documentos, proveedores y capacitación. */
+export const opsVoice = (ctx: Pick<Ctx, 'can'>): boolean => ctx.can('deal.ops') && !ctx.can('deal.create')
+
+/** La lista de un tipo de venta: la de cadenas, distribuidores e ISO, o la de siempre. */
+const setOf = (motor: string | null | undefined) => (motor === 'b2b' ? NEXT_SETS.b2b : NEXT_SETS.default)
+
+/**
+ * La misma regla que aplica la hoja, validada aquí: el próximo paso tiene que estar en la lista de quien lo deja
+ * (Operaciones tiene la suya) y del tipo de venta del registro. El tipo de venta es el del embudo del negocio,
+ * el del comercio o el del lead; si el registro toca más de uno (un comercio de tiendas con un negocio en un embudo
+ * de cadenas), vale la lista de cualquiera de ellos. Sin registro ligado vale la lista de siempre.
+ */
+export async function assertNextAllowed(tx: Tx, ctx: Ctx, p: { next: Next; accountId: string | null; dealId: string | null; leadId: string | null }): Promise<void> {
+  if (p.next === 'none') return
+  let allowed: readonly Next[]
+  if (opsVoice(ctx)) allowed = NEXT_SETS.ops
+  else {
+    const rows = await tx<{ deal_motor: string | null; segment: string | null; lead_motor: string | null }[]>`
+      select (select pl.motor from crm.deals d join crm.pipelines pl on pl.id = d.pipeline_id where d.id = ${p.dealId}) as deal_motor,
+             (select a.segment from crm.accounts a where a.id = ${p.accountId}) as segment,
+             (select l.motor from crm.leads l where l.id = ${p.leadId}) as lead_motor`
+    const motors = [rows[0]?.deal_motor, rows[0]?.segment, rows[0]?.lead_motor].filter((x): x is string => Boolean(x))
+    allowed = motors.length ? [...new Set(motors.flatMap((x) => [...setOf(x)]))] : NEXT_SETS.default
+  }
+  if (!allowed.includes(p.next)) throw invalid('Ese próximo paso no es de tu lista. Elige uno de los que ofrece la hoja o usa "Otra tarea".', 'That next step is not on your list. Choose one the sheet offers or use "Other task".')
+}
+
 /** Nota corta que acompaña a lo que se completa o se registra. Vacía es "sin nota". */
 export function shortNote(raw: string | null | undefined): string | null {
   const v = (raw ?? '').trim()
@@ -83,6 +110,7 @@ export type NextStep = { market: string; accountId: string | null; dealId: strin
  */
 export async function scheduleNext(tx: Tx, ctx: Ctx, p: NextStep): Promise<string> {
   ctx.assert('activity.write', p.market)
+  await assertNextAllowed(tx, ctx, p)
   const subject = p.next === 'task' && p.text ? p.text : ctx.m(`complete.nextTitle.${p.next}` as MessageKey, { name: p.name })
   const kind = p.next === 'visit' ? 'visit' : 'task'
   const id = await newId(tx)

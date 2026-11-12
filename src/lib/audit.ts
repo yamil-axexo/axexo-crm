@@ -117,7 +117,7 @@ export const AUDIT_GROUPS = {
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
-  reports: { label: ['Reportes del equipo', 'Team reports'] as Pair, like: ['report.created', 'report.answered'], not: null },
+  reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const

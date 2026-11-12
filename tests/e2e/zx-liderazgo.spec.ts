@@ -203,7 +203,8 @@ test.describe('panel del LT', () => {
       await sql`delete from crm.fx_rates where currency = 'MXN'`
       await loginAs(page, 'luis.tovar', { stay: true })
       await expect(page.getByTestId('lt-fx-missing')).toContainText('No se consolida: falta la tasa de MXN a USD')
-      await expect(page.getByTestId('lt-volume-usd')).toHaveText('—')
+      await expect(page.getByTestId('lt-volume-usd')).toHaveText('s/d')
+      await expect(page.getByTestId('lt-volume-usd').getByTestId('no-data')).toHaveAttribute('title', 'Sin dato')
       await expect(page.getByTestId('lt-market-MX')).toContainText('MXN') // el mercado sigue en su moneda
       // leadership ve la tasa en Administración, pero no la carga
       await page.goto('/admin?tab=embudos')

@@ -1,6 +1,6 @@
 import type { T } from '@/lib/format'
 
-/** El nombre con el que el equipo conoce cada pantalla, a partir de su ruta. Lo usan "Reportar un problema" y la pestaña Reportes. */
+/** El nombre con el que el equipo conoce cada pantalla, a partir de su ruta. Lo usan "Reportar un problema" y la pestaña Problemas reportados de Administración. */
 const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/hoy', 'Hoy', 'Today'],
   ['/leads', 'Leads', 'Leads'],

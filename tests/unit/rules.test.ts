@@ -78,8 +78,11 @@ describe('formato (DATA-03, DATA-05)', () => {
   it('el dinero se guarda en unidades menores y se muestra con el código de su moneda', () => {
     expect(money(2500000, 'MXN', 'es')).toContain('25,000')
     expect(money(2500000, 'MXN', 'es')).toContain('MXN')
-    expect(money(null, 'USD', 'en')).toBe('—')
-    expect(pct(1, 4)).toBe('25%')
-    expect(pct(0, 0)).toBe('—')
+    // sin dato: "s/d" en español y "n/a" en inglés, nunca un guion largo
+    expect(money(null, 'USD', 'en')).toBe('n/a')
+    expect(money(null, 'MXN', 'es')).toBe('s/d')
+    expect(pct(1, 4, 'es')).toBe('25%')
+    expect(pct(0, 0, 'es')).toBe('s/d')
+    expect(pct(0, 0, 'en')).toBe('n/a')
   })
 })

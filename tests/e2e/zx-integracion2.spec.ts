@@ -208,7 +208,19 @@ test.describe('un negocio en pausa no aparece como frío', () => {
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-quietos-${w.width}.png` })
       // el tablero: filtros de equipo y persona (liderazgo), filtro "En pausa" (b2b) y negocios quietos (operaciones) caben juntos
       await page.goto(`/pipelines/${pipe}`)
-      for (const id of ['pipeline-select', 'board-team', 'board-person', 'pill-all', 'filter-no-step', 'filter-paused', 'view-list', 'quiet-filter']) await expect(page.getByTestId(id), id).toBeVisible()
+      // en el teléfono los filtros se guardan detrás del botón "Filtros": el encabezado ya no empuja las tarjetas fuera de la pantalla
+      for (const id of ['pipeline-select', 'view-list', 'quiet-filter']) await expect(page.getByTestId(id), id).toBeVisible()
+      if (w.width < 768) {
+        for (const id of ['board-team', 'board-person', 'filter-no-step', 'filter-paused']) await expect(page.getByTestId(id), id).toBeHidden()
+        const header = await page.locator('header').filter({ has: page.getByTestId('pipeline-select') }).boundingBox()
+        expect(header!.height, 'alto del encabezado del tablero en el teléfono').toBeLessThan(340)
+        if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-tablero-plegado-${w.width}.png` })
+        await page.getByTestId('board-filters').click()
+      } else await expect(page.getByTestId('board-filters')).toBeHidden()
+      for (const id of ['board-team', 'board-person', 'filter-no-step', 'filter-paused']) await expect(page.getByTestId(id), id).toBeVisible()
+      // un solo control para "de quién": con el selector de persona, "Míos" es una opción suya y las dos pastillas no están
+      await expect(page.getByTestId('pill-all')).toHaveCount(0)
+      await expect(page.getByTestId('board-person').locator('option', { hasText: /^Míos$/ })).toHaveCount(1)
       await clean(page, `tablero con todos los filtros ${w.name}`)
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-tablero-${w.width}.png` })
       await page.getByTestId('filter-paused').click()
@@ -216,7 +228,11 @@ test.describe('un negocio en pausa no aparece como frío', () => {
       await expect(page.getByText(/En pausa · se revisa/).first()).toBeVisible()
       await expect(page.locator('main')).toContainText(`${paused} SA`)
       await expect(page.locator('main')).not.toContainText(`${quiet} SA`)
-      // el filtro de equipo convive con el de pausa
+      // el filtro de equipo convive con el de pausa; en el teléfono el botón dice cuántos filtros hay puestos
+      if (w.width < 768) {
+        await expect(page.getByTestId('board-filters-count')).toHaveText('(1)')
+        if (!(await page.getByTestId('board-team').isVisible())) await page.getByTestId('board-filters').click()
+      }
       await page.getByTestId('board-team').selectOption({ label: 'B2B México' })
       await expect(page).toHaveURL(/equipo=/)
       await expect(page).toHaveURL(/paso=pausa/)
@@ -302,7 +318,7 @@ test.describe('pantalla de inicio por rol', () => {
     await page.goto('/admin')
     const pills = await page.locator('nav[aria-label="Secciones"] a').allInnerTexts()
     expect(new Set(pills).size, pills.join(' | ')).toBe(pills.length)
-    expect(pills).toEqual(expect.arrayContaining(['Operaciones', 'Reportes', 'Auditoría']))
+    expect(pills).toEqual(expect.arrayContaining(['Operaciones', 'Problemas reportados', 'Auditoría']))
     await clean(page, 'administración en teléfono')
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/integracion2-admin-390.png` })
     await page.getByTestId('pill-operaciones').click()

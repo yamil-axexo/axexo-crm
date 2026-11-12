@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { withUser } from '@/server/db'
-import { Card, Empty, PageHeader, Pills, Badge } from '@/ui/kit'
+import { Card, Empty, PageHeader, Pills, Badge, NoData } from '@/ui/kit'
 import { CompleteButton } from '@/ui/complete'
 import { sheetConfig, taskItem } from '@/server/sheet'
 import { day } from '@/lib/format'
@@ -9,14 +9,16 @@ import { ACTIVITY, lab, qs } from '@/lib/labels'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { flat } from '@/server/params'
 
-type Row = { id: string; kind: string; subject: string; due_at: Date | null; done_at: Date | null; account_id: string | null; account_name: string | null; deal_id: string | null; owner_name: string | null }
+type Row = { id: string; kind: string; subject: string; due_at: Date | null; done_at: Date | null; account_id: string | null; account_name: string | null; deal_id: string | null; owner_name: string | null; motor: string | null }
 
 export default async function ActividadesPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
   const view = flat(await searchParams).view ?? 'mine'
   const rows = await withUser(ctx.user.id, (tx) => tx<Row[]>`
-    select a.id, a.kind, a.subject, a.due_at, a.done_at, a.account_id, ac.name as account_name, a.deal_id, u.full_name as owner_name
+    select a.id, a.kind, a.subject, a.due_at, a.done_at, a.account_id, ac.name as account_name, a.deal_id, u.full_name as owner_name,
+           coalesce((select p.motor from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where d.id = a.deal_id), ac.segment,
+                    (select l.motor from crm.leads l where l.id = a.lead_id)) as motor
       from crm.activities a left join crm.accounts ac on ac.id = a.account_id left join crm.users u on u.id = a.owner_id
      where a.kind in ('task','handoff','visit')
        ${view === 'done' ? tx`and a.done_at is not null and a.owner_id = ${ctx.user.id}` : view === 'team' ? tx`and a.done_at is null` : tx`and a.done_at is null and a.owner_id = ${ctx.user.id}`}
@@ -45,10 +47,10 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
               const late = !r.done_at && r.due_at && new Date(r.due_at) < now
               return (
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-line px-4 py-4 first:border-t-0 md:px-7" data-testid="task-row">
-                  {!r.done_at && ctx.can('activity.write') && <CompleteButton item={taskItem(ctx, r, r.account_name ?? r.subject)} config={config} action={completeItemAction} />}
+                  {!r.done_at && ctx.can('activity.write') && <CompleteButton item={taskItem(ctx, r, r.account_name ?? r.subject, r.motor)} config={config} action={completeItemAction} />}
                   <Link href={r.deal_id ? `/deals/${r.deal_id}` : r.account_id ? `/comercios/${r.account_id}` : '#'} className="min-w-0 flex-1 basis-[200px]">
                     <span className="block truncate text-[14.5px] font-semibold text-strong">{r.subject}</span>
-                    <span className="mt-0.5 block truncate text-[13px] text-muted-2">{[r.account_name, view === 'team' ? r.owner_name : null].filter(Boolean).join(' · ') || '—'}</span>
+                    <span className="mt-0.5 block truncate text-[13px] text-muted-2">{[r.account_name, view === 'team' ? r.owner_name : null].filter(Boolean).join(' · ') || <NoData locale={locale} />}</span>
                   </Link>
                   {r.kind === 'handoff' && <Badge tone="info">{lab(t, ACTIVITY.handoff)}</Badge>}
                   <span className={`w-28 text-right text-[13px] ${late ? 'font-semibold text-red-text' : 'text-muted-2'}`}>{day(r.done_at ?? r.due_at, locale)}</span>

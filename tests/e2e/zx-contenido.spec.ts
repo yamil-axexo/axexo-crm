@@ -282,17 +282,17 @@ test.describe('reportar un problema', () => {
     await page.goto('/reportar')
     await expect(page.getByTestId('report-screen')).toHaveText('No se sabe')
     await expect(page.getByTestId('report-row')).toHaveCount(0)
-    // quien lidera el mercado no tiene la pestaña Reportes
+    // quien lidera el mercado no tiene la pestaña Problemas reportados
     await loginAs(page, 'ana.robles')
     await page.goto('/admin?tab=reportes')
-    await expect(page.getByTestId('tab-hidden')).toContainText('Reportes')
+    await expect(page.getByTestId('tab-hidden')).toContainText('Problemas reportados')
     await expect(page.getByTestId('admin-reports')).toHaveCount(0)
 
     // administración lo ve en su pestaña, responde y queda atendido
     await loginAs(page, 'nora.salas')
     await openMenu(page)
     await page.getByTestId('nav-admin').click()
-    await page.getByRole('link', { name: /^Reportes/ }).click()
+    await page.getByRole('link', { name: /^Problemas reportados/ }).click()
     await expect(page).toHaveURL(/tab=reportes/)
     const row = page.getByTestId('admin-report-row').filter({ hasText: body })
     await expect(row).toHaveCount(1)

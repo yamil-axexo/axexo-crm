@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { noData, noDataLabel } from '@/lib/no-data'
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ')
 
@@ -58,7 +59,7 @@ export function Stat({ label, value, hint, tone, href, testId }: { label: string
   const body = (
     <div className={cx('card h-full min-w-0 p-4 md:p-6', href && 'lift')} data-testid={testId}>
       <p className="text-[13px] font-medium text-muted-2">{label}</p>
-      <p className={cx('num mt-2 text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[28px] md:leading-9', tone === 'bad' ? 'text-red-text' : tone === 'warn' ? 'text-amber-text' : tone === 'good' ? 'text-brand-text' : 'text-strong')}>{value}</p>
+      <p className={cx('num mt-2 text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[28px] md:leading-9', tone === 'bad' ? 'text-red-text' : tone === 'warn' ? 'text-amber-text' : tone === 'good' ? 'text-brand-text' : 'text-strong')}>{shown(value)}</p>
       {hint && <p className="mt-3 text-[13px] text-muted">{hint}</p>}
     </div>
   )
@@ -154,11 +155,21 @@ export function Bar({ value, max, tone = 'accent' }: { value: number; max: numbe
   )
 }
 
+/** Un valor vacío: "s/d" o "n/a" a la vista, y "Sin dato" o "No data" para quien pasa el cursor o usa lector de pantalla. */
+export function NoData({ locale }: { locale: 'es' | 'en' }) {
+  return <abbr title={noDataLabel(locale)} aria-label={noDataLabel(locale)} className="no-underline" data-testid="no-data">{noData(locale)}</abbr>
+}
+
+/** Un valor ya formateado, listo para pintar: si es la marca de sin dato (la que devuelven money, num, pct, day), va con su explicación. */
+export function shown(value: ReactNode): ReactNode {
+  return value === noData('es') ? <NoData locale="es" /> : value === noData('en') ? <NoData locale="en" /> : value
+}
+
 export function KeyVal({ k, children }: { k: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-t border-line py-3 first:border-t-0">
       <dt className="shrink-0 text-[13px] text-muted">{k}</dt>
-      <dd className="min-w-0 text-right text-[14px] font-medium text-strong [overflow-wrap:anywhere]">{children}</dd>
+      <dd className="min-w-0 text-right text-[14px] font-medium text-strong [overflow-wrap:anywhere]">{shown(children)}</dd>
     </div>
   )
 }

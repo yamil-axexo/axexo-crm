@@ -1,13 +1,17 @@
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js'
+import { noData, noDataLabel } from './no-data'
 export type Locale = 'es' | 'en'
 export type T = (es: string, en: string) => string
 export const translator = (locale: Locale): T => (es, en) => (locale === 'en' ? en : es)
 
 const tag = (l: Locale) => (l === 'en' ? 'en-US' : 'es-MX')
 
+// La marca de "sin dato" ("s/d" / "n/a") vive en no-data.ts; se reexporta aquí porque la usan los mismos que formatean.
+export { noData, noDataLabel }
+
 /** DATA-03: el dinero viaja en unidades menores (centavos) y con su moneda. */
 export function money(minor: number | bigint | null | undefined, currency: string, locale: Locale, compact = false): string {
-  if (minor === null || minor === undefined) return '—'
+  if (minor === null || minor === undefined) return noData(locale)
   const value = Number(minor) / 100
   return new Intl.NumberFormat(tag(locale), {
     style: 'currency',
@@ -19,19 +23,19 @@ export function money(minor: number | bigint | null | undefined, currency: strin
 }
 
 export const num = (n: number | null | undefined, locale: Locale) =>
-  n === null || n === undefined ? '—' : new Intl.NumberFormat(tag(locale)).format(n)
+  n === null || n === undefined ? noData(locale) : new Intl.NumberFormat(tag(locale)).format(n)
 
-export const pct = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : '—')
+export const pct = (part: number, whole: number, locale: Locale) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : noData(locale))
 
 export function day(d: Date | string | null | undefined, locale: Locale, timeZone = 'UTC'): string {
-  if (!d) return '—'
+  if (!d) return noData(locale)
   const date = typeof d === 'string' ? new Date(d.length === 10 ? `${d}T12:00:00Z` : d) : d
   return new Intl.DateTimeFormat(tag(locale), { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(date)
 }
 
 /** Fecha corta con día de la semana, para elegir o confirmar un próximo paso: "jue 12 nov" o "Thu, Nov 12". */
 export function weekday(d: Date | string | null | undefined, locale: Locale, timeZone = 'UTC'): string {
-  if (!d) return '—'
+  if (!d) return noData(locale)
   const date = typeof d === 'string' ? new Date(d.length === 10 ? `${d}T12:00:00Z` : d) : d
   const parts = new Intl.DateTimeFormat(tag(locale), { weekday: 'short', day: 'numeric', month: 'short', timeZone }).formatToParts(date)
   const get = (type: string) => (parts.find((p) => p.type === type)?.value ?? '').replace('.', '')
@@ -65,13 +69,13 @@ export const isoDay = (d: Date, timeZone = 'UTC') => new Intl.DateTimeFormat('en
 export const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
 
 export function dayTime(d: Date | string | null | undefined, locale: Locale, timeZone = 'UTC'): string {
-  if (!d) return '—'
+  if (!d) return noData(locale)
   const date = typeof d === 'string' ? new Date(d) : d
   return new Intl.DateTimeFormat(tag(locale), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone }).format(date)
 }
 
 export function ago(d: Date | string | null | undefined, locale: Locale, now = new Date()): string {
-  if (!d) return '—'
+  if (!d) return noData(locale)
   const date = typeof d === 'string' ? new Date(d) : d
   const mins = Math.round((now.getTime() - date.getTime()) / 60000)
   const rtf = new Intl.RelativeTimeFormat(tag(locale), { numeric: 'auto' })

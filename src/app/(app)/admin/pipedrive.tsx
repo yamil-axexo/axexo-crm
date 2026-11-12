@@ -1,7 +1,7 @@
 import type { Ctx } from '@/server/context'
 import { getImportStatus } from '@/dal/imports'
 import { STEPS } from '@/domain/pipedrive/import'
-import { Badge, Card, CardTitle, Empty, Table } from '@/ui/kit'
+import { Badge, Card, CardTitle, Empty, Table, NoData } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { ImportRunner } from '@/ui/import-runner'
 import { ago, dayTime, num } from '@/lib/format'
@@ -161,7 +161,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
                 <td className="text-[13.5px] text-muted-2">{lab(t, o.into)}</td>
                 <td className="num" data-testid="count-created">{num(stats.created?.[o.key] ?? 0, locale)}</td>
                 <td className="num">{num(stats.updated?.[o.key] ?? 0, locale)}</td>
-                <td className="text-[13px] text-muted-2">{sk.length ? sk.map((s) => `${num(s.n, locale)} ${lab(t, SKIP[s.reason], s.reason)}`).join(' · ') : '—'}</td>
+                <td className="text-[13px] text-muted-2">{sk.length ? sk.map((s) => `${num(s.n, locale)} ${lab(t, SKIP[s.reason], s.reason)}`).join(' · ') : <NoData locale={locale} />}</td>
                 <td className="num">{num(raw?.pending ?? 0, locale)}</td>
               </tr>
             )
@@ -241,7 +241,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
             {d.webhooks.map((w) => (
               <li key={w.id} className="flex flex-wrap items-center justify-between gap-3 text-[13.5px]" data-testid="webhook-row">
                 <span><code className="text-[12.5px] text-strong">{w.event}</code>{w.name ? <span className="ml-2 text-muted-2">{w.name}</span> : null}</span>
-                <span className="flex items-center gap-2 text-muted-2">{w.target ?? '—'}<Badge tone={w.active ? 'good' : 'neutral'}>{w.active ? t('activo', 'active') : t('inactivo', 'inactive')}</Badge></span>
+                <span className="flex items-center gap-2 text-muted-2">{w.target ?? <NoData locale={locale} />}<Badge tone={w.active ? 'good' : 'neutral'}>{w.active ? t('activo', 'active') : t('inactivo', 'inactive')}</Badge></span>
               </li>
             ))}
           </ul>

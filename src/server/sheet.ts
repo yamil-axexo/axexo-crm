@@ -1,15 +1,16 @@
 import 'server-only'
 import type { Ctx } from '@/server/context'
 import { NEXTS, OPS_RESULTS, VISIT_RESULTS, type OpsResult, type Result, type VisitResult } from '@/domain/queue'
-import { NEXT_SETS } from '@/domain/followup'
+import { NEXT_SETS, opsVoice } from '@/domain/followup'
 import { BACKDATE_DAYS } from '@/domain/activities'
 import { addDays, isoDay, weekday } from '@/lib/format'
 import type { MessageKey } from '@/lib/messages'
 import type { SheetConfig, SheetItem } from '@/ui/complete'
 import type { LogConfig } from '@/ui/log'
 
-/** Quien es de Operaciones y no vende: la hoja le habla de documentos, proveedores y capacitación, no de llamadas y propuestas. */
-export const opsVoice = (ctx: Ctx): boolean => ctx.can('deal.ops') && !ctx.can('deal.create')
+// Quien es de Operaciones y no vende: la hoja le habla de documentos, proveedores y capacitación, no de llamadas y propuestas.
+// La regla vive en el dominio (followup.ts), que valida la misma lista al guardar.
+export { opsVoice }
 
 /** Textos y opciones de la hoja "Completar" en el idioma y la zona horaria de quien la abre. */
 export function sheetConfig(ctx: Ctx, now = new Date()): SheetConfig {

@@ -7,7 +7,7 @@ import { getConfig, getDataQuality, getIntake, getIntegrations } from '@/dal/adm
 import { sellers } from '@/dal/leads'
 import { API_SCOPES, STAGE_REQUIREMENTS } from '@/domain/admin'
 import { FIELD_LABEL } from '@/domain/deals'
-import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table } from '@/ui/kit'
+import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
 import { CloseDialog, NoticeArea, NoticeForm } from '@/ui/admin'
 import { ago, day, isoDay, num } from '@/lib/format'
@@ -48,7 +48,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     integraciones: t('Integraciones', 'Integrations'),
     pipedrive: 'Pipedrive',
     calidad: t('Calidad de datos', 'Data quality'),
-    reportes: t('Reportes', 'Reports'),
+    reportes: t('Problemas reportados', 'Reported problems'),
     auditoria: t('Auditoría', 'Audit'),
   }
   const live = ctx.markets.filter((m) => m.status === 'live')
@@ -191,7 +191,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <td><span className="block font-semibold text-strong">{f.name}</span><span className="text-[12.5px] text-muted-2">{f.market_code} · {lab(t, MOTOR[f.motor])}</span></td>
                 <td><Link href={`/f/${f.slug}`} className="text-[13.5px] text-blue-text underline" data-testid="form-link">/f/{f.slug}</Link></td>
                 <td><code className="text-[12.5px] text-muted-2">POST /api/v1/forms/{f.slug}</code></td>
-                <td className="text-[13.5px]">{f.rule ?? '—'}</td>
+                <td className="text-[13.5px]">{f.rule ?? <NoData locale={locale} />}</td>
                 <td className="num">{f.leads_30d}</td>
               </tr>
             ))}
@@ -305,7 +305,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <ul className="space-y-2.5">{d.batches.map((b) => <li key={b.id} className="flex items-center justify-between gap-3 text-[13.5px]" data-testid="batch-row"><span className="truncate"><code className="text-[12.5px]">{b.file_name}</code></span><span className="shrink-0 text-muted-2">{t(`${num(b.matched, locale)} de ${num(b.row_count, locale)} filas ligadas`, `${num(b.matched, locale)} of ${num(b.row_count, locale)} rows matched`)} · {day(b.as_of, locale)}</span></li>)}</ul>
           </Card>
           <Card data-testid="outbox-log"><CardTitle title={t('Avisos para otros sistemas', 'Notices for other systems')} hint={t('Avisos que CONTIGO guarda para otros sistemas. Todavía nadie los consume: el número crece y no afecta el trabajo diario.', 'Notices CONTIGO keeps for other systems. Nobody consumes them yet: the number grows and it does not affect daily work.')} right={<Badge tone={d.outboxPending ? 'warn' : 'good'}>{t(`${num(d.outboxPending, locale)} por publicar`, `${num(d.outboxPending, locale)} to publish`)}</Badge>} />
-            <ul className="space-y-2.5">{d.outbox.map((o) => <li key={o.id} className="flex items-center justify-between gap-3 text-[13.5px]"><code className="text-[12.5px]">{o.event_type}</code><span className="text-muted-2">{o.market_code ?? '—'} · {ago(o.created_at, locale)}</span></li>)}</ul>
+            <ul className="space-y-2.5">{d.outbox.map((o) => <li key={o.id} className="flex items-center justify-between gap-3 text-[13.5px]"><code className="text-[12.5px]">{o.event_type}</code><span className="text-muted-2">{o.market_code ?? <NoData locale={locale} />} · {ago(o.created_at, locale)}</span></li>)}</ul>
           </Card>
         </div>
 

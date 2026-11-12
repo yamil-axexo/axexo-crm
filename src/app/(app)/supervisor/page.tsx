@@ -7,7 +7,7 @@ import { ROLE_LABEL } from '@/domain/policy'
 import { getRepartoSources } from '@/dal/reparto'
 import { getReportOptions, getWeeklyResults } from '@/dal/reports'
 import { ensureRulesFresh, EXCEPTION_KINDS } from '@/domain/rules'
-import { Badge, Card, CardTitle, Empty, LinkButton, PageHeader, Pills } from '@/ui/kit'
+import { Badge, Card, CardTitle, Empty, LinkButton, PageHeader, Pills, NoData, shown } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { RepartoForm } from '@/ui/reparto'
 import { NavSelect } from '@/ui/board'
@@ -69,14 +69,14 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
     ? [`Ventas, 30 días: transacciones de su cartera en los últimos 30 días al ${day(asOf, locale)}, según el archivo diario de ventas; la variación compara con los 30 días anteriores solo cuando ese dato existe.`, `Sales, 30 days: transactions across their book in the last 30 days to ${day(asOf, locale)}, per the daily sales file; the change compares with the previous 30 days only when that data exists.`]
     : ['Ventas, 30 días: todavía no llega ningún archivo diario de ventas.', 'Sales, 30 days: no daily sales file has arrived yet.']
   const sales = (r: RepRow) => {
-    if (r.txn_30d === null) return '—'
+    if (r.txn_30d === null) return <NoData locale={locale} />
     const delta = r.txn_prev_30d && r.txn_cmp_30d !== null ? Math.round(((r.txn_cmp_30d - r.txn_prev_30d) / r.txn_prev_30d) * 100) : null
     return <>{num(r.txn_30d, locale)}{delta !== null && <span className="text-muted" data-testid="rep-sales-delta"> ({delta > 0 ? '+' : ''}{delta}%)</span>}</>
   }
   const cell = (i: number, value: ReactNode, strong = false) => (
     <span className={`num flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-[14px] @5xl:justify-start ${strong ? 'font-semibold' : ''}`}>
       <span className="text-[12.5px] font-normal text-muted @5xl:hidden">{t(COLS[i + 1]![0], COLS[i + 1]![1])}</span>
-      <span className="inline-flex min-w-0 flex-wrap items-baseline gap-1.5">{value}</span>
+      <span className="inline-flex min-w-0 flex-wrap items-baseline gap-1.5">{shown(value)}</span>
     </span>
   )
 
@@ -123,13 +123,13 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                     <li key={`${r.id}-${r.market_code}`} className={`row-hover px-5 py-3.5 @5xl:px-7 ${CARD} ${ROW}`} data-testid="rep-row">
                       <span className="col-span-2 mb-1 block min-w-0 @5xl:col-span-1 @5xl:mb-0"><span className="block text-[15px] font-semibold text-strong [overflow-wrap:anywhere]" data-testid="rep-name">{r.full_name}</span><span className="text-[12.5px] text-muted-2">{[r.role === 'rep' ? null : t(ROLE_LABEL[r.role].es, ROLE_LABEL[r.role].en), r.team, r.market_code].filter(Boolean).join(' · ')}</span></span>
                       {cell(0, <>{r.leads_open}{r.leads_overdue > 0 && <span className={`${CHIP} bg-risk-bg text-red-text`}>{t(`${r.leads_overdue} tarde`, `${r.leads_overdue} late`)}</span>}</>)}
-                      {cell(1, <span data-testid="rep-attempt">{pct(r.sla_met, r.sla_judged)}</span>)}
-                      {cell(2, <span data-testid="rep-reached">{pct(r.reached, r.sla_judged)}</span>)}
+                      {cell(1, <span data-testid="rep-attempt">{shown(pct(r.sla_met, r.sla_judged, locale))}</span>)}
+                      {cell(2, <span data-testid="rep-reached">{shown(pct(r.reached, r.sla_judged, locale))}</span>)}
                       {cell(3, <>{r.deals_open}{r.stalled > 0 && <span className={`${CHIP} bg-warn-bg text-amber-text`}>{t(`${r.stalled} estancados`, `${r.stalled} stalled`)}</span>}</>)}
                       {cell(4, r.no_next_step > 0 ? <Badge tone="bad">{r.no_next_step}</Badge> : 0)}
                       {cell(5, r.revisits > 0 ? <Badge tone="warn">{r.revisits}</Badge> : 0)}
                       {cell(6, r.awaiting)}
-                      {cell(7, <span data-testid="rep-visits">{r.visits_7d} / {r.sales_7d} <span className="text-muted">({pct(r.sales_7d, r.visits_7d)})</span></span>)}
+                      {cell(7, <span data-testid="rep-visits">{r.visits_7d} / {r.sales_7d} <span className="text-muted">({pct(r.sales_7d, r.visits_7d, locale)})</span></span>)}
                       {cell(8, <span data-testid="rep-sales">{sales(r)}</span>)}
                       {cell(9, <Link href={qs('/comercios', { owner: r.id, market: r.market_code })} className="text-blue-text underline">{r.accounts}</Link>)}
                     </li>
@@ -139,14 +139,14 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                   <div className={`border-t border-line-2 px-5 py-3 text-strong @5xl:px-7 ${CARD} ${ROW}`} data-testid="team-subtotal">
                     <span className="col-span-2 mb-1 block text-[13.5px] font-semibold @5xl:col-span-1 @5xl:mb-0">{t(`Subtotal · ${g.rows.length} ${g.rows.length === 1 ? 'persona' : 'personas'}`, `Subtotal · ${g.rows.length} ${g.rows.length === 1 ? 'person' : 'people'}`)}</span>
                     {cell(0, tot(g.rows, 'leads_open'), true)}
-                    {cell(1, pct(tot(g.rows, 'sla_met'), tot(g.rows, 'sla_judged')), true)}
-                    {cell(2, pct(tot(g.rows, 'reached'), tot(g.rows, 'sla_judged')), true)}
+                    {cell(1, pct(tot(g.rows, 'sla_met'), tot(g.rows, 'sla_judged'), locale), true)}
+                    {cell(2, pct(tot(g.rows, 'reached'), tot(g.rows, 'sla_judged'), locale), true)}
                     {cell(3, tot(g.rows, 'deals_open'), true)}
                     {cell(4, tot(g.rows, 'no_next_step'), true)}
                     {cell(5, tot(g.rows, 'revisits'), true)}
                     {cell(6, tot(g.rows, 'awaiting'), true)}
                     {cell(7, `${tot(g.rows, 'visits_7d')} / ${tot(g.rows, 'sales_7d')}`, true)}
-                    {cell(8, g.rows.some((r) => r.txn_30d !== null) ? num(g.rows.reduce((n, r) => n + (r.txn_30d ?? 0), 0), locale) : '—', true)}
+                    {cell(8, g.rows.some((r) => r.txn_30d !== null) ? num(g.rows.reduce((n, r) => n + (r.txn_30d ?? 0), 0), locale) : <NoData locale={locale} />, true)}
                     {cell(9, <span data-testid="subtotal-accounts">{tot(g.rows, 'accounts')}</span>, true)}
                   </div>
                 )}
@@ -213,13 +213,13 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         <CardTitle
           title={t('Pendientes del equipo', 'Team alerts')}
           hint={board.rulesAt ? t(`Actualizado ${ago(board.rulesAt, locale)}. Un pendiente se cierra solo cuando se corrige.`, `Updated ${ago(board.rulesAt, locale)}. An alert clears itself once it is fixed.`) : undefined}
-          right={<Badge tone={totalOpen ? 'warn' : 'good'}>{t(`${totalOpen} abiertas`, `${totalOpen} open`)}</Badge>}
+          right={<Badge tone={totalOpen ? 'warn' : 'good'}>{t(`${totalOpen} abiertos`, `${totalOpen} open`)}</Badge>}
         />
         <Pills
           label={t('Tipo', 'Type')}
           current={sp.kind ?? ''}
           items={[
-            { key: '', href: link({ kind: undefined }), label: t('Todas', 'All'), count: totalOpen },
+            { key: '', href: link({ kind: undefined }), label: t('Todos', 'All'), count: totalOpen },
             ...EXCEPTION_KINDS.filter((k) => board.byKind[k]).map((k) => ({ key: k, href: link({ kind: k }), label: lab(t, EXCEPTION[k]?.label), count: board.byKind[k] })),
           ]}
         />

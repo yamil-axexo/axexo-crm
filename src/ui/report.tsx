@@ -5,7 +5,7 @@ import { day } from '@/lib/format'
 import { METRICS, type MetricKey } from '@/lib/metric-defs'
 import { PERIOD_KEYS, PERIOD_LABEL, type Period, type PeriodKey } from '@/lib/periods'
 import { NavSelect } from '@/ui/board'
-import { buttonClass, cx } from '@/ui/kit'
+import { buttonClass, cx, shown } from '@/ui/kit'
 
 /** "Cómo se calcula": la definición de una cifra, a un toque y sin salir de la pantalla. */
 export function Def({ t, k, testId, named }: { t: T; k: MetricKey; testId?: string; named?: boolean }) {
@@ -30,7 +30,7 @@ export function Def({ t, k, testId, named }: { t: T; k: MetricKey; testId?: stri
 /** Una cifra con su nombre, su enlace a la lista que la respalda y su definición. */
 export function Metric({ t, k, value, hint, href, label, tone, testId }: { t: T; k: MetricKey; value: ReactNode; hint?: string; href?: string; label?: string; tone?: 'good' | 'warn'; testId?: string }) {
   const d = METRICS[k]
-  const text = <span className={cx('num text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[26px] md:leading-9', tone === 'good' ? 'text-brand-text' : tone === 'warn' ? 'text-amber-text' : 'text-strong')}>{value}</span>
+  const text = <span className={cx('num text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[26px] md:leading-9', tone === 'good' ? 'text-brand-text' : tone === 'warn' ? 'text-amber-text' : 'text-strong')}>{shown(value)}</span>
   return (
     <div className="card min-w-0 p-4 md:p-5" data-testid={testId}>
       <p className="text-[13px] font-medium text-muted-2">{label ?? t(d.label[0], d.label[1])}</p>

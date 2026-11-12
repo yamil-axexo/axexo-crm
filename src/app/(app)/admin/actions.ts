@@ -163,7 +163,7 @@ export async function simulateVisitAction(_: R | null, fd: FormData): Promise<R>
       },
     })
     await recordSimulation(ctx, 'visit', eventId, null)
-    if (out.status === 'unmatched') return { message: ['El evento llegó, pero ese ID de la Sales App no existe aquí. Quedó en la cola de excepciones.', 'The event arrived, but that Sales App ID does not exist here. It went to the exception queue.'] }
+    if (out.status === 'unmatched') return { message: ['El evento llegó, pero ese ID de la Sales App no existe aquí. Quedó en Pendientes del equipo, en Mi equipo.', 'The event arrived, but that Sales App ID does not exist here. It went to Team alerts, in My team.'] }
     return { message: ['Evento recibido y procesado. Mira el hilo del comercio y su negocio.', 'Event received and processed. Check the merchant’s thread and its deal.'] }
   })
 }

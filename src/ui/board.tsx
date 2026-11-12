@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useSyncExternalStore, useTransition, type FormEvent } from 'react'
+import { useRef, useState, useSyncExternalStore, useTransition, type FormEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { cx } from '@/ui/kit'
@@ -257,6 +257,23 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
           </form>
         )}
       </dialog>
+    </>
+  )
+}
+
+/**
+ * Filtros del tablero. En computadora y tableta van a la vista; en el teléfono se guardan detrás de un botón "Filtros"
+ * que dice cuántos están puestos, para que el encabezado no empuje las tarjetas fuera de la pantalla.
+ */
+export function FilterFold({ label, active, children }: { label: string; active: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" aria-expanded={open} aria-controls="board-filter-fold" onClick={() => setOpen((v) => !v)}
+        className={cx('press inline-flex h-11 items-center gap-2 rounded-full border px-4 text-[14px] font-medium md:hidden', open || active ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-strong')} data-testid="board-filters">
+        {label}{active > 0 && <span className="num" data-testid="board-filters-count">({active})</span>}
+      </button>
+      <div id="board-filter-fold" className={cx(open ? 'flex' : 'hidden', 'w-full flex-wrap items-center gap-2 md:flex md:w-auto')} data-testid="board-filter-fold">{children}</div>
     </>
   )
 }

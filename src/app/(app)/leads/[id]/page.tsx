@@ -5,7 +5,7 @@ import { getLead, marketPipelines, sellers } from '@/dal/leads'
 import { CONTACT_ROLES, typeForMotor } from '@/domain/leads'
 import { accountTypes, lossReasonsFor } from '@/dal/b2b'
 import { LeadCall } from '@/ui/lead-call'
-import { Badge, Card, CardTitle, Field, KeyVal, PageHeader } from '@/ui/kit'
+import { Badge, Card, CardTitle, Field, KeyVal, NoData, PageHeader } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { ago, dayTime, phoneText } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
@@ -221,7 +221,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                   <li key={a.id} className="border-l-2 border-line-2 pl-4">
                     <p className="text-[14px] font-semibold text-strong">{a.subject}</p>
                     {a.body && <p className="mt-0.5 text-[13.5px] whitespace-pre-line text-muted-2 [overflow-wrap:anywhere]">{a.body}</p>}
-                    <p className="text-[12.5px] text-muted">{lab(t, ACTIVITY[a.kind])} · {a.author ?? '—'} · {dayTime(a.created_at, locale, market.timezone)}</p>
+                    <p className="text-[12.5px] text-muted">{lab(t, ACTIVITY[a.kind])} · {a.author ?? <NoData locale={locale} />} · {dayTime(a.created_at, locale, market.timezone)}</p>
                   </li>
                 ))}
               </ul>
@@ -239,9 +239,9 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                     <a href={`tel:${lead.phone}`} className="font-medium text-blue-text underline" data-testid="lead-tel">{phoneText(lead.phone)}</a>
                     <a href={`https://wa.me/${lead.phone.slice(1)}`} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-text underline">WhatsApp</a>
                   </span>
-                ) : '—'}
+                ) : <NoData locale={locale} />}
               </KeyVal>
-              <KeyVal k={t('Correo', 'Email')}>{lead.email ?? '—'}</KeyVal>
+              <KeyVal k={t('Correo', 'Email')}>{lead.email ?? <NoData locale={locale} />}</KeyVal>
               <KeyVal k={t('Tipo de negocio', 'Business type')}><span data-testid="lead-motor">{lab(t, MOTOR[lead.motor]) || lead.motor}</span></KeyVal>
               <KeyVal k={t('Tipo de cuenta', 'Account type')}><span data-testid="lead-kind-text">{kindLabel}</span></KeyVal>
               <KeyVal k={t('Persona de contacto', 'Contact person')}>{[lead.contact_name, lead.contact_role ? lab(t, CONTACT_ROLE[lead.contact_role]) : null].filter(Boolean).join(' · ')}</KeyVal>
@@ -250,7 +250,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               )}
               <KeyVal k={t('Origen', 'Source')}>{lead.form_name ?? lab(t, SOURCE[lead.source])}</KeyVal>
               <KeyVal k={t('Llegó', 'Arrived')}>{dayTime(lead.created_at, locale, market.timezone)}</KeyVal>
-              <KeyVal k={t('Primer contacto', 'First touch')}>{lead.first_touch_at ? dayTime(lead.first_touch_at, locale, market.timezone) : '—'}</KeyVal>
+              <KeyVal k={t('Primer contacto', 'First touch')}>{lead.first_touch_at ? dayTime(lead.first_touch_at, locale, market.timezone) : <NoData locale={locale} />}</KeyVal>
             </dl>
             {lead.message && <p className="mt-4 rounded-2xl bg-surface-2 p-4 text-[13.5px] text-muted-2">“{lead.message}”</p>}
             {canEdit && (

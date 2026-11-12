@@ -38,13 +38,12 @@ const visible = (page: Page) =>
   })
 
 // Textos de la interfaz en español que tienen otra redacción en inglés: si uno aparece tal cual en una pantalla en inglés, quedó sin traducir.
-const OTHER_PACKAGE = ['src/content/guide', 'src/ui/help', 'src/app/login/page', 'src/app/(app)/ayuda', 'src/app/(app)/bienvenida']
 const fixed = (text: string) => !text.includes('${') && !text.includes('{')
 const spanishOnly = new Set<string>()
 const englishTexts = new Set<string>()
 {
   const cat = catalogs() as { es: Record<string, string>; en: Record<string, string> }
-  const all = [...(sourcePairs(OTHER_PACKAGE) as { es: string; en: string }[]), ...Object.keys(cat.es).map((k) => ({ es: cat.es[k]!, en: cat.en[k]! }))]
+  const all = [...(sourcePairs() as { es: string; en: string }[]), ...Object.keys(cat.es).map((k) => ({ es: cat.es[k]!, en: cat.en[k]! }))]
   for (const p of all) if (fixed(p.en)) englishTexts.add(p.en.trim())
   for (const p of all) if (fixed(p.es) && p.es.trim() !== p.en.trim() && p.es.trim().length >= 5 && !englishTexts.has(p.es.trim())) spanishOnly.add(p.es.trim())
 }
@@ -52,9 +51,10 @@ const englishTexts = new Set<string>()
 // Datos sembrados que coinciden con un texto de la interfaz: nombres de embudos y de etapas, y el origen guardado de un comercio.
 for (const data of ['Cadenas y distribuidores', 'Formulario web', 'Esperando primera venta', 'Pedidos', 'Dealers', 'Eventos']) spanishOnly.delete(data)
 
-// El "—" solo, como marca de "sin dato" en una celda, se queda: un guion corto en una columna de montos se lee como signo de menos.
-// Aquí se busca el guion largo de una frase (entre palabras); los textos fuente los revisa completos tests/unit/vocabulario.test.ts.
-const dashes = (line: string) => LONG_DASH.test(line) && /\p{L}[.,;:!?)"]? [—–] [¿¡("]?\p{L}/u.test(line)
+// Ningún guion largo a la vista, tampoco solo como marca de "sin dato": un valor vacío dice "s/d" (español) o "n/a" (inglés)
+// y lleva su explicación ("Sin dato" / "No data"). Los textos fuente los revisa completos tests/unit/vocabulario.test.ts.
+const dashes = (line: string) => LONG_DASH.test(line)
+const NO_DATA = { es: { mark: 's/d', label: 'Sin dato', other: 'n/a' }, en: { mark: 'n/a', label: 'No data', other: 's/d' } } as const
 
 // La bitácora técnica de Integraciones muestra el nombre de cada evento tal como viaja en el contrato ("deal.won",
 // "sales_app · visit.checked_out"): son los nombres que usan los equipos que conectan, no texto para quien vende.
@@ -67,19 +67,22 @@ function findings(lines: string[], locale: Locale): string[] {
     if (dashes(line)) out.push(`guion largo: ${line}`)
     if (locale === 'es') for (const h of checkEs(line) as string[]) if (h !== 'guion largo') out.push(`${h}: ${line}`)
     if (locale === 'en' && spanishOnly.has(line)) out.push(`sin traducir: ${line}`)
+    if (line === NO_DATA[locale].other) out.push(`marca de sin dato del otro idioma: ${line}`)
     if (/\bAxexo\b|\bContigo\b/.test(prose(line))) out.push(`marca: ${line}`)
   }
   return out
 }
 
-const COMMON = ['/hoy', '/leads', '/pipelines', '/comercios', '/actividades', '/buscar?q=tienda']
+// La ayuda y los primeros pasos van en el recorrido de cada rol: la guía usa el mismo vocabulario que las pantallas de trabajo.
+const GUIDE = ['/ayuda', '/bienvenida']
+const COMMON = ['/hoy', '/leads', '/pipelines', '/comercios', '/actividades', '/buscar?q=tienda', ...GUIDE]
 const ROLES: { persona: string; role: string; paths: string[] }[] = [
   { persona: 'marco.pena', role: 'ventas MX', paths: [...COMMON, '/pipelines?vista=lista'] },
   { persona: 'fernando.ibarra', role: 'supervisión MX', paths: [...COMMON, '/supervisor', '/hoy?vista=equipo', '/reportes/campo'] },
   { persona: 'ana.robles', role: 'líder de mercado MX', paths: [...COMMON, '/supervisor', '/reportes/cerrados', '/reportes/adopcion'] },
-  { persona: 'valeria.soto', role: 'operaciones MX', paths: ['/operaciones', '/comercios', '/pipelines', '/actividades'] },
-  { persona: 'luis.tovar', role: 'leadership', paths: ['/panel-lt', '/pipelines', '/comercios', '/estado'] },
-  { persona: 'nora.salas', role: 'administración', paths: ['/admin?tab=personas', '/admin?tab=territorios', '/admin?tab=embudos', '/admin?tab=entrada', '/admin?tab=integraciones', '/admin?tab=calidad', '/admin?tab=reportes', '/admin?tab=auditoria', '/admin/operaciones', '/estado', '/supervisor'] },
+  { persona: 'valeria.soto', role: 'operaciones MX', paths: ['/operaciones', '/comercios', '/pipelines', '/actividades', ...GUIDE] },
+  { persona: 'luis.tovar', role: 'leadership', paths: ['/panel-lt', '/pipelines', '/comercios', '/estado', ...GUIDE] },
+  { persona: 'nora.salas', role: 'administración', paths: ['/admin?tab=personas', '/admin?tab=territorios', '/admin?tab=embudos', '/admin?tab=entrada', '/admin?tab=integraciones', '/admin?tab=calidad', '/admin?tab=reportes', '/admin?tab=auditoria', '/admin/operaciones', '/estado', '/supervisor', ...GUIDE] },
   { persona: 'jade.kim', role: 'ventas US', paths: COMMON },
   { persona: 'tom.reyes', role: 'operaciones US', paths: ['/operaciones', '/pipelines'] },
 ]
@@ -93,6 +96,9 @@ async function sweep(page: Page, r: (typeof ROLES)[number], locale: Locale): Pro
     if ((res?.status() ?? 200) >= 400) return
     await expect(page.locator('html'), path).toHaveAttribute('lang', locale)
     for (const f of findings(await visible(page), locale)) bad.push(`${path} → ${f}`)
+    // La marca de sin dato siempre va con su explicación, para el cursor y para el lector de pantalla.
+    const marks = await page.getByTestId('no-data').evaluateAll((els) => els.map((el) => [el.textContent, el.getAttribute('title'), el.getAttribute('aria-label')].join('|')))
+    for (const m of new Set(marks)) if (m !== [NO_DATA[locale].mark, NO_DATA[locale].label, NO_DATA[locale].label].join('|')) bad.push(`${path} → marca de sin dato: ${m}`)
   }
   for (const path of r.paths) await look(path)
   // La ficha de un comercio (con sus datos) y el detalle de un negocio, los que esta persona alcanza a ver.

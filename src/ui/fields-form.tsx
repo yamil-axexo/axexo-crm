@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { FieldDef } from '@/dal/fields'
 import { ActionForm, Submit, type FormAction } from '@/ui/client'
+import { noData, noDataLabel } from '@/lib/no-data'
 
 type Labels = { filter: string; save: string; yes: string; no: string; currency: string; onlyFilled: string; none: string }
 
@@ -43,7 +44,7 @@ export function CustomFieldsForm({ id, defs, values, action, locale, labels }: {
                 <textarea name={name} defaultValue={typeof v === 'string' ? v : ''} rows={3} className="input !h-auto py-2.5" />
               ) : d.data_type === 'select' ? (
                 <select name={name} defaultValue={typeof v === 'string' ? v : ''} className="input" onChange={controls.has(d.key) ? (e) => setPicked((p) => ({ ...p, [d.key]: e.target.value })) : undefined}>
-                  <option value="">—</option>
+                  <option value="" aria-label={noDataLabel(locale)}>{noData(locale)}</option>
                   {[...new Set([...d.options, ...(typeof v === 'string' && v ? [v] : [])])].map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               ) : d.data_type === 'multiselect' ? (
@@ -55,7 +56,7 @@ export function CustomFieldsForm({ id, defs, values, action, locale, labels }: {
                 </span>
               ) : d.data_type === 'boolean' ? (
                 <select name={name} defaultValue={v === true ? 'true' : v === false ? 'false' : ''} className="input">
-                  <option value="">—</option><option value="true">{labels.yes}</option><option value="false">{labels.no}</option>
+                  <option value="" aria-label={noDataLabel(locale)}>{noData(locale)}</option><option value="true">{labels.yes}</option><option value="false">{labels.no}</option>
                 </select>
               ) : d.data_type === 'money' ? (
                 <span className="flex gap-2">

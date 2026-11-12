@@ -290,7 +290,7 @@ const COUNTRY: Record<string, string> = {
 export const countryCode = (name: unknown): string | null => (typeof name === 'string' ? (COUNTRY[normName(name)] ?? null) : null)
 
 export function marketFromPipelineName(name: string): string | null {
-  const m = /^\s*([A-Za-z]{2})\s*[-–—:|]/.exec(name)
+  const m = /^\s*([A-Za-z]{2})\s*[-\u2013\u2014:|]/.exec(name)
   return m ? m[1]!.toUpperCase() : null
 }
 

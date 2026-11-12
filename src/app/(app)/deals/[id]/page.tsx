@@ -11,7 +11,7 @@ import { CustomFields } from '@/ui/fields'
 import { lossReasonsFor } from '@/dal/b2b'
 import { pauseDealAction, resumeDealAction } from '@/app/(app)/b2b-actions'
 import { FIELD_LABEL } from '@/domain/deals'
-import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, buttonClass, cx } from '@/ui/kit'
+import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, buttonClass, cx, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { addDays, day, dayTime, daysSince, isoDay, money } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
@@ -288,7 +288,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               {events.map((e, i) => (
                 <li key={`e${i}`} className="border-l-2 border-brand/50 pl-4">
                   <p className="text-[14px] font-semibold text-strong">{e.from_es ? `${t(e.from_es, e.from_en ?? '')} → ` : ''}{t(e.to_es, e.to_en)}</p>
-                  <p className="text-[12.5px] text-muted">{e.cause === 'transaction' ? t('Primera transacción', 'First transaction') : (e.actor ?? '—')} · {dayTime(e.at, locale, market.timezone)}</p>
+                  <p className="text-[12.5px] text-muted">{e.cause === 'transaction' ? t('Primera transacción', 'First transaction') : (e.actor ?? <NoData locale={locale} />)} · {dayTime(e.at, locale, market.timezone)}</p>
                 </li>
               ))}
             </ul>
@@ -300,11 +300,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             <CardTitle title={t('Resumen', 'Summary')} />
             <dl>
               <KeyVal k={t('Comercio', 'Merchant')}><Link href={`/comercios/${deal.account_id}`} className="text-blue-text underline" data-testid="deal-account">{deal.account_name}</Link></KeyVal>
-              <KeyVal k={t('Quién lo lleva', 'Owner')}>{deal.owner_name ?? '—'}</KeyVal>
+              <KeyVal k={t('Quién lo lleva', 'Owner')}>{deal.owner_name ?? <NoData locale={locale} />}</KeyVal>
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
               <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>
-              <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : '—'}</KeyVal>
+              <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : <NoData locale={locale} />}</KeyVal>
               <KeyVal k={t('En esta etapa', 'In this stage')}>{t(`${daysSince(deal.stage_entered_at)} días`, `${daysSince(deal.stage_entered_at)} days`)}</KeyVal>
               <KeyVal k={t('Creado', 'Created')}>{day(deal.created_at, locale, market.timezone)}</KeyVal>
               {deal.won_at && <KeyVal k={deal.closed_by === 'transaction' ? t('Primera transacción', 'First transaction') : t('Ganado', 'Won')}>{day(deal.won_at, locale, market.timezone)}</KeyVal>}

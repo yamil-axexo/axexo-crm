@@ -4,9 +4,9 @@ import { requireCtx } from '@/server/context'
 import { getClosedDeals, getReportOptions, marketPeriods } from '@/dal/reports'
 import { EXPORT_MAX } from '@/domain/reports'
 import { track } from '@/dal/boards'
-import { Badge, Card, CardTitle, Empty, PageHeader } from '@/ui/kit'
+import { Badge, Card, CardTitle, Empty, PageHeader, NoData } from '@/ui/kit'
 import { ExportLink, ReportFilters, periodText } from '@/ui/report'
-import { day, money, num } from '@/lib/format'
+import { day, money, noData, num } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { flat } from '@/server/params'
 import { reportFilters, reportSelects, type ReportParams } from '../params'
@@ -28,7 +28,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
   const sel = reportSelects(t, options, f)
   const canExport = ctx.can('report.export', f.market)
   const sums = (status: 'won' | 'lost') => data.amounts.filter((a) => a.status === status)
-  const sumText = (status: 'won' | 'lost') => sums(status).map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || '—'
+  const sumText = (status: 'won' | 'lost') => sums(status).map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || noData(locale)
   const mobile = '@4xl:hidden text-muted'
 
   return (
@@ -60,7 +60,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
                 <span className="block text-[14px] text-muted-2">{p.team_name ?? t('Sin equipo', 'No team')}</span>
                 <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Ganados: ', 'Won: ')}</span>{p.won}</span>
                 <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Perdidos: ', 'Lost: ')}</span>{p.lost}</span>
-                <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Monto ganado: ', 'Amount won: ')}</span>{p.amounts.map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || '—'}</span>
+                <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Monto ganado: ', 'Amount won: ')}</span>{p.amounts.map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || <NoData locale={locale} />}</span>
               </li>
             ))}
           </ul>
@@ -96,8 +96,8 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
                   <span className="mt-1 block text-[14px] text-muted-2 @4xl:mt-0"><span className={mobile}>{t('Embudo: ', 'Pipeline: ')}</span>{options.markets.length > 1 ? `${r.market_code} · ` : ''}{r.pipeline_name}</span>
                   <span className="block text-[14px] text-strong"><span className={mobile}>{t('Quién: ', 'Owner: ')}</span>{r.owner_name ?? t('Sin asignar', 'No owner')}</span>
                   <span className="num block text-[14px] text-strong"><span className={mobile}>{t('Cierre: ', 'Closed: ')}</span>{day(r.closed_on, locale)}</span>
-                  <span className="num block text-[14px] text-strong"><span className={mobile}>{t('Monto: ', 'Amount: ')}</span>{r.amount_minor ? money(Number(r.amount_minor), r.currency.trim(), locale) : '—'}</span>
-                  <span className="block text-[14px] text-muted-2">{r.status === 'lost' ? <><span className={mobile}>{t('Motivo: ', 'Reason: ')}</span>{t(r.reason_es ?? '—', r.reason_en ?? '—')}</> : <span className="hidden @4xl:inline">—</span>}</span>
+                  <span className="num block text-[14px] text-strong"><span className={mobile}>{t('Monto: ', 'Amount: ')}</span>{r.amount_minor ? money(Number(r.amount_minor), r.currency.trim(), locale) : <NoData locale={locale} />}</span>
+                  <span className="block text-[14px] text-muted-2">{r.status === 'lost' ? <><span className={mobile}>{t('Motivo: ', 'Reason: ')}</span>{r.reason_es ? t(r.reason_es, r.reason_en ?? r.reason_es) : <NoData locale={locale} />}</> : <span className="hidden @4xl:inline"><NoData locale={locale} /></span>}</span>
                 </li>
               ))}
             </ul>

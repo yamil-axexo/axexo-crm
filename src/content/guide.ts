@@ -358,13 +358,13 @@ const S = {
   },
   reports: {
     key: 'reports',
-    title: { es: 'Abre Reportes y responde lo que el equipo reportó', en: 'Open Reports and answer what the team reported' },
+    title: { es: 'Abre Problemas reportados y responde lo que el equipo reportó', en: 'Open Reported problems and answer what the team reported' },
     why: {
       es: 'Lo que cada persona manda desde "Reportar un problema" llega ahí. Respondes, marcas atendido y la persona ve tu respuesta.',
       en: 'What each person sends from "Report a problem" lands there. You answer, mark it handled and the person sees your reply.',
     },
     href: '/admin?tab=reportes',
-    cta: { es: 'Ir a Reportes', en: 'Go to Reports' },
+    cta: { es: 'Ir a Problemas reportados', en: 'Go to Reported problems' },
   },
   status: {
     key: 'status',
@@ -468,7 +468,7 @@ export const HABITS: Record<Track, Habits> = {
     ],
     asks: [
       { es: 'Al quitar un acceso, reparte su cartera el mismo día.', en: 'When you remove access, distribute that person\'s book the same day.' },
-      { es: 'Responde los reportes del equipo en la pestaña Reportes.', en: 'Answer the team\'s reports in the Reports tab.' },
+      { es: 'Responde lo que el equipo reportó en la pestaña Problemas reportados.', en: 'Answer what the team reported in the Reported problems tab.' },
       { es: 'Revisa los turnos de leads cada vez que alguien entra o sale.', en: 'Check the lead rotations every time someone joins or leaves.' },
       { es: 'Mantén cargada la tasa de cambio a USD: sin ella el panel no consolida.', en: 'Keep the exchange rate to USD loaded: without it the panel does not consolidate.' },
     ],
@@ -574,8 +574,8 @@ const HOW = {
   config: {
     title: { es: 'Administración, pestaña por pestaña', en: 'Administration, tab by tab' },
     text: {
-      es: 'Personas y acceso, Territorios, Embudos y campos, Formularios y turnos, Integraciones, Pipedrive, Calidad de datos, Reportes, Auditoría y Operaciones.',
-      en: 'People and access, Territories, Pipelines and fields, Forms and rotation, Integrations, Pipedrive, Data quality, Reports, Audit and Operations.',
+      es: 'Personas y acceso, Territorios, Embudos y campos, Formularios y turnos, Integraciones, Pipedrive, Calidad de datos, Problemas reportados, Auditoría y Operaciones.',
+      en: 'People and access, Territories, Pipelines and fields, Forms and rotation, Integrations, Pipedrive, Data quality, Reported problems, Audit and Operations.',
     },
     visual: { shot: 'admin' },
   },
@@ -634,7 +634,7 @@ export const HELP_TOPICS: Record<HelpTopic, L> = {
   numbers: { es: 'Panel, cifras y reportes', en: 'Panel, figures and reports' },
   data: { es: 'Datos, Pipedrive e integraciones', en: 'Data, Pipedrive and integrations' },
   access: { es: 'Acceso y permisos', en: 'Access and permissions' },
-  admin: { es: 'Administración', en: 'Admin' },
+  admin: { es: 'Administración', en: 'Administration' },
   limits: { es: 'Lo que CONTIGO no hace todavía', en: 'What CONTIGO does not do yet' },
   support: { es: 'Reportar un problema', en: 'Report a problem' },
 }
@@ -1196,7 +1196,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'admin-teams', topic: 'admin', tracks: ['admin'],
     q: { es: '¿Cómo creo un equipo?', en: 'How do I create a team?' },
-    a: { es: 'Administración, "Personas y acceso", "Nuevo equipo": nombre, mercado y tipo de venta. Luego, al dar acceso, eliges el equipo. Quien tiene rol de supervisión en un equipo ve lo de su gente. Un equipo sin supervisión sale con el aviso "Sin supervisión: lo cubre quien lidera el mercado".', en: 'Administration, "People and access", "New team": name, market and sales motion. Then, when granting access, you pick the team. Whoever holds the supervisor role on a team sees their people\'s records. A team with no supervisor shows the notice "No supervisor: whoever leads the market covers it".' },
+    a: { es: 'Administración, "Personas y acceso", "Nuevo equipo": nombre, mercado y tipo de venta. Luego, al dar acceso, eliges el equipo. Quien tiene rol de supervisión en un equipo ve lo de su gente. Un equipo sin supervisión sale con el aviso "Sin supervisión: lo cubre quien lidera el mercado".', en: 'Administration, "People and access", "New team": name, market and sale type. Then, when granting access, you pick the team. Whoever holds the supervisor role on a team sees their people\'s records. A team with no supervisor shows the notice "No supervisor: whoever leads the market covers it".' },
   },
   {
     id: 'admin-rotation-empty', topic: 'admin', tracks: ['admin'],
@@ -1226,7 +1226,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'admin-reports', topic: 'admin', tracks: ['admin'],
     q: { es: '¿Dónde veo lo que el equipo reporta?', en: 'Where do I see what the team reports?' },
-    a: { es: 'Administración, "Reportes". Cada reporte trae quién lo mandó, desde qué pantalla y qué tan urgente es. Escribe tu respuesta y toca "Responder y marcar atendido": la persona la ve en "Reportar un problema".', en: 'Administration, "Reports". Each report shows who sent it, from which screen and how urgent it is. Write your answer and tap "Answer and mark handled": the person sees it under "Report a problem".' },
+    a: { es: 'Administración, "Problemas reportados". Cada reporte trae quién lo mandó, desde qué pantalla y qué tan urgente es. Escribe tu respuesta y toca "Responder y marcar atendido": la persona la ve en "Reportar un problema".', en: 'Administration, "Reported problems". Each report shows who sent it, from which screen and how urgent it is. Write your answer and tap "Answer and mark handled": the person sees it under "Report a problem".' },
   },
   {
     id: 'admin-hours', topic: 'admin', tracks: ['admin'],
@@ -1437,7 +1437,7 @@ export const TRAINING: Record<Track, Training> = {
       { es: 'El modelo de acceso: un acceso es rol, mercado y equipo. Qué ve y qué cambia cada rol.', en: 'The access model: an access is role, market and team. What each role sees and changes.' },
       { es: 'Dar acceso, ponerle fecha de fin y quitarlo.', en: 'Grant access, set an end date and remove it.' },
       { es: 'La rutina de baja: quitar el acceso, revisar los turnos y repartir la cartera.', en: 'The offboarding routine: remove access, check the rotations and distribute the book.' },
-      { es: 'Responder los reportes del equipo en la pestaña Reportes.', en: 'Answer the team\'s reports in the Reports tab.' },
+      { es: 'Responder lo que el equipo reportó en la pestaña Problemas reportados.', en: 'Answer what the team reported in the Reported problems tab.' },
     ],
     week1: [
       { es: 'Turnos de leads: cómo rota, qué es el respaldo y qué mide el reloj de primer contacto.', en: 'Lead rotations: how they rotate, what the fallback is and what the first-contact clock measures.' },

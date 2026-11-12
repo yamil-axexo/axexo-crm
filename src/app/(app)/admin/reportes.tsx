@@ -21,7 +21,7 @@ export async function ReportesTab({ ctx, filter }: { ctx: Ctx; filter: Filter })
   return (
     <Card data-testid="admin-reports">
       <CardTitle
-        title={t('Reportes del equipo', 'Team reports')}
+        title={t('Problemas reportados', 'Reported problems')}
         hint={t('Lo que cada persona manda desde "Reportar un problema". Al responder, queda atendido y la persona ve tu respuesta en esa misma pantalla. CONTIGO no le manda aviso.', 'What each person sends from "Report a problem". Once you answer, it is handled and the person sees your answer on that same screen. CONTIGO does not notify them.')}
       />
       <div className="mb-6">

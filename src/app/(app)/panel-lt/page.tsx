@@ -4,7 +4,7 @@ import { requireCtx, systemCtx } from '@/server/context'
 import { getFxRates, getLeadershipPanel, marketPeriods, type PanelSlice } from '@/dal/reports'
 import { track } from '@/dal/boards'
 import { ensureRulesFresh } from '@/domain/rules'
-import { Bar, Card, CardTitle, Empty, LinkButton, PageHeader } from '@/ui/kit'
+import { Bar, Card, CardTitle, Empty, LinkButton, PageHeader, NoData, shown } from '@/ui/kit'
 import { Def, Metric, ReportFilters, fxSource, periodText } from '@/ui/report'
 import { day, money, num, pct } from '@/lib/format'
 import { qs } from '@/lib/labels'
@@ -89,7 +89,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
         <Metric t={t} k="leads" testId="lt-leads" value={num(sum('leads'), locale)} href={qs('/leads', { market, status: 'all', from: period.first.from, to: period.first.to })} />
         <Metric t={t} k="won" testId="lt-won" tone="good" value={num(sum('won'), locale)} href={closed({ resultado: 'won' })} />
         <Metric t={t} k="lost" testId="lt-lost" value={num(sum('lost'), locale)} href={closed({ resultado: 'lost' })} />
-        <Metric t={t} k="attempt" testId="lt-attempt-all" value={pct(sum('sla_met'), sum('sla_judged'))} hint={t(`${num(sum('sla_met'), locale)} de ${num(sum('sla_judged'), locale)} leads juzgados. Contacto logrado: ${pct(sum('reached'), sum('sla_judged'))}.`, `${num(sum('sla_met'), locale)} of ${num(sum('sla_judged'), locale)} judged leads. Reached: ${pct(sum('reached'), sum('sla_judged'))}.`)} />
+        <Metric t={t} k="attempt" testId="lt-attempt-all" value={pct(sum('sla_met'), sum('sla_judged'), locale)} hint={t(`${num(sum('sla_met'), locale)} de ${num(sum('sla_judged'), locale)} leads juzgados. Contacto logrado: ${pct(sum('reached'), sum('sla_judged'), locale)}.`, `${num(sum('sla_met'), locale)} of ${num(sum('sla_judged'), locale)} judged leads. Reached: ${pct(sum('reached'), sum('sla_judged'), locale)}.`)} />
       </div>
 
       <h2 className="mt-8 mb-3 text-[15px] font-semibold text-strong">{t('Hoy (foto de este momento)', 'Today (a snapshot of right now)')}</h2>
@@ -105,7 +105,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
         <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
           <div>
             <p className="text-[13px] font-medium text-muted-2">{t('Volumen consolidado (USD)', 'Consolidated volume (USD)')}</p>
-            <p className="num mt-1.5 text-[26px] leading-9 font-semibold text-strong" data-testid="lt-volume-usd">{totalUsd === null ? '—' : money(Math.round(totalUsd), 'USD', locale, true)}</p>
+            <p className="num mt-1.5 text-[26px] leading-9 font-semibold text-strong" data-testid="lt-volume-usd">{totalUsd === null ? <NoData locale={locale} /> : money(Math.round(totalUsd), 'USD', locale, true)}</p>
             {missing.length > 0 ? (
               <p className="mt-2 rounded-[12px] bg-warn-bg px-3.5 py-2.5 text-[13.5px] font-medium text-amber-text" data-testid="lt-fx-missing">
                 {t(`No se consolida: falta la tasa de ${missing.join(', ')} a USD. Administración la carga en Administración, sección Embudos y campos.`, `Not consolidated: the ${missing.join(', ')} to USD rate is missing. Administration loads it in Administration, Pipelines and fields section.`)}
@@ -154,8 +154,8 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
                 ))}
               </ul>
               <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-line pt-5 sm:grid-cols-3">
-                <div><dt className="text-[12.5px] text-muted">{t('Primer intento a tiempo', 'First attempt on time')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong" data-testid="lt-attempt">{pct(m.sla_met, m.sla_judged)}</dd></div>
-                <div><dt className="text-[12.5px] text-muted">{t('Contacto logrado', 'Reached')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong" data-testid="lt-reached">{pct(m.reached, m.sla_judged)}</dd></div>
+                <div><dt className="text-[12.5px] text-muted">{t('Primer intento a tiempo', 'First attempt on time')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong" data-testid="lt-attempt">{shown(pct(m.sla_met, m.sla_judged, locale))}</dd></div>
+                <div><dt className="text-[12.5px] text-muted">{t('Contacto logrado', 'Reached')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong" data-testid="lt-reached">{shown(pct(m.reached, m.sla_judged, locale))}</dd></div>
                 <div><dt className="text-[12.5px] text-muted">{t('Días a la primera venta', 'Days to first sale')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong">{m.days_to_first_txn ?? t('Sin dato', 'No data')}</dd></div>
                 <div><dt className="text-[12.5px] text-muted">{t('Perdidos (periodo)', 'Lost (period)')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong"><Link href={closed({ mercado: m.code, resultado: 'lost' })} className="underline decoration-line-2 underline-offset-4">{num(m.lost, locale)}</Link></dd></div>
                 <div><dt className="text-[12.5px] text-muted">{t('Revisitas pendientes (hoy)', 'Pending revisits (today)')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong">{m.revisits}</dd></div>

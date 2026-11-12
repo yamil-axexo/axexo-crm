@@ -32,6 +32,21 @@ const [{ id: account }] = await sql`
   left join crm.activities x on x.account_id = a.id
   where u.full_name = 'Marco Peña' and a.archived_at is null
   group by a.id order by count(x.id) desc, a.id limit 1`
+// La entrada dice que la Sales App todavía no está conectada: en las capturas no puede haber visitas "Sales App".
+// Las visitas sembradas como si hubieran llegado de la Sales App pasan a ser visitas registradas en CONTIGO (mismo comercio,
+// mismo día, mismo resultado), así las cuentas de Mi equipo no cambian. Solo en esta base de capturas, nunca en el seed.
+const moved = await sql.begin(async (tx) => {
+  const rows = await tx`
+    insert into crm.activities (market_code, account_id, kind, subject, done_at, outcome, owner_id, created_by, source, created_at)
+    select v.market_code, v.account_id, 'visit', case v.market_code when 'US' then 'Visit to ' else 'Visita a ' end || a.name, v.checked_in_at,
+           case when v.outcome = 'sale' then 'sale' when v.revisit then 'revisit' else 'no_sale' end,
+           coalesce(v.user_id, a.owner_id), coalesce(v.user_id, a.owner_id), 'user', v.checked_in_at
+      from crm.visits v join crm.accounts a on a.id = v.account_id
+     where coalesce(v.user_id, a.owner_id) is not null
+    returning id`
+  await tx`delete from crm.visits`
+  return rows.length
+})
 // La lista de primeros pasos no sale en las capturas de Hoy.
 await sql`insert into crm.user_onboarding (user_id, hidden_at) select id, now() from crm.users on conflict (user_id) do update set hidden_at = now()`
 await sql.end()
@@ -75,7 +90,8 @@ for (const locale of ['es', 'en']) {
         await ctx.clearCookies({ name: 'contigo_session' })
         await page.goto(`${base}/login`)
         await page.getByTestId(`persona-${persona}`).click()
-        await page.waitForURL(/\/(hoy|bienvenida)$/)
+        // Cada rol aterriza en su pantalla de inicio (Hoy, Mi equipo, la cola, el Panel del LT o Administración).
+        await page.waitForURL(/\/(hoy|bienvenida|supervisor|operaciones|panel-lt|admin)$/)
         who = persona
       }
       const res = await page.goto(base + (typeof path === 'function' ? path(size.name) : path))
@@ -92,4 +108,4 @@ for (const locale of ['es', 'en']) {
   }
 }
 await browser.close()
-console.log(`landing shots: ${count} files in public/landing`)
+console.log(`landing shots: ${count} files in public/landing (${moved} seeded Sales App visits shown as visits logged in CONTIGO)`)
