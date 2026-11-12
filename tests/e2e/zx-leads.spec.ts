@@ -179,6 +179,8 @@ test('lista de Leads: buscar, filtrar por reloj y origen, ordenar y cerrar vario
   await page.getByTestId('lead-apply').click()
   await expect(page.getByTestId('lead-row')).toHaveCount(1) // vence primero: solo el que tiene reloj
   await page.getByTestId('lead-clear').click()
+  await expect(page).toHaveURL(/\/leads\?status=open$/)
+  await expect(page.getByTestId('lead-f-sort')).toHaveValue('')
   await page.getByTestId('lead-q').fill(tag)
   await page.getByTestId('lead-f-clock').selectOption('without')
   await page.getByTestId('lead-apply').click()

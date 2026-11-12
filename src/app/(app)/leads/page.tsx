@@ -148,7 +148,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </nav>
       </div>
 
-      <form action="/leads" method="get" role="search" className="mt-4 grid grid-cols-2 items-end gap-3 @3xl:flex @3xl:flex-wrap" data-testid="lead-filters">
+      {/* La llave vuelve a montar el formulario cuando cambian los filtros: así "Quitar filtros" también limpia lo que se ve. */}
+      <form key={JSON.stringify(keep)} action="/leads" method="get" role="search" className="mt-4 grid grid-cols-2 items-end gap-3 @3xl:flex @3xl:flex-wrap" data-testid="lead-filters">
         <input type="hidden" name="status" value={status} />
         {sp.market && <input type="hidden" name="market" value={sp.market} />}
         {!manages && sp.owner && <input type="hidden" name="owner" value={sp.owner} />}
