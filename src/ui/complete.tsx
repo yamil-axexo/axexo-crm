@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition, type FormEvent } from 'reac
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import type { ActionResult } from '@/lib/errors'
+import { visitorNamesAction } from '@/app/(app)/actividades/log-actions'
 
 export type SheetItem = {
   type: 'task' | 'lead' | 'suggestion'
@@ -14,6 +15,8 @@ export type SheetItem = {
   defaultResult: string | null
   /** Si es falso, la hoja no ofrece "cerrar": el registro se atiende con un próximo paso con fecha. */
   closable?: boolean
+  /** Es una visita por hacer: se completa con el resultado de la visita y, opcional, quién visitó. */
+  visit?: boolean
 }
 export type SheetConfig = {
   labels: {
@@ -30,6 +33,11 @@ export type SheetConfig = {
     /** Plantillas con %s: el cliente pone el dato que cambia. */
     completeOf: string
     afterCall: string
+    /** Nota corta al completar, qué es "Otra tarea" y quién visitó (los tres opcionales). */
+    note: string
+    nextText: string
+    visitedBy: string
+    visitedByHint: string
   }
   nextOptions: { value: string; label: string }[]
   whenOptions: { value: string; label: string }[]
@@ -71,7 +79,7 @@ export function CompleteSheet({
       onClick={(e) => {
         if (e.target === dialog.current) close()
       }}
-      className="sheet on-ink m-auto w-[min(560px,100vw)] rounded-[16px] p-0 max-md:mb-0 max-md:w-full max-md:max-w-none max-md:rounded-b-none"
+      className="sheet on-ink m-auto max-h-[92dvh] w-[min(560px,100vw)] overflow-y-auto rounded-[16px] p-0 max-md:mb-0 max-md:w-full max-md:max-w-none max-md:rounded-b-none"
       data-testid="complete-sheet"
     >
       {/* La llave reinicia las respuestas cada vez que la hoja se abre para otro registro. */}
@@ -99,7 +107,6 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
   const [next, setNext] = useState('')
   const [when, setWhen] = useState(defaultWhen)
   const [pending, startTransition] = useTransition()
-  const preset = whenOptions.some((o) => o.value === when)
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -117,7 +124,7 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
   }
 
   return (
-    <form onSubmit={submit} className="p-6 pb-[max(24px,env(safe-area-inset-bottom))] md:p-8">
+    <form onSubmit={submit} className="px-6 pt-6 md:px-8 md:pt-8">
       <span aria-hidden className="mx-auto mb-5 block h-1 w-10 rounded-full bg-black-line md:hidden" />
       <input type="hidden" name="type" value={item.type} />
       <input type="hidden" name="id" value={item.id} />
@@ -126,43 +133,115 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
         {afterCall ? fill(labels.afterCall, item.name) : item.title}
       </h2>
 
-      <Choices name="result" legend={labels.result} options={item.results} defaultValue={item.defaultResult} />
-      <Choices name="next" legend={labels.next} options={item.closable === false ? nextOptions.filter((o) => o.value !== 'none') : nextOptions} value={next} onChange={setNext} />
-      {next !== 'none' && (
-        <>
-          <Choices name="when_choice" legend={labels.when} options={[...whenOptions, { value: 'other', label: labels.other }]} value={preset ? when : 'other'} onChange={(v) => setWhen(v === 'other' ? '' : v)} />
-          {!preset && (
-            <input type="date" required min={minDate} value={when} onChange={(e) => setWhen(e.target.value)} aria-label={labels.other} className="input mt-3 !border-black-line !bg-graphite !text-white [color-scheme:dark]" data-testid="sheet-date" />
-          )}
-        </>
-      )}
-      <input type="hidden" name="when" value={next === 'none' ? '' : when} />
+      {/* Si hay que volver con quien decide, lo que sigue es visitar: queda elegido y la persona lo puede cambiar. */}
+      <Choices name="result" legend={labels.result} options={item.results} defaultValue={item.defaultResult} onPick={(v) => v === 'revisit' && !next && setNext('visit')} />
+      {item.visit && <VisitorField label={labels.visitedBy} hint={labels.visitedByHint} />}
+      <SheetText name="note" label={labels.note} maxLength={500} testId="sheet-note" />
+      <NextStep labels={labels} options={item.closable === false ? nextOptions.filter((o) => o.value !== 'none') : nextOptions} whenOptions={whenOptions} minDate={minDate} next={next} onNext={setNext} when={when} onWhen={setWhen} />
 
-      {error && (
-        <p role="alert" className="mt-5 rounded-[10px] bg-[#3a1512] px-4 py-3 text-[14px] font-medium text-[#ffb4ab]" data-testid="sheet-error">
-          {error}
-        </p>
-      )}
-      <div className="mt-7 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-        <button type="button" onClick={onCancel} className="press inline-flex h-12 items-center justify-center rounded-[10px] px-5 text-[15px] font-medium text-on-black hover:text-white">
-          {labels.cancel}
-        </button>
-        <button type="submit" disabled={pending} aria-busy={pending} className="press glow-hover inline-flex h-12 items-center justify-center rounded-[10px] bg-neon px-6 text-[15px] font-semibold text-black disabled:opacity-60" data-testid="sheet-save">
-          {next === 'none' ? labels.saveClose : labels.save}
-        </button>
+      {/* Guardar y el aviso de lo que falta quedan a la vista al pie de la hoja, aunque la hoja sea más alta que la pantalla. */}
+      <div className="sticky bottom-0 -mx-6 mt-7 border-t border-black-line bg-black px-6 pt-4 pb-[max(16px,env(safe-area-inset-bottom))] md:-mx-8 md:px-8 md:pb-6">
+        {error && (
+          <p role="alert" className="mb-3 rounded-[10px] bg-[#3a1512] px-4 py-3 text-[14px] font-medium text-[#ffb4ab]" data-testid="sheet-error">
+            {error}
+          </p>
+        )}
+        <div className="flex gap-2 md:justify-end">
+          <button type="button" onClick={onCancel} className="press inline-flex h-12 items-center justify-center rounded-[10px] px-4 text-[15px] font-medium text-on-black hover:text-white md:px-5">
+            {labels.cancel}
+          </button>
+          <button type="submit" disabled={pending} aria-busy={pending} className="press glow-hover inline-flex h-12 flex-1 items-center justify-center rounded-[10px] bg-neon px-6 text-[15px] font-semibold text-black disabled:opacity-60 md:flex-none" data-testid="sheet-save">
+            {next === 'none' ? labels.saveClose : labels.save}
+          </button>
+        </div>
       </div>
     </form>
   )
 }
 
+const SHEET_INPUT = 'input !border-black-line !bg-graphite !text-white placeholder:!text-on-black'
+
+/** Un renglón de texto opcional de la hoja (nota, qué es la tarea). */
+export function SheetText({ name, label, maxLength, testId, placeholder, required, defaultValue }: { name: string; label: string; maxLength: number; testId?: string; placeholder?: string; required?: boolean; defaultValue?: string }) {
+  return (
+    <label className="mt-6 block">
+      <span className="mb-2.5 block text-[15px] font-semibold">{label}</span>
+      <input name={name} maxLength={maxLength} placeholder={placeholder} required={required} defaultValue={defaultValue} autoComplete="off" enterKeyHint="done" className={SHEET_INPUT} data-testid={testId} />
+    </label>
+  )
+}
+
+/**
+ * Quién visitó, cuando no fue quien captura (los vendedores de calle no son usuarios). Sugiere los nombres ya usados
+ * en el mercado para que la misma persona no quede escrita de tres maneras.
+ */
+export function VisitorField({ label, hint, market }: { label: string; hint: string; market?: string }) {
+  const [names, setNames] = useState<string[]>([])
+  useEffect(() => {
+    let live = true
+    visitorNamesAction(market).then((list) => live && setNames(list), () => {})
+    return () => {
+      live = false
+    }
+  }, [market])
+  return (
+    <label className="mt-6 block">
+      <span className="mb-2.5 block text-[15px] font-semibold">{label}</span>
+      <input name="visited_by" maxLength={80} list="visitor-names" placeholder={hint} autoComplete="off" autoCapitalize="words" enterKeyHint="done" className={SHEET_INPUT} data-testid="sheet-visitor" />
+      <datalist id="visitor-names" data-testid="visitor-names">
+        {names.map((n) => <option key={n} value={n} />)}
+      </datalist>
+    </label>
+  )
+}
+
+/** "¿Qué sigue?" y "¿Cuándo?": las dos preguntas del próximo paso. "Otra tarea" deja escribir cuál. */
+export function NextStep({
+  labels,
+  options,
+  whenOptions,
+  minDate,
+  next,
+  onNext,
+  when,
+  onWhen,
+}: {
+  labels: SheetConfig['labels']
+  options: { value: string; label: string }[]
+  whenOptions: { value: string; label: string }[]
+  minDate: string
+  next: string
+  onNext: (v: string) => void
+  when: string
+  onWhen: (v: string) => void
+}) {
+  const preset = whenOptions.some((o) => o.value === when)
+  return (
+    <>
+      <Choices name="next" legend={labels.next} options={options} value={next} onChange={onNext} />
+      {next === 'task' && <SheetText name="next_text" label={labels.nextText} maxLength={120} testId="sheet-next-text" />}
+      {next !== 'none' && (
+        <>
+          <Choices name="when_choice" legend={labels.when} options={[...whenOptions, { value: 'other', label: labels.other }]} value={preset ? when : 'other'} onChange={(v) => onWhen(v === 'other' ? '' : v)} />
+          {!preset && (
+            <input type="date" required min={minDate} value={when} onChange={(e) => onWhen(e.target.value)} aria-label={labels.other} className="input mt-3 !border-black-line !bg-graphite !text-white [color-scheme:dark]" data-testid="sheet-date" />
+          )}
+        </>
+      )}
+      <input type="hidden" name="when" value={next === 'none' ? '' : when} />
+    </>
+  )
+}
+
 /** Una pregunta de la hoja: chips de una sola elección (radios reales, se operan con teclado). */
-function Choices({
+export function Choices({
   name,
   legend,
   options,
   value,
   defaultValue,
   onChange,
+  onPick,
 }: {
   name: string
   legend: string
@@ -170,6 +249,8 @@ function Choices({
   value?: string
   defaultValue?: string | null
   onChange?: (v: string) => void
+  /** Avisa de la elección sin tomar el control del grupo (los radios siguen sin estado). */
+  onPick?: (v: string) => void
 }) {
   return (
     <fieldset className="mt-6" data-testid={`choices-${name}`}>
@@ -182,7 +263,7 @@ function Choices({
               name={name}
               value={o.value}
               className="sr-only"
-              {...(value !== undefined ? { checked: value === o.value, onChange: () => onChange?.(o.value) } : { defaultChecked: defaultValue === o.value })}
+              {...(value !== undefined ? { checked: value === o.value, onChange: () => onChange?.(o.value) } : { defaultChecked: defaultValue === o.value, onChange: () => onPick?.(o.value) })}
             />
             <span>{o.label}</span>
           </label>
@@ -252,7 +333,7 @@ export function CompleteButton({ item, config, action, label, className, testId 
           onClick={() => setOpen(true)}
           aria-label={fill(config.labels.completeOf, item.title)}
           title={config.labels.markDone}
-          className="q-check inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
+          className="q-check inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
           data-testid="row-complete"
         >
           <Check size={16} strokeWidth={2.5} aria-hidden className="opacity-0" />

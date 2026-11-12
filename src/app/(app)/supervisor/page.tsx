@@ -8,7 +8,9 @@ import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table } from '
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { ago, pct } from '@/lib/format'
 import { EXCEPTION, lab, qs } from '@/lib/labels'
-import { resolveExceptionAction, runRulesAction } from './actions'
+import { runRulesAction } from './actions'
+import { dismissExceptionAction } from '@/app/(app)/actividades/log-actions'
+import { ConfirmButton } from '@/ui/confirm'
 import { reassignAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 
@@ -44,7 +46,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         <div className="px-7 pt-7">
           <CardTitle
             title={t('Equipo', 'Team')}
-            hint={t('Leads de los últimos 14 días. Primer intento a tiempo: se intentó el contacto dentro del plazo. Contacto logrado: se habló con la persona. Visitas: últimos 7 días, desde la Sales App.', 'Leads from the last 14 days. First attempt on time: contact was attempted within the deadline. Reached: the person was spoken to. Visits: last 7 days, from the Sales App.')}
+            hint={t('Leads de los últimos 14 días. Primer intento a tiempo: se intentó el contacto dentro del plazo. Contacto logrado: se habló con la persona. Visitas: últimos 7 días, las registradas en CONTIGO y las que lleguen de la Sales App, sin contar dos veces la misma.', 'Leads from the last 14 days. First attempt on time: contact was attempted within the deadline. Reached: the person was spoken to. Visits: last 7 days, the ones logged in CONTIGO and the ones that arrive from the Sales App, never counting the same one twice.')}
           />
         </div>
         {board.reps.length === 0 ? <div className="p-7"><Empty title={t('Sin vendedores en tu alcance', 'No sales reps in your scope')} /></div> : (
@@ -59,7 +61,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                 <td className="num">{r.no_next_step > 0 ? <Badge tone="bad">{r.no_next_step}</Badge> : 0}</td>
                 <td className="num">{r.revisits > 0 ? <Badge tone="warn">{r.revisits}</Badge> : 0}</td>
                 <td className="num">{r.awaiting}</td>
-                <td className="num">{r.visits_7d} / {r.sales_7d} <span className="text-muted">({pct(r.sales_7d, r.visits_7d)})</span></td>
+                <td className="num" data-testid="rep-visits">{r.visits_7d} / {r.sales_7d} <span className="text-muted">({pct(r.sales_7d, r.visits_7d)})</span></td>
                 <td className="num"><Link href={qs('/comercios', { owner: r.id, market: r.market_code })} className="text-blue-text underline">{r.accounts}</Link></td>
               </tr>
             ))}
@@ -104,10 +106,18 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                 </Link>
                 <Badge tone={e.severity === 'high' ? 'bad' : e.severity === 'medium' ? 'warn' : 'neutral'}>{lab(t, EXCEPTION[e.kind]?.action)}</Badge>
                 {ctx.can('exception.resolve', e.market_code) && (
-                  <ActionForm action={resolveExceptionAction}>
-                    <input type="hidden" name="id" value={e.id} /><input type="hidden" name="note" value="dismissed from queue" />
-                    <Submit variant="quiet" size="sm" testId="exception-dismiss">{t('Descartar', 'Dismiss')}</Submit>
-                  </ActionForm>
+                  <ConfirmButton
+                    action={dismissExceptionAction}
+                    fields={{ id: e.id }}
+                    label={t('Descartar', 'Dismiss')}
+                    title={t('¿Descartar este pendiente?', 'Dismiss this item?')}
+                    body={t(`"${String(e.detail.title ?? e.detail.name ?? lab(t, EXCEPTION[e.kind]?.label))}" sale de la lista del equipo y no vuelve en 7 días, aunque siga sin corregirse. Queda registrado quién lo descartó.`, `"${String(e.detail.title ?? e.detail.name ?? lab(t, EXCEPTION[e.kind]?.label))}" leaves the team list and does not come back for 7 days, even if it is still not fixed. Who dismissed it stays on record.`)}
+                    note={{ name: 'note', label: t('Motivo (opcional)', 'Reason (optional)') }}
+                    confirm={t('Sí, descartar', 'Yes, dismiss')}
+                    cancel={t('Cancelar', 'Cancel')}
+                    variant="quiet"
+                    testId="exception-dismiss"
+                  />
                 )}
               </li>
             ))}

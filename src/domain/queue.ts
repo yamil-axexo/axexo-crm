@@ -1,29 +1,27 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
-import { audit, newId } from '@/domain/common'
+import { audit } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { assertOwned } from '@/domain/leads'
 import type { MessageKey } from '@/lib/messages'
+import { NEXTS, RESULTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, isOneOf, nextText, scheduleNext, shortNote, visitorName } from '@/domain/followup'
 
-export const RESULTS = ['reached', 'no_answer', 'later', 'done'] as const
-export const NEXTS = ['call', 'proposal', 'meeting', 'task', 'none'] as const
+export { NEXTS, RESULTS, VISIT_RESULTS, type Next, type Result, type VisitResult } from '@/domain/followup'
 export const ITEM_TYPES = ['task', 'lead', 'suggestion'] as const
-export type Result = (typeof RESULTS)[number]
-export type Next = (typeof NEXTS)[number]
 export type ItemType = (typeof ITEM_TYPES)[number]
 
-export type CompleteInput = { type: string; id: string; result: string; next: string; when: string }
+/** `note`: nota corta de cómo fue. `nextText`: qué es "Otra tarea". `visitedBy`: quién visitó, al completar una visita. */
+export type CompleteInput = { type: string; id: string; result: string; next: string; when: string; note?: string; nextText?: string; visitedBy?: string }
 export type Completed = { next: string | null; due: string | null }
 
-const isOneOf = <T extends string>(list: readonly T[], v: string): v is T => (list as readonly string[]).includes(v)
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * Completar un registro de la cola de Hoy (handoff, sección 6): guarda cómo fue y siempre pide el próximo paso.
  * No se puede guardar sin "¿Qué sigue?", salvo que la persona elija cerrar ("none").
  *
- * - task: la actividad queda hecha con su resultado.
+ * - task: la actividad queda hecha con su resultado. Una visita por hacer se completa con el resultado de la visita.
  * - lead: queda el intento de primer contacto en el hilo y se detiene el reloj; pasa a "contactado" solo si hubo contacto.
  * - suggestion: la sugerencia de CONTIGO se cierra como atendida y no reaparece en 7 días.
  *
@@ -31,7 +29,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  */
 export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Completed> {
   if (!isOneOf(ITEM_TYPES, raw.type) || !UUID.test(raw.id)) throw notFound()
-  if (!isOneOf(RESULTS, raw.result)) throw invalid('Elige cómo te fue.', 'Choose how it went.')
+  if (!isOneOf(RESULTS, raw.result) && !isOneOf(VISIT_RESULTS, raw.result)) throw invalid('Elige cómo te fue.', 'Choose how it went.')
+  // Los resultados de visita son solo de una visita: un lead o una sugerencia se cierran con los de siempre.
+  if (raw.type !== 'task' && !isOneOf(RESULTS, raw.result)) throw invalid('Elige cómo te fue.', 'Choose how it went.')
   if (!isOneOf(NEXTS, raw.next)) throw invalid('Elige qué sigue. Si ya no hay nada más que hacer, elige cerrar.', 'Choose what comes next. If there is nothing left to do, choose close.')
   const { type, id, result, next } = raw
   // Un lead solo tiene dos resultados: hubo contacto o se intentó y no contestó. "Llamar después" no es un intento.
@@ -40,15 +40,13 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
   if (type === 'lead' && result === 'no_answer' && next === 'none') throw invalid('Si no contestó, programa el siguiente intento.', 'If there was no answer, schedule the next attempt.')
   // Una sugerencia de CONTIGO no se apaga con "cerrar": se atiende con un próximo paso con fecha, o se corrige en el registro.
   if (type === 'suggestion' && next === 'none') throw invalid('Una sugerencia se atiende con un próximo paso con fecha.', 'A suggestion is handled with a dated next step.')
-  const when = next === 'none' ? null : raw.when
-  if (next !== 'none' && !/^\d{4}-\d{2}-\d{2}$/.test(when ?? '')) throw invalid('Elige cuándo es el próximo paso.', 'Choose when the next step is.')
+  const note = shortNote(raw.note)
+  const text = next === 'task' ? nextText(raw.nextText) : null
+  const visitor = visitorName(raw.visitedBy)
   const tz = ctx.markets[0]?.timezone ?? 'UTC'
 
   return withUser(ctx.user.id, async (tx) => {
-    if (when) {
-      const ok = await tx<{ ok: boolean }[]>`select ${when}::date >= (now() at time zone ${tz})::date and ${when}::date <= (now() at time zone ${tz})::date + 366 as ok`
-      if (!ok[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante y dentro de un año.', 'The next step date must be today or later, within a year.')
-    }
+    const when = next === 'none' ? null : await assertNextDate(tx, tz, raw.when)
     let market: string
     let accountId: string | null = null
     let dealId: string | null = null
@@ -63,8 +61,15 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
       ctx.assert('activity.write', a.market_code)
       if (a.done_at) return { next: null, due: null }
       ;({ market_code: market, account_id: accountId, deal_id: dealId, lead_id: leadId } = a)
-      await tx`update crm.activities set done_at = now(), outcome = ${result} where id = ${id}`
-      await audit(tx, ctx, 'activity.completed', 'activity', id, market, null, { kind: a.kind, outcome: result, next })
+      // Una visita por hacer se completa diciendo cómo terminó la visita; lo demás, con los resultados de siempre.
+      const visit = a.kind === 'visit'
+      if (visit ? !isOneOf(VISIT_RESULTS, result) : !isOneOf(RESULTS, result)) {
+        throw visit ? invalid('Elige cómo terminó la visita.', 'Choose how the visit ended.') : invalid('Elige cómo te fue.', 'Choose how it went.')
+      }
+      await tx`update crm.activities set done_at = now(), outcome = ${result}, visited_by = ${visit ? visitor : null},
+                body = ${note ? tx`nullif(concat_ws(E'\n', body, ${note}::text), '')` : tx`body`} where id = ${id}`
+      await audit(tx, ctx, 'activity.completed', 'activity', id, market, null, { kind: a.kind, outcome: result, next, ...(visit ? { origin: 'manual' } : {}) })
+      if (visit && isOneOf(VISIT_RESULTS, result)) await applyVisitOutcome(tx, ctx, { market, accountId, outcome: result, day: null, returnOn: when })
       const names = await tx<{ name: string | null }[]>`
         select coalesce((select name from crm.accounts where id = ${accountId}), (select business_name from crm.leads where id = ${leadId})) as name`
       name = names[0]?.name ?? a.subject
@@ -81,8 +86,8 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
       name = l.business_name
       const reached = result === 'reached'
       const subject = ctx.m('complete.firstContact', { result: ctx.m(`complete.result.${result}` as MessageKey) })
-      await tx`insert into crm.activities (market_code, lead_id, kind, subject, done_at, outcome, owner_id, created_by)
-               values (${market}, ${id}, 'call', ${subject}, now(), ${result}, ${ctx.user.id}, ${ctx.user.id})`
+      await tx`insert into crm.activities (market_code, lead_id, kind, subject, body, done_at, outcome, owner_id, created_by)
+               values (${market}, ${id}, 'call', ${subject}, ${note}, now(), ${result}, ${ctx.user.id}, ${ctx.user.id})`
       // El reloj de primer contacto mide la respuesta de quien atiende: se detiene con el primer intento registrado.
       await tx`update crm.leads set first_touch_at = coalesce(first_touch_at, now()), status = ${reached ? 'contacted' : l.status} where id = ${id}`
       await audit(tx, ctx, reached ? 'lead.contacted' : 'lead.attempted', 'lead', id, market, { status: l.status }, { status: reached ? 'contacted' : l.status, outcome: result })
@@ -111,25 +116,15 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
       // Lo atendido queda en el hilo del comercio, deal o lead; un aviso sin registro ligado solo se cierra.
       if (accountId || dealId || leadId) {
         ctx.assert('activity.write', market)
-        await tx`insert into crm.activities (market_code, account_id, deal_id, lead_id, kind, subject, done_at, outcome, owner_id, created_by, source)
-                 values (${market}, ${accountId}, ${dealId}, ${leadId}, 'task', ${ctx.m(`suggest.${e.kind}` as MessageKey, { name })}, now(), ${result}, ${ctx.user.id}, ${ctx.user.id}, 'rule')`
+        await tx`insert into crm.activities (market_code, account_id, deal_id, lead_id, kind, subject, body, done_at, outcome, owner_id, created_by, source)
+                 values (${market}, ${accountId}, ${dealId}, ${leadId}, 'task', ${ctx.m(`suggest.${e.kind}` as MessageKey, { name })}, ${note}, now(), ${result}, ${ctx.user.id}, ${ctx.user.id}, 'rule')`
       }
       await audit(tx, ctx, `exception.${resolution}`, 'exception', id, market, null, { kind: e.kind, outcome: result, next })
     }
 
     if (next === 'none' || !when) return { next: null, due: null }
 
-    ctx.assert('activity.write', market)
-    const subject = ctx.m(`complete.nextTitle.${next}` as MessageKey, { name })
-    const nextId = await newId(tx)
-    await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, due_at, owner_id, created_by)
-             values (${nextId}, ${market}, ${accountId}, ${dealId}, ${leadId}, 'task', ${subject}, ${`${when}T15:00:00Z`}, ${ctx.user.id}, ${ctx.user.id})`
-    await audit(tx, ctx, 'activity.added', 'activity', nextId, market, null, { kind: 'task', account_id: accountId, follows: id })
-    if (dealId && ctx.can('deal.edit', market)) {
-      const d = await tx<{ next_step: string | null }[]>`
-        update crm.deals set next_step = ${subject}, next_step_due = ${when} where id = ${dealId} and status = 'open' returning next_step`
-      if (d[0]) await audit(tx, ctx, 'deal.updated', 'deal', dealId, market, null, { next_step: subject, next_step_due: when })
-    }
+    const subject = await scheduleNext(tx, ctx, { market, accountId, dealId, leadId, name, next, when, text, follows: id })
     return { next: subject, due: when }
   })
 }

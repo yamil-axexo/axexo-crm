@@ -34,6 +34,8 @@ Idempotent by `event_id`: the second delivery returns `{"status":"duplicate"}` a
 ```
 Effect: the visit appears on the merchant timeline (read-only). `revisit: true` flags the open deal for a decision-maker revisit, due two days after `business_date`. `decision_maker_present: true` clears it. An unknown `customer_id` is stored, answered with `{"status":"unmatched"}` and placed in the exception queue.
 
+Visits logged by hand in CONTIGO (while this feed is not connected): a hand-logged visit stops counting in Mi equipo when a `visit.checked_out` arrives for the same merchant and the same `business_date`. Both stay in the merchant thread, each labeled with its origin. Nothing has to be cleaned up when the feed is turned on (`crm.visit_log`, migration `0010_field_work`).
+
 ## `store.created`
 ```json
 { "event_id": "…", "type": "store.created", "version": 1, "occurred_at": "…",

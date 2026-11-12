@@ -1,12 +1,16 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
+import { Phone } from 'lucide-react'
 import { getDeal } from '@/dal/pipelines'
+import { accountPhone } from '@/dal/field'
+import { CallLink } from '@/ui/log'
+import type { MessageKey } from '@/lib/messages'
 import { fieldDefs } from '@/dal/fields'
 import { CustomFields } from '@/ui/fields'
 import { lossReasons } from '@/dal/leads'
 import { FIELD_LABEL } from '@/domain/deals'
-import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, cx } from '@/ui/kit'
+import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, buttonClass, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { day, dayTime, daysSince, money } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
@@ -31,17 +35,24 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const prev = current ? stages.find((s) => s.position === current.position - 1 && s.kind === 'open') : undefined
   const won = stages.find((s) => s.kind === 'won')
   const lastOpen = Boolean(current && current.kind === 'open' && (!next || next.kind === 'won'))
+  // Llamar desde el negocio: al comercio o, si no tiene teléfono, a su contacto. Al volver se pregunta cómo fue.
+  const callee = await accountPhone(ctx, deal.account_id)
+  const canLog = ctx.can('activity.write', deal.market_code)
+  const call = <><Phone size={18} strokeWidth={1.75} aria-hidden />{ctx.m('action.call')}</>
 
   return (
     <>
       <PageHeader
         eyebrow={`Deal · ${deal.pipeline_name}`}
         title={deal.title}
-        actions={
-          deal.status === 'won' ? <Badge tone="good">{deal.closed_by === 'transaction' ? t('Ganado por primera transacción', 'Won by first transaction') : t('Ganado', 'Won')}</Badge>
+        actions={<>
+          {callee && (canLog
+            ? <CallLink href={`tel:${callee.phone}`} account={{ id: deal.account_id, name: deal.account_name, market: deal.market_code }} dealId={deal.id} className={buttonClass('ghost', 'md')} title={callee.who ?? undefined} testId="deal-call">{call}</CallLink>
+            : <a href={`tel:${callee.phone}`} className={buttonClass('ghost', 'md')} title={callee.who ?? undefined} data-testid="deal-call">{call}</a>)}
+          {deal.status === 'won' ? <Badge tone="good">{deal.closed_by === 'transaction' ? t('Ganado por primera transacción', 'Won by first transaction') : t('Ganado', 'Won')}</Badge>
           : deal.status === 'lost' ? <Badge tone="bad">{t('Perdido', 'Lost')}</Badge>
-          : <Badge tone="accent">{t('Abierto', 'Open')}</Badge>
-        }
+          : <Badge tone="accent">{t('Abierto', 'Open')}</Badge>}
+        </>}
       />
 
       <ol className="mb-8 flex flex-wrap gap-2" data-testid="stage-path" aria-label={t('Etapas', 'Stages')}>
@@ -62,7 +73,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             <div className="rounded-[16px] bg-warn-bg px-6 py-5" data-testid="revisit-banner">
               <p className="text-[15px] font-semibold text-amber-text">{t('Hay que volver con el decisor', 'Go back to the decision-maker')}</p>
               <p className="mt-1 text-[13.5px] text-muted-2">
-                {t('La última visita en la Sales App no encontró a quien decide.', 'The last visit in the Sales App did not find the person who decides.')}
+                {t('La última visita no encontró a quien decide.', 'The last visit did not find the person who decides.')}
                 {deal.revisit_due ? ` ${t('Fecha sugerida:', 'Suggested date:')} ${day(deal.revisit_due, locale)}.` : ''}
               </p>
             </div>
@@ -195,7 +206,10 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               {activities.map((a) => (
                 <li key={a.id} className="border-l-2 border-line-2 pl-4">
                   <p className="text-[14px] font-semibold text-strong">{a.subject}</p>
-                  <p className="text-[12.5px] text-muted">{lab(t, ACTIVITY[a.kind])} · {a.author ?? '—'} · {dayTime(a.created_at, locale, market.timezone)}{a.kind === 'task' ? (a.done_at ? ` · ${t('hecha', 'done')}` : ` · ${t('vence', 'due')} ${day(a.due_at, locale)}`) : ''}</p>
+                  <p className="text-[12.5px] text-muted">
+                    {[lab(t, ACTIVITY[a.kind]), a.outcome && a.outcome !== 'done' ? ctx.m(`complete.result.${a.outcome}` as MessageKey) : null, a.visited_by ? t(`visitó ${a.visited_by}`, `visited by ${a.visited_by}`) : null, a.author, dayTime(a.done_at ?? a.created_at, locale, market.timezone)].filter(Boolean).join(' · ')}
+                    {a.kind === 'task' || a.kind === 'visit' ? (a.done_at ? (a.kind === 'task' ? ` · ${t('hecha', 'done')}` : '') : ` · ${t(a.kind === 'visit' ? 'por hacer el' : 'vence', a.kind === 'visit' ? 'planned for' : 'due')} ${day(a.due_at, locale)}`) : ''}
+                  </p>
                 </li>
               ))}
               {events.map((e, i) => (

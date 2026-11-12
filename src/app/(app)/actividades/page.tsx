@@ -18,7 +18,7 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
   const rows = await withUser(ctx.user.id, (tx) => tx<Row[]>`
     select a.id, a.kind, a.subject, a.due_at, a.done_at, a.account_id, ac.name as account_name, a.deal_id, u.full_name as owner_name
       from crm.activities a left join crm.accounts ac on ac.id = a.account_id left join crm.users u on u.id = a.owner_id
-     where a.kind in ('task','handoff')
+     where a.kind in ('task','handoff','visit')
        ${view === 'done' ? tx`and a.done_at is not null and a.owner_id = ${ctx.user.id}` : view === 'team' ? tx`and a.done_at is null` : tx`and a.done_at is null and a.owner_id = ${ctx.user.id}`}
      order by ${view === 'done' ? tx`a.done_at desc` : tx`a.due_at nulls last`} limit 80`)
   const now = new Date()

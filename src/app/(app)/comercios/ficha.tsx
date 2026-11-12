@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { CalendarPlus, MessageCircle, Phone, StickyNote, X } from 'lucide-react'
+import { CalendarPlus, MapPinCheck, MessageCircle, MessageSquareText, Navigation, Phone, StickyNote, X } from 'lucide-react'
 import type { Ctx } from '@/server/context'
 import { getAccount, parentOptions } from '@/dal/accounts'
 import { sellers } from '@/dal/leads'
@@ -9,12 +9,15 @@ import { CustomFields } from '@/ui/fields'
 import { Badge, Field, KeyVal, LinkButton, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CompleteButton } from '@/ui/complete'
+import { CallLink, LogButton } from '@/ui/log'
+import { ConfirmButton, CopyButton } from '@/ui/confirm'
 import { ago, day, isoDay, offsetMs, money, monthYear, num, phoneText, threadDate, weekday } from '@/lib/format'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { ACTIVITY, ALIAS_SYSTEM, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
-import { addContactAction, reassignAction, setParentAction, updateAccountAction } from './actions'
+import { addContactAction, setParentAction, updateAccountAction } from './actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
+import { reassignOneAction } from '@/app/(app)/actividades/log-actions'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 
@@ -61,6 +64,18 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
         return c?.phone ? { phone: c.phone, who: c.full_name } : null
       })()
   const owner = a.owner_name ?? (ancestors.length ? m('merchants.viaChain') : m('merchants.noOwner'))
+  // Dirección a la vista y "Cómo llegar": un enlace a mapas con la dirección escrita (abre la app de mapas del teléfono).
+  const place = [a.locality, a.region].filter(Boolean).join(', ')
+  const address = [a.address_line, place, a.postal_code].filter(Boolean).join(', ')
+  const directions = a.address_line ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${address}, ${a.market_code}`)}` : null
+  const logAccount = { id: a.id, name: a.name, market: a.market_code }
+  // Lo que se va con el comercio al reasignarlo: sus negocios abiertos y sus tareas y visitas por hacer.
+  const openDeals = deals.filter((d) => d.status === 'open').length
+  const openTasks = tasks.filter((x) => x.kind === 'task' || x.kind === 'visit').length
+  const moves = {
+    es: [openDeals ? (openDeals === 1 ? '1 negocio abierto' : `${openDeals} negocios abiertos`) : null, openTasks ? (openTasks === 1 ? '1 tarea abierta' : `${openTasks} tareas abiertas`) : null].filter(Boolean).join(' y '),
+    en: [openDeals ? (openDeals === 1 ? '1 open deal' : `${openDeals} open deals`) : null, openTasks ? (openTasks === 1 ? '1 open task' : `${openTasks} open tasks`) : null].filter(Boolean).join(' and '),
+  }
   const Title = mode === 'page' ? 'h1' : 'h2'
 
   // Lo siguiente: la actividad abierta más próxima; si no hay, el próximo paso del negocio abierto.
@@ -71,6 +86,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
       : null
   const startOfToday = new Date(new Date(`${today}T00:00:00Z`).getTime() - offsetMs(now, tz))
   const stepLate = !!step?.due && step.due < startOfToday
+  const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
   const dueLabel = (due: Date | null, late: boolean) => (due ? m(late ? 'record.next.late' : 'record.next.due', { date: weekday(due, locale, tz) }) : '')
 
   const tile = 'press flex h-[68px] flex-col items-center justify-center gap-1.5 rounded-[12px] border border-line bg-surface text-[13px] font-medium text-green-600 hover:bg-green-50'
@@ -78,15 +94,30 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const section = 'border-t border-line pt-6'
   const h3 = 'text-[15px] leading-6 font-semibold'
 
-  const visitText = (it: (typeof timeline)[number]) => {
-    const v = it.meta as { rejection?: string | null; revisit?: boolean; minutes?: number | null }
+  type Item = (typeof timeline)[number]
+  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string }
+  const meta = (it: Item) => it.meta as Meta
+  // Una visita dice de dónde viene: la que alguien registró en CONTIGO o la que llegó de la Sales App.
+  const manualVisit = (it: Item) => it.kind === 'visit' && meta(it).origin === 'manual'
+  const outcomeText = (o: string | null | undefined) => (o && o !== 'done' ? m(`complete.result.${o}` as MessageKey) : null)
+  const visitText = (it: Item) => {
+    const v = meta(it)
+    if (manualVisit(it)) return [t('Visita', 'Visit'), outcomeText(v.outcome)].filter(Boolean).join(' · ')
     const base = it.title === 'sale' ? t('Visita con venta', 'Visit with a sale') : t('Visita sin venta', 'Visit with no sale')
-    return `${base}${v.rejection ? ` · ${v.rejection}` : ''}${v.revisit ? ` · ${t('pide revisita', 'needs a revisit')}` : ''}${v.minutes ? ` · ${v.minutes} min` : ''}`
+    const why = v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null
+    return `${base}${why ? ` · ${why}` : ''}${v.revisit ? ` · ${t('pide revisita', 'needs a revisit')}` : ''}${v.minutes ? ` · ${v.minutes} min` : ''}`
   }
-  const threadTitle = (it: (typeof timeline)[number]) =>
+  const threadTitle = (it: Item) =>
     it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"` : it.kind === 'attribution' ? t(`Dueño: ${it.title}`, `Owner: ${it.title}`) : it.title
-  const threadWho = (it: (typeof timeline)[number]) =>
-    it.kind === 'stage' && (it.meta as { cause?: string }).cause === 'transaction' ? t('Primera transacción (S5)', 'First transaction (S5)') : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}` : it.actor
+  const threadWho = (it: Item) =>
+    it.kind === 'stage' && meta(it).cause === 'transaction' ? t('Primera transacción (S5)', 'First transaction (S5)')
+      : manualVisit(it) ? [t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
+        : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}` : it.actor
+  // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.
+  const threadKind = (it: Item) =>
+    ['note', 'call', 'meeting', 'task', 'email', 'handoff'].includes(it.kind) ? [lab(t, ACTIVITY[it.kind]), outcomeText(meta(it).outcome)].filter(Boolean).join(' · ') : null
+  const threadDetail = (it: Item) =>
+    [manualVisit(it) && meta(it).visited_by ? t(`Visitó: ${meta(it).visited_by}`, `Visited by: ${meta(it).visited_by}`) : null, it.kind !== 'stage' ? it.body : null].filter(Boolean)
 
   const [people, parents] = tab === 'datos' && canReassign ? await Promise.all([sellers(ctx, a.market_code), parentOptions(ctx, a.market_code)]) : [[], []]
   const defs = tab === 'datos' ? await fieldDefs(ctx, 'account', a.market_code) : []
@@ -111,7 +142,25 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </span>
           <span aria-hidden className="text-muted">·</span>
           <span className={!a.owner_name && !ancestors.length ? 'text-amber-text' : undefined}>{m('record.owner', { name: owner })}</span>
+          {canReassign && tab !== 'datos' && (
+            <Link href={href(a.id, 'datos')} scroll={false} className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="ficha-reassign">
+              {a.owner_id ? t('Reasignar', 'Reassign') : t('Asignar', 'Assign')}
+            </Link>
+          )}
           {a.archived_at && <Badge tone="bad">{m('record.archived')}</Badge>}
+        </p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-[14px] text-muted-2" data-testid="ficha-address">
+          {address ? <span className="[overflow-wrap:anywhere]">{address}</span> : <span className="text-muted">{t('Sin dirección', 'No address')}</span>}
+          {directions ? (
+            <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 font-medium text-blue-text underline" data-testid="ficha-directions">
+              <Navigation size={16} strokeWidth={1.75} aria-hidden />
+              {t('Cómo llegar', 'Directions')}
+            </a>
+          ) : canEdit && tab !== 'datos' ? (
+            <Link href={href(a.id, 'datos')} scroll={false} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="ficha-add-address">
+              {t('Agregar dirección', 'Add address')}
+            </Link>
+          ) : null}
         </p>
 
         <div className={cx('mt-4 rounded-[12px] px-4 py-3.5', step ? 'bg-green-100' : 'bg-warn-bg')} data-testid="ficha-next" data-state={step ? (stepLate ? 'late' : 'set') : 'none'}>
@@ -131,8 +180,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2" data-testid="ficha-actions">
-        {callee ? (
+      {/* Arriba, contactar (llamar, WhatsApp, mensaje de texto); abajo, dejar registro (visita, nota, actividad). */}
+      <div className="grid grid-cols-3 gap-2" data-testid="ficha-actions">
+        {callee && canWrite ? (
+          <CallLink href={`tel:${callee.phone}`} account={logAccount} className={tile} title={callee.who ?? undefined} testId="action-call"><Phone size={20} strokeWidth={1.75} aria-hidden />{m('action.call')}</CallLink>
+        ) : callee ? (
           <a href={`tel:${callee.phone}`} className={tile} title={callee.who ?? undefined} data-testid="action-call"><Phone size={20} strokeWidth={1.75} aria-hidden />{m('action.call')}</a>
         ) : (
           <span className={tileOff} title={m('action.noPhone')}><Phone size={20} strokeWidth={1.75} aria-hidden />{m('action.noPhone')}</span>
@@ -142,8 +194,14 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
         ) : (
           <span className={tileOff} aria-hidden><MessageCircle size={20} strokeWidth={1.75} aria-hidden />{m('action.whatsapp')}</span>
         )}
+        {callee ? (
+          <a href={`sms:${callee.phone}`} className={tile} title={callee.who ?? undefined} aria-label={t('Mensaje de texto', 'Text message')} data-testid="action-sms"><MessageSquareText size={20} strokeWidth={1.75} aria-hidden />{t('Mensaje', 'Text')}</a>
+        ) : (
+          <span className={tileOff} aria-hidden><MessageSquareText size={20} strokeWidth={1.75} aria-hidden />{t('Mensaje', 'Text')}</span>
+        )}
         {canWrite ? (
           <>
+            <LogButton target={{ kind: 'visit', account: logAccount }} className={tile} testId="action-visit"><MapPinCheck size={20} strokeWidth={1.75} aria-hidden />{t('Visita', 'Visit')}</LogButton>
             <Dialog trigger={<><StickyNote size={20} strokeWidth={1.75} aria-hidden />{m('record.note')}</>} title={m('record.note')} triggerClass={tile} testId="action-note">
               <ActionForm action={addActivityAction} onOk="close" className="space-y-4">
                 <input type="hidden" name="account_id" value={a.id} />
@@ -158,11 +216,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <input type="hidden" name="account_id" value={a.id} />
                 <Field label={t('Tipo', 'Type')}>
                   <select name="kind" className="input" defaultValue="task" data-testid="activity-kind">
-                    <option value="task">{t('Tarea con fecha', 'Task with a date')}</option><option value="call">{lab(t, ACTIVITY.call)}</option><option value="meeting">{lab(t, ACTIVITY.meeting)}</option>
+                    <option value="task">{t('Tarea con fecha', 'Task with a date')}</option><option value="visit">{t('Visita por hacer (con fecha)', 'Planned visit (with a date)')}</option><option value="call">{lab(t, ACTIVITY.call)}</option><option value="meeting">{lab(t, ACTIVITY.meeting)}</option>
                   </select>
                 </Field>
                 <Field label={t('¿Qué pasó o qué sigue?', 'What happened or what is next?')}><input name="subject" className="input" required minLength={2} data-testid="activity-subject" /></Field>
-                <Field label={t('Fecha (para tareas)', 'Date (for tasks)')}><input name="due_at" type="date" className="input" min={today} data-testid="activity-due" /></Field>
+                <Field label={t('Fecha (para tareas y visitas por hacer)', 'Date (for tasks and planned visits)')}><input name="due_at" type="date" className="input" min={today} data-testid="activity-due" /></Field>
                 <div className="flex justify-end"><Submit testId="activity-add">{t('Guardar', 'Save')}</Submit></div>
               </ActionForm>
             </Dialog>
@@ -210,7 +268,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className={cx('text-[13px] font-medium', late ? 'text-red-text' : 'text-green-600')}>
-                              {m('record.thread.next')}{task.due_at ? ` · ${dueLabel(task.due_at, late).toLowerCase()}` : ''}
+                              {m('record.thread.next')}{task.due_at ? ` · ${lowerFirst(dueLabel(task.due_at, late))}` : ''}
                             </p>
                             <p className="text-[15px] leading-6 font-medium text-strong">{task.subject}</p>
                             {task.owner_name && task.owner_name !== ctx.user.name && <p className="text-[13px] text-muted">{task.owner_name}</p>}
@@ -224,10 +282,10 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               )}
               <ol className="thread">
               {timeline.map((it, i) => (
-                <li key={i} className="thread-item" data-testid={`tl-${it.kind}`}>
-                  <p className="text-[13px] text-muted">{[threadDate(it.at, locale, tz, now), threadWho(it)].filter(Boolean).join(' · ')}</p>
-                  <p className="text-[15px] leading-6 font-medium text-strong">{threadTitle(it)}</p>
-                  {it.body && it.kind !== 'stage' && <p className="text-[13px] leading-5 text-muted-2">{it.body}</p>}
+                <li key={i} className="thread-item" data-testid={`tl-${it.kind}`} data-origin={it.kind === 'visit' ? (manualVisit(it) ? 'manual' : 'sales_app') : undefined}>
+                  <p className="text-[13px] text-muted">{[threadDate(it.at, locale, tz, now), threadWho(it), threadKind(it)].filter(Boolean).join(' · ')}</p>
+                  <p className="text-[15px] leading-6 font-medium text-strong [overflow-wrap:anywhere]">{threadTitle(it)}</p>
+                  {threadDetail(it).map((line, n) => <p key={n} className="text-[13px] leading-5 text-muted-2 [overflow-wrap:anywhere]">{line}</p>)}
                 </li>
               ))}
               </ol>
@@ -295,7 +353,34 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
 
       {tab === 'datos' && (
         <div className="space-y-6" data-testid="account-data">
-          <section>
+          {/* Reasignar va arriba de Datos: quien supervisa llega aquí desde el encabezado de la ficha, sin recorrer la pantalla. */}
+          {canReassign && (
+            <section data-testid="account-reassign">
+              <form data-testid="reassign-form">
+                <input type="hidden" name="account_id" value={a.id} />
+                <Field label={t('Reasignar dueño', 'Reassign owner')}>
+                  <select name="to_user_id" className="input" required defaultValue={a.owner_id ?? ''} data-testid="reassign-to">
+                    {!a.owner_id && <option value="" disabled>{t('Elige a alguien', 'Pick someone')}</option>}
+                    {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                  </select>
+                </Field>
+                <div className="mt-3 flex justify-end">
+                  <ConfirmButton
+                    action={reassignOneAction}
+                    label={t('Reasignar', 'Reassign')}
+                    title={t('¿Reasignar este comercio?', 'Reassign this merchant?')}
+                    body={t(`${a.name} pasa a %s${moves.es ? `, con ${moves.es}` : ''}.${a.owner_name ? ` ${a.owner_name} deja de verlo en su lista.` : ''}`, `${a.name} moves to %s${moves.en ? `, with ${moves.en}` : ''}.${a.owner_name ? ` ${a.owner_name} stops seeing it in their list.` : ''}`)}
+                    confirm={t('Sí, reasignar', 'Yes, reassign')}
+                    cancel={m('action.cancel')}
+                    nameFrom="to_user_id"
+                    testId="reassign-save"
+                  />
+                </div>
+              </form>
+            </section>
+          )}
+
+          <section className={canReassign ? section : undefined}>
             <h3 className={h3}>{isParent ? t('Ventas de su red', 'Network sales') : t('Ventas', 'Sales')}</h3>
             <dl className="mt-2">
               <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde', 'since')} {day(a.lifecycle_at, locale, tz)}</KeyVal>
@@ -373,18 +458,6 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 </li>
               ))}
             </ul>
-            {canReassign && (
-              <ActionForm action={reassignAction} className="mt-5">
-                <input type="hidden" name="account_id" value={a.id} />
-                <Field label={t('Reasignar dueño', 'Reassign owner')}>
-                  <select name="to_user_id" className="input" defaultValue={a.owner_id ?? ''} data-testid="reassign-to">
-                    {!a.owner_id && <option value="" disabled>{t('Elige a alguien', 'Pick someone')}</option>}
-                    {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
-                </Field>
-                <div className="mt-3 flex justify-end"><Submit variant="ghost" size="sm" testId="reassign-save">{t('Reasignar', 'Reassign')}</Submit></div>
-              </ActionForm>
-            )}
           </section>
 
           <section className={section} data-testid="account-aliases">
@@ -392,7 +465,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             <p className="text-[13px] text-muted">{t('Este comercio tiene un solo ID en CONTIGO; los demás sistemas se ligan como alias.', 'This merchant has one ID in CONTIGO; other systems link to it as aliases.')}</p>
             <dl className="mt-2">
               <KeyVal k="CONTIGO"><code className="text-[13px]">{a.id.slice(0, 13)}…</code></KeyVal>
-              {aliases.map((al, i) => <KeyVal key={i} k={ALIAS_SYSTEM[al.system] ?? al.system}><code className="text-[13px]" data-testid="alias-value">{al.external_id}</code></KeyVal>)}
+              {aliases.map((al, i) => (
+                <KeyVal key={i} k={ALIAS_SYSTEM[al.system] ?? al.system}>
+                  <code className="text-[13px]" data-testid="alias-value">{al.external_id}</code>
+                  <CopyButton value={al.external_id} label={t(`Copiar el ID de ${ALIAS_SYSTEM[al.system] ?? al.system}`, `Copy the ${ALIAS_SYSTEM[al.system] ?? al.system} ID`)} done={t('ID copiado.', 'ID copied.')} />
+                </KeyVal>
+              ))}
             </dl>
             {aliases.length === 0 && <p className="mt-2 text-[13px] text-muted">{t('Todavía no existe en la Sales App ni en S5.', 'It does not exist in the Sales App or S5 yet.')}</p>}
           </section>

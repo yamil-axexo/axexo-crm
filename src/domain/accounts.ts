@@ -128,7 +128,7 @@ export async function reassignAccounts(ctx: Ctx, accountIds: string[], toUserId:
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
              select a.id, a.market_code, 'owner', 'user', ${toUserId}, ${target[0].full_name}, ${ctx.user.id} from crm.accounts a where a.id = any(${moved}::uuid[])`
     await tx`update crm.deals set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and status = 'open'`
-    await tx`update crm.activities set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and kind = 'task' and done_at is null`
+    await tx`update crm.activities set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and kind in ('task', 'visit') and done_at is null`
     await tx`update crm.accounts set owner_id = ${toUserId} where id = any(${moved}::uuid[])`
     await audit(tx, ctx, 'account.reassigned', 'account', null, market, { count: moved.length }, { to_user_id: toUserId, account_ids: moved.slice(0, 50) })
     await emit(tx, 'account.reassigned', 'user', toUserId, market, { count: moved.length })
