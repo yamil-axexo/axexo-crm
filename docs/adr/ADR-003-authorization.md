@@ -42,7 +42,7 @@ Migration `0012_admin_controls`, `tests/db/admin.test.ts`, `tests/e2e/admin.spec
 Scope functions are `SECURITY DEFINER` and read `memberships` without passing through the policies they feed. The migration owner therefore needs `BYPASSRLS` (true for `postgres` on Supabase; on RDS it must be granted explicitly to the migration role). The application role never has it.
 
 ## Evidence
-`tests/db/permissions.test.ts` runs allowed and denied cases per role × object × action against a real database, as the application role, in CI. `tests/db/admin.test.ts` covers access expiry, access removal and routing, the read-only sweep for Leadership and the status function.
+`tests/db/permissions.test.ts` runs allowed and denied cases per role × object × action against a real database, as the application role, in CI. `tests/db/admin.test.ts` covers access expiry, access removal and routing, the read-only sweep for Leadership and the status function. `tests/db/integracion.test.ts` covers the rules that cross work packages: Operations as a current owner, the same count in the removal confirmation and in Mi equipo, and manual visits under distribution.
 
 ## No current owner (added 11-Nov-2026, migration `0011_distribution`)
 Decided by Yamil Alvarez on 11-Nov-2026 with the work package "reparto". Review is requested through the pull request.
@@ -73,6 +73,7 @@ Operations counts as a current owner (changed at integration, 11-Nov-2026): afte
 
 **Consequences worth knowing.**
 - A merchant, deal or lead owned by an Operations user of that market has a current owner: it does not show up in the supervisor's pool, and a supervisor of another team does not see it. When that person loses the Operations role, it does. The role list lives in one place, `app.owner_roles()` in the migration; the keys and the application read it from there.
+- A visit logged by hand (`0010_field_work`) is an activity of the merchant: whoever sees the merchant sees the visit, including a supervisor looking at a merchant with no current owner. A planned visit moves with the merchant when it is distributed, like an open task; a visit already made stays under whoever made it and is counted for the merchant's owner (`crm.visit_log`).
 - The exception "Merchant with no owner" still counts only merchants with no owner at all and an active lifecycle. Opening one exception per merchant of the service account would add thousands of items to the queue. Mi equipo shows the pool as one block per holder instead, with counts.
 - A store with no owner that hangs from a chain is carried by whoever owns the chain; it does not count as "no owner" in filters and counts (same rule as the exception and the data quality tab).
 
