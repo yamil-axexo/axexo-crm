@@ -219,8 +219,8 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       const pipe = await tx<{ close_by_transaction: boolean }[]>`select close_by_transaction from crm.pipelines where id = ${d.pipeline_id}`
       if (pipe[0]?.close_by_transaction !== false) {
         throw new DomainError('won_by_transaction',
-          'Un deal se gana solo cuando S5 reporta la primera transacción del comercio.',
-          'A deal is won only when S5 reports the merchant’s first transaction.')
+          'Este negocio se gana solo, cuando los datos de ventas traen la primera transacción del comercio.',
+          'This deal is won on its own, when the sales data shows the merchant’s first transaction.')
       }
       // Ganar a mano: la fecha real de cierre es de hoy hacia atrás (en el día del mercado), nunca futura.
       const on = (extra?.wonOn ?? '').trim()

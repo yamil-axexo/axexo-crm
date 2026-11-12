@@ -68,6 +68,24 @@ export function pairsIn(src) {
     const b = literal(src, skipSpace(src, i + 3))
     if (b) push(m.index, a.text, b.text)
   }
+  // Errores con código: new DomainError(código, 'español', 'english'). El código puede ser una expresión.
+  for (const m of src.matchAll(/DomainError\(/g)) {
+    let i = m.index + m[0].length
+    for (let depth = 0; i < src.length; i++) {
+      const lit = literal(src, i)
+      if (lit) { i = lit.end - 1; continue }
+      if (src[i] === '(') depth++
+      else if (src[i] === ')') { if (depth-- === 0) break }
+      else if (src[i] === ',' && depth === 0) break
+    }
+    if (src[i] !== ',') continue
+    const a = literal(src, skipSpace(src, i + 1))
+    if (!a) continue
+    i = skipSpace(src, a.end)
+    if (src[i] !== ',') continue
+    const b = literal(src, skipSpace(src, i + 1))
+    if (b) push(m.index, a.text, b.text)
+  }
   // Pares sueltos ['español', 'english']: así viajan los mensajes de las acciones y las etiquetas de la bitácora.
   for (const m of src.matchAll(/\[\s*(?=['"`])/g)) {
     const a = literal(src, m.index + m[0].length)

@@ -406,3 +406,8 @@ select mm.account_id, current_date - 31, mm.market_code, mm.first_txn_at, now() 
   from crm.merchant_metrics_daily mm join crm.accounts a on a.id = mm.account_id
   cross join lateral (select pg_temp.h('prev' || mm.account_id::text) as r) x
  where a.lifecycle = 'active' and mm.first_txn_at < now() - interval '45 days' and x.r % 3 = 0;
+
+-- vocabulario
+-- El criterio de salida de la etapa que espera la primera venta habla de los datos de ventas, no del nombre interno del sistema.
+update crm.stages set exit_es = 'Los datos de ventas traen la primera transacción', exit_en = 'The sales data shows the first transaction'
+ where exit_es = 'S5 reporta la primera transacción';

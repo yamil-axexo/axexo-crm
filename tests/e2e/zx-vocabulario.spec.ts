@@ -49,6 +49,9 @@ const englishTexts = new Set<string>()
   for (const p of all) if (fixed(p.es) && p.es.trim() !== p.en.trim() && p.es.trim().length >= 5 && !englishTexts.has(p.es.trim())) spanishOnly.add(p.es.trim())
 }
 
+// Datos sembrados que coinciden con un texto de la interfaz: nombres de embudos y de etapas, y el origen guardado de un comercio.
+for (const data of ['Cadenas y distribuidores', 'Formulario web', 'Esperando primera venta', 'Pedidos', 'Dealers', 'Eventos']) spanishOnly.delete(data)
+
 // El "—" solo, como marca de "sin dato" en una celda, se queda: un guion corto en una columna de montos se lee como signo de menos.
 const dashes = (line: string) => LONG_DASH.test(line.replace(/(^|[\s·:(])—(?=$|[\s·,.)])/g, '$1'))
 
