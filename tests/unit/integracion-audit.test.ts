@@ -51,4 +51,42 @@ describe('bitácora: lo que registran reparto y campo se lee en palabras', () =>
     expect(row(rows, 'no_current_owner')).toMatchObject({ label: 'Lo suyo quedó por repartir', after: 'Sí' })
     expect(row(rows, 'accounts')!.after).toBe('3')
   })
+
+  // Ola 2: cada acción nueva de los cinco paquetes se lee en los dos idiomas y cae en un tipo del filtro.
+  it('las acciones de la ola 2 tienen nombre en ES y EN y entran en algún filtro', () => {
+    const wave2: Record<string, string[]> = {
+      records: [
+        // leads
+        'lead.updated', 'lead.passed', 'lead.released', 'lead.repeat_request',
+        // operaciones
+        'deal.item_added', 'deal.item_removed', 'deal.handed_to_ops', 'deal.returned_to_sales', 'deal.ops_taken', 'deal.ops_check', 'deal.training',
+        'account.merchant_ref', 'activity.notice_sent', 'activity.notice_seen',
+        // b2b
+        'account.type_changed', 'contact.primary_set', 'deal.paused', 'deal.resumed',
+      ],
+      config: [
+        'routing.hours_updated', // leads
+        'pipeline.ops_configured', 'pipeline.catalog_created', 'pipeline.catalog_updated', 'pipeline.product_created', 'pipeline.product_updated', // operaciones
+        'stage.created', 'stage.reordered', 'stage.archived', 'pipeline.created', 'field.created', 'field.retired', 'field.restored',
+        'account_type.created', 'account_type.retired', 'account_type.restored', 'loss_reason.created', 'loss_reason.updated', 'form.updated', // b2b
+        'fx.rate_set', // liderazgo
+      ],
+      exports: ['report.exported'], // liderazgo
+      reports: ['report.created', 'report.answered'], // contenido
+    }
+    const like = (action: string, pattern: string) => new RegExp(`^${pattern.replace(/[.]/g, '\\.').replace(/%/g, '.*')}$`).test(action)
+    for (const [group, actions] of Object.entries(wave2)) {
+      for (const a of actions) {
+        const pair = AUDIT_ACTION[a]
+        expect(pair, a).toBeDefined()
+        expect(pair![0], a).not.toBe(pair![1])
+        expect(`${pair![0]}${pair![1]}`, a).not.toMatch(/[—–]/)
+        expect((AUDIT_GROUPS[group as keyof typeof AUDIT_GROUPS].like ?? []).some((p) => like(a, p)), `${a} en ${group}`).toBe(true)
+      }
+    }
+    // "report." lo usan dos paquetes para cosas distintas: una exportación no aparece entre los reportes del equipo, ni al revés.
+    expect(AUDIT_GROUPS.reports.like.some((p) => like('report.exported', p))).toBe(false)
+    expect(AUDIT_GROUPS.exports.like.some((p) => like('report.created', p))).toBe(false)
+    for (const o of ['report', 'fx_rate', 'notice', 'ops_catalog', 'product', 'market', 'problem_report', 'account_type', 'field', 'form', 'loss_reason']) expect(AUDIT_OBJECT[o], o).toBeDefined()
+  })
 })

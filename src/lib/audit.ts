@@ -147,6 +147,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   ingest_batch: ['Archivo de ventas', 'Sales file'],
   integration: ['Integración', 'Integration'],
   rules: ['Reglas', 'Rules'],
+  market: ['Mercado', 'Market'],
   report: ['Reporte', 'Report'],
   fx_rate: ['Tasa de cambio', 'Exchange rate'],
   session: ['Sesión', 'Session'],

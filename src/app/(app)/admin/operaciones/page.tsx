@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getOpsConfig } from '@/dal/ops'
@@ -20,6 +21,7 @@ export default async function OpsConfigPage() {
 
   return (
     <>
+      <p className="mb-3"><Link href="/admin" className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="ops-config-back">{t('Volver a Administración', 'Back to Administration')}</Link></p>
       <PageHeader eyebrow={t('Administración', 'Administration')} title={t('Operaciones', 'Operations')}
         desc={t('Embudos de pedidos, etapas de Operaciones, productos y catálogos. Todo cambio queda en la bitácora.', 'Order pipelines, Operations stages, products and catalogs. Every change is logged.')} />
       <div className="space-y-8">
