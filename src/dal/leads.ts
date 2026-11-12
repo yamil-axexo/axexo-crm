@@ -68,6 +68,17 @@ export type LeadDetail = LeadListItem & {
   disqualify_code: string | null
   account_id: string | null
   assigned_at: Date | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_content: string | null
+  utm_term: string | null
+  gclid: string | null
+  fbclid: string | null
+  consent_at: Date | null
+  consent_text: string | null
+  /** El dueño todavía vende en el mercado del lead. Si no, alguien tiene que reasignarlo. */
+  owner_active: boolean
 }
 
 export async function getLead(ctx: Ctx, id: string) {
@@ -75,7 +86,9 @@ export async function getLead(ctx: Ctx, id: string) {
     const rows = await tx<LeadDetail[]>`
       select l.id, l.market_code, l.business_name, l.contact_name, l.locality, l.motor, l.source, l.status, l.owner_id, u.full_name as owner_name,
              l.sla_due_at, l.first_touch_at, l.created_at, l.duplicate_of, l.phone, l.email::text, l.message, f.name as form_name,
-             l.disqualify_code, l.account_id, l.assigned_at
+             l.disqualify_code, l.account_id, l.assigned_at,
+             l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid, l.consent_at, l.consent_text,
+             (l.owner_id is null or app.works_in(l.owner_id, l.market_code)) as owner_active
         from crm.leads l left join crm.users u on u.id = l.owner_id left join crm.web_forms f on f.id = l.form_id
        where l.id = ${id}`
     const lead = rows[0]

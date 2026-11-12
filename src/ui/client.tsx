@@ -128,7 +128,7 @@ export function NavLink({ href, children, testId }: { href: string; children: Re
 }
 
 /** Muestra una sola vez un valor sensible que acaba de crear el servidor (por ejemplo, una llave de API). */
-export function RevealOnce({ action, children, label }: { action: FormAction; children: ReactNode; label: string }) {
+export function RevealOnce({ action, children, label, copyLabel = 'Copy', copiedLabel = '✓' }: { action: FormAction; children: ReactNode; label: string; copyLabel?: string; copiedLabel?: string }) {
   const [state, formAction] = useActionState(action, null)
   const [copied, setCopied] = useState(false)
   const secret = state?.ok && typeof state.data === 'string' ? state.data : null
@@ -152,7 +152,7 @@ export function RevealOnce({ action, children, label }: { action: FormAction; ch
           <p className="text-[12.5px] font-semibold text-muted-2">{label}</p>
           <code className="mt-2 block text-[13px] break-all text-strong">{secret}</code>
           <button type="button" className={cx(buttonClass('ghost', 'sm'), 'mt-3')} onClick={() => navigator.clipboard?.writeText(secret).then(() => setCopied(true))}>
-            {copied ? '✓' : 'Copy'}
+            {copied ? copiedLabel : copyLabel}
           </button>
         </div>
       )}

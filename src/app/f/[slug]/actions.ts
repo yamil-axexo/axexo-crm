@@ -10,7 +10,9 @@ type R = ActionResult<unknown>
 
 /** Formulario público: no hay sesión. Valida todo en el servidor y es idempotente por la llave del render. */
 export async function submitPublicForm(_: R | null, fd: FormData): Promise<R> {
-  const t = translator(await publicLocale())
+  // El formulario responde en su propio idioma (el de su mercado), no en el del navegador de quien lo llena.
+  const formLocale = fd.get('locale')
+  const t = translator(formLocale === 'en' ? 'en' : formLocale === 'es' ? 'es' : await publicLocale())
   const slug = String(fd.get('slug') ?? '')
   const key = String(fd.get('idempotency_key') ?? '')
   if (!/^[a-z0-9-]{3,60}$/.test(slug) || !/^[0-9a-f-]{36}$/.test(key)) return { ok: false, code: 'invalid', error: t('Formulario inválido.', 'Invalid form.') }

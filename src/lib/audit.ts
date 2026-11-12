@@ -1,0 +1,297 @@
+import type { Locale, T } from '@/lib/format'
+import { ROLE_LABEL, type Role } from '@/domain/policy'
+import { EXCEPTION, LEAD_STATUS, MOTOR, SOURCE } from '@/lib/labels'
+
+type Pair = [es: string, en: string]
+
+/**
+ * Bitácora legible: cada acción que la aplicación registra tiene su nombre en español y en inglés.
+ * Una prueba recorre el código y falla si aparece una acción nueva sin nombre aquí (tests/unit/audit-labels.test.ts).
+ */
+export const AUDIT_ACTION: Record<string, Pair> = {
+  'account.created': ['Creó un comercio', 'Created a merchant'],
+  'account.updated': ['Cambió los datos de un comercio', 'Edited a merchant'],
+  'account.custom_updated': ['Cambió campos adicionales de un comercio', 'Edited a merchant’s additional fields'],
+  'account.parent_changed': ['Cambió la cadena de un comercio', 'Changed a merchant’s parent'],
+  'account.reassigned': ['Reasignó comercios', 'Reassigned merchants'],
+  'account.merged': ['Fusionó un comercio duplicado', 'Merged a duplicate merchant'],
+  'contact.added': ['Agregó un contacto', 'Added a contact'],
+  'activity.added': ['Registró una actividad', 'Logged an activity'],
+  'activity.completed': ['Completó una actividad', 'Completed an activity'],
+  'deal.created': ['Creó un negocio', 'Created a deal'],
+  'deal.updated': ['Cambió un negocio', 'Edited a deal'],
+  'deal.custom_updated': ['Cambió campos adicionales de un negocio', 'Edited a deal’s additional fields'],
+  'deal.stage_changed': ['Movió un negocio de etapa', 'Moved a deal to another stage'],
+  'deal.won_by_transaction': ['Negocio ganado por primera transacción', 'Deal won by first transaction'],
+  'lead.created': ['Creó un lead', 'Created a lead'],
+  'lead.assigned': ['Asignó un lead', 'Assigned a lead'],
+  'lead.taken': ['Tomó un lead', 'Took a lead'],
+  'lead.attempted': ['Intentó contactar un lead', 'Tried to reach a lead'],
+  'lead.contacted': ['Contactó un lead', 'Reached a lead'],
+  'lead.qualified': ['Calificó un lead', 'Qualified a lead'],
+  'lead.disqualified': ['Descartó un lead', 'Disqualified a lead'],
+  'lead.converted': ['Convirtió un lead en comercio', 'Converted a lead into a merchant'],
+  'exception.dismissed': ['Descartó un aviso', 'Dismissed an alert'],
+  'exception.scheduled': ['Atendió un aviso con un próximo paso', 'Handled an alert with a next step'],
+  'membership.granted': ['Dio acceso', 'Granted access'],
+  'membership.ended': ['Quitó un acceso', 'Removed access'],
+  'membership.expiry_changed': ['Cambió el vencimiento de un acceso', 'Changed when an access expires'],
+  // La lista de arranque del ambiente (BOOTSTRAP_ADMIN_EMAILS) le dio Administración a esta persona al entrar: nadie se la otorgó desde la pantalla.
+  'user.bootstrap_admin': ['Recibió Administración por la lista de arranque del ambiente', 'Got Administration from the environment’s bootstrap list'],
+  'team.created': ['Creó un equipo', 'Created a team'],
+  'pipeline.configured': ['Cambió la regla de cierre de un embudo', 'Changed a pipeline’s closing rule'],
+  'stage.updated': ['Cambió una etapa', 'Edited a stage'],
+  'routing.members_changed': ['Cambió un turno de leads', 'Changed a lead rotation'],
+  'api_client.created': ['Creó una llave de API', 'Created an API key'],
+  'api_client.revoked': ['Revocó una llave de API', 'Revoked an API key'],
+  'integration.visit_received': ['Llegó una visita de la Sales App', 'A Sales App visit came in'],
+  'integration.store_received': ['Llegó un punto de venta de la Sales App', 'A store came in from the Sales App'],
+  'integration.metrics_loaded': ['Se cargó el archivo diario de S5', 'The S5 daily file was loaded'],
+  'integration.metrics_quarantined': ['Archivo de S5 en cuarentena', 'S5 file quarantined'],
+  'integration.simulated': ['Probó una integración desde Administración', 'Tested an integration from Administration'],
+  'import.started': ['Inició la importación de Pipedrive', 'Started the Pipedrive import'],
+  'import.resumed': ['Reanudó la importación de Pipedrive', 'Resumed the Pipedrive import'],
+  'import.cancelled': ['Detuvo la importación de Pipedrive', 'Stopped the Pipedrive import'],
+  'import.completed': ['Terminó la importación de Pipedrive', 'The Pipedrive import finished'],
+  'import.raw_purged': ['Vació la copia cruda de Pipedrive', 'Emptied the raw Pipedrive copy'],
+  'rules.evaluated': ['Evaluó las reglas a mano', 'Ran the rules by hand'],
+  'session.started': ['Inició sesión', 'Signed in'],
+  'session.ended': ['Cerró sesión', 'Signed out'],
+}
+
+/** Tipos de acción para filtrar la bitácora. El valor vacío es la vista de entrada: todo menos inicios y cierres de sesión. */
+export const AUDIT_GROUPS = {
+  '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
+  access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%'], not: null },
+  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
+  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
+  sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
+  all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
+} as const
+export type AuditGroup = keyof typeof AUDIT_GROUPS
+export const isAuditGroup = (v: string | undefined): v is AuditGroup => v !== undefined && v in AUDIT_GROUPS
+
+/** Tipos de registro por los que se filtra, con su nombre. */
+export const AUDIT_OBJECT: Record<string, Pair> = {
+  account: ['Comercio', 'Merchant'],
+  deal: ['Negocio', 'Deal'],
+  lead: ['Lead', 'Lead'],
+  user: ['Persona', 'Person'],
+  activity: ['Actividad', 'Activity'],
+  exception: ['Aviso', 'Alert'],
+  team: ['Equipo', 'Team'],
+  pipeline: ['Embudo', 'Pipeline'],
+  stage: ['Etapa', 'Stage'],
+  routing_rule: ['Turno de leads', 'Lead rotation'],
+  api_client: ['Llave de API', 'API key'],
+  import_run: ['Importación de Pipedrive', 'Pipedrive import'],
+  ingest_batch: ['Archivo de S5', 'S5 file'],
+  integration: ['Integración', 'Integration'],
+  rules: ['Reglas', 'Rules'],
+  session: ['Sesión', 'Session'],
+}
+
+export const actionLabel = (t: T, action: string) => {
+  const pair = AUDIT_ACTION[action]
+  return pair ? t(pair[0], pair[1]) : action
+}
+
+// ------------------------------------------------------------------ antes y después, en palabras
+type Json = unknown
+export type Names = Record<string, string>
+
+const FIELD: Record<string, Pair> = {
+  role: ['Rol', 'Role'],
+  market: ['Mercado', 'Market'],
+  team_id: ['Equipo', 'Team'],
+  expires: ['Vence el', 'Expires on'],
+  owner_id: ['Dueño', 'Owner'],
+  to_user_id: ['Pasan a', 'Moved to'],
+  status: ['Estado', 'Status'],
+  stage_id: ['Etapa', 'Stage'],
+  kind: ['Tipo', 'Type'],
+  reason: ['Motivo', 'Reason'],
+  name: ['Nombre', 'Name'],
+  name_es: ['Nombre en español', 'Name in Spanish'],
+  name_en: ['Nombre en inglés', 'Name in English'],
+  rot_days: ['Se estanca a los', 'Stalls after'],
+  required_fields: ['Pide para entrar', 'Required to enter'],
+  close_by_transaction: ['Se gana con la primera transacción (S5)', 'Won by the first transaction (S5)'],
+  awaiting_stage_id: ['Etapa que espera la transacción', 'Stage that waits for the transaction'],
+  member_ids: ['Personas en el turno', 'People in the rotation'],
+  fallback_id: ['Respaldo', 'Fallback'],
+  scopes: ['Permisos', 'Scopes'],
+  source: ['Origen', 'Source'],
+  motor: ['Tipo de venta', 'Sales motion'],
+  count: ['Cantidad', 'Count'],
+  account_ids: ['Comercios movidos', 'Merchants moved'],
+  account_id: ['Comercio', 'Merchant'],
+  parent_id: ['Cadena', 'Parent'],
+  source_id: ['Comercio archivado', 'Archived merchant'],
+  source_name: ['Nombre del archivado', 'Archived name'],
+  target_id: ['Comercio que se queda', 'Surviving merchant'],
+  deal_id: ['Negocio', 'Deal'],
+  pipeline_id: ['Embudo', 'Pipeline'],
+  next_step: ['Próximo paso', 'Next step'],
+  next_step_due: ['Fecha del próximo paso', 'Next step date'],
+  next: ['Qué sigue', 'What is next'],
+  outcome: ['Resultado', 'Outcome'],
+  opened: ['Avisos nuevos', 'New alerts'],
+  closed: ['Avisos resueltos solos', 'Alerts cleared on their own'],
+  removed_from_rules: ['Salió de los turnos', 'Removed from rotations'],
+  fallback_cleared: ['Dejó de ser respaldo de', 'No longer the fallback of'],
+  accounts: ['Comercios a su nombre', 'Merchants in their name'],
+  deals: ['Negocios abiertos a su nombre', 'Open deals in their name'],
+  leads: ['Leads abiertos a su nombre', 'Open leads in their name'],
+  consent: ['Consentimiento para correos', 'Email consent'],
+  utm_source: ['Fuente de campaña', 'Campaign source'],
+  utm_campaign: ['Campaña', 'Campaign'],
+  title: ['Título', 'Title'],
+  amount_minor: ['Monto', 'Amount'],
+  mode: ['Modo', 'Mode'],
+  rows: ['Filas', 'Rows'],
+  as_of: ['Fecha de corte', 'As-of date'],
+  key: ['Mensaje de prueba', 'Test message'],
+  email: ['Correo', 'Email'],
+  forced_duplicate: ['Se guardó aunque parecía duplicado', 'Saved although it looked like a duplicate'],
+  customer_id: ['ID en la Sales App', 'Sales App ID'],
+  visit_id: ['Visita', 'Visit'],
+  sale: ['Con venta', 'With a sale'],
+  revisit: ['Pide revisita', 'Needs a revisit'],
+  matched: ['Filas ligadas', 'Rows matched'],
+  unmatched: ['Filas sin comercio', 'Rows with no merchant'],
+  deals_won: ['Negocios ganados', 'Deals won'],
+  follows: ['Sigue a la actividad', 'Follows the activity'],
+  contact_id: ['Contacto', 'Contact'],
+}
+
+const VALUE: Record<string, Pair> = {
+  amount: ['monto esperado', 'expected amount'],
+  decision_maker: ['decisor identificado y contactado', 'decision-maker identified and reached'],
+  next_step: ['próximo paso con fecha', 'next step with a date'],
+  access_removed: ['Se le quitó el acceso', 'Their access was removed'],
+  open: ['Abierto', 'Open'],
+  won: ['Ganado', 'Won'],
+  lost: ['Perdido', 'Lost'],
+  awaiting_txn: ['Esperando primera venta', 'Awaiting first sale'],
+  persona: ['Persona de prueba', 'Test persona'],
+  sso: ['Cuenta de Google', 'Google account'],
+  visit: ['Visita de la Sales App', 'Sales App visit'],
+  store: ['Punto de venta nuevo', 'New store'],
+  metrics: ['Archivo diario de S5', 'S5 daily file'],
+  full: ['Completa', 'Full'],
+  delta: ['Solo lo que cambió', 'Only what changed'],
+  remap: ['Volver a aplicar el mapeo', 'Re-apply the mapping'],
+  reached: ['Se logró el contacto', 'Reached'],
+  no_answer: ['No contestó', 'No answer'],
+  done: ['Hecho', 'Done'],
+  later: ['Después', 'Later'],
+  none: ['Nada más', 'Nothing else'],
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/** Todos los identificadores que aparecen en un antes o un después, para traer sus nombres en una sola consulta por tipo. */
+export function idsIn(value: Json, out: Set<string> = new Set()): Set<string> {
+  if (typeof value === 'string') {
+    if (UUID.test(value)) out.add(value)
+  } else if (Array.isArray(value)) value.forEach((v) => idsIn(v, out))
+  else if (value && typeof value === 'object') Object.values(value).forEach((v) => idsIn(v, out))
+  return out
+}
+
+function word(t: T, locale: Locale, key: string, v: Json, names: Names): string {
+  if (v === null || v === undefined || v === '') return t('nada', 'nothing')
+  if (typeof v === 'boolean') return v ? t('Sí', 'Yes') : 'No'
+  if (typeof v === 'number') {
+    if (key === 'rot_days') return v === 0 ? t('nunca', 'never') : t(`${v} días`, `${v} days`)
+    return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX').format(v)
+  }
+  if (Array.isArray(v)) {
+    if (key === 'account_ids') return t(`${v.length} comercios`, `${v.length} merchants`)
+    return v.length === 0 ? t('nadie', 'nobody') : v.map((x) => word(t, locale, key, x, names)).join(', ')
+  }
+  if (typeof v === 'object') return JSON.stringify(v).slice(0, 160)
+  const s = String(v)
+  if (UUID.test(s)) return names[s] ?? t('un registro que ya no puedes ver', 'a record you can no longer see')
+  if (key === 'role' && s in ROLE_LABEL) return t(ROLE_LABEL[s as Role].es, ROLE_LABEL[s as Role].en)
+  if (key === 'status' && LEAD_STATUS[s]) return t(...LEAD_STATUS[s].label)
+  if (key === 'source' && SOURCE[s]) return t(...SOURCE[s])
+  if (key === 'motor' && MOTOR[s]) return t(...MOTOR[s])
+  if (key === 'kind' && EXCEPTION[s]) return t(...EXCEPTION[s].label)
+  if ((key === 'expires' || key === 'next_step_due' || key === 'as_of' || key === 'next') && DAY.test(s)) {
+    return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${s}T12:00:00Z`))
+  }
+  if (VALUE[s]) return t(...VALUE[s])
+  return s.length > 160 ? `${s.slice(0, 160)}…` : s
+}
+
+const empty = (v: Json) => v === null || v === undefined || (Array.isArray(v) && v.length === 0)
+
+export type DiffRow = { key: string; label: string; before: string | null; after: string | null }
+
+/** El antes y el después de un evento, campo por campo y con nombres en vez de identificadores. */
+export function diffRows(t: T, locale: Locale, before: Record<string, Json> | null, after: Record<string, Json> | null, names: Names): DiffRow[] {
+  const keys = [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])]
+  return keys
+    .filter((k) => JSON.stringify(before?.[k] ?? null) !== JSON.stringify(after?.[k] ?? null))
+    // Una lista vacía que antes no existía no dice nada ("salió de los turnos: nadie"): no se muestra.
+    .filter((k) => !(empty(before?.[k]) && empty(after?.[k])))
+    .map((k) => ({
+      key: k,
+      label: FIELD[k] ? t(...FIELD[k]) : k,
+      before: before && k in before ? word(t, locale, k, before[k], names) : null,
+      after: after && k in after ? word(t, locale, k, after[k], names) : null,
+    }))
+}
+
+/** Lo esencial de un evento en una línea, para leerlo sin abrir el detalle: "Ventas · US · vence el 30 nov 2026". */
+export function summary(t: T, locale: Locale, action: string, before: Record<string, Json> | null, after: Record<string, Json> | null, names: Names): string {
+  const w = (key: string, v: Json) => word(t, locale, key, v, names)
+  const src = { ...(before ?? {}), ...(after ?? {}) }
+  if (action.startsWith('membership.')) {
+    const parts = [w('role', src.role), src.market ? String(src.market) : null, src.team_id ? w('team_id', src.team_id) : null]
+    if (action === 'membership.granted' && after?.expires) parts.push(t(`vence el ${w('expires', after.expires)}`, `expires on ${w('expires', after.expires)}`))
+    if (action === 'membership.expiry_changed') parts.push(after?.expires ? t(`ahora vence el ${w('expires', after.expires)}`, `now expires on ${w('expires', after.expires)}`) : t('ya no vence', 'no longer expires'))
+    const out = Array.isArray(after?.removed_from_rules) && after.removed_from_rules.length ? t(`salió de: ${w('removed_from_rules', after.removed_from_rules)}`, `removed from: ${w('removed_from_rules', after.removed_from_rules)}`) : null
+    return [...parts, out].filter(Boolean).join(' · ')
+  }
+  if (action === 'deal.stage_changed') return t(`de ${w('stage_id', before?.stage_id)} a ${w('stage_id', after?.stage_id)}`, `from ${w('stage_id', before?.stage_id)} to ${w('stage_id', after?.stage_id)}`)
+  if (action === 'lead.assigned' || action === 'lead.taken') return t(`de ${w('owner_id', before?.owner_id)} a ${w('owner_id', after?.owner_id)}`, `from ${w('owner_id', before?.owner_id)} to ${w('owner_id', after?.owner_id)}`)
+  if (action === 'account.reassigned') return t(`${w('count', before?.count)} comercios a ${w('to_user_id', after?.to_user_id)}`, `${w('count', before?.count)} merchants to ${w('to_user_id', after?.to_user_id)}`)
+  if (action === 'routing.members_changed') return w('member_ids', after?.member_ids)
+  if (action === 'pipeline.configured') return after?.close_by_transaction ? t('se gana con la primera transacción', 'won by the first transaction') : t('se cierra a mano', 'closed by hand')
+  if (action === 'rules.evaluated') return t(`${w('opened', after?.opened)} avisos nuevos, ${w('closed', after?.closed)} resueltos solos`, `${w('opened', after?.opened)} new alerts, ${w('closed', after?.closed)} cleared on their own`)
+  if (action === 'integration.simulated') return w('kind', after?.kind)
+  if (action === 'api_client.created') return w('scopes', after?.scopes)
+  if (action === 'session.started') return w('kind', after?.kind)
+  return ''
+}
+
+// ------------------------------------------------------------------ hora de quien lee
+/** Una zona horaria IANA que este servidor conoce. Lo que llega del navegador se valida antes de usarlo. */
+export function validTimeZone(tz: string | null | undefined): tz is string {
+  if (!tz || tz.length > 64 || !/^[A-Za-z0-9_+\-/]+$/.test(tz)) return false
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** "hora de Puerto Rico (GMT-4)": la zona escrita, para que nadie tenga que adivinar en qué hora está la bitácora. */
+export function zoneLabel(timeZone: string, locale: Locale, at = new Date()): string {
+  if (timeZone === 'UTC') return locale === 'en' ? 'UTC time' : 'hora UTC'
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' }).formatToParts(at).find((p) => p.type === 'timeZoneName')?.value ?? ''
+  const place = (timeZone.split('/').pop() ?? timeZone).replaceAll('_', ' ')
+  return locale === 'en' ? `${place} time (${offset})` : `hora de ${place} (${offset})`
+}
+
+/** Fecha y hora de un evento, con segundos: "11 nov 2026, 9:02:15 p.m.". */
+export function stamp(d: Date | string, locale: Locale, timeZone: string): string {
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone })
+    .format(typeof d === 'string' ? new Date(d) : d)
+}

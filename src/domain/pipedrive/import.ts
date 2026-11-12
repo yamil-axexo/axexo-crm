@@ -329,7 +329,12 @@ export async function applyConfig(tx: Tx, runId: string): Promise<void> {
       const rot = s.payload.is_deal_rot_enabled ? Math.max(0, Math.round(Number(s.payload.days_to_rotten ?? 0))) : 0
       const existing = stageRefs.get(s.external_id)
       if (existing) {
-        await tx`update crm.stages set position = ${pos}, name_es = ${sname}, name_en = ${sname}, probability = ${prob}, rot_days = ${rot} where id = ${existing}`
+        // Una etapa que administración ya corrigió (nombre en español, días) conserva lo corregido: solo se mueve de lugar.
+        await tx`update crm.stages set position = ${pos}, probability = ${prob},
+                  name_es = case when edited_at is null then ${sname} else name_es end,
+                  name_en = case when edited_at is null then ${sname} else name_en end,
+                  rot_days = case when edited_at is null then ${rot} else rot_days end
+                 where id = ${existing}`
       } else {
         const row = await one(tx<{ id: string }[]>`insert into crm.stages (pipeline_id, position, code, name_es, name_en, kind, probability, rot_days)
           values (${pipelineId}, ${pos}, ${'pd_' + s.external_id}, ${sname}, ${sname}, 'open', ${prob}, ${rot}) returning id`)

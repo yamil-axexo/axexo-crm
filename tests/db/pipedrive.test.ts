@@ -5,6 +5,7 @@ import { startMock } from '../support/pipedrive-mock.mjs'
 import { importStep, startImport, purgeRaw, type Mode } from '@/domain/pipedrive/import'
 import { moveDeal } from '@/domain/deals'
 import { configurePipeline, updateCustom } from '@/domain/custom'
+import { updateStage } from '@/domain/admin'
 import { getImportStatus } from '@/dal/imports'
 import { loadCtx, type Ctx } from '@/server/context'
 import { withUser } from '@/server/db'
@@ -32,7 +33,7 @@ const ref = async (object: string, id: number | string) => (await one(admin`sele
 const skipped = async (object: string, id: number | string) => (await admin`select load_note from crm.import_raw where source = 'pipedrive' and object = ${object} and external_id = ${String(id)}`)[0]?.load_note
 
 beforeAll(async () => {
-  mock = await startMock(45991, { rateLimitOnce: true })
+  mock = await startMock(Number(process.env.UNIT_PIPEDRIVE_PORT ?? 45991), { rateLimitOnce: true })
   nora = await ctxFor('nora.salas')
   await runImport('full')
 }, 120_000)
@@ -261,6 +262,15 @@ describe('migración desde Pipedrive: repetir, traer cambios y operar después',
     expect(await updateCustom(nora, 'account', a.id, { tax_id: 'ABC', market: 'US' })).toBe(0) // restringido y de modelo: no se editan por aquí
     const rita = (await loadCtx((await one(admin`select id from crm.users where email = 'omar.vidal@contigo.test'`)).id, 'es'))!
     await expect(updateCustom(rita, 'account', a.id, { monthly_volume: '1' })).rejects.toMatchObject({ code: 'not_found' }) // otro mercado: RLS no deja ni verlo
+  })
+
+  it('una etapa que administración corrigió conserva su nombre y sus días al volver a importar', async () => {
+    const [edited, other] = await admin<{ id: string; name_en: string; rot_days: number }[]>`select id, name_en, rot_days from crm.stages where code like 'pd\\_%' order by id limit 2`
+    await updateStage(nora, edited!.id, { nameEs: 'Etapa corregida a mano', nameEn: edited!.name_en, rotDays: edited!.rot_days + 3, requiredFields: [] })
+    await runImport('remap')
+    expect(await one(admin`select name_es, name_en, rot_days from crm.stages where id = ${edited!.id}`)).toMatchObject({ name_es: 'Etapa corregida a mano', name_en: edited!.name_en, rot_days: edited!.rot_days + 3 })
+    // Una etapa que nadie tocó sigue trayendo el nombre de Pipedrive.
+    expect(await one(admin`select name_es, rot_days from crm.stages where id = ${other!.id}`)).toMatchObject({ name_es: other!.name_en, rot_days: other!.rot_days })
   })
 
   it('vaciar la copia cruda no toca lo cargado', async () => {

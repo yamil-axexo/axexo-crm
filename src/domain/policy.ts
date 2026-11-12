@@ -30,10 +30,14 @@ export const CAPABILITIES = {
   'activity.write': [...SELLERS, 'ops'],
   'exception.resolve': [...MANAGERS, 'ops', 'rep'],
   'board.supervisor': [...MANAGERS, 'lt'],
+  // Evaluar las reglas a mano abre y cierra excepciones para todos: es un cambio de datos, así que Leadership (solo lectura) no lo corre.
+  'rules.run': MANAGERS,
   'board.lt': ['admin', 'lt', 'market_lead'],
   'audit.read': ['admin', 'lt', 'market_lead'],
   'config.manage': ['admin'],
   'integration.operate': ['admin'],
+  // Página de estado: ambiente, versión, frescura de los datos e integraciones. La ven quien administra y quien responde por los controles.
+  'status.read': ['admin', 'lt'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
@@ -44,6 +48,11 @@ export type Membership = { market: string | null; role: Role; teamId: string | n
 export function can(memberships: Membership[], cap: Capability, market?: string | null): boolean {
   const allowed = CAPABILITIES[cap] as readonly Role[]
   return memberships.some((m) => allowed.includes(m.role) && (m.market === null || !market || m.market === market))
+}
+
+/** Solo lectura: la persona ve, pero ninguno de sus roles vigentes le deja cambiar nada (hoy, quien solo tiene Leadership). */
+export function isReadOnly(memberships: Membership[]): boolean {
+  return memberships.length > 0 && memberships.every((m) => m.role === 'lt')
 }
 
 export function rolesIn(memberships: Membership[], market: string): Role[] {

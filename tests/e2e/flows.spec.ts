@@ -339,7 +339,9 @@ test.describe('integraciones', () => {
     expect(bad.status()).toBe(422)
 
     await page.reload()
+    // Revocar pide confirmación: la llave deja de servir en ese instante y no se reactiva.
     await page.getByTestId('api-revoke').first().click()
+    await page.locator('dialog[open]').getByTestId('api-revoke-confirm').click()
     await expect(page.getByTestId('api-row').first()).toContainText('revocada')
     expect((await request.post('/api/v1/events/sales-app', { data: event, headers: { authorization: `Bearer ${key}` } })).status()).toBe(401)
   })
@@ -525,17 +527,21 @@ test.describe('operación', () => {
     await page.getByTestId('grant-role').selectOption('rep')
     await page.getByTestId('grant-market').selectOption('MX')
     await page.getByTestId('grant-save').click()
-    await expect(page.locator('dialog[open]').getByTestId('form-error')).toContainText('Solo cuentas de')
+    await expect(page.locator('dialog[open]').getByTestId('form-error')).toContainText('Ese dominio no está admitido')
     await page.getByTestId('grant-email').fill(email)
     await page.getByTestId('grant-name').fill('Persona Nueva')
     await page.getByTestId('grant-save').click()
     const row = page.getByTestId('person-row').filter({ hasText: email })
     await expect(row).toContainText('Ventas · MX')
-    await row.getByTestId('membership-end').click()
-    await expect(page.getByTestId('person-row').filter({ hasText: email })).not.toContainText('Ventas · MX')
+    // Quitar el acceso ya no es un clic: abre la confirmación, y la persona sale de la lista "Con acceso".
+    await row.getByTestId('membership-open').click()
+    await page.locator('dialog[open]').getByTestId('membership-end').click()
+    await expect(page.getByTestId('admin-notice')).toContainText('Acceso cerrado')
+    await expect(page.getByTestId('person-row').filter({ hasText: email })).toHaveCount(0)
     await page.goto('/admin?tab=auditoria')
-    await expect(page.getByTestId('audit-table')).toContainText('membership.ended')
-    await expect(page.getByTestId('audit-table')).toContainText('membership.granted')
+    await expect(page.getByTestId('audit-table')).toContainText('Quitó un acceso')
+    await expect(page.getByTestId('audit-table')).toContainText('Dio acceso')
+    await expect(page.getByTestId('audit-table')).toContainText('Persona Nueva')
   })
 
   test('el turno de un formulario se cambia desde administración', async ({ page }) => {

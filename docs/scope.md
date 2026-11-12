@@ -47,3 +47,16 @@ Read-only import of the Pipedrive configuration and records for US and MX, custo
 
 ## Added after the design handoff (11-Nov-2026)
 The interface follows the design handoff v1.1: dock navigation, Hoy as a work queue, the merchant record as a panel with Hilo, Árbol and Datos, the deals board with drag on desktop and a stage selector on mobile, and leads with a first-contact clock. Decisions, product rules and what was left out are in `docs/adr/ADR-006-design-v1-1.md`.
+
+## Added after the admin and leadership committee (11-Nov-2026)
+Package `admin` (migration `0012_admin_controls`). Rules and their reasons: `docs/adr/ADR-003-authorization.md` and `docs/adr/ADR-004-identity.md`.
+
+| Area | What changed | Catalog items it moves |
+|---|---|---|
+| Access | Removal with confirmation and impact, removal from lead rotations, optional expiry date on any role, extra confirmation for Administration, warning for a supervisor with no team, filter by with or without access | SEG-01, GOB-03 |
+| Lead routing | Never assigns to someone without a current sales role in the market; an empty rotation leaves the lead unowned and visible to the market; saving a rotation keeps the turn | LEAD-03 |
+| Audit log | Reader's time zone, action names in ES and EN, record names and links, before and after in words, filters and pagination. No export (another package) | SEG-03 |
+| Status page | `/estado` for admin and leadership: environment, version, migrations, data freshness, integrations, who administers, what is undefined, what is not there yet | GOB-02, GOB-04 |
+| Pipelines | Stage names in ES and EN, stall days and entry requirements editable from Administration, audited. Creating pipelines, stages or fields is still not on screen | PIPE-01, DAT-05 (still partial) |
+| Web forms | UTM parameters, `gclid`, `fbclid` and the email consent with date and wording stored on the lead and shown in its detail (E3.F6 and E3.F7 of the requirements; page, referrer and other click identifiers not yet) | LEAD-03 |
+| Read-only | Leadership sees a "Solo lectura" mark and cannot run "Evaluar reglas ahora"; whoever runs it is audited | SEG-01 |
