@@ -865,7 +865,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'deal-bulk', topic: 'deals', tracks: [...MANAGE, 'ops'],
     q: { es: '¿Cómo cierro muchos negocios muertos de una vez?', en: 'How do I close many dead deals at once?' },
-    a: { es: 'En Negocios, "Sin movimiento en más de" tantos días: marca los que quieras, elige el motivo y toca "Cerrar como perdido". Lo usan supervisión, quien lidera el mercado, Operaciones y administración. Cada negocio queda en la bitácora.', en: 'In Deals, "No movement in more than" so many days: tick the ones you want, pick the reason and tap "Close as lost". Supervisors, market leads, Operations and admins can use it. Each deal is logged.' },
+    a: { es: 'En Negocios, en "Sin movimiento en más de", pon los días y toca "Ver negocios quietos". Marca los que quieras, elige el motivo y toca "Cerrar como perdido". Lo usan supervisión, quien lidera el mercado, Operaciones y administración. Cada negocio queda en la bitácora.', en: 'In Deals, under "No movement in more than", enter the days and tap "Show quiet deals". Tick the ones you want, pick the reason and tap "Close as lost". Supervisors, market leads, Operations and admins can use it. Each deal is logged.' },
   },
   {
     id: 'deal-b2b-stages', topic: 'deals', tracks: WORK,
@@ -1043,7 +1043,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'distribute', topic: 'team', tracks: MANAGE,
     q: { es: '¿Cómo reparto por ciudad o territorio?', en: 'How do I distribute by city or territory?' },
-    a: { es: 'En Comercios, abre "Filtrar por dueño, plaza o territorio" y luego "Repartir": marca varios o elige "Todos los de este filtro" y a quién se los pasas.', en: 'In Merchants, open "Filter by owner, place or territory", then "Distribute": tick some or choose "Everything in this filter" and who gets them.' },
+    a: { es: 'En Comercios, abre "Filtrar por dueño, equipo, embudo, plaza o territorio" y luego "Repartir": marca varios o elige "Todos los de este filtro" y a quién se los pasas.', en: 'In Merchants, open "Filter by owner, team, pipeline, place or territory", then "Distribute": tick some or choose "Everything in this filter" and who gets them.' },
   },
   {
     id: 'book-part', topic: 'team', tracks: MANAGE,
