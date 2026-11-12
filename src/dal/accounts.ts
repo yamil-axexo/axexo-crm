@@ -121,12 +121,15 @@ export async function getAccount(ctx: Ctx, id: string) {
     const account = rows[0]
     if (!account) return null
     const ancestors = account.ancestor_ids.length
-      ? await tx<{ id: string; name: string; kind: string }[]>`select id, name, kind from crm.accounts where id = any(${account.ancestor_ids}::uuid[])
-          order by array_position(${account.ancestor_ids}::uuid[], id)`
+      ? await tx<{ id: string; name: string; kind: string; type_es: string | null; type_en: string | null }[]>`select p.id, p.name, p.kind,
+             (select x.label_es from crm.account_types x where x.code = p.account_type and (x.market_code is null or x.market_code = p.market_code) order by x.market_code nulls last limit 1) as type_es,
+             (select x.label_en from crm.account_types x where x.code = p.account_type and (x.market_code is null or x.market_code = p.market_code) order by x.market_code nulls last limit 1) as type_en
+            from crm.accounts p where p.id = any(${account.ancestor_ids}::uuid[])
+          order by array_position(${account.ancestor_ids}::uuid[], p.id)`
       : []
     // DAT-01: roll-up de todo lo que cuelga de esta cuenta, a cualquier profundidad.
-    const rollup = await tx<{ stores: number; active: number; at_risk: number; onboarding: number; txn_30d: number; volume_30d: string | null; currency: string | null }[]>`
-      select count(*) filter (where d.kind = 'store')::int as stores,
+    const rollup = await tx<{ accounts: number; stores: number; active: number; at_risk: number; onboarding: number; txn_30d: number; volume_30d: string | null; currency: string | null }[]>`
+      select count(*)::int as accounts, count(*) filter (where d.kind = 'store')::int as stores,
              count(*) filter (where d.lifecycle = 'active')::int as active,
              count(*) filter (where d.lifecycle = 'at_risk')::int as at_risk,
              count(*) filter (where d.lifecycle = 'onboarding')::int as onboarding,
@@ -134,8 +137,10 @@ export async function getAccount(ctx: Ctx, id: string) {
         from crm.accounts d
         left join lateral (select m.txn_count_30d, m.volume_minor_30d, m.currency from crm.merchant_metrics_daily m where m.account_id = d.id order by m.as_of desc limit 1) mm on true
        where d.ancestor_ids @> array[${id}::uuid] and d.archived_at is null`
-    const children = await tx<{ id: string; name: string; kind: string; lifecycle: string; locality: string | null; owner_name: string | null; txn_count_30d: number | null; since: Date; has_deal: boolean }[]>`
+    const children = await tx<{ id: string; name: string; kind: string; type_es: string | null; type_en: string | null; lifecycle: string; locality: string | null; owner_name: string | null; txn_count_30d: number | null; since: Date; has_deal: boolean }[]>`
       select c.id, c.name, c.kind, c.lifecycle, c.locality, u.full_name as owner_name,
+             (select x.label_es from crm.account_types x where x.code = c.account_type and (x.market_code is null or x.market_code = c.market_code) order by x.market_code nulls last limit 1) as type_es,
+             (select x.label_en from crm.account_types x where x.code = c.account_type and (x.market_code is null or x.market_code = c.market_code) order by x.market_code nulls last limit 1) as type_en,
              coalesce((select max(x.effective_from) from crm.account_attributions x where x.account_id = c.id and x.layer = 'channel' and x.effective_to is null), c.created_at) as since,
              exists (select 1 from crm.deals d where d.account_id = c.id and d.status = 'open') as has_deal,
              (select m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = c.id order by m.as_of desc limit 1) as txn_count_30d
@@ -193,8 +198,8 @@ export async function getAccount(ctx: Ctx, id: string) {
           from crm.account_attributions at left join crm.users cu on cu.id = at.created_by where at.account_id = ${id} and at.layer = 'owner'
       ) x order by at desc limit 60`
     // Con cada embudo van las etapas de Ventas donde puede nacer un negocio (las anteriores a la primera de Operaciones).
-    const pipelines = await tx<{ id: string; name: string; multi_open: boolean; has_items: boolean; stages: { id: string; name_es: string; name_en: string }[] }[]>`
-      select p.id, p.name, p.multi_open, p.has_items,
+    const pipelines = await tx<{ id: string; name: string; motor: string; multi_open: boolean; has_items: boolean; stages: { id: string; name_es: string; name_en: string }[] }[]>`
+      select p.id, p.name, p.motor, p.multi_open, p.has_items,
              coalesce((select jsonb_agg(jsonb_build_object('id', s.id, 'name_es', s.name_es, 'name_en', s.name_en) order by s.position) from crm.stages s
                         where s.pipeline_id = p.id and s.kind = 'open'
                           and not exists (select 1 from crm.stages o where o.pipeline_id = p.id and o.is_ops and o.position <= s.position)), '[]'::jsonb) as stages

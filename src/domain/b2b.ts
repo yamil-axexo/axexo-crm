@@ -152,7 +152,11 @@ export async function resumeDeal(ctx: Ctx, dealId: string): Promise<void> {
     if (!d) throw notFound('No encontramos ese negocio.', 'We could not find that deal.')
     ctx.assert('deal.edit', d.market_code)
     if (!d.paused_at) return
-    await tx`update crm.deals set paused_at = null, paused_by = null, pause_reason = null, pause_review_on = null, stage_entered_at = now() where id = ${dealId}`
+    // Al retomar, "Revisar negocio en pausa" deja de ser el próximo paso: el negocio queda sin próximo paso hasta que quien lo lleva escriba el nuevo.
+    await tx`update crm.deals set paused_at = null, paused_by = null, pause_reason = null, pause_review_on = null, stage_entered_at = now(),
+              next_step = case when exists (select 1 from crm.activities x where x.deal_id = ${dealId} and x.done_at is null and x.kind = 'task' and x.custom ? 'pause_review') then null else next_step end,
+              next_step_due = case when exists (select 1 from crm.activities x where x.deal_id = ${dealId} and x.done_at is null and x.kind = 'task' and x.custom ? 'pause_review') then null else next_step_due end
+              where id = ${dealId}`
     await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and done_at is null and kind = 'task' and custom ? 'pause_review'`
     await audit(tx, ctx, 'deal.resumed', 'deal', dealId, d.market_code, { paused: true, reason: d.pause_reason }, { paused: false })
   })

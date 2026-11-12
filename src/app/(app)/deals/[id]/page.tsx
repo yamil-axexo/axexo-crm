@@ -304,7 +304,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
               <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>
-              <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : <NoData locale={locale} />}</KeyVal>
+              {deal.status === 'open' && <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : <NoData locale={locale} />}</KeyVal>}
               <KeyVal k={t('En esta etapa', 'In this stage')}>{t(`${daysSince(deal.stage_entered_at)} días`, `${daysSince(deal.stage_entered_at)} days`)}</KeyVal>
               <KeyVal k={t('Creado', 'Created')}>{day(deal.created_at, locale, market.timezone)}</KeyVal>
               {deal.won_at && <KeyVal k={deal.closed_by === 'transaction' ? t('Primera transacción', 'First transaction') : t('Ganado', 'Won')}>{day(deal.won_at, locale, market.timezone)}</KeyVal>}
