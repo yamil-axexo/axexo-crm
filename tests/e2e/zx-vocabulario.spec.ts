@@ -53,7 +53,8 @@ const englishTexts = new Set<string>()
 for (const data of ['Cadenas y distribuidores', 'Formulario web', 'Esperando primera venta', 'Pedidos', 'Dealers', 'Eventos']) spanishOnly.delete(data)
 
 // El "—" solo, como marca de "sin dato" en una celda, se queda: un guion corto en una columna de montos se lee como signo de menos.
-const dashes = (line: string) => LONG_DASH.test(line.replace(/(^|[\s·:(])—(?=$|[\s·,.)])/g, '$1'))
+// Aquí se busca el guion largo de una frase (entre palabras); los textos fuente los revisa completos tests/unit/vocabulario.test.ts.
+const dashes = (line: string) => LONG_DASH.test(line) && /\p{L}[.,;:!?)"]? [—–] [¿¡("]?\p{L}/u.test(line)
 
 function findings(lines: string[], locale: Locale): string[] {
   const out: string[] = []
