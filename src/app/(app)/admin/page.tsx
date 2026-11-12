@@ -15,6 +15,7 @@ import { configurePipelineAction, createApiClientAction, endMembershipAction, gr
 import { PipedriveTab } from './pipedrive'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
+import { domainList } from '@/lib/domains'
 
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
@@ -64,7 +65,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <CardTitle title={t('Personas', 'People')} hint={t('El acceso es una membresía con rol y mercado. Quitarlo la cierra con fecha; no borra a la persona ni su historial.', 'Access is a membership with a role and a market. Removing it closes it with a date; the person and their history stay.')} />
           <Dialog trigger={t('Dar acceso', 'Grant access')} title={t('Dar acceso', 'Grant access')} variant="primary" testId="grant-open">
             <ActionForm action={grantMembershipAction} onOk="close" className="grid grid-cols-2 gap-4">
-              <Field label={t('Correo', 'Email')} className="col-span-2" hint={t(`Solo cuentas de ${env().AUTH_ALLOWED_DOMAIN}.`, `Only ${env().AUTH_ALLOWED_DOMAIN} accounts.`)}><input name="email" type="email" className="input" required data-testid="grant-email" /></Field>
+              <Field label={t('Correo', 'Email')} className="col-span-2" hint={t(`Solo cuentas de ${domainList(env().AUTH_ALLOWED_DOMAINS, 'o')}.`, `Only ${domainList(env().AUTH_ALLOWED_DOMAINS, 'or')} accounts.`)}><input name="email" type="email" className="input" required data-testid="grant-email" /></Field>
               <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="full_name" className="input" required minLength={2} data-testid="grant-name" /></Field>
               <Field label={t('Rol', 'Role')}><select name="role" className="input" data-testid="grant-role">{(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{t(ROLE_LABEL[r].es, ROLE_LABEL[r].en)}</option>)}</select></Field>
               <Field label={t('Mercado', 'Market')} hint={t('Vacío para roles globales.', 'Empty for global roles.')}><select name="market" className="input" data-testid="grant-market"><option value="">—</option>{live.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>

@@ -54,10 +54,13 @@ describe('matriz de capacidades (AUT-01)', () => {
     expect(can(m('rep'), 'lead.assign', 'MX')).toBe(false)
     expect(can(m('supervisor'), 'account.reassign', 'MX')).toBe(true)
   })
-  it('operaciones edita comercios y trabaja handoffs, pero no vende', () => {
+  it('operaciones edita comercios, trabaja handoffs y lleva los negocios de su mercado; no crea negocios ni trabaja leads', () => {
     expect(can(m('ops'), 'account.edit', 'MX')).toBe(true)
     expect(can(m('ops'), 'activity.write', 'MX')).toBe(true)
-    expect(can(m('ops'), 'deal.move', 'MX')).toBe(false)
+    expect(can(m('ops'), 'deal.move', 'MX')).toBe(true)
+    expect(can(m('ops'), 'deal.edit', 'MX')).toBe(true)
+    expect(can(m('ops'), 'deal.move', 'US')).toBe(false)
+    expect(can(m('ops'), 'deal.create', 'MX')).toBe(false)
     expect(can(m('ops'), 'lead.work', 'MX')).toBe(false)
   })
 })

@@ -2,7 +2,7 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { getCtx, publicLocale } from '@/server/context'
 import { withoutUser } from '@/server/db'
-import { personasEnabled, ssoEnabled, env } from '@/env'
+import { personasEnabled, ssoEnabled } from '@/env'
 import { translator } from '@/lib/format'
 import { ROLE_LABEL, type Role } from '@/domain/policy'
 import { loginAsPersona, setLocale } from '@/app/session-actions'
@@ -10,7 +10,7 @@ import { buttonClass } from '@/ui/kit'
 import { flat } from '@/server/params'
 
 const ERRORS: Record<string, [string, string]> = {
-  domain: ['Entra con tu cuenta de axexo.', 'Sign in with your axexo account.'],
+  domain: ['Entra con tu cuenta de trabajo.', 'Sign in with your work account.'],
   no_access: ['Tu cuenta todavía no tiene acceso. Pídelo a quien administra CONTIGO.', 'Your account does not have access yet. Ask a CONTIGO admin.'],
   provider: ['No pudimos completar el inicio de sesión. Intenta otra vez.', 'We could not complete the sign-in. Try again.'],
   invalid: ['No pudimos abrir esa sesión.', 'We could not open that session.'],
@@ -64,7 +64,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <div className="mt-10">
           {ssoEnabled() ? (
             <a href="/auth/login" className={buttonClass('primary')} data-testid="sso-login">
-              {t(`Entrar con Google (${env().AUTH_ALLOWED_DOMAIN})`, `Sign in with Google (${env().AUTH_ALLOWED_DOMAIN})`)}
+              {t('Entrar con Google', 'Sign in with Google')}
             </a>
           ) : (
             <p className="text-[14px] text-muted-2" data-testid="sso-off">

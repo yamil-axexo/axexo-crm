@@ -5,6 +5,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
+import { domainList, emailInDomains } from '@/lib/domains'
 
 export const API_SCOPES = ['forms:write', 'events:write', 'metrics:write'] as const
 
@@ -43,15 +44,15 @@ const grant = z.object({
 })
 
 /** AUTHZ-02: dar acceso es agregar una membresía; quitarlo es cerrarla con fecha. Nada se borra. */
-export async function grantMembership(ctx: Ctx, input: z.input<typeof grant>, allowedDomain: string): Promise<void> {
+export async function grantMembership(ctx: Ctx, input: z.input<typeof grant>, allowedDomains: readonly string[]): Promise<void> {
   ctx.assert('config.manage')
   const parsed = grant.safeParse(input)
   if (!parsed.success) throw invalid('Revisa correo, nombre y rol.', 'Check the email, name and role.')
   const v = parsed.data
   const global = v.role === 'admin' || v.role === 'lt'
   if (!global && !v.market) throw invalid('Ese rol necesita un mercado.', 'That role needs a market.')
-  if (!v.email.endsWith(`@${allowedDomain}`) && !v.email.endsWith('@contigo.test')) {
-    throw invalid(`Solo cuentas de ${allowedDomain}.`, `Only ${allowedDomain} accounts.`)
+  if (!emailInDomains(v.email, allowedDomains) && !v.email.endsWith('@contigo.test')) {
+    throw invalid(`Solo cuentas de ${domainList(allowedDomains, 'o')}.`, `Only ${domainList(allowedDomains, 'or')} accounts.`)
   }
   await withUser(ctx.user.id, async (tx) => {
     let users = await tx<{ id: string }[]>`select id from crm.users where email = ${v.email}`

@@ -1,4 +1,5 @@
 import 'server-only'
+import { parseDomains, validDomain } from '@/lib/domains'
 import { z } from 'zod'
 
 // PORT-05: variables de entorno tipadas y validadas al arrancar. Nada sensible lleva NEXT_PUBLIC_ (SEC-03).
@@ -28,7 +29,12 @@ const schema = z
   .object({
     APP_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required').refine(validDatabaseUrl, 'DATABASE_URL is not a well-formed postgres URL: it needs user, password, host, port and database, in that order'),
-    AUTH_ALLOWED_DOMAIN: z.string().min(3).default('axexo.com'),
+    // Dominios de la organización de Google Workspace que pueden entrar, separados por coma (AUTHZ-01).
+    AUTH_ALLOWED_DOMAINS: z
+      .string()
+      .default('axexo.com,emida.com,emida.net')
+      .transform(parseDomains)
+      .refine((list) => list.length > 0 && list.every(validDomain), 'AUTH_ALLOWED_DOMAINS must be a comma-separated list of domains'),
     SUPABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
     SUPABASE_PUBLISHABLE_KEY: z.string().optional().or(z.literal('').transform(() => undefined)),
     BOOTSTRAP_ADMIN_EMAILS: z.string().default(''),

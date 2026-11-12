@@ -19,8 +19,10 @@ export const CAPABILITIES = {
   'lead.work': SELLERS,
   'lead.assign': MANAGERS,
   'deal.create': SELLERS,
-  'deal.edit': SELLERS,
-  'deal.move': SELLERS,
+  // Operaciones recibe el negocio después del alta y lo lleva hasta el final: lo edita y lo mueve en su mercado.
+  // No crea negocios. Cada cambio queda en la bitácora con su nombre, igual que el de quien vende.
+  'deal.edit': [...SELLERS, 'ops'],
+  'deal.move': [...SELLERS, 'ops'],
   'account.create': SELLERS,
   'account.edit': [...SELLERS, 'ops'],
   'account.reassign': MANAGERS,

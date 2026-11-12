@@ -8,7 +8,8 @@ import { listAccounts, listTree, searchAll } from '@/dal/accounts'
 import { createLead, intakeFromForm, markContacted, qualifyLead, takeLead } from '@/domain/leads'
 import { listLeads } from '@/dal/leads'
 import { getSupervisorBoard } from '@/dal/boards'
-import { moveDeal, updateDeal } from '@/domain/deals'
+import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
+import { grantMembership } from '@/domain/admin'
 import { evaluateRules } from '@/domain/rules'
 import { assertNoProhibited } from '@/domain/guard'
 import { withoutUser, withUser } from '@/server/db'
@@ -210,6 +211,38 @@ describe('hallazgos de QA', () => {
     expect(await row()).toEqual({ met: before.met + 1, judged: before.judged + 1, reached: before.reached + 1 })
   })
 
+  it('operaciones lleva los negocios de su mercado y queda en la bitácora; no los de otro mercado ni crea negocios', async () => {
+    const valeria = await ctxFor('valeria.soto') // operaciones MX
+    const tom = await ctxFor('tom.reyes') // operaciones US
+    const d = await one(admin<{ id: string; account_id: string; pipeline_id: string; stage_id: string }[]>`
+      select d.id, d.account_id, d.pipeline_id, d.stage_id from crm.deals d join crm.stages s on s.id = d.stage_id
+       where d.market_code = 'MX' and d.status = 'open' and s.kind = 'open' and d.next_step is not null
+         and d.owner_id = (select id from crm.users where email::text like 'diana.cruz@%') order by d.id desc limit 1`)
+    await expect(updateDeal(valeria, d.id, { nextStep: 'Operaciones: revisar documentos', nextStepDue: tomorrow })).resolves.toBeUndefined()
+    const log = await admin`select 1 from crm.audit_events where object_id = ${d.id} and action = 'deal.updated' and actor_id = ${valeria.user.id}`
+    expect(log.length).toBe(1)
+    // mover de etapa ya no se le niega por rol: si algo lo detiene es lo que la etapa pide, igual que a quien vende
+    const next = await one(admin<{ id: string }[]>`
+      select s2.id from crm.stages s1 join crm.stages s2 on s2.pipeline_id = s1.pipeline_id and s2.position = s1.position + 1 where s1.id = ${d.stage_id}`)
+    const moved = await moveDeal(valeria, d.id, next.id).then(() => 'ok', (e: { code?: string }) => e.code ?? 'error')
+    expect(['ok', 'stage_gate', 'next_step_required', 'won_by_transaction']).toContain(moved)
+    if (moved === 'ok') {
+      expect((await admin`select 1 from crm.audit_events where object_id = ${d.id} and action = 'deal.stage_changed' and actor_id = ${valeria.user.id}`).length).toBe(1)
+    }
+    await expect(updateDeal(tom, d.id, { nextStep: 'Desde otro mercado', nextStepDue: tomorrow })).rejects.toMatchObject({ code: expect.stringMatching(/forbidden|not_found/) })
+    await expect(createDeal(valeria, { accountId: d.account_id, pipelineId: d.pipeline_id, title: 'No debería crearse', nextStep: 'Llamar', nextStepDue: tomorrow })).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('dar acceso: acepta los dominios de la organización y rechaza los demás', async () => {
+    const nora = await ctxFor('nora.salas')
+    const org = ['axexo.com', 'emida.com', 'emida.net']
+    const who = `persona.${tag()}`
+    await expect(grantMembership(nora, { email: `${who}@emida.net`, fullName: 'Persona Emida', role: 'rep', market: 'US' }, org)).resolves.toBeUndefined()
+    for (const email of [`${who}@gmail.com`, `${who}@empowerretailers.com`, `${who}@axexo.com.otro.com`]) {
+      await expect(grantMembership(nora, { email, fullName: 'Persona Fuera', role: 'rep', market: 'US' }, org)).rejects.toMatchObject({ code: 'invalid' })
+    }
+  })
+
   it('QA-12: atender una sugerencia cierra los demás avisos abiertos del mismo negocio', async () => {
     const lucia = await ctxFor('lucia.vega')
     const sys = await systemContext()
@@ -220,7 +253,11 @@ describe('hallazgos de QA', () => {
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     const open = async () => (await admin<{ kind: string }[]>`select kind from crm.exceptions where deal_id = ${d.id} and resolved_at is null order by kind`).map((r) => r.kind)
     expect(await open()).toEqual(['no_next_step', 'stalled_deal'])
-    const s = (await getQueue(lucia)).rows.find((r) => r.type === 'suggestion' && r.dealId === d.id)
+    // Hoy muestra 5 sugerencias por día, las de mayor severidad primero. Los datos de prueba cambian en cada corrida,
+    // así que se despeja lo demás de la cola de Lucía para que este negocio siempre esté entre las cinco.
+    await admin`update crm.exceptions set resolved_at = now(), resolution = 'dismissed' where owner_id = ${lucia.user.id} and resolved_at is null and deal_id is distinct from ${d.id}`
+    const q0 = await getQueue(lucia)
+    const s = q0.rows.find((r) => r.type === 'suggestion' && r.dealId === d.id)
     expect(s?.kind).toBe('no_next_step')
     await completeItem(lucia, { type: 'suggestion', id: s!.id, result: 'done', next: 'task', when: tomorrow })
     expect(await open()).toEqual([])

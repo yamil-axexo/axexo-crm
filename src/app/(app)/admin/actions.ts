@@ -14,7 +14,7 @@ type R = ActionResult<unknown>
 
 export async function grantMembershipAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await grantMembership(ctx, { email: str(fd, 'email'), fullName: str(fd, 'full_name'), role: str(fd, 'role') as 'rep', market: str(fd, 'market'), teamId: str(fd, 'team_id') }, env().AUTH_ALLOWED_DOMAIN)
+    await grantMembership(ctx, { email: str(fd, 'email'), fullName: str(fd, 'full_name'), role: str(fd, 'role') as 'rep', market: str(fd, 'market'), teamId: str(fd, 'team_id') }, env().AUTH_ALLOWED_DOMAINS)
     return { message: ['Acceso otorgado.', 'Access granted.'] }
   })
 }
