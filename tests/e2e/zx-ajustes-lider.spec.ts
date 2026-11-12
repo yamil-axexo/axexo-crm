@@ -182,6 +182,13 @@ test.describe('leadership y administración', () => {
     await page.goto('/admin?tab=personas')
     await page.getByTestId('grant-open').click()
     const dialog = page.locator('dialog[open]')
+    // Un correo de un dominio que no entra: el mensaje dice cuáles sí y a quién pedir la cuenta.
+    await dialog.getByTestId('grant-email').fill(`alguien.${tag()}@empowerretailers.com`)
+    await dialog.getByTestId('grant-name').fill('Otra Persona')
+    await dialog.getByTestId('grant-save').click()
+    await expect(dialog.getByTestId('form-error')).toContainText('necesita una cuenta de axexo.com, emida.com o emida.net')
+    await expect(dialog.getByTestId('form-error')).toContainText('quien administra las cuentas de Google de la empresa')
+    await dialog.getByTestId('grant-email').fill('')
     await dialog.getByTestId('grant-role').selectOption('admin')
     await expect(dialog.getByTestId('grant-admin-scope')).toHaveText('Administración ve y cambia todo, en todos los mercados.')
     await expect(dialog.getByTestId('grant-admin-for')).toHaveText('Falta escribir el correo de la persona.')
@@ -204,13 +211,13 @@ test.describe('leadership y administración', () => {
     await sql.end()
     expect(audit.after).toMatchObject({ role: 'admin', scope: 'all_markets', confirmed: true, external: true, expires: until })
 
+    // Lo guardado no se queda escrito: al abrir de nuevo, el formulario empieza en Ventas, sin correo y sin la confirmación.
     await page.getByTestId('grant-open').click()
     const again = page.locator('dialog[open]')
-    await again.getByTestId('grant-email').fill(`alguien.${tag()}@empowerretailers.com`)
-    await again.getByTestId('grant-name').fill('Otra Persona')
-    await again.getByTestId('grant-save').click()
-    await expect(again.getByTestId('form-error')).toContainText('necesita una cuenta de axexo.com, emida.com o emida.net')
-    await expect(again.getByTestId('form-error')).toContainText('quien administra las cuentas de Google de la empresa')
+    await expect(again.getByTestId('grant-role')).toHaveValue('rep')
+    await expect(again.getByTestId('grant-email')).toHaveValue('')
+    await expect(again.getByTestId('grant-expires')).toHaveValue('')
+    await expect(again.getByTestId('grant-admin-confirm')).toHaveCount(0)
   })
 
   test('Embudos y campos, Estado y Panel del LT dicen lo que es', async ({ page }) => {

@@ -78,6 +78,8 @@ export function NoticeForm({ action, children, className, testId }: { action: Fo
       last.current = Date.now()
       if (res.message) notify({ text: res.message, link: linkOf(res.data) })
       ref.current?.closest('dialog')?.close()
+      // Lo que se acaba de guardar no se queda escrito: al abrir de nuevo el formulario empieza limpio (una confirmación marcada no sobrevive).
+      ref.current?.reset()
     }
     return res
   }
@@ -141,6 +143,7 @@ export type GrantLabels = {
 export function GrantFields({ roles, markets, teams, labels, today, ownDomain, locale = 'es' }: { roles: { value: string; label: string }[]; markets: { code: string; name: string }[]; teams: { id: string; name: string; market: string }[]; labels: GrantLabels; today: string; /** Dominio del correo de quien da el acceso: un correo de otro dominio se señala al confirmar Administración. */ ownDomain?: string; locale?: 'es' | 'en' }) {
   const [email, setEmail] = useState('')
   const [expires, setExpires] = useState('')
+  const emailRef = useRef<HTMLInputElement>(null)
   const domain = email.includes('@') ? email.slice(email.lastIndexOf('@') + 1).trim().toLowerCase() : ''
   const expiresText = /^\d{4}-\d{2}-\d{2}$/.test(expires) ? new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${expires}T12:00:00Z`)) : ''
   // De entrada, el rol más común y el de menor alcance: Ventas. Administración se elige a propósito.
@@ -149,12 +152,26 @@ export function GrantFields({ roles, markets, teams, labels, today, ownDomain, l
   const [team, setTeam] = useState('')
   const global = role === 'admin' || role === 'lt'
   const options = teams.filter((x) => x.market === market)
+  // Al guardar, el formulario se limpia: vuelve al rol de menor alcance y sin correo ni fecha. Administración se elige de nuevo cada vez.
+  const firstRole = roles.some((r) => r.value === 'rep') ? 'rep' : (roles[0]?.value ?? 'rep')
+  useEffect(() => {
+    const form = emailRef.current?.form
+    if (!form) return
+    const clear = () => {
+      setRole(firstRole)
+      setTeam('')
+      setEmail('')
+      setExpires('')
+    }
+    form.addEventListener('reset', clear)
+    return () => form.removeEventListener('reset', clear)
+  }, [firstRole])
   const field = 'mb-2 block text-[13px] font-semibold text-muted-2'
   return (
     <>
       <label className="col-span-2 block">
         <span className={field}>{labels.email}</span>
-        <input name="email" type="email" className="input" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="grant-email" />
+        <input ref={emailRef} name="email" type="email" className="input" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="grant-email" />
         <span className="mt-1.5 block text-[12px] text-muted">{labels.emailHint}</span>
       </label>
       <label className="col-span-2 block">
