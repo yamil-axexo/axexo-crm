@@ -31,7 +31,9 @@ const CARD = 'grid grid-cols-2 gap-x-6 gap-y-1.5 @md:grid-cols-3'
 
 export default async function SupervisorPage({ searchParams }: { searchParams: Promise<{ market?: string; kind?: string; owner?: string; equipo?: string }> }) {
   const ctx = await requireCtx()
-  if (!ctx.can('board.supervisor')) notFound()
+  // Operaciones entra solo a la cola de avisos de sus mercados: el tablero del equipo de ventas es de quien supervisa o lidera.
+  const teamView = ctx.can('board.supervisor')
+  if (!teamView && !ctx.can('exception.read')) notFound()
   const { t, locale } = ctx
   const sp = flat(await searchParams)
   await ensureRulesFresh(await systemCtx())
@@ -39,7 +41,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const teamOptions = options.teams.filter((x) => !sp.market || x.market_code === sp.market)
   const team = sp.equipo === 'none' ? 'none' : teamOptions.some((x) => x.id === sp.equipo) ? sp.equipo : undefined
   const board = await getSupervisorBoard(ctx, { ...sp, team })
-  const canReport = ctx.can('report.view')
+  const canReport = teamView && ctx.can('report.view')
   const weeks = canReport ? await getWeeklyResults(ctx, { market: sp.market, team }) : []
   const live = ctx.markets.filter((m) => m.status === 'live')
   const canReassign = ctx.can('account.reassign', sp.market)
@@ -78,8 +80,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   return (
     <>
       <PageHeader
-        title={t('Supervisión', 'Supervision')}
-        desc={t('El equipo de un vistazo y la cola de lo que se salió de la regla. Nadie captura nada extra para alimentar esta pantalla.', 'The team at a glance and the queue of what broke a rule. Nobody enters anything extra to feed this screen.')}
+        title={teamView ? t('Supervisión', 'Supervision') : t('Avisos del mercado', 'Market alerts')}
+        desc={teamView ? t('El equipo de un vistazo y la cola de lo que se salió de la regla. Nadie captura nada extra para alimentar esta pantalla.', 'The team at a glance and the queue of what broke a rule. Nobody enters anything extra to feed this screen.') : t('La cola de lo que se salió de la regla en tus mercados.', 'The queue of what broke a rule in your markets.')}
         actions={<>
           {canReport && <LinkButton href={qs('/reportes/cerrados', { mercado: sp.market, equipo: team })} testId="team-closed-link">{t('Negocios cerrados', 'Closed deals')}</LinkButton>}
           {canReport && <LinkButton href={qs('/reportes/campo', { mercado: sp.market, equipo: team })} variant="quiet" testId="team-field-link">{t('Reporte de campo', 'Field report')}</LinkButton>}
@@ -91,14 +93,14 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           <Pills label={t('Mercado', 'Market')} current={sp.market ?? ''} items={[{ key: '', href: link({ market: undefined, equipo: undefined }), label: t('Todos', 'All') }, ...live.map((m) => ({ key: m.code, href: link({ market: m.code, equipo: undefined }), label: m.name }))]} />
         </div>
       )}
-      {teamOptions.length > 1 && (
+      {teamView && teamOptions.length > 1 && (
         <div className="mb-6" data-testid="team-filter">
           <NavSelect label={t('Equipo', 'Team')} value={link({})} testId="team-select"
             options={[{ href: link({ equipo: undefined }), label: t('Todos los equipos', 'All teams') }, ...teamOptions.map((x) => ({ href: link({ equipo: x.id }), label: `${live.length > 1 && !sp.market ? `${x.market_code} · ` : ''}${x.name}` })), { href: link({ equipo: 'none' }), label: t('Sin equipo', 'No team') }]} />
         </div>
       )}
 
-      <Card pad={false} data-testid="team-board">
+      {teamView && <Card pad={false} data-testid="team-board">
         <div className="px-5 pt-6 md:px-7 md:pt-7">
           <CardTitle
             title={t('Equipo', 'Team')}
@@ -156,7 +158,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
             </Dialog>
           </div>
         )}
-      </Card>
+      </Card>}
 
       {canReport && (
         <Card className="mt-8 @container" pad={false} data-testid="team-weeks">
@@ -204,7 +206,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         </Card>
       )}
 
-      <Card className="mt-8" data-testid="exception-queue">
+      <Card className={teamView ? 'mt-8' : undefined} data-testid="exception-queue">
         <CardTitle
           title={t('Cola de excepciones', 'Exception queue')}
           hint={board.rulesAt ? t(`Reglas evaluadas ${ago(board.rulesAt, locale)}. Una excepción se cierra sola cuando se corrige.`, `Rules evaluated ${ago(board.rulesAt, locale)}. An exception closes itself once it is fixed.`) : undefined}

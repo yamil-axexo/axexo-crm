@@ -33,8 +33,10 @@ export const CAPABILITIES = {
   'account.merge': ['admin'],
   'activity.write': [...SELLERS, 'ops'],
   'exception.resolve': [...MANAGERS, 'ops', 'rep'],
-  // Operaciones ve el tablero y la cola de avisos de sus mercados: ya resolvía avisos, ahora los ve juntos.
-  'board.supervisor': [...MANAGERS, 'lt', 'ops'],
+  'board.supervisor': [...MANAGERS, 'lt'],
+  // La cola de avisos del alcance, en solo lectura para leadership. Operaciones ve la de sus mercados (ya resolvía avisos
+  // uno por uno): entra a la misma pantalla, sin el tablero del equipo de ventas.
+  'exception.read': [...MANAGERS, 'lt', 'ops'],
   // Evaluar las reglas a mano abre y cierra excepciones para todos: es un cambio de datos, así que Leadership (solo lectura) no lo corre.
   'rules.run': MANAGERS,
   'board.lt': ['admin', 'lt', 'market_lead'],

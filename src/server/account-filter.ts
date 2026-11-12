@@ -3,6 +3,7 @@ import type postgres from 'postgres'
 import { marketToday, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { isUuid } from '@/lib/ids'
+import { teamFilter } from '@/dal/reports'
 
 /**
  * Filtros de la lista de Comercios. Viven aquí, en un solo lugar, porque los usan la lista (lo que la persona ve)
@@ -25,6 +26,10 @@ export type AccountFilters = {
   region?: string
   city?: string
   territory?: string
+  /** Equipo vigente del dueño: el id de un equipo o 'none' (dueño sin equipo, o comercio sin dueño). */
+  team?: string
+  /** Embudo: comercios que tienen o tuvieron un negocio en ese embudo. */
+  pipeline?: string
 }
 
 type Frag = postgres.Fragment
@@ -70,6 +75,8 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
     ${f.region ? tx`and a.region = ${f.region}` : tx``}
     ${city ? tx`and a.place_norm like ${'%'} || app.norm(${city}) || ${'%'}` : tx``}
     ${f.territory === 'none' ? tx`and a.territory_id is null` : isUuid(f.territory) ? tx`and a.territory_id = ${f.territory}` : tx``}
+    ${teamFilter(tx, 'a', f.team)}
+    ${isUuid(f.pipeline) ? tx`and exists (select 1 from crm.deals dp where dp.account_id = a.id and dp.pipeline_id = ${f.pipeline})` : tx``}
     ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'}
                   or a.place_norm like ${'%'} || app.norm(${q}) || ${'%'}
                   ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
@@ -80,4 +87,4 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
 
 /** ¿El filtro acota algo además del mercado? Sin esto, "todos los de este filtro" sería el mercado completo. */
 export const narrows = (f: AccountFilters): boolean =>
-  !!(f.q?.trim() || f.lifecycle || f.owner || f.kind || f.ver || f.region || f.city?.trim() || f.territory)
+  !!(f.q?.trim() || f.lifecycle || f.owner || f.kind || f.ver || f.region || f.city?.trim() || f.territory || f.team || f.pipeline)

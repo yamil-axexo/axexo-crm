@@ -349,3 +349,15 @@ insert into crm.saved_views (user_id, object, name, filters, is_shared) values
 
 -- Las personas de prueba ya pasaron por la bienvenida: entran directo a Hoy. La prueba del primer ingreso borra su fila antes de entrar.
 insert into crm.user_onboarding (user_id) select id from crm.users where is_synthetic on conflict do nothing;
+
+-- liderazgo
+-- Ventas de S5 de 30 días antes (corte de hace 31 días) para una parte de los comercios activos: así la ficha y Mi equipo
+-- pueden comparar contra los 30 días anteriores. El resto no trae ese archivo, y la pantalla lo dice en vez de inventarlo.
+insert into crm.merchant_metrics_daily (account_id, as_of, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d)
+select mm.account_id, current_date - 31, mm.market_code, mm.first_txn_at, now() - interval '31 days',
+       greatest(1, mm.txn_count_30d - 30 + x.r % 61),
+       greatest(1, mm.txn_count_30d - 30 + x.r % 61) * (case mm.market_code when 'US' then 2200 else 6500 end)::bigint,
+       mm.currency, least(30, greatest(1, mm.active_days_30d - 3 + x.r % 7))
+  from crm.merchant_metrics_daily mm join crm.accounts a on a.id = mm.account_id
+  cross join lateral (select pg_temp.h('prev' || mm.account_id::text) as r) x
+ where a.lifecycle = 'active' and mm.first_txn_at < now() - interval '45 days' and x.r % 3 = 0;

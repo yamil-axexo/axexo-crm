@@ -95,7 +95,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const h3 = 'text-[15px] leading-6 font-semibold'
 
   type Item = (typeof timeline)[number]
-  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string }
+  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null }
   const meta = (it: Item) => it.meta as Meta
   // Una visita dice de dónde viene: la que alguien registró en CONTIGO o la que llegó de la Sales App.
   const manualVisit = (it: Item) => it.kind === 'visit' && meta(it).origin === 'manual'
@@ -107,12 +107,25 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
     const why = v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null
     return `${base}${why ? ` · ${why}` : ''}${v.revisit ? ` · ${t('pide revisita', 'needs a revisit')}` : ''}${v.minutes ? ` · ${v.minutes} min` : ''}`
   }
+  // Cambio de dueño en palabras: a quién pasó, de quién venía y quién lo reasignó (cuando el registro lo guarda).
+  const ownerFrom = (it: Item) => (meta(it).from && meta(it).from !== it.title ? meta(it).from! : null)
+  const ownerChange = (it: Item) => {
+    const from = ownerFrom(it)
+    return from ? t(`Pasó a ${it.title}; venía de ${from}`, `Moved to ${it.title}; it came from ${from}`) : t(`Dueño: ${it.title}`, `Owner: ${it.title}`)
+  }
   const threadTitle = (it: Item) =>
-    it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"` : it.kind === 'attribution' ? t(`Dueño: ${it.title}`, `Owner: ${it.title}`) : it.title
+    it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"` : it.kind === 'attribution' ? ownerChange(it) : it.title
+  /** Variación contra los 30 días anteriores, en transacciones. Sin base (cero ventas antes) no hay porcentaje que mostrar. */
+  const salesDelta = (now: number, before: number) => {
+    if (before <= 0) return ''
+    const d = Math.round(((now - before) / before) * 100)
+    return ` · ${t(`ahora ${d > 0 ? '+' : ''}${d}%`, `now ${d > 0 ? '+' : ''}${d}%`)}`
+  }
   const threadWho = (it: Item) =>
     it.kind === 'stage' && meta(it).cause === 'transaction' ? t('Primera transacción (S5)', 'First transaction (S5)')
       : manualVisit(it) ? [t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
-        : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}` : it.actor
+        : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}`
+          : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
   // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.
   const threadKind = (it: Item) =>
     ['note', 'call', 'meeting', 'task', 'email', 'handoff'].includes(it.kind) ? [lab(t, ACTIVITY[it.kind]), outcomeText(meta(it).outcome)].filter(Boolean).join(' · ') : null
@@ -388,7 +401,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <KeyVal k={t('Ventas, 30 días', 'Sales, 30 days')}>{num(rollup.txn_30d, locale)}{rollup.volume_30d ? ` · ${money(Number(rollup.volume_30d), rollup.currency ?? market.currency, locale, true)}` : ''}</KeyVal>
               ) : (
                 <>
-                  <KeyVal k={t('Ventas, 30 días', 'Sales, 30 days')}><span data-testid="fact-sales">{metrics ? `${num(metrics.txn_count_30d, locale)} · ${money(Number(metrics.volume_minor_30d), metrics.currency, locale, true)} · ${t(`${metrics.active_days_30d} días activos`, `${metrics.active_days_30d} active days`)}` : t('Todavía no transacciona', 'Not transacting yet')}</span></KeyVal>
+                  <KeyVal k={metrics ? t(`Ventas, últimos 30 días al ${day(metrics.as_of, locale)}`, `Sales, last 30 days to ${day(metrics.as_of, locale)}`) : t('Ventas, últimos 30 días', 'Sales, last 30 days')}><span data-testid="fact-sales">{metrics ? `${t(`${num(metrics.txn_count_30d, locale)} ${metrics.txn_count_30d === 1 ? 'transacción' : 'transacciones'}`, `${num(metrics.txn_count_30d, locale)} ${metrics.txn_count_30d === 1 ? 'transaction' : 'transactions'}`)} · ${money(Number(metrics.volume_minor_30d), metrics.currency, locale, true)} · ${t(`${metrics.active_days_30d} días con venta`, `${metrics.active_days_30d} days with sales`)}` : t('Todavía no transacciona', 'Not transacting yet')}</span></KeyVal>
+                  {metrics && (
+                    <KeyVal k={t('30 días anteriores', 'Previous 30 days')}><span data-testid="fact-sales-prev">{metrics.prev_as_of && metrics.prev_txn_count_30d !== null
+                      ? `${t(`${num(metrics.prev_txn_count_30d, locale)} ${metrics.prev_txn_count_30d === 1 ? 'transacción' : 'transacciones'}`, `${num(metrics.prev_txn_count_30d, locale)} ${metrics.prev_txn_count_30d === 1 ? 'transaction' : 'transactions'}`)} · ${money(Number(metrics.prev_volume_minor_30d), metrics.currency, locale, true)}${salesDelta(metrics.txn_count_30d, metrics.prev_txn_count_30d)} · ${t(`al ${day(metrics.prev_as_of, locale)}`, `to ${day(metrics.prev_as_of, locale)}`)}`
+                      : t('S5 no trae ese dato', 'S5 has no data for it')}</span></KeyVal>
+                  )}
                   <KeyVal k={t('Primera venta', 'First sale')}>{metrics?.first_txn_at ? day(metrics.first_txn_at, locale, tz) : '—'}</KeyVal>
                   <KeyVal k={t('Última venta', 'Last sale')}>{metrics?.last_txn_at ? ago(metrics.last_txn_at, locale, now) : '—'}</KeyVal>
                 </>

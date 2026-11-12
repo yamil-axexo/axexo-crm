@@ -3,6 +3,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { missingForStage, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
+import { teamFilter } from '@/dal/reports'
 
 export type PipelineInfo = { id: string; market_code: string; motor: string; name: string; open_deals: number }
 
@@ -52,7 +53,7 @@ export type BoardDeal = {
 
 export const BOARD_LIMIT = 40
 
-export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string; noStep?: boolean }) {
+export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string; noStep?: boolean; team?: string }) {
   return withUser(ctx.user.id, async (tx) => {
     const pipes = await tx<{ id: string; market_code: string; motor: string; name: string }[]>`
       select id, market_code, motor, name from crm.pipelines where id = ${pipelineId} and market_code = any(app.my_markets())`
@@ -60,7 +61,8 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
     if (!pipeline) return null
     const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en
       from crm.stages where pipeline_id = ${pipelineId} order by position`
-    const owner = f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : isUuid(f.owner) ? tx`and d.owner_id = ${f.owner}` : tx``
+    // Persona y equipo se combinan: el equipo es el vigente de quien lleva el negocio ('none': sin equipo o sin dueño).
+    const owner = tx`${f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and d.owner_id is null` : isUuid(f.owner) ? tx`and d.owner_id = ${f.owner}` : tx``} ${teamFilter(tx, 'd', f.team)}`
     const deals = await tx<BoardDeal[]>`
       select * from (
         select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,

@@ -57,7 +57,11 @@ describe('permisos de reportes (report.view, report.export, adoption.read)', () 
   })
   it('operaciones lee la bitácora y ve la cola de avisos de sus mercados', () => {
     expect(can(m('ops'), 'audit.read', 'MX')).toBe(true)
-    expect(can(m('ops'), 'board.supervisor', 'MX')).toBe(true)
+    expect(can(m('ops'), 'exception.read', 'MX')).toBe(true)
+    expect(can(m('ops'), 'board.supervisor', 'MX')).toBe(false) // el tablero del equipo de ventas no es suyo
+    expect(can(m('lt', null), 'exception.read')).toBe(true)
+    expect(can(m('lt', null), 'exception.resolve')).toBe(false) // leadership los ve, no los descarta
+    expect(can(m('rep'), 'exception.read', 'MX')).toBe(false)
     expect(can(m('ops', 'MX'), 'audit.read', 'US')).toBe(false)
     expect(can(m('ops'), 'rules.run', 'MX')).toBe(false)
   })
@@ -177,9 +181,11 @@ describe('exportar negocios cerrados', () => {
     const nora = await ctxFor('nora.salas')
     const [d] = await db<{ id: string; title: string }[]>`select id, title from crm.deals where market_code = 'US' and status = 'won' order by won_at desc limit 1`
     try {
-      await db`update crm.deals set title = 'Pago 4111 1111 1111 1111' where id = ${d!.id}`
+      const card = ['4111', '1111', '1111', '1111'].join(' ')
+      await db`update crm.deals set title = ${`Pago ${card}`} where id = ${d!.id}`
       const out = await exportClosedDeals(nora, year(nora), { market: 'US' })
-      expect(out.csv).not.toContain('4111 1111 1111 1111')
+      expect(out.csv).not.toContain(card)
+      expect(out.csv).toContain('Pago ')
     } finally {
       await db`update crm.deals set title = ${d!.title} where id = ${d!.id}`
       await db.end()

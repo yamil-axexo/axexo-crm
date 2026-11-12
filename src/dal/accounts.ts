@@ -145,9 +145,15 @@ export async function getAccount(ctx: Ctx, id: string) {
              d.next_step_due::text, d.revisit_needed, u.full_name as owner_name, d.won_at, d.closed_by
         from crm.deals d join crm.stages s on s.id = d.stage_id left join crm.users u on u.id = d.owner_id
        where d.account_id = ${id} order by (d.status = 'open') desc, d.created_at desc`
-    const metrics = await tx<{ as_of: string; first_txn_at: Date | null; last_txn_at: Date | null; txn_count_30d: number; volume_minor_30d: string; currency: string; active_days_30d: number }[]>`
-      select as_of::text, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d::text, currency, active_days_30d
-        from crm.merchant_metrics_daily where account_id = ${id} order by as_of desc limit 1`
+    // El archivo más reciente de S5 y, si existe, el de 30 días antes (hasta 7 días de tolerancia): la comparación no se inventa.
+    const metrics = await tx<{ as_of: string; first_txn_at: Date | null; last_txn_at: Date | null; txn_count_30d: number; volume_minor_30d: string; currency: string; active_days_30d: number;
+      prev_as_of: string | null; prev_txn_count_30d: number | null; prev_volume_minor_30d: string | null }[]>`
+      select m.as_of::text, m.first_txn_at, m.last_txn_at, m.txn_count_30d, m.volume_minor_30d::text, m.currency, m.active_days_30d,
+             p.as_of::text as prev_as_of, p.txn_count_30d as prev_txn_count_30d, p.volume_minor_30d::text as prev_volume_minor_30d
+        from crm.merchant_metrics_daily m
+        left join lateral (select x.as_of, x.txn_count_30d, x.volume_minor_30d from crm.merchant_metrics_daily x
+                            where x.account_id = m.account_id and x.as_of <= m.as_of - 30 and x.as_of >= m.as_of - 37 order by x.as_of desc limit 1) p on true
+       where m.account_id = ${id} order by m.as_of desc limit 1`
     const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; owner_name: string | null }[]>`
       select a.id, a.kind, a.subject, a.due_at, u.full_name as owner_name from crm.activities a left join crm.users u on u.id = a.owner_id
        where a.account_id = ${id} and a.kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit') and a.done_at is null order by a.due_at nulls last limit 10`
@@ -169,8 +175,11 @@ export async function getAccount(ctx: Ctx, id: string) {
           from crm.deal_stage_events e join crm.deals d on d.id = e.deal_id join crm.stages t on t.id = e.to_stage_id left join crm.users u on u.id = e.actor_id
          where d.account_id = ${id}
         union all
-        select at.effective_from, 'attribution', at.party_label, null, null, jsonb_build_object('layer', at.layer)
-          from crm.account_attributions at where at.account_id = ${id} and at.layer = 'owner'
+        -- Cambio de dueño: quién lo hizo (created_by) y de quién venía (el dueño anterior en la misma capa).
+        select at.effective_from, 'attribution', at.party_label, null, cu.full_name,
+               jsonb_build_object('layer', at.layer, 'from', (select p.party_label from crm.account_attributions p
+                   where p.account_id = at.account_id and p.layer = 'owner' and p.effective_from < at.effective_from order by p.effective_from desc limit 1))
+          from crm.account_attributions at left join crm.users cu on cu.id = at.created_by where at.account_id = ${id} and at.layer = 'owner'
       ) x order by at desc limit 60`
     const pipelines = await tx<{ id: string; name: string }[]>`select id, name from crm.pipelines where market_code = ${account.market_code} order by position`
     return {

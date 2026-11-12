@@ -3,6 +3,7 @@ import { requireCtx } from '@/server/context'
 import { getAccount, listAccounts, listTree, savedViews, type AccountFilters } from '@/dal/accounts'
 import { track } from '@/dal/boards'
 import { getHolders, getPlaceOptions, getTargets } from '@/dal/reparto'
+import { getReportOptions } from '@/dal/reports'
 import { narrows } from '@/server/account-filter'
 import { RepartoBar } from '@/ui/reparto'
 import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
@@ -33,7 +34,9 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const repartoMarkets = live.filter((x) => ctx.can('account.reassign', x.code)).map((x) => x.code)
   const repartoMarket = sp.market && repartoMarkets.includes(sp.market) ? sp.market : repartoMarkets.length === 1 && !sp.market ? repartoMarkets[0]! : null
   const repartir = !tree && sp.repartir === '1' && repartoMarkets.length > 0
-  const [data, views, treeData, open, place, holders, targets] = await Promise.all([
+  // Equipo y embudo: filtros para supervisión, quien lidera y leadership (su alcance de reportes dice qué pueden elegir).
+  const lead = !tree && ctx.can('report.view')
+  const [data, views, treeData, open, place, holders, targets, options] = await Promise.all([
     listAccounts(ctx, sp),
     savedViews(ctx, 'account'),
     tree ? listTree(ctx, { market: sp.market, owner: sp.owner, q: sp.q }) : Promise.resolve({ nodes: [], cut: false }),
@@ -41,12 +44,13 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
     tree ? Promise.resolve({ regions: [], territories: [] }) : getPlaceOptions(ctx),
     wide && !tree ? getHolders(ctx, sp.market ? [sp.market] : ctx.markets.map((x) => x.code)) : Promise.resolve([]),
     repartir && repartoMarket ? getTargets(ctx, [repartoMarket]) : Promise.resolve([]),
+    lead ? getReportOptions(ctx) : Promise.resolve(null),
   ])
   const nodes = treeData.nodes
   await track(ctx, 'view.comercios')
   const multi = ctx.markets.length > 1
   // El estado de la lista vive en la URL: abrir o cerrar la ficha no pierde filtros, búsqueda ni página.
-  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, repartir: repartir ? '1' : undefined }
+  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, repartir: repartir ? '1' : undefined }
   const link = (patch: Record<string, string | undefined>) => qs('/comercios', { ...base, ...patch })
   const fichaHref = (id: string, tab?: FichaTab) => link({ ficha: id, tab: tab && tab !== 'hilo' ? tab : undefined })
   const closeHref = link({})
@@ -56,7 +60,9 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const owners = inMarket(holders).filter((h) => h.owner_id && h.accounts > 0).sort((a, b) => Number(a.current) - Number(b.current) || b.accounts - a.accounts)
   const regions = inMarket(place.regions)
   const territories = inMarket(place.territories)
-  const placeOn = !!(sp.region || sp.city || sp.territory || (sp.owner && sp.owner !== 'me'))
+  const placeOn = !!(sp.region || sp.city || sp.territory || sp.team || sp.pipeline || (sp.owner && sp.owner !== 'me'))
+  const teams = options ? inMarket(options.teams) : []
+  const pipes = options ? inMarket(options.pipelines) : []
   const ownerTag = (h: { is_active: boolean | null; current: boolean }) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (sin rol de ventas)', ' (no sales role)') : '')
   const withMarket = (label: string, code: string) => (multi && !sp.market ? `${label} · ${code}` : label)
   const current = sp.ver ?? (sp.lifecycle ? `lc:${sp.lifecycle}` : sp.kind ? `k:${sp.kind}` : '')
@@ -148,7 +154,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
         {!tree && (
           <details className="mt-3" open={placeOn || repartir} data-testid="place-filters">
             <summary className="press inline-flex min-h-11 cursor-pointer items-center rounded-[10px] px-3 text-[14px] font-semibold text-strong hover:bg-green-50" data-testid="place-filters-toggle">
-              {wide ? t('Filtrar por dueño, plaza o territorio', 'Filter by owner, place or territory') : t('Filtrar por plaza o territorio', 'Filter by place or territory')}
+              {lead ? t('Filtrar por dueño, equipo, embudo, plaza o territorio', 'Filter by owner, team, pipeline, place or territory') : wide ? t('Filtrar por dueño, plaza o territorio', 'Filter by owner, place or territory') : t('Filtrar por plaza o territorio', 'Filter by place or territory')}
             </summary>
             <form action="/comercios" method="get" className="card mt-2 grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="place-form">
               {(['q', 'market', 'ver', 'vista', 'lifecycle', 'kind'] as const).map((k) => (sp[k] ? <input key={k} type="hidden" name={k} value={sp[k]} /> : null))}
@@ -164,6 +170,23 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                   </select>
                 </Field>
               ) : sp.owner ? <input type="hidden" name="owner" value={sp.owner} /> : null}
+              {lead && teams.length > 0 ? (
+                <Field label={t('Equipo', 'Team')}>
+                  <select name="team" defaultValue={sp.team ?? ''} className="input" data-testid="filter-team">
+                    <option value="">{t('Todos', 'All')}</option>
+                    {teams.map((x) => <option key={x.id} value={x.id}>{withMarket(x.name, x.market_code)}</option>)}
+                    <option value="none">{t('Sin equipo', 'No team')}</option>
+                  </select>
+                </Field>
+              ) : sp.team ? <input type="hidden" name="team" value={sp.team} /> : null}
+              {lead && pipes.length > 0 ? (
+                <Field label={t('Embudo', 'Pipeline')} hint={t('Comercios con un negocio en ese embudo.', 'Merchants with a deal in that pipeline.')}>
+                  <select name="pipeline" defaultValue={sp.pipeline ?? ''} className="input" data-testid="filter-pipeline">
+                    <option value="">{t('Todos', 'All')}</option>
+                    {pipes.map((x) => <option key={x.id} value={x.id}>{withMarket(x.name, x.market_code)}</option>)}
+                  </select>
+                </Field>
+              ) : sp.pipeline ? <input type="hidden" name="pipeline" value={sp.pipeline} /> : null}
               <Field label={t('Región o estado', 'Region or state')}>
                 <select name="region" defaultValue={sp.region ?? ''} className="input" data-testid="filter-region">
                   <option value="">{t('Todas', 'All')}</option>
@@ -183,7 +206,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
               </Field>
               <div className="flex flex-wrap items-center gap-3 sm:col-span-2 xl:col-span-4">
                 <button className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-5 text-[15px] font-semibold hover:bg-green-50" data-testid="place-apply">{t('Aplicar', 'Apply')}</button>
-                {placeOn && <Link href={link({ owner: undefined, region: undefined, city: undefined, territory: undefined, after: undefined, ficha: undefined })} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid="place-clear">{t('Quitar estos filtros', 'Clear these filters')}</Link>}
+                {placeOn && <Link href={link({ owner: undefined, region: undefined, city: undefined, territory: undefined, team: undefined, pipeline: undefined, after: undefined, ficha: undefined })} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid="place-clear">{t('Quitar estos filtros', 'Clear these filters')}</Link>}
               </div>
             </form>
           </details>
@@ -226,7 +249,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 key={qs('', { ...base, ficha: undefined })}
                 locale={locale}
                 market={repartoMarket}
-                filter={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory }}
+                filter={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline }}
                 narrowed={narrows(sp)}
                 total={data.total}
                 people={targets}

@@ -16,6 +16,7 @@ import { PipedriveTab } from './pipedrive'
 import { PeopleTab, accessFilter } from './people'
 import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
+import { FxCard } from './fx'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
@@ -157,6 +158,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <ul className="space-y-2.5">{d.reasons.map((r) => <li key={r.code} className="flex items-center justify-between gap-3 text-[14px]"><span className="font-medium text-strong">{t(r.label_es, r.label_en)}</span><Badge tone={r.kind === 'lost' ? 'bad' : 'warn'}>{r.kind === 'lost' ? t('pérdida de negocio', 'deal loss') : t('visita sin venta', 'no-sale visit')}</Badge></li>)}</ul>
           </Card>
         </div>
+        <FxCard ctx={ctx} />
       </div>
       </NoticeArea>
     )
