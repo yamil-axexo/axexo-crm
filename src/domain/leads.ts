@@ -349,7 +349,7 @@ export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
     ctx.assert('lead.work', lead.market_code)
     if (!['new', 'contacted'].includes(lead.status)) throw invalid('Este lead ya se trabajó.', 'This lead was already worked.')
     if (lead.owner_id === ctx.user.id) return
-    if (lead.owner_id) throw invalid('Alguien ya lleva este lead. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
+    if (lead.owner_id) throw invalid('Alguien ya lleva este lead. Pide a tu supervisión o a quien lidera tu mercado que lo reasigne.', 'This lead already has an owner. Ask your supervisor or whoever leads your market to reassign it.')
     await tx`update crm.leads set owner_id = ${ctx.user.id}, assigned_at = now() where id = ${leadId} and owner_id is null`
     await audit(tx, ctx, 'lead.taken', 'lead', leadId, lead.market_code, { owner_id: null }, { owner_id: ctx.user.id })
     await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ctx.user.id, by: 'taken', motor: lead.motor })
