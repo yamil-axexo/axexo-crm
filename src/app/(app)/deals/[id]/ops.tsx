@@ -7,6 +7,10 @@ import { CopyValue } from '@/ui/ops'
 import { day, money } from '@/lib/format'
 import { addItemAction, merchantRefAction, opsCheckAction, opsStepAction, removeItemAction, returnDealAction, takeDealAction, trainingAction } from '@/app/(app)/operaciones/actions'
 
+/** Precio unitario con centavos: 2.50 no se muestra como 3. */
+const price = (minor: number | null, currency: string, locale: 'es' | 'en') =>
+  minor === null ? '—' : new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX', { style: 'currency', currency, currencyDisplay: 'code', minimumFractionDigits: 2 }).format(minor / 100)
+
 type Ops = NonNullable<Awaited<ReturnType<typeof getDealOps>>>
 type Item = { id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }
 
@@ -25,7 +29,7 @@ export function DealItems({ ctx, dealId, open, items, ops, currency }: { ctx: Ct
           <li key={it.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line py-3 text-[14px] first:border-t-0" data-testid="item-row">
             <span className="min-w-0 flex-1">
               <span className="font-semibold text-strong">{it.name}</span>
-              <span className="num block text-[13px] text-muted-2">{Number(it.quantity)} × {money(it.unit_price_minor ? Number(it.unit_price_minor) : null, it.currency, locale)}</span>
+              <span className="num block text-[13px] text-muted-2">{Number(it.quantity)} × {price(it.unit_price_minor ? Number(it.unit_price_minor) : null, it.currency, locale)}</span>
               {it.comments ? <span className="block text-[12.5px] text-muted">{it.comments}</span> : null}
             </span>
             <span className="num font-medium whitespace-nowrap text-strong">{money(it.sum_minor ? Number(it.sum_minor) : null, it.currency, locale)}</span>
@@ -49,7 +53,7 @@ export function DealItems({ ctx, dealId, open, items, ops, currency }: { ctx: Ct
           <Field label={t('Producto', 'Product')} className="col-span-2 md:col-span-1">
             <select name="product_id" className="input" required defaultValue="" data-testid="item-product">
               <option value="">{t('Elige un producto', 'Pick a product')}</option>
-              {ops.products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.unit_price_minor ? ` · ${money(Number(p.unit_price_minor), currency, locale)}` : ''}</option>)}
+              {ops.products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.unit_price_minor ? ` · ${price(Number(p.unit_price_minor), currency, locale)}` : ''}</option>)}
             </select>
           </Field>
           <Field label={t('Cantidad', 'Quantity')}><input name="quantity" className="input" inputMode="decimal" required defaultValue="1" data-testid="item-quantity" /></Field>
