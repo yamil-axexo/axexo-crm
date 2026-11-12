@@ -46,6 +46,8 @@ export type QueueLabels = {
   groups: Record<QueueGroup, string>
   emptyTitle: string
   emptyBody: string
+  /** Quien supervisa y no tiene pendientes propios: enlace a los de su equipo. */
+  emptyLink?: { href: string; label: string } | null
   backlogLink: string
 }
 
@@ -192,6 +194,7 @@ export function Queue({
           </svg>
           <h2 className="mt-5 text-[18px] leading-[26px] font-semibold">{labels.emptyTitle}</h2>
           <p className="mt-1 max-w-sm text-[15px] text-muted">{labels.emptyBody}</p>
+          {labels.emptyLink && <Link href={labels.emptyLink.href} className="mt-4 inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="queue-empty-team">{labels.emptyLink.label}</Link>}
         </div>
       ) : (
         <>

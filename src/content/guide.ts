@@ -80,8 +80,8 @@ const S = {
     key: 'convert',
     title: { es: 'Convierte un lead calificado en comercio y negocio', en: 'Convert a qualified lead into a merchant and a deal' },
     why: {
-      es: 'En el lead, "Calificar" y luego "Convertir en comercio y negocio": eliges el embudo y confirmas el tipo de cuenta. Sus notas y llamadas pasan al hilo.',
-      en: 'On the lead, "Qualify" and then "Convert to merchant and deal": you pick the pipeline and confirm the account type. Its notes and calls move to the thread.',
+      es: 'En el lead, "Calificar" y luego "Convertir en comercio y negocio": eliges el embudo y confirmas el tipo de cuenta. Sus notas y llamadas pasan al hilo. Donde el embudo pasa por Operaciones (altas de dealers y pedidos), al terminar tu parte lo entregas: desde ahí lo mueve y lo gana Operaciones.',
+      en: 'On the lead, "Qualify" and then "Convert to merchant and deal": you pick the pipeline and confirm the account type. Its notes and calls move to the thread. Where the pipeline goes through Operations (dealer onboarding and orders), you hand it over when your part is done: from there Operations moves it and wins it.',
     },
     href: '/leads',
     cta: GO.leads,
@@ -170,8 +170,8 @@ const S = {
     key: 'reassign',
     title: { es: 'Reasigna un lead a quien cubre esa zona', en: 'Reassign a lead to whoever covers that area' },
     why: {
-      es: 'Abre el lead y cambia a la persona en "Quién lo lleva". En un comercio, el enlace "Reasignar" está junto a quien lo lleva. Queda en la bitácora con tu nombre.',
-      en: 'Open the lead and change the owner under "Owner". On a merchant, the "Reassign" link sits next to the owner. It is logged with your name.',
+      es: 'Abre el lead y cambia a la persona en "Quién lo lleva". En un comercio, el enlace está junto a quien lo lleva: dice "Asignar" si no tiene a nadie y "Reasignar" si ya lo lleva alguien. Queda en la bitácora con tu nombre.',
+      en: 'Open the lead and change the owner under "Owner". On a merchant, the link sits next to the owner: it reads "Assign" when nobody has it and "Reassign" when someone does. It is logged with your name.',
     },
     href: '/leads',
     cta: GO.leads,
@@ -200,8 +200,8 @@ const S = {
     key: 'weekly',
     title: { es: 'Abre el Reporte semanal de campo', en: 'Open the weekly field report' },
     why: {
-      es: 'Desde Mi equipo, "Reporte de campo": puntos de venta dados de alta y negocios ganados por semana, por territorio o plaza, y visitas por persona.',
-      en: 'From My team, "Field report": stores enrolled and deals won by week, by territory or place, and visits by person.',
+      es: 'Desde Mi equipo, "Reporte de campo": puntos de venta dados de alta y negocios ganados por semana, por territorio o plaza, y visitas por persona y por quien visitó. Antes, confirma en Mi equipo que aparece toda tu gente.',
+      en: 'From My team, "Field report": stores enrolled and deals won by week, by territory or place, and visits by person and by who visited. First, confirm in My team that all your people show up.',
     },
     href: '/reportes/campo',
     cta: { es: 'Ir al Reporte de campo', en: 'Go to the Field report' },
@@ -230,8 +230,8 @@ const S = {
     key: 'win-rule',
     title: { es: 'Revisa cómo se gana un negocio en cada embudo', en: 'Review how a deal is won in each pipeline' },
     why: {
-      es: 'En "Embudos y campos", cada embudo dice si se gana con la primera transacción o a mano. En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.',
-      en: 'Under "Pipelines and fields", each pipeline says whether it is won by the first transaction or by hand. During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own.',
+      es: 'En "Embudos y campos", cada embudo dice si se gana con la primera transacción o a mano. En el piloto se gana a mano y, en los embudos con etapas de Operaciones, lo marca Operaciones; cuando llegue la primera transacción se confirmará sola.',
+      en: 'Under "Pipelines and fields", each pipeline says whether it is won by the first transaction or by hand. During the pilot a deal is won by hand and, in pipelines with Operations stages, Operations marks it; when the first transaction arrives it will be confirmed on its own.',
     },
     href: '/admin?tab=embudos',
     cta: { es: 'Ir a Embudos y campos', en: 'Go to Pipelines and fields' },
@@ -381,8 +381,9 @@ const S = {
 // Cada rol empieza donde aterriza al entrar (homePath en domain/policy.ts): Ventas y supervisión en Hoy, Operaciones en su cola,
 // quien lidera en Mi equipo, leadership en el Panel del LT y administración en Administración.
 export const STEPS: Record<Track, Step[]> = {
-  rep: [S.today, S.complete, S.leads, S.convert, S.mine, S.visit, S.nostep, S.report],
-  supervisor: [S.teamNow, S.team, S.exceptions, S.reassign, S.distribute, S.closed, S.complete, S.report],
+  // Quien trabaja en la calle empieza por sus tiendas y su visita; los leads vienen después (ronda de aceptación, 12-nov-2026).
+  rep: [S.today, S.mine, S.visit, S.complete, S.leads, S.convert, S.nostep, S.report],
+  supervisor: [S.teamNow, S.team, S.weekly, S.exceptions, S.reassign, S.distribute, S.closed, S.complete, S.report],
   lead: [S.teamHome, S.distribute, S.weekly, S.closed, S.exceptions, S.panelMenu, S.report],
   ops: [S.opsQueue, S.opsTake, S.opsReturn, S.opsFields, S.opsNote, S.report],
   lt: [S.panel, S.closed, S.team, S.readonly, S.missing],
@@ -659,7 +660,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'phone', topic: 'start', tracks: 'all',
     q: { es: '¿Hay una app o funciona en el teléfono?', en: 'Is there an app, or does it work on a phone?' },
-    a: { es: 'Funciona en el navegador del teléfono, con la misma dirección, y la pantalla se acomoda sola. No hay una app que instalar. Puedes agregarla a tu pantalla de inicio desde el menú del navegador.', en: 'It works in your phone\'s browser, at the same address, and the screen adapts on its own. There is no app to install. You can add it to your home screen from the browser menu.' },
+    a: { es: 'Funciona en el navegador del teléfono, con la misma dirección, y la pantalla se acomoda sola. No hay una app que instalar. Desde el menú del navegador puedes dejar un acceso directo en tu pantalla de inicio: abre CONTIGO en el navegador, no es una app con ícono propio.', en: 'It works in your phone\'s browser, at the same address, and the screen adapts on its own. There is no app to install. From the browser menu you can leave a shortcut on your home screen: it opens CONTIGO in the browser, it is not an app with its own icon.' },
   },
   {
     id: 'offline', topic: 'start', tracks: 'all',
@@ -830,7 +831,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'deal-move', topic: 'deals', tracks: WORK,
     q: { es: '¿Por qué no me deja mover un negocio de etapa?', en: 'Why can I not move a deal to the next stage?' },
-    a: { es: 'Cada etapa pide lo suyo: un próximo paso con fecha, quién decide, algún dato. Al moverlo se abre una hoja con lo que falta; la llenas ahí y el negocio avanza. No se puede saltar etapas para evitarlo. Si el negocio ya está con Operaciones, solo Operaciones lo avanza.', en: 'Each stage asks for something: a dated next step, who decides, a detail. Moving it opens a sheet with what is missing; you fill it in there and the deal moves. You cannot skip stages to avoid it. If the deal is already with Operations, only Operations moves it forward.' },
+    a: { es: 'Cada etapa pide lo suyo: un próximo paso con fecha, quién decide, algún dato. Al moverlo se abre una hoja con lo que falta; la llenas ahí y el negocio avanza. Si falta decir quién decide y el comercio no tiene contactos, la hoja te lleva a la ficha para agregar a la persona. No se puede saltar etapas para evitarlo. Si el negocio ya está con Operaciones, solo Operaciones lo avanza.', en: 'Each stage asks for something: a dated next step, who decides, a detail. Moving it opens a sheet with what is missing; you fill it in there and the deal moves. If it needs who decides and the merchant has no contacts, the sheet takes you to the record to add the person. You cannot skip stages to avoid it. If the deal is already with Operations, only Operations moves it forward.' },
   },
   {
     id: 'deal-decision', topic: 'deals', tracks: WORK,
@@ -1033,7 +1034,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'reassign', topic: 'team', tracks: MANAGE,
     q: { es: '¿Cómo reasigno un lead o un comercio?', en: 'How do I reassign a lead or a merchant?' },
-    a: { es: 'Comercio: abre la ficha y toca "Reasignar", junto a quien lo lleva; te pide confirmar. Lead: abre el lead y, en "Quién lo lleva", elige a la persona y toca "Reasignar". Para muchos a la vez, usa "Repartir" en Comercios o "Reasignar cartera" en Mi equipo. Quien vende puede pasar sus propios leads con "Pasar a un compañero".', en: 'Merchant: open the record and tap "Reassign", next to the owner; it asks you to confirm. Lead: open the lead and, under "Owner", pick the person and tap "Reassign". For many at once, use "Distribute" in Merchants or "Reassign book" in My team. Sellers can pass their own leads with "Pass to a teammate".' },
+    a: { es: 'Comercio: abre la ficha y toca "Reasignar" (o "Asignar", si está sin asignar), junto a quien lo lleva; te pide confirmar. Lead: abre el lead y, en "Quién lo lleva", elige a la persona y toca "Reasignar". Para muchos a la vez, usa "Repartir" en Comercios o "Reasignar cartera" en Mi equipo. Quien vende puede pasar sus propios leads con "Pasar a un compañero".', en: 'Merchant: open the record and tap "Reassign", next to the owner; it asks you to confirm. Lead: open the lead and, under "Owner", pick the person and tap "Reassign". For many at once, use "Distribute" in Merchants or "Reassign book" in My team. Sellers can pass their own leads with "Pass to a teammate".' },
   },
   {
     id: 'moves-with', topic: 'team', tracks: MANAGE,
@@ -1053,12 +1054,12 @@ export const HELP: HelpItem[] = [
   {
     id: 'house-account', topic: 'team', tracks: MANAGE,
     q: { es: '¿Qué es "por repartir" y quién lo ve?', en: 'What is "no current owner" and who sees it?' },
-    a: { es: 'Es un comercio o lead sin asignar, o a nombre de una cuenta de servicio o de alguien que ya no vende en ese mercado. Lo ven supervisión y quien lidera el mercado, en Mi equipo. Quien vende no lo ve hasta que se le reparte.', en: 'It is a merchant or lead with no owner, or under a service account or someone who no longer sells in that market. Supervisors and the market lead see it, in My team. Sellers do not see it until it is distributed to them.' },
+    a: { es: 'Es un comercio o lead sin asignar, o a nombre de una cuenta de servicio o de alguien que ya no vende en ese mercado. Lo reparten supervisión y quien lidera el mercado, desde Mi equipo. Quien vende ve los leads sin asignar de su mercado y los comercios sin asignar de sus territorios, con la etiqueta "Sin asignar".', en: 'It is a merchant or lead with no owner, or under a service account or someone who no longer sells in that market. Supervisors and the market lead distribute it, from My team. Sellers see the unowned leads of their market and the unowned merchants of their territories, tagged "No owner".' },
   },
   {
     id: 'move-to-team', topic: 'team', tracks: ['supervisor'],
     q: { es: '¿Por qué solo veo a mi equipo en "Pasar a"?', en: 'Why do I only see my team under "Move to"?' },
-    a: { es: 'Supervisión reparte dentro de su equipo. Para pasar algo a otro equipo, pídelo a quien lidera el mercado.', en: 'Supervisors distribute within their team. To move something to another team, ask the market lead.' },
+    a: { es: 'En "Repartir", supervisión reparte dentro de su equipo. En la ficha de un comercio (Datos) el selector lista a todas las personas del mercado. Para pasar algo a otro equipo, acuérdalo con quien lidera el mercado.', en: 'Under "Distribute", supervisors distribute within their team. On a merchant record (Details) the selector lists everyone in the market. To move something to another team, agree it with the market lead.' },
   },
   {
     id: 'notify-receiver', topic: 'team', tracks: MANAGE,
@@ -1068,12 +1069,12 @@ export const HELP: HelpItem[] = [
   {
     id: 'territories', topic: 'team', tracks: MANAGE,
     q: { es: '¿Dónde se crean los territorios?', en: 'Where are territories created?' },
-    a: { es: 'En Administración, "Territorios". A los comercios se les pone territorio desde Comercios, con "Repartir".', en: 'In Administration, "Territories". Merchants get their territory from Merchants, with "Distribute".' },
+    a: { es: 'Los crea administración, en Administración, "Territorios": quien lidera el mercado no ve esa pestaña, así que pídeselos. A los comercios se les pone territorio desde Comercios, con "Repartir".', en: 'Administration creates them, in Administration, "Territories": the market lead does not see that tab, so ask for them. Merchants get their territory from Merchants, with "Distribute".' },
   },
   {
     id: 'access-removed-book', topic: 'team', tracks: MANAGE,
     q: { es: 'Le quitaron el acceso a alguien. ¿Qué pasa con su cartera?', en: 'Someone\'s access was removed. What happens to their book?' },
-    a: { es: 'Queda por repartir. Aparece en Administración, "Personas y acceso", y en Mi equipo con "Repartir comercios".', en: 'It has no current owner. It shows in Administration, "People and access", and in My team with "Distribute merchants".' },
+    a: { es: 'Queda por repartir. Lo ves en Mi equipo, en "Por repartir", con "Repartir comercios". Administración lo ve además en "Personas y acceso".', en: 'It has no current owner. You see it in My team, under "No current owner", with "Distribute merchants". Administration also sees it under "People and access".' },
   },
   {
     id: 'supervisor-own', topic: 'team', tracks: ['supervisor'],

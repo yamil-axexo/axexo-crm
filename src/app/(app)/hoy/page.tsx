@@ -16,6 +16,7 @@ import { flat } from '@/server/params'
 import { myNotices } from '@/dal/ops'
 import { noticeSeenAction } from '@/app/(app)/operaciones/actions'
 import { ActionForm, Submit } from '@/ui/client'
+import { getSupervisorBoard } from '@/dal/boards'
 
 /** Las tareas con fecha pero sin hora se guardan a esta hora UTC: no se muestran como una hora real. */
 const DATE_ONLY = 'T15:00:00.000Z'
@@ -165,6 +166,9 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     .map(({ r }) => view(r))
 
   const total = q.counts.late + q.counts.today + q.counts.suggested
+  // Quien supervisa y no tiene pendientes propios no lee "Todo al día": se le dice cuántos tiene su equipo, con enlace.
+  const teamOpen = total === 0 && q.rows.length === 0 && ctx.memberships.some((x) => x.role === 'supervisor' || x.role === 'market_lead')
+    ? Object.values((await getSupervisorBoard(ctx, {})).byKind).reduce((a, b) => a + b, 0) : null
   const shown = { late: 0, today: 0, suggested: 0 }
   for (const i of items) shown[i.group]++
   const more = (g: keyof typeof shown) => (q.counts[g] > shown[g] && shown[g] >= QUEUE_PAGE ? m('today.more', { count: q.counts[g] - shown[g] }) : null)
@@ -180,7 +184,9 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     clock: m('today.leadClock', { time: '%s' }), clockLate: m('today.leadClockLate', { time: '%s' }),
     more: { late: more('late'), today: more('today'), suggested: q.backlog > 0 ? m('today.backlog', { count: q.backlog }) : null },
     groups: { late: m('today.group.late'), today: m('today.group.today'), suggested: m('today.group.suggested') },
-    emptyTitle: m('today.empty.title'), emptyBody: m('today.empty.body'), backlogLink: m('today.backlogLink'),
+    emptyTitle: teamOpen === null ? m('today.empty.title') : t('No tienes pendientes propios', 'You have nothing pending of your own'),
+    emptyBody: teamOpen === null ? m('today.empty.body') : t(`Tu equipo tiene ${teamOpen} ${teamOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}.`, `Your team has ${teamOpen} open ${teamOpen === 1 ? 'alert' : 'alerts'}.`),
+    emptyLink: teamOpen ? { href: '/supervisor', label: t('Ver los pendientes de mi equipo', 'See my team’s alerts') } : null, backlogLink: m('today.backlogLink'),
   }
 
   return (

@@ -26,20 +26,22 @@ export async function streetSummary(ctx: Ctx): Promise<StreetSummary[]> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<StreetSummary[]>`
       with v as (
-        select x.market_code, btrim(x.visited_by) as name, coalesce(a.owner_id, x.owner_id) as owner_id,
+        -- El mismo nombre escrito con otra mayúscula es la misma persona: se junta sin distinguir mayúsculas.
+        select x.market_code, lower(btrim(x.visited_by)) as k, max(btrim(x.visited_by)) as name, coalesce(a.owner_id, x.owner_id) as owner_id,
                count(*) filter (where x.done_at > now() - interval '7 days')::int as visits_7d,
                count(*) filter (where x.done_at > now() - interval '7 days' and x.outcome = 'sale')::int as sales_7d,
                count(distinct x.account_id)::int as stores_30d
           from crm.activities x left join crm.accounts a on a.id = x.account_id
          where x.kind = 'visit' and x.done_at is not null and x.visited_by is not null and x.done_at > now() - interval '30 days'
-         group by 1, 2, 3
+         group by x.market_code, lower(btrim(x.visited_by)), coalesce(a.owner_id, x.owner_id)
       ), c as (
-        select s.market_code, s.name, s.reports_to as owner_id from crm.street_sellers s where s.is_active
+        select s.market_code, lower(btrim(s.name)) as k, s.name, s.reports_to as owner_id from crm.street_sellers s where s.is_active
       )
-      select coalesce(v.name, c.name) as name, coalesce(v.market_code, c.market_code) as market_code, coalesce(v.owner_id, c.owner_id) as owner_id, u.full_name as owner_name,
-             exists (select 1 from crm.street_sellers s where s.is_active and s.market_code = coalesce(v.market_code, c.market_code) and lower(btrim(s.name)) = lower(coalesce(v.name, c.name))) as listed,
+      select coalesce((select s.name from crm.street_sellers s where s.is_active and s.market_code = coalesce(v.market_code, c.market_code) and lower(btrim(s.name)) = coalesce(v.k, c.k) limit 1), v.name, c.name) as name,
+             coalesce(v.market_code, c.market_code) as market_code, coalesce(v.owner_id, c.owner_id) as owner_id, u.full_name as owner_name,
+             exists (select 1 from crm.street_sellers s where s.is_active and s.market_code = coalesce(v.market_code, c.market_code) and lower(btrim(s.name)) = coalesce(v.k, c.k)) as listed,
              coalesce(v.visits_7d, 0) as visits_7d, coalesce(v.sales_7d, 0) as sales_7d, coalesce(v.stores_30d, 0) as stores_30d
-        from v full join c on c.market_code = v.market_code and lower(c.name) = lower(v.name) and c.owner_id is not distinct from v.owner_id
+        from v full join c on c.market_code = v.market_code and c.k = v.k and c.owner_id is not distinct from v.owner_id
         left join crm.users u on u.id = coalesce(v.owner_id, c.owner_id)
        order by u.full_name nulls last, 1`
     return [...rows]

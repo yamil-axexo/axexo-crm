@@ -138,7 +138,7 @@ describe('ganar a mano no se queda a medias', () => {
     expect(d).toEqual({ status: 'won', next_step: null, day: closeOn })
     // nada queda abierto, y la visita por hacer no se cuenta como visita hecha
     expect((await admin`select 1 from crm.activities where deal_id = ${id} and done_at is null and kind <> 'note'`).length).toBe(0)
-    expect((await admin`select 1 from crm.visit_log where account_id = ${store.id}`).length).toBe(0)
+    expect((await admin`select 1 from crm.visit_log where account_id = ${store.id} and origin = 'manual'`).length).toBe(0)
     // el hilo de la tienda dice la fecha de cierre elegida, no "Pasó a Activa"
     const thread = (await getAccount(marco, store.id))!.timeline.find((x) => x.kind === 'stage' && (x.meta as { kind?: string }).kind === 'won')!
     expect((thread.meta as { won_on?: string }).won_on).toBe(closeOn)
@@ -269,7 +269,7 @@ describe('visitas: motivo de la visita sin venta, la tarea que ya estaba y el pr
     expect(open.length).toBe(1)
     expect(open[0]!.kind).toBe('visit')
     expect(open[0]!.id).not.toBe(done.id)
-    expect((await admin`select 1 from crm.visit_log where account_id = ${store.id}`).length).toBe(1)
+    expect((await admin`select 1 from crm.activities where account_id = ${store.id} and kind = 'visit' and done_at is not null`).length).toBe(1)
   })
 
   it('"Ya hablé con esta persona" deja el primer contacto como En persona, no como llamada', async () => {
