@@ -21,7 +21,8 @@ export type LeadListItem = {
   phone: string | null
 }
 
-export type LeadFilters = { market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string }
+export type LeadFilters = { market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; /** Día en que llegó el lead (zona del mercado), para abrir desde el Panel del LT los leads de un periodo. */ from?: string; to?: string }
+const isDay = (v: string | undefined): v is string => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
 export const LEAD_PAGE = 40
 export const LEAD_SORTS = ['recent', 'oldest', 'due'] as const
 export type LeadSort = (typeof LEAD_SORTS)[number]
@@ -49,6 +50,8 @@ export async function listLeads(ctx: Ctx, f: LeadFilters): Promise<{ items: Lead
       ${f.market ? tx`and l.market_code = ${f.market}` : tx``}
       ${f.owner === 'me' ? tx`and l.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and l.owner_id is null` : isUuid(f.owner) ? tx`and l.owner_id = ${f.owner}` : tx``}
       ${f.source ? tx`and l.source = ${f.source}` : tx``}
+      ${isDay(f.from) ? tx`and (l.created_at at time zone (select mk.timezone from crm.markets mk where mk.code = l.market_code))::date >= ${f.from}::date` : tx``}
+      ${isDay(f.to) ? tx`and (l.created_at at time zone (select mk.timezone from crm.markets mk where mk.code = l.market_code))::date <= ${f.to}::date` : tx``}
       ${f.clock === 'with' || sort === 'due' ? tx`and ${waiting}` : f.clock === 'without' ? tx`and l.sla_due_at is null` : tx``}
       ${q ? tx`and (app.norm(l.business_name) like '%' || app.norm(${q}) || '%' or app.norm(l.contact_name) like '%' || app.norm(${q}) || '%'
                    ${digits.length >= 4 ? tx`or l.phone like ${'%' + digits + '%'}` : tx``})` : tx``}`

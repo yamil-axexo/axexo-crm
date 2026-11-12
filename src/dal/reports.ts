@@ -246,6 +246,7 @@ export async function getLeadershipPanel(ctx: Ctx, p: MarketPeriods, market?: st
        where m.code = any(app.full_markets()) and m.status = 'live' ${market ? tx`and m.code = ${market}` : tx``} order by m.code`
     const codes = markets.map((m) => m.code)
     // Por embudo: los leads se cuentan por su tipo de venta, que es el mismo del embudo al que entran.
+    // Un embudo retirado que todavía tiene negocios sigue en el desglose: si no, las partes no suman el total del mercado.
     const pipelines = await tx<PanelSlice[]>`
       select p.id::text as key, p.id, p.market_code, p.name, p.motor,
              (select count(*)::int from crm.leads l where l.market_code = p.market_code and l.motor = p.motor and ${inPeriod(tx`l.created_at`)}) as leads,
@@ -254,7 +255,9 @@ export async function getLeadershipPanel(ctx: Ctx, p: MarketPeriods, market?: st
              (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'won' and ${inPeriod(tx`d.won_at`)}) as won,
              (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'lost' and ${inPeriod(tx`d.lost_at`)}) as lost
         from crm.pipelines p join crm.markets m on m.code = p.market_code join ${pr} pr on pr.market = p.market_code
-       where p.market_code = any(${codes}::text[]) and p.is_active order by p.market_code, p.position`
+       where p.market_code = any(${codes}::text[])
+         and (p.is_active or exists (select 1 from crm.deals d where d.pipeline_id = p.id))
+       order by p.market_code, p.is_active desc, p.position`
     // Por equipo: el equipo vigente de quien lleva el registro. Lo que no tiene dueño, o cuyo dueño no tiene equipo, va en su propia línea.
     const teams = await tx<PanelSlice[]>`
       with own as (

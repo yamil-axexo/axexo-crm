@@ -420,14 +420,17 @@ export async function updateLossReason(ctx: Ctx, code: string, input: { motors: 
 
 // ---------------------------------------------------------------- formularios
 
-/** Lo que administración cambia de un formulario web: su nombre visible y qué campos adicionales pide. */
-export async function updateForm(ctx: Ctx, formId: string, input: { name: string; askFields: string[] }): Promise<void> {
+/**
+ * Lo que administración cambia de un formulario web: su nombre visible, qué campos adicionales pide y con qué tipo de
+ * cuenta nacen sus leads (del catálogo de tipos de cuenta; vacío: el del tipo de venta). Sin `accountType` no se toca.
+ */
+export async function updateForm(ctx: Ctx, formId: string, input: { name: string; askFields: string[]; accountType?: string | null }): Promise<void> {
   ctx.assert('config.manage')
   const name = z.string().trim().min(2).max(80).safeParse(input.name)
   if (!name.success) throw invalid('El formulario lleva un nombre de 2 a 80 letras.', 'A form needs a name of 2 to 80 characters.')
   assertNoProhibited(name.data)
   await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ market_code: string; motor: string; name: string; ask_fields: string[] }[]>`select market_code, motor, name, ask_fields from crm.web_forms where id = ${formId} for update`
+    const rows = await tx<{ market_code: string; motor: string; name: string; ask_fields: string[]; account_type: string | null }[]>`select market_code, motor, name, ask_fields, account_type from crm.web_forms where id = ${formId} for update`
     const f = rows[0]
     if (!f) throw notFound()
     const defs = await tx<{ key: string }[]>`
@@ -435,9 +438,14 @@ export async function updateForm(ctx: Ctx, formId: string, input: { name: string
          and data_type in ('text', 'number', 'select', 'date', 'boolean')
          and (market_code is null or market_code = ${f.market_code}) and (motor is null or motor = ${f.motor}) order by position, key`
     const ask = defs.map((d) => d.key).filter((k) => input.askFields.includes(k))
-    if (f.name === name.data && JSON.stringify(f.ask_fields) === JSON.stringify(ask)) return
-    await tx`update crm.web_forms set name = ${name.data}, ask_fields = ${ask}::text[] where id = ${formId}`
-    await audit(tx, ctx, 'form.updated', 'form', formId, f.market_code, { name: f.name, ask_fields: f.ask_fields }, { name: name.data, ask_fields: ask })
+    const type = input.accountType === undefined ? f.account_type : (input.accountType ?? '').trim() || null
+    if (type && type !== f.account_type) {
+      const known = await tx`select 1 from crm.account_types where code = ${type} and is_active and (market_code is null or market_code = ${f.market_code}) limit 1`
+      if (!known[0]) throw invalid('Elige un tipo de cuenta de la lista.', 'Pick an account type from the list.')
+    }
+    if (f.name === name.data && JSON.stringify(f.ask_fields) === JSON.stringify(ask) && type === f.account_type) return
+    await tx`update crm.web_forms set name = ${name.data}, ask_fields = ${ask}::text[], account_type = ${type} where id = ${formId}`
+    await audit(tx, ctx, 'form.updated', 'form', formId, f.market_code, { name: f.name, ask_fields: f.ask_fields, account_type: f.account_type }, { name: name.data, ask_fields: ask, account_type: type })
   })
 }
 

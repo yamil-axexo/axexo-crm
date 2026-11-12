@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getClosedDeals, getReportOptions, marketPeriods } from '@/dal/reports'
+import { EXPORT_MAX } from '@/domain/reports'
 import { track } from '@/dal/boards'
 import { Badge, Card, CardTitle, Empty, PageHeader } from '@/ui/kit'
 import { ExportLink, ReportFilters, periodText } from '@/ui/report'
@@ -68,7 +69,16 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
 
       <Card className="mt-6 @container" pad={false} data-testid="closed-list">
         <div className="px-5 pt-5 md:px-7 md:pt-6">
-          <CardTitle title={t('Negocios', 'Deals')} hint={data.total > data.rows.length ? t(`Se muestran los ${num(data.rows.length, locale)} más recientes de ${num(data.total, locale)}. El archivo trae todos.`, `Showing the ${num(data.rows.length, locale)} most recent of ${num(data.total, locale)}. The file has them all.`) : t(`${num(data.total, locale)} en total.`, `${num(data.total, locale)} in total.`)} />
+          <CardTitle title={t('Negocios', 'Deals')} />
+          {/* Cuántos hay en total, cuántos se ven y cuántos trae el archivo: la pantalla nunca deja creer que la lista está completa. */}
+          <p className="-mt-4 mb-5 text-[13px] text-muted" data-testid="closed-count">
+            {data.total > data.rows.length
+              ? t(`${num(data.total, locale)} en total. Aquí se ven los ${num(data.rows.length, locale)} más recientes.`, `${num(data.total, locale)} in total. The ${num(data.rows.length, locale)} most recent are shown here.`)
+              : t(`${num(data.total, locale)} en total.`, `${num(data.total, locale)} in total.`)}
+            {data.total > data.rows.length && canExport && (data.total <= EXPORT_MAX
+              ? t(` El archivo CSV trae los ${num(data.total, locale)}.`, ` The CSV file has all ${num(data.total, locale)}.`)
+              : t(` El archivo CSV trae hasta ${num(EXPORT_MAX, locale)}: acota el periodo o los filtros para bajarlos todos.`, ` The CSV file holds up to ${num(EXPORT_MAX, locale)}: narrow the period or the filters to get them all.`))}
+          </p>
         </div>
         {data.rows.length === 0 ? <div className="p-7 pt-0"><Empty title={t('Ningún negocio cerrado con estos filtros', 'No closed deals with these filters')} hint={t('Prueba con un periodo más largo o quita un filtro.', 'Try a longer period or remove a filter.')} /></div> : (
           <>

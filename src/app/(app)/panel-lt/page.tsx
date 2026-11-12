@@ -86,7 +86,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
 
       <h2 className="mb-3 text-[15px] font-semibold text-strong">{t(`En el periodo: ${when}`, `In the period: ${when}`)}</h2>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="lt-kpis">
-        <Metric t={t} k="leads" testId="lt-leads" value={num(sum('leads'), locale)} href={qs('/leads', { market })} hint={t('La lista de Leads no filtra por fecha: abre todos los del mercado.', 'The Leads list does not filter by date: it opens all of the market’s leads.')} />
+        <Metric t={t} k="leads" testId="lt-leads" value={num(sum('leads'), locale)} href={qs('/leads', { market, status: 'all', from: period.first.from, to: period.first.to })} />
         <Metric t={t} k="won" testId="lt-won" tone="good" value={num(sum('won'), locale)} href={closed({ resultado: 'won' })} />
         <Metric t={t} k="lost" testId="lt-lost" value={num(sum('lost'), locale)} href={closed({ resultado: 'lost' })} />
         <Metric t={t} k="attempt" testId="lt-attempt-all" value={pct(sum('sla_met'), sum('sla_judged'))} hint={t(`${num(sum('sla_met'), locale)} de ${num(sum('sla_judged'), locale)} leads juzgados. Contacto logrado: ${pct(sum('reached'), sum('sla_judged'))}.`, `${num(sum('sla_met'), locale)} of ${num(sum('sla_judged'), locale)} judged leads. Reached: ${pct(sum('reached'), sum('sla_judged'))}.`)} />

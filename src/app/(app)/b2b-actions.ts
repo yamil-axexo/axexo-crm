@@ -121,7 +121,7 @@ export async function updateLossReasonAction(_: R | null, fd: FormData): Promise
 
 export async function updateFormAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await updateForm(ctx, str(fd, 'form_id'), { name: str(fd, 'name'), askFields: all(fd, 'ask') })
+    await updateForm(ctx, str(fd, 'form_id'), { name: str(fd, 'name'), askFields: all(fd, 'ask'), accountType: fd.has('account_type') ? str(fd, 'account_type') : undefined })
     return { message: ['Formulario actualizado.', 'Form updated.'] }
   })
 }

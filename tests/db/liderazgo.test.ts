@@ -425,18 +425,26 @@ describe('el hilo del comercio y Mi equipo', () => {
     const noOwner = open((await getBoard(ana, d2dPipe.id, { owner: 'none' }))!)
     expect(noOwner).toBeLessThanOrEqual(none)
     const accounts = await listAccounts(ana, { team: b2b.id })
-    expect(accounts.total).toBe(6)
+    // Los comercios cuyo dueño está hoy en el equipo B2B México: se cuenta en la base, porque otras pruebas de la misma corrida crean comercios para ese equipo.
+    const expected = await withUser(ana.user.id, (tx) => tx<{ n: number }[]>`
+      select count(*)::int as n from crm.accounts a where a.archived_at is null and a.market_code = 'MX' and exists (
+        select 1 from crm.memberships m where m.user_id = a.owner_id and m.market_code = a.market_code and m.team_id = ${b2b.id} and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now()))`)
+    expect(expected[0]!.n).toBeGreaterThanOrEqual(6)
+    expect(accounts.total).toBe(expected[0]!.n)
     const b2bPipe = o.pipelines.find((p) => p.motor === 'b2b')!
     const inPipe = await listAccounts(ana, { pipeline: b2bPipe.id })
     expect(inPipe.total).toBeGreaterThan(0)
-    expect(inPipe.total).toBeLessThanOrEqual(6)
+    expect(inPipe.total).toBeLessThanOrEqual(accounts.total)
   })
   it('cada rol tiene su pantalla de entrada', () => {
     const m = (role: Role, market: string | null = 'MX'): Membership[] => [{ role, market, teamId: null }]
     expect(homePath(m('admin', null))).toBe('/admin')
     expect(homePath(m('lt', null))).toBe('/panel-lt')
     expect(homePath(m('market_lead'))).toBe('/supervisor')
-    for (const role of ['supervisor', 'rep', 'ops'] as Role[]) expect(homePath(m(role)), role).toBe('/hoy')
+    for (const role of ['supervisor', 'rep'] as Role[]) expect(homePath(m(role)), role).toBe('/hoy')
+    // Operaciones entra a su cola (paquete operaciones); si además vende o supervisa, a Hoy.
+    expect(homePath(m('ops'))).toBe('/operaciones')
+    expect(homePath([...m('ops'), ...m('rep')])).toBe('/hoy')
     expect(homePath([...m('lt', null), ...m('admin', null)])).toBe('/admin')
   })
 })

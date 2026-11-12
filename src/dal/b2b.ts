@@ -51,8 +51,8 @@ export async function getB2bConfig(ctx: Ctx) {
        where source = 'manual' and object in ('account', 'deal', 'lead') order by object, position, label_es`
     const reasons = await tx<{ code: string; label_es: string; label_en: string; market_code: string | null; motors: string[] | null; is_active: boolean }[]>`
       select code, label_es, label_en, market_code, motors, is_active from crm.loss_reasons where kind = 'lost' order by (motors is null) desc, position, label_es`
-    const forms = await tx<{ id: string; name: string; slug: string; market_code: string; motor: string; ask_fields: string[] }[]>`
-      select id, name, slug, market_code, motor, ask_fields from crm.web_forms where is_active order by market_code, name`
+    const forms = await tx<{ id: string; name: string; slug: string; market_code: string; motor: string; ask_fields: string[]; account_type: string | null }[]>`
+      select id, name, slug, market_code, motor, ask_fields, account_type from crm.web_forms where is_active order by market_code, name`
     const markets = await tx<{ code: string; name: string }[]>`select code, name from crm.markets order by code`
     return { types: [...types], archived: [...archived], stageDeals: Object.fromEntries(stageDeals.map((r) => [r.stage_id, r.n])), fields: [...fields], reasons: [...reasons], forms: [...forms], markets: [...markets] }
   })

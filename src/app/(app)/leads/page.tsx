@@ -13,6 +13,7 @@ import { CONTACT_ROLE, LEAD_STATUS, MOTOR, SOURCE, lab, qs } from '@/lib/labels'
 import { bulkDisqualifyAction, createLeadAction, takeLeadAction } from './actions'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { flat } from '@/server/params'
+import { day } from '@/lib/format'
 
 /** Anillo de reloj: cuánto de la meta de primer contacto ya se consumió. Lleno y en rojo si se pasó; verde con palomita si ya hubo contacto. */
 function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'ok' | 'idle' }) {
@@ -30,7 +31,7 @@ function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'o
   )
 }
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string }> }) {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
   const sp = flat(await searchParams)
@@ -45,9 +46,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   ])
   const motors = [...new Set(pipes.filter((x) => live.some((mk) => mk.code === x.market_code)).map((x) => x.motor))]
   const owners = [...new Map(people.map((x) => [x.id, x.full_name])).entries()]
-  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort }
+  // Desde el Panel del LT se llega con el periodo de la cifra: la lista muestra los leads que llegaron en esos días.
+  const isDay = (v: string | undefined) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
+  const from = isDay(sp.from) ? sp.from : undefined
+  const to = isDay(sp.to) ? sp.to : undefined
+  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, from, to }
   const link = (patch: Record<string, string | undefined>) => qs('/leads', { ...keep, ...patch, before: undefined })
-  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || (sp.owner && sp.owner !== 'me'))
+  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || from || to || (sp.owner && sp.owner !== 'me'))
   const now = new Date()
   const config = sheetConfig(ctx, now)
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
@@ -152,6 +157,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       <form key={JSON.stringify(keep)} action="/leads" method="get" role="search" className="mt-4 grid grid-cols-2 items-end gap-3 @3xl:flex @3xl:flex-wrap" data-testid="lead-filters">
         <input type="hidden" name="status" value={status} />
         {sp.market && <input type="hidden" name="market" value={sp.market} />}
+        {from && <input type="hidden" name="from" value={from} />}
+        {to && <input type="hidden" name="to" value={to} />}
+        {(from || to) && (
+          <p className="col-span-2 rounded-[10px] bg-surface-3 px-3 py-2 text-[13.5px] text-strong @3xl:basis-full" data-testid="lead-period">
+            {from && to ? t(`Leads que llegaron del ${day(from, ctx.locale)} al ${day(to, ctx.locale)}.`, `Leads that came in from ${day(from, ctx.locale)} to ${day(to, ctx.locale)}.`)
+              : from ? t(`Leads que llegaron desde el ${day(from, ctx.locale)}.`, `Leads that came in since ${day(from, ctx.locale)}.`)
+              : t(`Leads que llegaron hasta el ${day(to!, ctx.locale)}.`, `Leads that came in up to ${day(to!, ctx.locale)}.`)}
+          </p>
+        )}
         {!manages && sp.owner && <input type="hidden" name="owner" value={sp.owner} />}
         <Field label={t('Buscar en la lista', 'Search this list')} className="col-span-2 @3xl:min-w-[240px] @3xl:flex-1">
           <input name="q" type="search" defaultValue={sp.q ?? ''} className="input" placeholder={t('Nombre, persona o teléfono', 'Name, person or phone')} data-testid="lead-q" />

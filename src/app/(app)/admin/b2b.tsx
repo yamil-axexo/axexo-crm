@@ -232,18 +232,28 @@ export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipeline
       </Card>
 
       <Card data-testid="form-admin">
-        <CardTitle title={t('Qué pide cada formulario web', 'What each web form asks for')} hint={t('Nombre, teléfono y negocio se piden siempre. Aquí eliges el nombre visible y qué campos de lead se suman.', 'Name, phone and business are always asked. Here you choose the visible name and which lead fields are added.')} />
+        <CardTitle title={t('Qué pide cada formulario web', 'What each web form asks for')} hint={t('Nombre, teléfono y negocio se piden siempre. Aquí eliges el nombre visible, qué campos de lead se suman y con qué tipo de cuenta nacen sus leads.', 'Name, phone and business are always asked. Here you choose the visible name, which lead fields are added and which account type its leads start with.')} />
         <ul>
           {d.forms.map((f) => {
             const options = d.fields.filter((x) => x.object === 'lead' && x.is_active && (x.market_code === null || x.market_code === f.market_code) && (x.motor === null || x.motor === f.motor))
+            // Tipos de cuenta del mercado del formulario: el mismo catálogo de la ficha del comercio y de la hoja de conversión.
+            const formTypes = d.types.filter((x) => (x.is_active || x.code === f.account_type) && (x.market_code === null || x.market_code === f.market_code))
+            const formType = d.types.find((x) => x.code === f.account_type && (x.market_code === null || x.market_code === f.market_code))
             return (
               <li key={f.id} className={row} data-testid="form-admin-row">
                 <span className="min-w-0"><span className="font-medium text-strong">{f.name}</span> <span className="text-[13px] text-muted">/f/{f.slug} · {f.market_code} · {lab(t, MOTOR[f.motor])}</span>
-                  <span className="block text-[13px] text-muted-2" data-testid="form-asks">{f.ask_fields.length ? t('Además pide: ', 'It also asks for: ') + f.ask_fields.map((k) => { const x = d.fields.find((y) => y.object === 'lead' && y.key === k); return x ? t(x.label_es, x.label_en) : k }).join(', ') : t('Solo pide lo básico.', 'It asks for the basics only.')}</span></span>
+                  <span className="block text-[13px] text-muted-2" data-testid="form-asks">{f.ask_fields.length ? t('Además pide: ', 'It also asks for: ') + f.ask_fields.map((k) => { const x = d.fields.find((y) => y.object === 'lead' && y.key === k); return x ? t(x.label_es, x.label_en) : k }).join(', ') : t('Solo pide lo básico.', 'It asks for the basics only.')}</span>
+                  <span className="block text-[13px] text-muted-2" data-testid="form-type">{formType ? t(`Sus leads nacen como: ${formType.label_es}`, `Its leads start as: ${formType.label_en}`) : t('Sus leads toman el tipo de cuenta del tipo de venta.', 'Its leads take the account type of the sale type.')}</span></span>
                 <Dialog trigger={t('Editar', 'Edit')} title={t(`Editar el formulario "${f.name}"`, `Edit the "${f.name}" form`)} size="sm" variant="quiet" testId="form-edit">
                   <ActionForm action={updateFormAction} onOk="close" className="space-y-4 text-left">
                     <input type="hidden" name="form_id" value={f.id} />
                     <Field label={t('Nombre visible', 'Visible name')}><input name="name" className="input" required minLength={2} maxLength={80} defaultValue={f.name} data-testid="form-edit-name" /></Field>
+                    <Field label={t('Tipo de cuenta con el que nacen sus leads', 'Account type its leads start with')} hint={t('Se puede corregir en el lead y se confirma al convertir.', 'It can be fixed on the lead and is confirmed when converting.')}>
+                      <select name="account_type" className="input" defaultValue={f.account_type ?? ''} data-testid="form-edit-type">
+                        <option value="">{t('Según el tipo de venta', 'By sale type')}</option>
+                        {formTypes.map((x) => <option key={x.id} value={x.code}>{t(x.label_es, x.label_en)}</option>)}
+                      </select>
+                    </Field>
                     <fieldset>
                       <legend className="mb-1 block text-[13px] font-semibold text-muted-2">{t('Campos adicionales que pide', 'Extra fields it asks for')}</legend>
                       {options.length === 0 && <p className="text-[13.5px] text-muted-2">{t('No hay campos de lead para este mercado y tipo de venta. Crea uno arriba.', 'There are no lead fields for this market and sale type. Create one above.')}</p>}

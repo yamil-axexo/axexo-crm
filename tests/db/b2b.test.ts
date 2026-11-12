@@ -268,7 +268,8 @@ describe('en pausa y motivos de pérdida por embudo', () => {
     expect(await openAlerts()).toEqual([])
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     expect(await openAlerts()).toEqual([])
-    expect((await audits('deal.paused', deal))[0]?.after).toMatchObject({ paused: true, review_on: day(20), tasks_closed: 1 })
+    // Dos tareas cerradas: la que se insertó arriba y la del próximo paso, que desde el paquete operaciones es una tarea del carril de quien vende.
+    expect((await audits('deal.paused', deal))[0]?.after).toMatchObject({ paused: true, review_on: day(20), tasks_closed: 2 })
 
     const paused = await getBoard(diana, b2bPipe, { paused: true })
     expect(paused?.deals.map((d) => d.id)).toContain(deal)
