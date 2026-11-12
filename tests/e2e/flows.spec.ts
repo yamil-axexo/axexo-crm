@@ -259,7 +259,7 @@ test.describe('integraciones', () => {
     const label = (await option.innerText()).trim()
     const name = label.split(' · ')[0]!
     await page.getByTestId('sim-metrics-send').click()
-    await expect(page.getByTestId('sim-metrics').getByTestId('form-ok')).toContainText('1 deal ganado por primera transacción')
+    await expect(page.getByTestId('sim-metrics').getByTestId('form-ok')).toContainText('1 negocio ganado por primera transacción')
     await expect(page.getByTestId('batch-row').first()).toContainText('1 de 1 filas ligadas')
 
     await page.goto(`/comercios?q=${encodeURIComponent(name)}`)

@@ -101,7 +101,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900, tag: 'E' }, { n
       await page.getByTestId('reparto-to').selectOption({ label: 'Jade Kim' })
       await page.getByTestId('reparto-assign').click()
       // La visita por hacer cuenta entre lo que se va con los comercios.
-      await expect(page.getByTestId('reparto-confirm')).toContainText('You are about to move 2 merchants to Jade Kim, with 0 open deals and 1 open task.')
+      await expect(page.getByTestId('reparto-confirm')).toContainText('You are about to move 2 merchants to Jade Kim, with 0 open deals and 1 to-do.')
       await page.getByTestId('reparto-go').click()
       await expect(page.getByTestId('reparto-done')).toContainText('2 merchants moved to Jade Kim')
       const [moved] = await sql<{ owner: string }[]>`select u.full_name as owner from crm.activities x join crm.users u on u.id = x.owner_id where x.id = ${visit!.id}`
