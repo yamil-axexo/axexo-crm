@@ -97,6 +97,7 @@ test('MX: el tipo se corrige en el lead y al convertir se elige el embudo; un le
   await expect(page.getByTestId('lead-motor')).toHaveText('Cadenas y distribuidores')
   await expect(page.getByTestId('lead-kind-text')).toHaveText('Distribuidor')
   await page.getByTestId('lead-qualify').click()
+  await expect(page.getByTestId('lead-pipeline')).toBeVisible()
   expect(await page.getByTestId('lead-pipeline').locator('option').count()).toBeGreaterThanOrEqual(2)
   await expect(page.getByTestId('lead-pipeline').locator('option:checked')).toHaveText('Cadenas y distribuidores')
   await expect(page.getByTestId('lead-kind')).toHaveValue('distributor')
@@ -195,7 +196,7 @@ test('lista de Leads: buscar, filtrar por reloj y origen, ordenar y cerrar vario
   await expect(page.getByTestId('lead-bulk')).toContainText('3 leads selected')
   await page.getByTestId('lead-bulk-reason').selectOption('no_response')
   await page.getByTestId('lead-bulk-close').click()
-  await expect(page.getByTestId('lead-bulk-ok')).toContainText('3 leads closed')
+  await expect(page.getByTestId('toast')).toContainText('3 leads closed')
   await expect(page.getByTestId('lead-row')).toHaveCount(0)
   const sql = testDb()
   const rows = await sql`select l.status, l.disqualify_code, (select count(*)::int from crm.audit_events e where e.object_id = l.id and e.action = 'lead.disqualified' and (e.after->>'bulk')::boolean) as logged
