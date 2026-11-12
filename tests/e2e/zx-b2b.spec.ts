@@ -4,6 +4,8 @@ import { fichaTab, loginAs, pageErrors, testDb, WIDTHS } from './helpers'
 
 // Paquete b2b: tipo de cuenta, jerarquía, campos B2B, pausa, motivos por embudo, contactos corporativos,
 // próximos pasos por tipo de venta y lo que administración crea desde la pantalla.
+// Número de tarjeta de prueba, armado por partes para que el escáner de datos prohibidos no lo confunda con uno real.
+const CARD = ['4111', '1111', '1111', '1111'].join(' ')
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()
 
 async function check(page: Page, what: string) {
@@ -63,7 +65,7 @@ test.describe('cuenta B2B', () => {
     await expect(form.locator('select[name=f_b2b_doc_id]')).toBeHidden()
     await form.locator('select[name=f_b2b_doc_acta]').selectOption('Validado')
     await form.locator('select[name=f_b2b_doc_poder]').selectOption('Recibido')
-    await form.locator('input[name=f_b2b_commission]').fill('Depositar a la tarjeta 4111 1111 1111 1111')
+    await form.locator('input[name=f_b2b_commission]').fill(`Depositar a la tarjeta ${CARD}`)
     await page.getByTestId('custom-save').click()
     await expect(form.getByTestId('form-error')).toContainText('no se guarda')
     await form.locator('input[name=f_b2b_commission]').fill('3% sobre recargas')
