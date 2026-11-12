@@ -5,6 +5,7 @@ import { leadSources, listLeads, lossReasons, marketPipelines, sellers, type Lea
 import { MANUAL_SOURCES, CONTACT_ROLES } from '@/domain/leads'
 import { BULK_FORM, LeadBulk } from '@/ui/lead-bulk'
 import { track } from '@/dal/boards'
+import { getReportOptions } from '@/dal/reports'
 import { resultOptions, sheetConfig } from '@/server/sheet'
 import { Empty, Field, Pills, LinkButton, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
@@ -31,12 +32,16 @@ function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'o
   )
 }
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string }> }) {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string; motor?: string; equipo?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
   const sp = flat(await searchParams)
   const status = sp.status ?? 'open'
-  const data = await listLeads(ctx, { ...sp, status: status === 'all' ? undefined : status })
+  // Por equipo filtran supervisión, quien lidera y leadership: quien vende no tiene a quién comparar.
+  const byTeam = ctx.can('lead.assign') || ctx.can('board.lt') || ctx.can('board.supervisor')
+  const teams = byTeam ? (await getReportOptions(ctx)).teams.filter((x) => !sp.market || x.market_code === sp.market) : []
+  const team = !byTeam ? undefined : sp.equipo === 'none' ? 'none' : teams.some((x) => x.id === sp.equipo) ? sp.equipo : undefined
+  const data = await listLeads(ctx, { ...sp, status: status === 'all' ? undefined : status, team })
   await track(ctx, 'view.leads')
   // El alta ofrece solo los mercados donde la persona puede crear leads y los tipos de venta que tienen embudo ahí.
   const live = ctx.markets.filter((x) => x.status === 'live' && ctx.can('lead.create', x.code))
@@ -45,14 +50,17 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     marketPipelines(ctx), leadSources(ctx), ctx.can('lead.work') ? lossReasons(ctx) : Promise.resolve([]), manages ? sellers(ctx) : Promise.resolve([]),
   ])
   const motors = [...new Set(pipes.filter((x) => live.some((mk) => mk.code === x.market_code)).map((x) => x.motor))]
+  // Tipos de venta del filtro: los de los embudos activos de los mercados que la persona ve (no solo donde puede crear).
+  const motorOptions = [...new Set(pipes.filter((x) => !sp.market || x.market_code === sp.market).map((x) => x.motor))]
+  const motor = motorOptions.includes(sp.motor ?? '') ? sp.motor : undefined
   const owners = [...new Map(people.map((x) => [x.id, x.full_name])).entries()]
   // Desde el Panel del LT se llega con el periodo de la cifra: la lista muestra los leads que llegaron en esos días.
   const isDay = (v: string | undefined) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
   const from = isDay(sp.from) ? sp.from : undefined
   const to = isDay(sp.to) ? sp.to : undefined
-  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, from, to }
+  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, from, to, motor, equipo: team }
   const link = (patch: Record<string, string | undefined>) => qs('/leads', { ...keep, ...patch, before: undefined })
-  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || from || to || (sp.owner && sp.owner !== 'me'))
+  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || from || to || motor || team || (sp.owner && sp.owner !== 'me'))
   const now = new Date()
   const config = sheetConfig(ctx, now)
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
@@ -183,6 +191,23 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             {sources.map((k) => <option key={k} value={k}>{k === 'manual' ? t('Captura manual', 'Manual entry') : lab(t, SOURCE[k]) || k}</option>)}
           </select>
         </Field>
+        {motorOptions.length > 1 && (
+          <Field label={t('Tipo de venta', 'Sale type')}>
+            <select name="motor" className="input" defaultValue={motor ?? ''} data-testid="lead-f-motor">
+              <option value="">{t('Todos', 'All')}</option>
+              {motorOptions.map((k) => <option key={k} value={k}>{lab(t, MOTOR[k]) || k}</option>)}
+            </select>
+          </Field>
+        )}
+        {byTeam && teams.length > 0 && (
+          <Field label={t('Equipo', 'Team')}>
+            <select name="equipo" className="input" defaultValue={team ?? ''} data-testid="lead-f-team">
+              <option value="">{t('Todos los equipos', 'All teams')}</option>
+              {teams.map((x) => <option key={x.id} value={x.id}>{`${ctx.markets.length > 1 && !sp.market ? `${x.market_code} · ` : ''}${x.name}`}</option>)}
+              <option value="none">{t('Sin equipo', 'No team')}</option>
+            </select>
+          </Field>
+        )}
         {manages && (
           <Field label={t('De quién', 'Whose')}>
             <select name="owner" className="input" defaultValue={sp.owner ?? ''} data-testid="lead-f-owner">
@@ -247,7 +272,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                       <Ring fraction={s.fraction} tone={s.ring} />
                       <span className="min-w-0">
                         <Link href={`/leads/${l.id}`} className="block truncate text-[15px] leading-6 font-medium text-strong after:absolute after:inset-0">{l.business_name}</Link>
-                        <span className="block truncate text-[13px] text-muted">{[l.contact_name, l.locality, ctx.markets.length > 1 ? l.market_code : null, lab(t, SOURCE[l.source])].filter(Boolean).join(' · ')}</span>
+                        <span className="block truncate text-[13px] text-muted">{[l.contact_name, l.locality, ctx.markets.length > 1 ? l.market_code : null, lab(t, MOTOR[l.motor]) || null, lab(t, SOURCE[l.source])].filter(Boolean).join(' · ')}</span>
                         <span className={cx('block truncate text-[13px] @3xl:hidden', l.owner_name ? 'text-muted' : 'font-medium text-amber-text')} data-testid="lead-owner-small">{l.owner_name ?? m('leads.noOwner')}</span>
                       </span>
                     </div>

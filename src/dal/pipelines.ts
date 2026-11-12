@@ -88,6 +88,12 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
              count(*) filter (where d.paused_at is not null)::int as paused,
              count(*) filter (where d.next_step is null or d.next_step_due is null)::int as no_step
         from crm.deals d where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner} group by d.stage_id`
+    // Con un filtro puesto ("Sin próximo paso", "En pausa"), cada columna cuenta y suma solo lo que se ve.
+    const shown = f.noStep || f.paused ? await tx<{ stage_id: string; n: number; amount: string | null }[]>`
+      select d.stage_id, count(*)::int as n, sum(d.amount_minor)::text as amount
+        from crm.deals d where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}
+         ${f.noStep ? tx`and (d.next_step is null or d.next_step_due is null)` : tx``}
+         ${f.paused ? tx`and d.paused_at is not null` : tx``} group by d.stage_id` : null
     // Cada negocio lleva su moneda: el resumen suma por moneda, sin convertir.
     const amounts = await tx<{ currency: string; amount: string }[]>`
       select d.currency, sum(d.amount_minor)::text as amount from crm.deals d
@@ -96,7 +102,7 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
       select count(*) filter (where d.status = 'won' and d.won_at > now() - interval '30 days')::int as won,
              count(*) filter (where d.status = 'lost' and d.lost_at > now() - interval '30 days')::int as lost
         from crm.deals d where d.pipeline_id = ${pipelineId} ${owner}`
-    return { pipeline, stages: [...stages], deals: [...deals], totals: [...totals], amounts: [...amounts], closed: closed[0] ?? { won: 0, lost: 0 } }
+    return { pipeline, stages: [...stages], deals: [...deals], totals: [...totals], shown: shown ? [...shown] : null, amounts: [...amounts], closed: closed[0] ?? { won: 0, lost: 0 } }
   })
 }
 

@@ -264,8 +264,8 @@ async function repeatRequest(
   const phone = p.phone ? toE164(p.phone, sys.market(form.market_code).phoneCc) : null
   const email = p.email && z.string().email().safeParse(p.email).success ? p.email.trim() : null
   if (!phone && !email) return null
-  const prev = await tx<{ id: string; account_id: string | null; owner_id: string | null; contact_name: string; phone: string | null; email: string | null; extra_contacts: ExtraContact[] }[]>`
-    select id, account_id, owner_id, contact_name, phone, email::text, extra_contacts from crm.leads
+  const prev = await tx<{ id: string; account_id: string | null; owner_id: string | null; business_name: string; contact_name: string; phone: string | null; email: string | null; extra_contacts: ExtraContact[] }[]>`
+    select id, account_id, owner_id, business_name, contact_name, phone, email::text, extra_contacts from crm.leads
      where market_code = ${form.market_code} and status <> 'disqualified'
        and ((${phone}::text is not null and phone = ${phone}) or (${email}::text is not null and email = ${email}::citext))
      order by created_at desc limit 1 for update`
@@ -289,7 +289,17 @@ async function repeatRequest(
   await tx`insert into crm.activities (market_code, lead_id, account_id, deal_id, kind, subject, body, done_at, owner_id, created_by, source)
            values (${form.market_code}, ${lead.id}, ${lead.account_id}, ${deals[0]?.id ?? null}, 'note',
                    ${en ? 'Second web request from the same business' : 'Segunda solicitud web de la misma empresa'}, ${body}, now(), ${lead.owner_id}, ${sys.user.id}, 'rule')`
-  await audit(tx, sys, 'lead.repeat_request', 'lead', lead.id, form.market_code, null, { form_id: form.id, person_added: !known })
+  // Quien lleva la cuenta (si el lead ya es comercio) o el lead se entera en Hoy: una tarea para hoy con el pedido. Sin correo ni Slack.
+  const holder = lead.account_id
+    ? ((await tx<{ owner_id: string | null }[]>`select owner_id from crm.accounts where id = ${lead.account_id}`)[0]?.owner_id ?? lead.owner_id)
+    : lead.owner_id
+  if (holder) {
+    await tx`insert into crm.activities (market_code, lead_id, account_id, deal_id, kind, subject, body, due_at, owner_id, created_by, source)
+             values (${form.market_code}, ${lead.id}, ${lead.account_id}, ${deals[0]?.id ?? null}, 'task',
+                     ${en ? `Answer the second web request: ${lead.business_name}` : `Responder segunda solicitud web: ${lead.business_name}`}, ${body},
+                     ((${marketToday(tx, form.market_code)} + time '15:00') at time zone 'UTC'), ${holder}, ${sys.user.id}, 'rule')`
+  }
+  await audit(tx, sys, 'lead.repeat_request', 'lead', lead.id, form.market_code, null, { form_id: form.id, person_added: !known, task_for: holder })
   return lead.id
 }
 
