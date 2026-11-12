@@ -252,14 +252,14 @@ export async function notifyFromNote(tx: Tx, ctx: Ctx, p: { market: string; user
   if (!people.some((u) => u.id === p.userId)) throw invalid('Solo puedes avisar a alguien que ve este registro.', 'You can only notify someone who can see this record.')
   await tx`insert into crm.notices (market_code, user_id, from_user_id, kind, account_id, deal_id, activity_id, body)
            values (${p.market}, ${p.userId}, ${ctx.user.id}, 'mention', ${p.accountId}, ${p.dealId}, ${p.activityId}, ${p.body.slice(0, 600)})`
-  await audit(tx, ctx, 'notice.sent', 'activity', p.activityId, p.market, null, { to: p.userId })
+  await audit(tx, ctx, 'activity.notice_sent', 'activity', p.activityId, p.market, null, { to: p.userId })
 }
 
 export async function markNoticeSeen(ctx: Ctx, id: string): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw notFound()
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string }[]>`update crm.notices set seen_at = now() where id = ${id} and user_id = ${ctx.user.id} and seen_at is null returning market_code`
-    if (rows[0]) await audit(tx, ctx, 'notice.seen', 'notice', id, rows[0].market_code, null, null)
+    if (rows[0]) await audit(tx, ctx, 'activity.notice_seen', 'notice', id, rows[0].market_code, null, null)
   })
 }
 
@@ -287,7 +287,7 @@ export async function saveOpsCatalog(ctx: Ctx, raw: z.input<typeof catalogInput>
     if (v.id) {
       const rows = await tx<{ market_code: string | null }[]>`update crm.ops_catalog set label_es = ${v.labelEs}, label_en = ${v.labelEn}, is_active = ${v.active} where id = ${v.id} returning market_code`
       if (!rows[0]) throw notFound()
-      await audit(tx, ctx, 'ops_catalog.updated', 'ops_catalog', v.id, rows[0].market_code, null, { label_es: v.labelEs, label_en: v.labelEn, active: v.active })
+      await audit(tx, ctx, 'pipeline.catalog_updated', 'ops_catalog', v.id, rows[0].market_code, null, { label_es: v.labelEs, label_en: v.labelEn, active: v.active })
       return
     }
     const code = slug(v.labelEn)
@@ -296,7 +296,7 @@ export async function saveOpsCatalog(ctx: Ctx, raw: z.input<typeof catalogInput>
     if (clash[0]) throw invalid('Ya existe uno con ese nombre en este mercado.', 'There is already one with that name in this market.')
     const pos = await tx<{ n: number }[]>`select coalesce(max(position), 0)::int + 1 as n from crm.ops_catalog where coalesce(market_code, '') = ${v.market} and kind = ${v.kind}`
     const rows = await tx<{ id: string }[]>`insert into crm.ops_catalog (market_code, kind, code, label_es, label_en, position) values (${v.market || null}, ${v.kind}, ${code}, ${v.labelEs}, ${v.labelEn}, ${pos[0]!.n}) returning id`
-    await audit(tx, ctx, 'ops_catalog.created', 'ops_catalog', rows[0]!.id, v.market || null, null, { kind: v.kind, code })
+    await audit(tx, ctx, 'pipeline.catalog_created', 'ops_catalog', rows[0]!.id, v.market || null, null, { kind: v.kind, code })
   })
 }
 
@@ -324,11 +324,11 @@ export async function saveProduct(ctx: Ctx, raw: z.input<typeof productInput>): 
     if (v.id) {
       const rows = await tx`update crm.products set name = ${v.name}, unit_price_minor = ${minor}, is_active = ${v.active} where id = ${v.id} and market_code = ${v.market} returning id`
       if (!rows[0]) throw notFound()
-      await audit(tx, ctx, 'product.updated', 'product', v.id, v.market, null, { name: v.name, unit_price_minor: minor, active: v.active })
+      await audit(tx, ctx, 'pipeline.product_updated', 'product', v.id, v.market, null, { name: v.name, unit_price_minor: minor, active: v.active })
       return
     }
     const rows = await tx<{ id: string }[]>`insert into crm.products (name, market_code, unit_price_minor) values (${v.name}, ${v.market}, ${minor}) returning id`
-    await audit(tx, ctx, 'product.created', 'product', rows[0]!.id, v.market, null, { name: v.name, unit_price_minor: minor })
+    await audit(tx, ctx, 'pipeline.product_created', 'product', rows[0]!.id, v.market, null, { name: v.name, unit_price_minor: minor })
   })
 }
 

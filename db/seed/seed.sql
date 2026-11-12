@@ -364,11 +364,11 @@ select pg_temp.uid('s-us-orders-' || c), pg_temp.uid('p-us-orders'), pos, c, es,
   (4, 'lost', 'Cancelado', 'Cancelled', 'lost', 0, 0, '{}', '', '', false)
 ) v(pos, c, es, en, k, pr, rot, req, xes, xen, ops);
 insert into crm.products (id, name, code, unit, market_code, unit_price_minor) values
-  (pg_temp.uid('prod-us-sim'), 'SIM kit', 'SIM-KIT', 'unit', 'US', 250),
-  (pg_temp.uid('prod-us-topup'), 'Top-up card pack', 'TOPUP-50', 'pack', 'US', 4500),
-  (pg_temp.uid('prod-us-pos'), 'Counter terminal', 'POS-1', 'unit', 'US', 12900),
-  (pg_temp.uid('prod-mx-chip'), 'Chip prepago', 'CHIP', 'pieza', 'MX', 3500),
-  (pg_temp.uid('prod-mx-term'), 'Terminal de mostrador', 'TERM-1', 'pieza', 'MX', 189900);
+  (pg_temp.uid('prod-us-sim'), 'SIM kit', 'OPS-SIM', 'unit', 'US', 250),
+  (pg_temp.uid('prod-us-topup'), 'Top-up card pack', 'OPS-TOPUP', 'pack', 'US', 4500),
+  (pg_temp.uid('prod-us-pos'), 'Counter terminal', 'OPS-POS', 'unit', 'US', 12900),
+  (pg_temp.uid('prod-mx-chip'), 'Chip prepago', 'OPS-CHIP', 'pieza', 'MX', 3500),
+  (pg_temp.uid('prod-mx-term'), 'Terminal de mostrador', 'OPS-TERM', 'pieza', 'MX', 189900);
 insert into crm.ops_catalog (market_code, kind, code, label_es, label_en, position) values
   ('US', 'provider', 'carrier_north', 'Operador Norte', 'North carrier', 1),
   ('US', 'provider', 'carrier_coast', 'Operador Costa', 'Coast carrier', 2),
