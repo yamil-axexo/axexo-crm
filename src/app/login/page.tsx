@@ -383,6 +383,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               <p className="sc-kicker text-mint">{l(LANDING.status.eyebrow)}</p>
               <h2 className="sc-h2 mt-4 max-w-[16ch] text-white">{l(LANDING.status.title)}</h2>
               <p className="sc-lead mt-5 max-w-[42ch] text-[#c5d2cc]">{l(LANDING.status.text)}</p>
+              <p className="mt-4 max-w-[42ch] border-l-2 border-[#3ddc97]/60 pl-4 text-[15px] leading-6 text-[#c5d2cc]" data-testid="landing-rule">{l(LANDING.status.rule)}</p>
             </div>
             <ul className="space-y-2.5">
               {LANDING.status.rows.map((r, k) => (
