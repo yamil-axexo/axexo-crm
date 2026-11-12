@@ -38,7 +38,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'lead.passed': ['Pasó un lead a un compañero', 'Passed a lead to a teammate'],
   'lead.released': ['Soltó un lead', 'Released a lead'],
   'lead.repeat_request': ['Llegó otra solicitud web de la misma empresa', 'Another web request came in from the same business'],
-  'market_hours.updated': ['Cambió el horario hábil de un mercado', 'Changed a market’s business hours'],
+  'routing.hours_updated': ['Cambió el horario hábil de un mercado', 'Changed a market’s business hours'],
   'exception.dismissed': ['Descartó un aviso', 'Dismissed an alert'],
   'exception.scheduled': ['Atendió un aviso con un próximo paso', 'Handled an alert with a next step'],
   'membership.granted': ['Dio acceso', 'Granted access'],
@@ -76,7 +76,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'market_hours.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },

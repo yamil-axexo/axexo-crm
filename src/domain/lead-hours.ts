@@ -32,6 +32,6 @@ export async function setMarketHours(ctx: Ctx, input: z.input<typeof hoursInput>
              values (${v.market}, ${days}::int[], ${v.opens}::time, ${v.closes}::time, ${ctx.user.id}, now())
              on conflict (market_code) do update set days = excluded.days, opens = excluded.opens, closes = excluded.closes,
                                                      updated_by = excluded.updated_by, updated_at = excluded.updated_at`
-    await audit(tx, ctx, 'market_hours.updated', 'market', null, v.market, before[0] ?? null, { days, opens: v.opens, closes: v.closes })
+    await audit(tx, ctx, 'routing.hours_updated', 'market', null, v.market, before[0] ?? null, { days, opens: v.opens, closes: v.closes })
   })
 }

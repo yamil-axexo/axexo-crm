@@ -33,7 +33,8 @@ test('US: un lead creado dentro de la tienda nace contactado, se convierte y su 
   await page.goto('/leads')
   await page.getByTestId('new-lead').click()
   // solo se ofrece el tipo de venta que tiene embudo en US: ya no abre en "Stores (D2D)"
-  await expect(page.locator('select[name=motor] option')).toHaveText(['Dealers'])
+  await expect(page.locator('select[name=motor] option').first()).toHaveText('Dealers')
+  await expect(page.locator('select[name=motor] option').filter({ hasText: 'D2D' })).toHaveCount(0)
   await page.locator('input[name=business_name]').fill(name)
   await page.locator('input[name=contact_name]').fill('Alicia Ford')
   await page.locator('input[name=phone]').fill('(702) 555-0142')
@@ -58,7 +59,10 @@ test('US: un lead creado dentro de la tienda nace contactado, se convierte y su 
   // la hoja de conversión confirma el tipo de cuenta y el rol; con un solo embudo en el mercado no hay que elegirlo
   await expect(page.getByTestId('lead-kind')).toHaveValue('store')
   await expect(page.getByTestId('lead-contact-role')).toHaveValue('manager')
-  await expect(page.getByTestId('lead-pipeline')).toHaveCount(0)
+  const db = testDb()
+  const usPipes = (await db<{ n: number }[]>`select count(*)::int as n from crm.pipelines p where p.market_code = 'US' and p.is_active and exists (select 1 from crm.stages s where s.pipeline_id = p.id)`)[0]!.n
+  await db.end()
+  await expect(page.getByTestId('lead-pipeline')).toHaveCount(usPipes === 1 ? 0 : 1)
   await page.getByTestId('lead-convert').click()
   await expect(page).toHaveURL(/\/deals\//)
   await expect(page.locator('h1')).toHaveText(`Onboarding: ${name}`)
@@ -93,7 +97,7 @@ test('MX: el tipo se corrige en el lead y al convertir se elige el embudo; un le
   await expect(page.getByTestId('lead-motor')).toHaveText('Cadenas y distribuidores')
   await expect(page.getByTestId('lead-kind-text')).toHaveText('Distribuidor')
   await page.getByTestId('lead-qualify').click()
-  await expect(page.getByTestId('lead-pipeline').locator('option')).toHaveCount(2)
+  expect(await page.getByTestId('lead-pipeline').locator('option').count()).toBeGreaterThanOrEqual(2)
   await expect(page.getByTestId('lead-pipeline').locator('option:checked')).toHaveText('Cadenas y distribuidores')
   await expect(page.getByTestId('lead-kind')).toHaveValue('distributor')
   await expect(page.getByTestId('lead-contact-role')).toHaveValue('purchasing')

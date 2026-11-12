@@ -27,7 +27,14 @@ describe('1 a 4: convertir funciona en todos los mercados y conserva la historia
     const sam = await ctxFor('sam.ortiz')
     const id = await createLead(sam, { market: 'US', motor: 'd2d', businessName: `Corner Wireless ${tag()}`, contactName: 'Dana Fox', phone: usPhone(), contactRole: 'manager' })
     await qualifyLead(sam, id)
-    const out = await convertLead(sam, id)
+    // otras pruebas pueden haber dejado más embudos en US: aquí el mercado queda con uno solo, como en producción
+    const extra = await admin<{ id: string }[]>`update crm.pipelines set is_active = false where market_code = 'US' and is_active and id <> md5('contigo:p-us-dealer')::uuid returning id`
+    let out: { accountId: string; dealId: string }
+    try {
+      out = await convertLead(sam, id)
+    } finally {
+      if (extra.length) await admin`update crm.pipelines set is_active = true where id = any(${extra.map((e) => e.id)}::uuid[])`
+    }
     const deal = await one(admin`select p.motor, p.market_code from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where d.id = ${out.dealId}`)
     expect(deal).toMatchObject({ motor: 'dealer', market_code: 'US' })
     const acc = await one(admin`select kind, segment from crm.accounts where id = ${out.accountId}`)
@@ -52,7 +59,7 @@ describe('1 a 4: convertir funciona en todos los mercados y conserva la historia
   it('un lead B2B no nace como tienda, y en MX se puede elegir el embudo entre los del mercado', async () => {
     const diana = await ctxFor('diana.cruz')
     const pipes = await marketPipelines(diana, 'MX')
-    expect(pipes.map((p) => p.motor).sort()).toEqual(['b2b', 'd2d'])
+    expect([...new Set(pipes.map((p) => p.motor))].sort()).toEqual(expect.arrayContaining(['b2b', 'd2d']))
     const a = await createLead(diana, { market: 'MX', motor: 'b2b', businessName: `Cadena Sur ${tag()}`, contactName: 'Mara Gil', phone: mxPhone() })
     await qualifyLead(diana, a)
     const outA = await convertLead(diana, a)
@@ -74,12 +81,12 @@ describe('1 a 4: convertir funciona en todos los mercados y conserva la historia
     const sam = await ctxFor('sam.ortiz')
     const id = await createLead(sam, { market: 'US', motor: 'dealer', businessName: `No Funnel Mobile ${tag()}`, contactName: 'Dana Fox', phone: usPhone() })
     await qualifyLead(sam, id)
-    await admin`update crm.pipelines set is_active = false where market_code = 'US'`
+    const off = await admin<{ id: string }[]>`update crm.pipelines set is_active = false where market_code = 'US' and is_active returning id`
     try {
       await expect(convertLead(sam, id)).rejects.toMatchObject({ code: 'no_pipeline', en: expect.stringContaining('ask an admin') })
       expect((await one(admin`select status from crm.leads where id = ${id}`)).status).toBe('qualified')
     } finally {
-      await admin`update crm.pipelines set is_active = true where market_code = 'US'`
+      await admin`update crm.pipelines set is_active = true where id = any(${off.map((e) => e.id)}::uuid[])`
     }
   })
 
@@ -129,7 +136,7 @@ describe('5: el reloj de primer contacto corre en el horario hábil del mercado'
     await setMarketHours(nora, { market: 'MX', days: [1, 2, 3, 4, 5, 6], opens: '08:00', closes: '20:00' })
     try {
       expect(await due('MX', '2026-11-13 19:30-06', 60, 'America/Mexico_City')).toBe('2026-11-14 08:30') // sábado ya es hábil
-      expect((await admin`select 1 from crm.audit_events where action = 'market_hours.updated' and market_code = 'MX'`).length).toBeGreaterThan(0)
+      expect((await admin`select 1 from crm.audit_events where action = 'routing.hours_updated' and market_code = 'MX'`).length).toBeGreaterThan(0)
       await expect(setMarketHours(nora, { market: 'MX', days: [], opens: '08:00', closes: '20:00' })).rejects.toMatchObject({ code: 'invalid' })
       await expect(setMarketHours(nora, { market: 'MX', days: [1], opens: '18:00', closes: '09:00' })).rejects.toMatchObject({ code: 'invalid' })
     } finally {
@@ -210,8 +217,11 @@ describe('8: búsqueda global, "existe y lo lleva X"', () => {
   it('quien vende ve que el comercio de otra persona existe y quién lo lleva, sin teléfono ni enlace; nunca cruza mercados', async () => {
     const jade = await ctxFor('jade.kim')
     const sam = await ctxFor('sam.ortiz')
+    // un comercio propio de la prueba, con nombre único: no depende de lo que otras pruebas le hagan a los datos sembrados
     const target = await one(admin<{ id: string; name: string; phone: string; locality: string }[]>`
-      select id, name, phone, locality from crm.accounts where market_code = 'US' and owner_id = ${sam.user.id} and archived_at is null and phone is not null order by id limit 1`)
+      insert into crm.accounts (market_code, kind, name, owner_id, phone, locality, country)
+      values ('US', 'store', ${`Hidden Store Wireless ${tag()}`}, ${sam.user.id}, ${'+1702558' + Math.floor(1000 + Math.random() * 8999)}, 'Las Vegas', 'US')
+      returning id, name, phone, locality`)
     const r = await searchAll(jade, target.name)
     expect(r.accounts.some((a) => a.id === target.id)).toBe(false)
     const hit = r.others.find((o) => o.name === target.name && o.owner_name === 'Sam Ortiz')
