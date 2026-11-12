@@ -61,9 +61,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const d = await getUsers(ctx)
     return (
       <Card pad={false} data-testid="admin-people">
-        <div className="flex items-start justify-between gap-4 px-7 pt-7">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 px-7 pt-7">
           <CardTitle title={t('Personas', 'People')} hint={t('El acceso es una membresía con rol y mercado. Quitarlo la cierra con fecha; no borra a la persona ni su historial.', 'Access is a membership with a role and a market. Removing it closes it with a date; the person and their history stay.')} />
-          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <div className="mb-5 flex flex-wrap justify-end gap-2 md:shrink-0">
           <Dialog trigger={t('Nuevo equipo', 'New team')} title={t('Nuevo equipo', 'New team')} testId="team-open">
             <ActionForm action={createTeamAction} onOk="close" className="grid grid-cols-2 gap-4">
               <Field label={t('Nombre', 'Name')} className="col-span-2" hint={t('Quien supervisa un equipo ve lo de su gente.', 'Whoever supervises a team sees their people\'s records.')}><input name="name" className="input" required minLength={2} maxLength={60} data-testid="team-name" /></Field>
