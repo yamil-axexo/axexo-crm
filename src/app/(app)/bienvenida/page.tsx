@@ -1,92 +1,118 @@
 import Link from 'next/link'
-import { ArrowRight, Check } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { getOnboarding } from '@/domain/onboarding'
-import { INTRO, STEPS, TRACK_LABEL, trackOf, type L } from '@/content/guide'
+import { INTRO, STEPS, TRACK_LABEL, trackOf, type L, type Photo as PhotoName, type Track } from '@/content/guide'
 import { buttonClass } from '@/ui/kit'
+import { MotionRoot } from '@/ui/showcase/motion'
+import { Phone, Photo } from '@/ui/showcase/frames'
+import { LogArt, ReadonlyArt, RoleArt } from '@/ui/showcase/art'
+import { OnboardingList } from '@/ui/showcase/onboarding'
 import { hideOnboardingAction, showOnboardingAction, toggleStepAction } from './actions'
+
+/** La foto que acompaña la bienvenida de cada rol. Administración va solo con su ilustración. */
+const TRACK_PHOTO: Record<Track, { name: PhotoName; pos: string } | null> = {
+  rep: { name: 'llamada', pos: '40% 30%' },
+  supervisor: { name: 'equipo', pos: '55% 35%' },
+  lead: { name: 'equipo', pos: '55% 35%' },
+  ops: { name: 'mostrador', pos: '66% 40%' },
+  lt: { name: 'equipo', pos: '55% 35%' },
+  admin: null,
+}
+const i = (n: number) => ({ '--i': n }) as React.CSSProperties
 
 /** Primer ingreso: cómo se usa CONTIGO, paso a paso, y la lista de primeros pasos de la persona según su rol. */
 export default async function WelcomePage() {
   const ctx = await requireCtx()
   const { t, locale } = ctx
-  const l = (x: L) => x[locale === 'en' ? 'en' : 'es']
+  const lang = locale === 'en' ? 'en' : 'es'
+  const l = (x: L) => x[lang]
   const track = trackOf(ctx.memberships)
   const intro = INTRO[track]
   const steps = STEPS[track]
   const ob = await getOnboarding(ctx)
   const first = ctx.user.name.split(' ')[0]
-  const doneCount = ob.total - ob.pending
-  const pct = ob.total ? Math.round((doneCount / ob.total) * 100) : 0
+  const photo = TRACK_PHOTO[track]
 
   return (
-    <div className="mx-auto max-w-[980px] pb-10" data-testid="welcome">
-      <section className="stage on-ink rounded-[24px] px-6 py-9 md:px-10 md:py-12">
-        <p className="text-[13px] font-semibold tracking-[0.12em] text-[#3ddc97] uppercase" data-testid="welcome-track">{l(TRACK_LABEL[track])}</p>
-        <h1 className="mt-3 max-w-[20ch] text-[32px] leading-[1.1] font-bold md:text-[42px]" data-testid="welcome-title">
-          {t(`Te damos la bienvenida a CONTIGO, ${first}.`, `Welcome to CONTIGO, ${first}.`)}
-        </h1>
-        <p className="mt-4 max-w-[58ch] text-[16px] leading-7 text-[#c5d2cc]">{l(intro.lead)}</p>
+    <div className="sc mx-auto max-w-[1080px] pb-10" data-testid="welcome">
+      <MotionRoot />
+      <section className="sc-dark on-ink overflow-hidden rounded-[28px]">
+        <div aria-hidden className="sc-aurora">
+          <i className="a4" />
+          <i className="a2" />
+          <i className="a1" />
+        </div>
+        <div className="grid grid-cols-1 items-center gap-8 px-6 py-9 md:grid-cols-[1.1fr_0.9fr] md:gap-6 md:px-11 md:py-12">
+          <div>
+            <p className="sc-kicker sc-in text-mint" style={i(0)} data-testid="welcome-track">{l(TRACK_LABEL[track])}</p>
+            <h1 className="sc-in mt-4 max-w-[19ch] text-[34px] leading-[1.06] font-semibold tracking-[-0.03em] text-balance text-white md:text-[46px]" style={i(1)} data-testid="welcome-title">
+              {t(`Te damos la bienvenida a CONTIGO, ${first}.`, `Welcome to CONTIGO, ${first}.`)}
+            </h1>
+            <p className="sc-in mt-5 max-w-[46ch] text-[16.5px] leading-7 text-[#c5d2cc]" style={i(2)}>{l(intro.lead)}</p>
+            <div className="sc-in-rise mt-7 flex flex-wrap gap-3" style={i(3)}>
+              <a href="#primeros-pasos" className="sc-cta !min-h-[48px] !text-[15px]">{t('Ver mis primeros pasos', 'See my first steps')}</a>
+              <Link href="/ayuda" className="sc-ghost !min-h-[48px] !text-[15px]" data-testid="welcome-help">{t('Abrir la Ayuda', 'Open Help')}</Link>
+            </div>
+          </div>
+          <div className="sc-in-rise relative mx-auto w-full max-w-[400px] md:mr-0" style={i(2)}>
+            {photo ? (
+              <>
+                <Photo name={photo.name} lang={lang} sizes="(min-width: 768px) 400px, 92vw" className="aspect-[4/3.5] w-full" position={photo.pos} priority />
+                <div className="sc-par stage absolute -bottom-5 -left-4 w-[52%] rounded-[20px] p-3 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.8)] md:-left-9" data-parallax="0.05">
+                  <RoleArt track={track} />
+                </div>
+              </>
+            ) : (
+              <div className="stage rounded-[24px] p-6">
+                <RoleArt track={track} />
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
-      <section className="mt-10" aria-labelledby="how-title">
-        <h2 id="how-title" className="text-[22px] font-semibold text-strong">{t('Así se usa, paso a paso', 'How it works, step by step')}</h2>
-        <ol className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {intro.how.map((h, i) => (
-            <li key={h.title.es} className="card flex gap-4 p-5" data-testid="how-step">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-[15px] font-bold text-[#3ddc97]">{i + 1}</span>
-              <div>
-                <h3 className="text-[16.5px] leading-6 font-semibold text-strong">{l(h.title)}</h3>
-                <p className="mt-1.5 text-[14.5px] leading-6 text-muted-2">{l(h.text)}</p>
+      <section className="mt-12" aria-labelledby="how-title">
+        <h2 id="how-title" className="text-[24px] leading-8 font-semibold tracking-[-0.01em] text-strong">{t('Así se usa, paso a paso', 'How it works, step by step')}</h2>
+        <ol className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+          {intro.how.map((h, n) => (
+            <li key={h.title.es} className="card relative grid grid-cols-[1fr_124px] overflow-hidden md:grid-cols-[1fr_186px]" data-reveal style={i(n % 2)} data-testid="how-step">
+              <div className="p-5 md:p-6">
+                <span className="num grid h-10 w-10 place-items-center rounded-full bg-ink text-[16px] font-semibold text-[#3ddc97] shadow-[0_0_0_5px_rgba(51,184,136,0.16)]">{n + 1}</span>
+                <h3 className="mt-4 text-[17.5px] leading-6 font-semibold text-strong">{l(h.title)}</h3>
+                <p className="mt-2 text-[14.5px] leading-6 text-muted-2">{l(h.text)}</p>
+              </div>
+              <div className="relative overflow-hidden bg-[linear-gradient(160deg,#e3f4ec,#f2faf6_55%,#cfeede)]">
+                <span aria-hidden className="absolute -top-8 -right-8 h-28 w-28 rounded-full border-[12px] border-white/60" />
+                {'shot' in h.visual ? (
+                  <Phone shot={h.visual.shot} lang={lang} small sizes="190px" className="absolute top-6 left-3 w-[150px] md:left-4 md:w-[190px]" />
+                ) : (
+                  <div className="sc-art-light absolute inset-0 flex items-center p-2 md:p-3">{h.visual.art === 'log' ? <LogArt /> : <ReadonlyArt />}</div>
+                )}
               </div>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className="mt-10" aria-labelledby="steps-title" data-testid="onboarding">
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
-          <div className="flex-1">
-            <h2 id="steps-title" className="text-[22px] font-semibold text-strong">{t('Tus primeros pasos', 'Your first steps')}</h2>
-            <p className="mt-1 text-[14.5px] text-muted-2">{t('Márcalos conforme los hagas. Cuando termines, puedes esconder la lista.', 'Tick them off as you go. When you are done, you can hide the list.')}</p>
-          </div>
-          <p className="num text-[15px] font-semibold text-strong" data-testid="onboarding-progress">{t(`${doneCount} de ${ob.total}`, `${doneCount} of ${ob.total}`)}</p>
-        </div>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-3" role="progressbar" aria-valuemin={0} aria-valuemax={ob.total} aria-valuenow={doneCount} aria-label={t('Avance de tus primeros pasos', 'Progress of your first steps')}>
-          <div className="h-full rounded-full bg-[linear-gradient(90deg,#3ddc97,#24815f)] transition-[width] duration-300" style={{ width: `${pct}%` }} />
-        </div>
-        <ul className="mt-5 space-y-3">
-          {steps.map((s) => {
-            const done = ob.done.includes(s.key)
-            return (
-              <li key={s.key} className="card flex items-start gap-4 p-4 md:p-5" data-testid={`step-${s.key}`} data-done={done}>
-                <form action={toggleStepAction}>
-                  <input type="hidden" name="key" value={s.key} />
-                  <button
-                    aria-pressed={done}
-                    aria-label={t(`${done ? 'Desmarcar' : 'Marcar como hecho'}: ${l(s.title)}`, `${done ? 'Untick' : 'Mark as done'}: ${l(s.title)}`)}
-                    className={`press grid h-11 w-11 place-items-center rounded-full border-2 ${done ? 'border-primary bg-primary text-white' : 'border-line-2 bg-surface text-transparent hover:border-primary'}`}
-                    data-testid="step-toggle"
-                  >
-                    <Check size={20} strokeWidth={2.5} aria-hidden />
-                  </button>
-                </form>
-                <div className="min-w-0 flex-1">
-                  <h3 className={`text-[16px] leading-6 font-semibold ${done ? 'text-muted line-through' : 'text-strong'}`}>{l(s.title)}</h3>
-                  <p className="mt-1 text-[14.5px] leading-6 text-muted-2">{l(s.why)}</p>
-                  <Link href={s.href} className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-[14.5px] font-semibold text-blue-text underline" data-testid="step-link">
-                    {l(s.cta)}
-                    <ArrowRight size={16} strokeWidth={2} aria-hidden />
-                  </Link>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+      <section id="primeros-pasos" className="mt-12 scroll-mt-24" aria-labelledby="steps-title" data-testid="onboarding">
+        <OnboardingList
+          steps={steps.map((s) => ({ key: s.key, title: l(s.title), why: l(s.why), href: s.href, cta: l(s.cta) }))}
+          done={ob.done}
+          toggle={toggleStepAction}
+          labels={{
+            title: t('Tus primeros pasos', 'Your first steps'),
+            hint: t('Márcalos conforme los hagas. Cuando termines, puedes esconder la lista.', 'Tick them off as you go. When you are done, you can hide the list.'),
+            progress: t('{done} de {total}', '{done} of {total}'),
+            progressLabel: t('Avance de tus primeros pasos', 'Progress of your first steps'),
+            mark: t('Marcar como hecho: {title}', 'Mark as done: {title}'),
+            unmark: t('Desmarcar: {title}', 'Untick: {title}'),
+            doneTitle: t(`Listo, ${first}. Ya diste tus primeros pasos.`, `Done, ${first}. You have taken your first steps.`),
+            doneText: t('Puedes esconder la lista. Queda en tu menú por si quieres volver.', 'You can hide the list. It stays in your menu in case you want to come back.'),
+          }}
+        />
 
         <div className="mt-7 flex flex-wrap items-center gap-3">
           <Link href="/hoy" className={buttonClass('primary')} data-testid="welcome-go">{t('Ir a Hoy', 'Go to Today')}</Link>
-          <Link href="/ayuda" className={buttonClass('ghost')} data-testid="welcome-help">{t('Abrir la Ayuda', 'Open Help')}</Link>
           {ob.hidden ? (
             <form action={showOnboardingAction} className="md:ml-auto">
               <button className={buttonClass('ghost')} data-testid="onboarding-show">{t('Volver a mostrar la lista en Hoy', 'Show the list in Today again')}</button>

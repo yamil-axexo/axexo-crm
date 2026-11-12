@@ -10,6 +10,7 @@ import { cx } from '@/ui/kit'
 import { CountUp, Queue, type QueueItem, type QueueLabels } from '@/ui/queue'
 import { completeItemAction } from './actions'
 import { getOnboarding } from '@/domain/onboarding'
+import { Ring } from '@/ui/showcase/charts'
 import { hideOnboardingAction } from '@/app/(app)/bienvenida/actions'
 import { flat } from '@/server/params'
 
@@ -184,14 +185,17 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     <>
       {header(m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
       {!ob.hidden && ob.pending > 0 && (
-        <aside className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-3 border-l-4 !border-l-primary p-4" data-testid="hoy-onboarding">
-          <p className="min-w-[200px] flex-1 text-[14.5px] text-strong">
+        <aside className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 pr-3 pl-3.5" data-testid="hoy-onboarding">
+          <Ring id="sc-ring-hoy" value={((ob.total - ob.pending) / ob.total) * 100} size={44} stroke={13} track="var(--cg-line-200)" from="#3ddc97" to="#24815f">
+            <span className="num text-[13px] font-semibold text-strong" aria-hidden>{ob.total - ob.pending}</span>
+          </Ring>
+          <p className="min-w-[180px] flex-1 text-[14.5px] text-strong">
             <span className="font-semibold">{t('Tus primeros pasos', 'Your first steps')}</span>
             <span className="text-muted-2"> · {t(`${ob.total - ob.pending} de ${ob.total} hechos`, `${ob.total - ob.pending} of ${ob.total} done`)}</span>
           </p>
-          <Link href="/bienvenida" className="inline-flex min-h-11 items-center text-[14.5px] font-semibold text-blue-text underline" data-testid="hoy-onboarding-open">{t('Continuar', 'Continue')}</Link>
+          <Link href="/bienvenida" className="press inline-flex min-h-11 items-center gap-1.5 rounded-full bg-green-100 px-4 text-[14.5px] font-semibold text-brand-text hover:bg-[#cfeede]" data-testid="hoy-onboarding-open">{t('Continuar', 'Continue')}</Link>
           <form action={hideOnboardingAction}>
-            <button className="inline-flex min-h-11 items-center text-[14.5px] font-medium text-muted-2 underline" data-testid="hoy-onboarding-hide">{t('Esconder', 'Hide')}</button>
+            <button className="inline-flex min-h-11 items-center rounded-full px-3 text-[14.5px] font-medium text-muted-2 underline hover:text-strong" data-testid="hoy-onboarding-hide">{t('Esconder', 'Hide')}</button>
           </form>
         </aside>
       )}
