@@ -2,6 +2,7 @@ import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { ArrowRight, Check, CircleDashed, Clock, Phone as PhoneIcon } from 'lucide-react'
 import { getCtx, publicLocale } from '@/server/context'
+import { homePath } from '@/domain/policy'
 import { withoutUser } from '@/server/db'
 import { personasEnabled, ssoEnabled } from '@/env'
 import { translator } from '@/lib/format'
@@ -31,7 +32,7 @@ const i = (n: number) => ({ '--i': n }) as React.CSSProperties
 
 /** La entrada de CONTIGO: lo que el equipo ve antes de iniciar sesión. */
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  // Quien ya tiene sesión va a la pantalla de su rol, la misma que decide la raíz.
+  // Quien ya tiene sesión va a la pantalla de su rol: la decide la misma función que la raíz y el primer ingreso.
   const signedIn = await getCtx()
   if (signedIn) redirect(homePath(signedIn.memberships))
   const { error } = flat(await searchParams)

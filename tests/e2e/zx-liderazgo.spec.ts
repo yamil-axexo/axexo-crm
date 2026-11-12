@@ -32,7 +32,7 @@ test.describe('cada rol aterriza en su pantalla', () => {
     ['nora.salas', /\/admin$/, 'people-table'],
     ['marco.pena', /\/hoy$/, 'today-title'],
     ['fernando.ibarra', /\/hoy$/, 'today-title'],
-    ['valeria.soto', /\/hoy$/, 'today-title'],
+    ['valeria.soto', /\/operaciones$/, 'ops-n-unassigned'], // Operaciones entra a su cola (paquete operaciones): una sola función decide el inicio
   ] as const) {
     test(`${persona} entra a ${url.source}`, async ({ page }) => {
       await loginAs(page, persona, { stay: true })
@@ -105,7 +105,7 @@ test.describe('negocios cerrados', () => {
     expect(ev!.after.filters.team).toBeTruthy()
 
     // la bitácora lo dice en palabras
-    await page.goto('/admin?tab=auditoria&tipo=reports')
+    await page.goto('/admin?tab=auditoria&tipo=exports') // "report." también lo usan los reportes del equipo: las exportaciones tienen su propio filtro
     await expect(page.getByTestId('admin-audit')).toContainText('Exportó un reporte')
     await expect(page.getByTestId('admin-audit')).toContainText(`Negocios cerrados · ${marcoTotal} filas`)
     expect(errors, errors.join('\n')).toEqual([])
@@ -279,7 +279,9 @@ test.describe('Mi equipo', () => {
     await expect(groups).toHaveCount(2)
     await expect(groups.nth(0).getByTestId('team-name')).toHaveText('B2B México')
     await expect(groups.nth(1).getByTestId('team-name')).toHaveText('D2D Centro')
-    await expect(groups.nth(1).getByTestId('rep-row')).toHaveCount(2)
+    // Marco y Lucía siempre; quien supervisa el equipo aparece además si otra prueba de la corrida le dejó registros propios.
+    for (const name of ['Marco Peña', 'Lucía Vega']) await expect(groups.nth(1).getByTestId('rep-row').filter({ hasText: name })).toHaveCount(1)
+    expect(await groups.nth(1).getByTestId('rep-row').count()).toBeLessThanOrEqual(3)
     // el subtotal suma la cartera de las personas del equipo
     const books = await groups.nth(1).getByTestId('rep-row').locator('a[href^="/comercios?"]').allInnerTexts()
     await expect(groups.nth(1).getByTestId('subtotal-accounts')).toHaveText(String(books.reduce((n, x) => n + int(x), 0)))
@@ -310,7 +312,8 @@ test.describe('Mi equipo', () => {
     await loginAs(page, 'fernando.ibarra')
     await page.goto('/supervisor')
     await expect(page.getByTestId('team-group')).toHaveCount(1)
-    await expect(page.getByTestId('rep-row')).toHaveCount(2)
+    for (const name of ['Marco Peña', 'Lucía Vega']) await expect(page.getByTestId('rep-row').filter({ hasText: name })).toHaveCount(1)
+    expect(await page.getByTestId('rep-row').count()).toBeLessThanOrEqual(3) // la tercera es quien supervisa, si lleva registros propios
     await expect(page.getByTestId('rep-head')).toBeHidden()
     for (const row of await page.getByTestId('rep-row').all()) {
       await expect(row.getByTestId('rep-name')).toBeVisible()
@@ -368,7 +371,9 @@ test.describe('filtros por persona, equipo y embudo', () => {
     expect(team).toBeGreaterThanOrEqual(marco)
     expect(team).toBeLessThanOrEqual(all)
     // el embudo se cambia sin perder el filtro
-    await page.getByTestId('pipeline-select').selectOption({ label: 'Cadenas y distribuidores (4)' })
+    // el conteo entre paréntesis cambia con lo que otras pruebas crean: se elige por nombre
+    const b2bOption = await page.getByTestId('pipeline-select').locator('option', { hasText: /^Cadenas y distribuidores \(\d+\)$/ }).first().getAttribute('value')
+    await page.getByTestId('pipeline-select').selectOption(b2bOption!)
     await expect(page).toHaveURL(/equipo=/)
     // quien vende no ve estos filtros
     await loginAs(page, 'marco.pena')
@@ -387,14 +392,27 @@ test.describe('filtros por persona, equipo y embudo', () => {
     await expect(page).toHaveURL(/team=[0-9a-f-]{36}/)
     const rows = page.getByTestId('account-row')
     await expect(rows.first()).toBeVisible()
-    expect(await rows.count()).toBeLessThanOrEqual(6) // Diana e Iván llevan 3 comercios cada uno
+    // Diana e Iván llevan 3 comercios cada uno en el seed; otras pruebas de la corrida les crean más, así que se cuenta en la base.
+    const db = testDb()
+    const mine = await db<{ n: number }[]>`
+      select count(*)::int as n from crm.accounts a where a.archived_at is null and a.market_code = 'MX' and exists (
+        select 1 from crm.memberships m join crm.teams t on t.id = m.team_id where m.user_id = a.owner_id and t.name = 'B2B México' and (m.valid_to is null or m.valid_to > now()))`
+    await db.end()
+    expect(mine[0]!.n).toBeGreaterThanOrEqual(6)
+    expect(await rows.count()).toBeLessThanOrEqual(mine[0]!.n)
     await expect(page.getByTestId('account-table')).not.toContainText('Marco Peña')
     await page.getByTestId('filter-team').selectOption({ label: 'Todos' })
     await page.getByTestId('filter-pipeline').selectOption({ label: 'Cadenas y distribuidores' })
     await page.getByTestId('place-apply').click()
     await expect(page).toHaveURL(/pipeline=[0-9a-f-]{36}/)
     await expect(rows.first()).toBeVisible()
-    expect(await rows.count()).toBeLessThanOrEqual(6)
+    // comercios con algún negocio en ese embudo: también se cuenta en la base, por la misma razón
+    const db2 = testDb()
+    const inPipe = await db2<{ n: number }[]>`
+      select count(distinct d.account_id)::int as n from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.accounts a on a.id = d.account_id
+       where p.market_code = 'MX' and p.name = 'Cadenas y distribuidores' and a.archived_at is null`
+    await db2.end()
+    expect(await rows.count()).toBeLessThanOrEqual(inPipe[0]!.n)
     await page.getByTestId('place-clear').click()
     await expect(page).not.toHaveURL(/pipeline=/)
     await loginAs(page, 'marco.pena')
