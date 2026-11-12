@@ -25,7 +25,8 @@ const COLS: [es: string, en: string][] = [
   ['Persona', 'Person'], ['Leads abiertos', 'Open leads'], ['Primer intento a tiempo', 'First attempt on time'], ['Contacto logrado', 'Reached'], ['Negocios abiertos', 'Open deals'],
   ['Sin próximo paso', 'No next step'], ['Revisitas', 'Revisits'], ['Esperando venta', 'Awaiting sale'], ['Visitas / con venta', 'Visits / with sale'], ['Ventas, 30 días', 'Sales, 30 days'], ['Cartera', 'Book'],
 ]
-const ROW = '@5xl:grid @5xl:grid-cols-[minmax(0,1.7fr)_repeat(10,minmax(0,1fr))] @5xl:items-center @5xl:gap-3'
+// La columna de negocios abiertos es más ancha: lleva la marca de estancados junto a la cifra.
+const ROW = '@5xl:grid @5xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))_minmax(0,1.5fr)_repeat(3,minmax(0,1fr))_minmax(0,1.15fr)_minmax(0,1.1fr)_minmax(0,0.75fr)] @5xl:items-center @5xl:gap-3'
 const WEEK = '@2xl:grid @2xl:grid-cols-[minmax(0,1.6fr)_repeat(5,minmax(0,1fr))] @2xl:items-center @2xl:gap-4'
 const CARD = 'grid grid-cols-2 gap-x-6 gap-y-1.5 @md:grid-cols-3'
 

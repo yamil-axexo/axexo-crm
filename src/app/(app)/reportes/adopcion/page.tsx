@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
-import { getAdoption, marketPeriods } from '@/dal/reports'
+import { getAdoption } from '@/dal/reports'
+import { resolvePeriod } from '@/lib/periods'
 import { track } from '@/dal/boards'
 import { ROLE_LABEL } from '@/domain/policy'
 import { Badge, Card, CardTitle, Empty, PageHeader, Pills } from '@/ui/kit'
 import { ReportFilters, periodText } from '@/ui/report'
-import { dayTime, num } from '@/lib/format'
+import { dayTime, isoDay, num } from '@/lib/format'
 import { zoneLabel } from '@/lib/audit'
 import { qs } from '@/lib/labels'
 import { flat } from '@/server/params'
@@ -19,7 +20,8 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
   const { t, locale } = ctx
   const sp = flat(await searchParams)
   const tz = await readerTimeZone(ctx)
-  const period = marketPeriods(ctx, sp.periodo, sp.desde, sp.hasta, '30d').first
+  // Los ingresos se cuentan por hora, así que el periodo se resuelve con el día de quien lee: es la misma zona en la que se muestran las horas.
+  const period = resolvePeriod(sp.periodo, isoDay(new Date(), tz), sp.desde, sp.hasta, '30d')
   const all = await getAdoption(ctx, period, tz)
   await track(ctx, 'view.report.adoption')
   const never = all.filter((r) => !r.last_login)
@@ -39,7 +41,7 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
         title={t('Adopción', 'Adoption')}
         desc={t('Quién entra a CONTIGO y cuánto lo usa. Solo conteos: cuándo entró y cuántas actividades registró, nunca lo que escribió. La ven leadership, quien lidera el mercado y administración.', 'Who signs in to CONTIGO and how much they use it. Counts only: when they signed in and how many activities they logged, never what they wrote. Leadership, market leads and administration see it.')}
       />
-      <ReportFilters t={t} locale={locale} base="/reportes/adopcion" params={params} period={period} selects={[]} />
+      <ReportFilters t={t} locale={locale} base="/reportes/adopcion" params={params} period={period} selects={[]} zone={zoneLabel(tz, locale)} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="adoption-totals">
         {stat(t('Personas con acceso', 'People with access'), all.length, 'adoption-people')}
         {stat(t('Entraron en el periodo', 'Signed in during the period'), entered.length, 'adoption-entered')}

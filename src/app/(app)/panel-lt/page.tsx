@@ -162,9 +162,9 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
                 <div><dt className="text-[12.5px] text-muted">{t('En riesgo / inactivos (hoy)', 'At risk / inactive (today)')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong">{m.accounts_at_risk} / {m.accounts_inactive}</dd></div>
               </dl>
               <div className="mt-3 flex flex-wrap gap-x-5">
-                <Def t={t} k="reached" testId={`def-reached-${m.code}`} />
-                <Def t={t} k="days" testId={`def-days-${m.code}`} />
-                <Def t={t} k="revisits" testId={`def-revisits-${m.code}`} />
+                <Def t={t} k="reached" testId={`def-reached-${m.code}`} named />
+                <Def t={t} k="days" testId={`def-days-${m.code}`} named />
+                <Def t={t} k="revisits" testId={`def-revisits-${m.code}`} named />
               </div>
             </Card>
           )

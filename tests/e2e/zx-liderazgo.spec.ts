@@ -220,6 +220,8 @@ test.describe('panel del LT', () => {
       await expect(page.getByTestId('fx-value')).toHaveText('1 MXN = 0.0541 USD')
       await expect(page.getByTestId('fx-meta')).toContainText('Tasa del 2 nov 2026. Fuente: Tasa de prueba del paquete liderazgo. La cargó Nora Salas.')
       // una tasa sin fuente o en cero no entra
+      await page.waitForTimeout(800) // el formulario ignora un segundo envío inmediato después de guardar
+      await form.getByTestId('fx-date').fill('2026-11-02')
       await form.getByTestId('fx-rate').fill('0')
       await form.getByTestId('fx-source').fill('Otra fuente')
       await form.getByTestId('fx-save').click()
@@ -286,7 +288,7 @@ test.describe('Mi equipo', () => {
     const fits = await page.getByTestId('rep-table').evaluate((el) => el.scrollWidth <= el.clientWidth && [...el.querySelectorAll('[data-testid="rep-row"] > span')].every((c) => c.scrollWidth <= c.clientWidth + 1))
     expect(fits).toBe(true)
     await noOverflow(page, 'mi equipo 1440')
-    // las ventas de S5 dicen su ventana
+    // las ventas de la cartera dicen su ventana
     await expect(page.getByTestId('team-board')).toContainText('transacciones de su cartera en los últimos 30 días al')
     await expect(page.getByTestId('rep-sales-delta').first()).toContainText('%')
 
@@ -434,7 +436,7 @@ test.describe('reporte semanal de campo', () => {
 })
 
 test.describe('ventas por tienda', () => {
-  test('la ficha dice la ventana y compara con los 30 días anteriores solo si S5 trae el dato', async ({ page }) => {
+  test('la ficha dice la ventana y compara con los 30 días anteriores solo si ese dato existe', async ({ page }) => {
     const sql = testDb()
     const [withPrev] = await sql<{ id: string }[]>`
       select a.id from crm.accounts a join crm.users u on u.id = a.owner_id where u.full_name = 'Marco Peña' and a.kind = 'store'
@@ -445,7 +447,7 @@ test.describe('ventas por tienda', () => {
     await sql.end()
     await loginAs(page, 'marco.pena')
     await page.goto(`/comercios/${withPrev!.id}?tab=datos`)
-    await expect(page.getByTestId('account-facts')).toContainText(/Ventas, últimos 30 días al \d+ \w+ 2026/)
+    await expect(page.locator('main')).toContainText(/Ventas, últimos 30 días al \d+ \w+ 2026/)
     await expect(page.getByTestId('fact-sales')).toContainText(/\d+ transacci(ón|ones) · MXN/)
     await expect(page.getByTestId('fact-sales')).toContainText('días con venta')
     await expect(page.getByTestId('fact-sales-prev')).toContainText(/\d+ transacci(ón|ones) · MXN .* · ahora [+-]?\d+% · al \d+ \w+ 2026/)

@@ -8,14 +8,14 @@ import { NavSelect } from '@/ui/board'
 import { buttonClass, cx } from '@/ui/kit'
 
 /** "Cómo se calcula": la definición de una cifra, a un toque y sin salir de la pantalla. */
-export function Def({ t, k, testId }: { t: T; k: MetricKey; testId?: string }) {
+export function Def({ t, k, testId, named }: { t: T; k: MetricKey; testId?: string; named?: boolean }) {
   const d = METRICS[k]
   const row = (label: string, text: string) => (
     <div className="mt-2 first:mt-0"><dt className="text-[12px] font-semibold text-muted-2">{label}</dt><dd className="text-[13px] text-strong">{text}</dd></div>
   )
   return (
     <details className="mt-1" data-testid={testId ?? `def-${k}`}>
-      <summary className="inline-flex min-h-11 cursor-pointer items-center text-[13px] font-medium text-brand-text underline underline-offset-2">{t('Cómo se calcula', 'How it is calculated')}</summary>
+      <summary className="inline-flex min-h-11 cursor-pointer items-center text-[13px] font-medium text-brand-text underline underline-offset-2">{t('Cómo se calcula', 'How it is calculated')}{named ? `: ${t(d.label[0], d.label[1])}` : ''}</summary>
       <dl className="rounded-[12px] bg-surface-3 px-3.5 py-3">
         {row(t('Qué cuenta', 'What it counts'), t(d.what[0], d.what[1]))}
         {'num' in d && row(t('Numerador', 'Numerator'), t(d.num[0], d.num[1]))}
@@ -35,7 +35,11 @@ export function Metric({ t, k, value, hint, href, label, tone, testId }: { t: T;
     <div className="card min-w-0 p-4 md:p-5" data-testid={testId}>
       <p className="text-[13px] font-medium text-muted-2">{label ?? t(d.label[0], d.label[1])}</p>
       <p className="mt-1.5">
-        {href ? <Link href={href} className="inline-flex min-h-11 items-center underline decoration-line-2 underline-offset-4 hover:decoration-brand" data-testid={testId ? `${testId}-link` : undefined} aria-label={`${label ?? t(d.label[0], d.label[1])}: ${t('ver la lista', 'see the list')}`}>{text}</Link> : text}
+        {href ? (
+          <Link href={href} className="inline-flex min-h-11 items-center underline decoration-line-2 underline-offset-4 hover:decoration-brand" data-testid={testId ? `${testId}-link` : undefined}>
+            <span className="sr-only">{label ?? t(d.label[0], d.label[1])}: </span>{text}<span className="sr-only">, {t('ver la lista', 'see the list')}</span>
+          </Link>
+        ) : text}
       </p>
       {hint && <p className="text-[13px] text-muted">{hint}</p>}
       <Def t={t} k={k} />
@@ -52,7 +56,7 @@ export type Option = { value: string; label: string }
  * Filtros de un reporte: cada selector navega a la misma pantalla con el filtro en la URL, así la vista se puede compartir.
  * El rango de fechas es un formulario GET normal (funciona sin JavaScript) que conserva los demás filtros.
  */
-export function ReportFilters({ t, locale, base, params, period, periods = PERIOD_KEYS, selects }: {
+export function ReportFilters({ t, locale, base, params, period, periods = PERIOD_KEYS, selects, zone }: {
   t: T
   locale: Locale
   base: string
@@ -60,6 +64,8 @@ export function ReportFilters({ t, locale, base, params, period, periods = PERIO
   period?: Period
   periods?: readonly PeriodKey[]
   selects: { name: string; label: string; all: string; options: Option[]; testId?: string }[]
+  /** Cuando el periodo no va por mercado sino en una sola zona (la de quien lee), su nombre. */
+  zone?: string
 }) {
   const href = (patch: Record<string, string | undefined>) => {
     const sp = new URLSearchParams()
@@ -92,7 +98,7 @@ export function ReportFilters({ t, locale, base, params, period, periods = PERIO
           <button type="submit" className={buttonClass('ghost')} data-testid="range-apply">{t('Aplicar', 'Apply')}</button>
         </form>
       )}
-      {period && <p className="basis-full text-[13px] text-muted" data-testid="period-text">{t(`Periodo: ${periodText(t, locale, period)}. Cada mercado cuenta sus días en su zona horaria.`, `Period: ${periodText(t, locale, period)}. Each market counts its days in its own time zone.`)}</p>}
+      {period && <p className="basis-full text-[13px] text-muted" data-testid="period-text">{zone ? t(`Periodo: ${periodText(t, locale, period)}, en ${zone}.`, `Period: ${periodText(t, locale, period)}, in ${zone}.`) : t(`Periodo: ${periodText(t, locale, period)}. Cada mercado cuenta sus días en su zona horaria.`, `Period: ${periodText(t, locale, period)}. Each market counts its days in its own time zone.`)}</p>}
     </div>
   )
 }
