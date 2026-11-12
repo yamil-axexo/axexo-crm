@@ -15,7 +15,8 @@ import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { day, dayTime, daysSince, money } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
 import { moveDealAction, updateDealAction } from '@/app/(app)/pipelines/actions'
-import { winDealAction } from '@/app/(app)/operaciones/actions'
+import { gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
+import { GateFields } from '@/ui/ops'
 import { getDealOps, notifyOptions } from '@/dal/ops'
 import { DealItems, DealOpsCard } from './ops'
 import { isoDay } from '@/lib/format'
@@ -113,6 +114,26 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   {t(`Para pasar a "${next.name_es}" falta: `, `To move to "${next.name_en}" you still need: `)}
                   <strong className="text-strong">{missingNext.map((m) => t(FIELD_LABEL[m]?.es ?? m, FIELD_LABEL[m]?.en ?? m)).join(', ')}</strong>.
                 </p>
+              )}
+              {next && next.kind !== 'won' && missingNext.length > 0 && canAdvance && (
+                <div className="mb-5">
+                  <Dialog trigger={t('Completar lo que falta y avanzar', 'Fill in what is missing and move on')} title={t(`Para pasar a "${next.name_es}" falta esto`, `To move to "${next.name_en}" you still need this`)} variant="primary" testId="gate-open">
+                    <ActionForm action={gateMoveAction} onOk="close">
+                      <input type="hidden" name="deal_id" value={deal.id} /><input type="hidden" name="stage_id" value={next.id} />
+                      <GateFields minDate={today} dealHref={`/deals/${deal.id}`}
+                        info={{ missing: missingNext, stageName: { es: next.name_es, en: next.name_en }, amount: deal.amount_minor ? String(Number(deal.amount_minor) / 100) : null, nextStep: deal.next_step, nextStepDue: deal.next_step_due,
+                          decisionMakerId: deal.decision_maker_id, decisionMakerMet: deal.decision_maker_met, contacts: contacts.map((c) => ({ id: c.id, full_name: c.full_name })), accountId: deal.account_id }}
+                        labels={{
+                          title: '', body: '', save: t('Guardar y mover', 'Save and move'),
+                          amount: t(`Monto esperado (${market.currency})`, `Expected amount (${market.currency})`), nextStep: t('Próximo paso', 'Next step'), nextDue: t('Fecha del próximo paso', 'Next step date'),
+                          decisionMaker: t('Decisor', 'Decision-maker'), pick: t('Elige al decisor', 'Pick the decision-maker'), met: t('Ya hablé con el decisor', 'I have spoken with the decision-maker'),
+                          noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
+                          items: t('Falta al menos una línea de producto: agrégala abajo, en Líneas del pedido.', 'It needs at least one product line: add it below, under Order lines.'), openDeal: '',
+                        }} />
+                      <div className="mt-6 flex justify-end"><Submit testId="gate-save">{t('Guardar y mover', 'Save and move')}</Submit></div>
+                    </ActionForm>
+                  </Dialog>
+                </div>
               )}
               {canEdit && current.is_ops && !opsMoves && (
                 <p className="mb-5 rounded-2xl bg-surface-2 px-4 py-3 text-[13.5px] text-muted-2" data-testid="with-ops">

@@ -5,6 +5,8 @@ import { moveDeal, updateDeal } from '@/domain/deals'
 import { addDealItem, bulkCloseLost, markNoticeSeen, removeDealItem, saveOpsCatalog, saveProduct, setMerchantRef, setOpsCheck, setOpsStep, setPipelineFlags, setTraining, takeDeal } from '@/domain/ops'
 import type { ActionResult } from '@/lib/errors'
 
+import { gateInfo, type GateInfo } from '@/dal/ops'
+
 type R = ActionResult<unknown>
 const number = (raw: string): number => Number(raw.replace(/[, ]/g, ''))
 
@@ -124,4 +126,14 @@ export async function pipelineFlagsAction(_: R | null, fd: FormData): Promise<R>
     await setPipelineFlags(ctx, str(fd, 'pipeline_id'), { multiOpen: fd.get('multi_open') === 'on', hasItems: fd.get('has_items') === 'on', opsStageIds: fd.getAll('ops_stage').map(String) })
     return { message: ['Embudo actualizado.', 'Pipeline updated.'] }
   })
+}
+
+/** Lo que el candado de etapa necesita para resolverse en una hoja: qué falta y con qué se llena. */
+export async function gateInfoAction(dealId: string, stageId: string): Promise<GateInfo | null> {
+  let out: GateInfo | null = null
+  await runAction(async (ctx) => {
+    out = await gateInfo(ctx, dealId, stageId)
+    return { revalidate: [] }
+  })
+  return out
 }

@@ -8,9 +8,15 @@ import { Board, NavSelect, type BoardCard, type BoardCol } from '@/ui/board'
 import { daysSince, isoDay, money, weekday } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { boardMoveAction } from '../actions'
+import { bulkCloseAction, gateInfoAction, gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
+import { staleDeals } from '@/dal/ops'
+import { lossReasons } from '@/dal/leads'
+import { BulkPick } from '@/ui/ops'
+import { ActionForm, Submit } from '@/ui/client'
+import { day } from '@/lib/format'
 import { flat } from '@/server/params'
 
-export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string }> }) {
+export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string; quietos?: string }> }) {
   const ctx = await requireCtx()
   const { t, m, locale } = ctx
   const { id } = await params
@@ -21,6 +27,10 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   await track(ctx, 'view.pipeline')
   const market = ctx.market(board.pipeline.market_code)
   const listView = sp.vista === 'lista'
+  // Cerrar en bloque lo que lleva más de N días sin movimiento: Operaciones, supervisión y quien lidera.
+  const canBulk = ctx.can('deal.bulk_close', board.pipeline.market_code)
+  const quietDays = canBulk && sp.quietos ? Math.min(Math.max(Number(sp.quietos) || 30, 1), 720) : 0
+  const [stale, reasons] = quietDays ? await Promise.all([staleDeals(ctx, id, quietDays), lossReasons(ctx)]) : [[], []]
   const stages = board.stages.filter((s) => s.kind === 'open' || s.kind === 'awaiting_txn')
   const total = (stageId: string) => board.totals.find((x) => x.stage_id === stageId)
   const now = new Date()
@@ -29,7 +39,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const open = board.totals.reduce((n, x) => n + x.n, 0)
   const noStep = board.totals.reduce((n, x) => n + x.no_step, 0)
   const revisits = board.totals.reduce((n, x) => n + x.revisits, 0)
-  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, ...patch })
+  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, quietos: undefined, ...patch })
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
@@ -45,11 +55,28 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
     }
   })
   const chip = (d: (typeof board.deals)[number]): BoardCard['chip'] => {
+    // En una etapa de Operaciones manda el próximo paso de Operaciones: el de quien vende ya salió de su cancha.
+    if (board.stages.find((s) => s.id === d.stage_id)?.is_ops) {
+      if (d.ops_next_step && d.ops_next_step_due) return { text: `${d.ops_next_step} · ${d.ops_next_step_due === today ? m('complete.when.today').toLowerCase() : weekday(d.ops_next_step_due, locale)}`, tone: d.ops_next_step_due < today ? 'risk' : 'ok', title: d.ops_next_step }
+      return d.ops_owner_name ? { text: t(`Con Operaciones: ${d.ops_owner_name}`, `With Operations: ${d.ops_owner_name}`), tone: 'neutral' } : { text: t('Con Operaciones: sin tomar', 'With Operations: not taken'), tone: 'warn' }
+    }
     if (!d.next_step || !d.next_step_due) return { text: m('deals.chip.none'), tone: 'warn' }
     if (d.next_step_due < today) return { text: m('deals.chip.late', { step: d.next_step }), tone: 'risk', title: d.next_step }
     return { text: `${d.next_step} · ${d.next_step_due === today ? m('complete.when.today').toLowerCase() : weekday(d.next_step_due, locale)}`, tone: 'ok', title: d.next_step }
   }
+  // Ganar a mano desde la tarjeta: solo si el embudo no cierra por transacción y a esta persona le toca
+  // (lo que pasa por una etapa de Operaciones lo cierra Operaciones, nunca quien vendió).
+  const wonStage = board.pipeline.close_by_transaction ? undefined : board.stages.find((s) => s.kind === 'won')
+  const canOps = ctx.can('deal.ops', board.pipeline.market_code)
+  const winTo = (d: (typeof board.deals)[number]): string | null => {
+    if (!wonStage || !canMove) return null
+    const pos = board.stages.find((s) => s.id === d.stage_id)?.position ?? 0
+    const opsAhead = board.stages.some((s) => s.is_ops && s.position >= pos)
+    return !opsAhead || (canOps && d.owner_id !== ctx.user.id) ? wonStage.id : null
+  }
+  const generic = (d: (typeof board.deals)[number]) => d.title.trim().toLowerCase() === d.account_name.trim().toLowerCase()
   const cards: BoardCard[] = board.deals.map((d) => ({
+    title: generic(d) ? null : d.title, winTo: winTo(d),
     id: d.id, stageId: d.stage_id, name: d.account_name,
     sub: [d.amount_minor ? money(Number(d.amount_minor), d.currency, locale) : null, m('deals.days', { count: daysSince(d.stage_entered_at, now) }), sp.owner === 'me' ? null : (d.owner_name ?? m('deals.noOwner'))].filter(Boolean).join(' · '),
     chip: chip(d), extra: d.revisit_needed ? m('deals.chip.revisit') : null, href: `/deals/${d.id}`, canMove,
@@ -87,7 +114,54 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </div>
       </header>
 
-      {listView ? (
+      {canBulk && (
+        <form action={`/pipelines/${id}`} className="mb-4 flex flex-wrap items-end gap-2" data-testid="quiet-filter">
+          <label className="text-[14px] font-medium">{t('Sin movimiento en más de', 'No movement in more than')}
+            <span className="mt-1 flex items-center gap-2">
+              <input name="quietos" type="number" min={1} max={720} defaultValue={quietDays || 30} className="input !w-24" data-testid="quiet-days" />
+              <span className="text-[14px] font-normal text-muted">{t('días', 'days')}</span>
+            </span>
+          </label>
+          <button className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-4 text-[15px] font-medium text-strong hover:bg-green-50" data-testid="quiet-apply">{t('Ver negocios quietos', 'Show quiet deals')}</button>
+          {quietDays > 0 && <Link href={here({})} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid="quiet-clear">{t('Volver al tablero', 'Back to the board')}</Link>}
+        </form>
+      )}
+      {quietDays > 0 ? (
+        <div className="card overflow-hidden" data-testid="quiet-list">
+          <p className="border-b border-line px-4 py-3 text-[14.5px] text-strong">
+            {t(`${stale.length} ${stale.length === 1 ? 'negocio abierto lleva' : 'negocios abiertos llevan'} más de ${quietDays} días sin cambio de etapa ni actividad.`, `${stale.length} open ${stale.length === 1 ? 'deal has' : 'deals have'} gone more than ${quietDays} days with no stage change or activity.`)}
+          </p>
+          {stale.length > 0 && (
+            <ActionForm action={bulkCloseAction} onOk="reset">
+              <BulkPick
+                labels={{ all: t('Elegir todos', 'Select all'), none: t('Quitar selección', 'Clear selection'), picked: t('%n elegidos', '%n selected') }}
+                rows={stale.map((d) => ({
+                  id: d.id,
+                  node: (
+                    <Link href={`/deals/${d.id}`} className="block py-1">
+                      <span className="block truncate text-[15px] font-medium text-strong">{d.title}</span>
+                      <span className="block truncate text-[13px] text-muted">{[d.account_name, d.owner_name ?? m('deals.noOwner'), t(d.stage_es, d.stage_en), t(`último movimiento: ${day(d.last_move, locale, market.timezone)}`, `last movement: ${day(d.last_move, locale, market.timezone)}`)].join(' · ')}</span>
+                    </Link>
+                  ),
+                }))}
+              >
+                <div className="grid grid-cols-1 gap-3 border-t border-line px-4 py-4 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-end">
+                  <label className="text-[14px] font-medium">{t('Motivo de pérdida', 'Loss reason')}
+                    <select name="reason" required defaultValue="" className="input mt-1.5" data-testid="bulk-reason">
+                      <option value="">{t('Elige un motivo', 'Pick a reason')}</option>
+                      {reasons.map((r) => <option key={r.code} value={r.code}>{t(r.label_es, r.label_en)}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-[14px] font-medium">{t('Nota (opcional)', 'Note (optional)')}
+                    <input name="note" maxLength={300} className="input mt-1.5" data-testid="bulk-note" />
+                  </label>
+                  <Submit variant="danger" testId="bulk-close">{t('Cerrar como perdido', 'Close as lost')}</Submit>
+                </div>
+              </BulkPick>
+            </ActionForm>
+          )}
+        </div>
+      ) : listView ? (
         <div className="card @container overflow-hidden" data-testid="deal-list">
           <div aria-hidden className="hidden border-b border-line px-5 py-3 text-[13px] font-medium text-muted @2xl:grid @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_140px_minmax(0,1.4fr)] @2xl:gap-4">
             <span>{m('deals.col.deal')}</span><span>{m('deals.stage')}</span><span>{m('deals.col.amount')}</span><span>{m('deals.col.next')}</span>
@@ -102,7 +176,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
                   <Link href={`/deals/${d.id}`} className="row-hover block px-4 py-3.5 @2xl:grid @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_140px_minmax(0,1.4fr)] @2xl:items-center @2xl:gap-4 @2xl:px-5">
                     <span className="block min-w-0">
                       <span className="block truncate text-[15px] font-medium text-strong">{d.account_name}</span>
-                      <span className="block truncate text-[13px] text-muted">{[d.owner_name ?? m('deals.noOwner'), m('deals.days', { count: daysSince(d.stage_entered_at, now) })].join(' · ')}</span>
+                      <span className="block truncate text-[13px] text-muted">{[generic(d) ? null : d.title, d.owner_name ?? m('deals.noOwner'), m('deals.days', { count: daysSince(d.stage_entered_at, now) })].filter(Boolean).join(' · ')}</span>
                     </span>
                     <span className="mt-1 block truncate text-[14px] text-strong @2xl:mt-0">{st ? t(st.name_es, st.name_en) : ''}</span>
                     <span className="num hidden text-[14px] text-strong @2xl:block">{d.amount_minor ? money(Number(d.amount_minor), d.currency, locale) : '—'}</span>
@@ -124,7 +198,20 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
             cards={cards}
             minDate={today}
             action={boardMoveAction}
+            ops={{ gateInfo: gateInfoAction, gateMove: gateMoveAction, win: winDealAction }}
             labels={{
+              gate: {
+                title: t('Para pasar a "%s" falta esto', 'To move to "%s" you still need this'), body: t('Llénalo aquí y %n avanza.', 'Fill it in here and %n moves on.'), save: t('Guardar y mover', 'Save and move'),
+                amount: t(`Monto esperado (${market.currency})`, `Expected amount (${market.currency})`), nextStep: m('deals.next.step'), nextDue: m('deals.next.due'),
+                decisionMaker: t('Decisor', 'Decision-maker'), pick: t('Elige al decisor', 'Pick the decision-maker'), met: t('Ya hablé con el decisor', 'I have spoken with the decision-maker'),
+                noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
+                items: t('Falta al menos una línea de producto.', 'It needs at least one product line.'), openDeal: t('Agregar líneas en el negocio', 'Add lines on the deal'),
+              },
+              win: {
+                button: t('Marcar como ganado', 'Mark as won'), title: t('Marcar como ganado: %s', 'Mark as won: %s'),
+                rule: t('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.', 'During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own.'),
+                date: t('Fecha real de cierre', 'Actual close date'), hint: t('Hoy o un día anterior, nunca futura.', 'Today or an earlier day, never in the future.'), confirm: t('Marcar como ganado', 'Mark as won'),
+              },
               stages: m('deals.stages'), stage: m('deals.stage'), moveTo: m('deals.moveTo', { name: '%s' }), moved: m('deals.moved', { name: '%n', stage: '%s' }), empty: m('deals.empty'),
               nextTitle: m('deals.next.title', { name: '%s' }), nextBody: m('deals.next.body'), nextStep: m('deals.next.step'), nextDue: m('deals.next.due'), nextSave: m('deals.next.save'), cancel: m('action.cancel'),
             }}

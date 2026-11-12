@@ -172,7 +172,13 @@ export async function getAccount(ctx: Ctx, id: string) {
         select at.effective_from, 'attribution', at.party_label, null, null, jsonb_build_object('layer', at.layer)
           from crm.account_attributions at where at.account_id = ${id} and at.layer = 'owner'
       ) x order by at desc limit 60`
-    const pipelines = await tx<{ id: string; name: string }[]>`select id, name from crm.pipelines where market_code = ${account.market_code} order by position`
+    // Con cada embudo van las etapas de Ventas donde puede nacer un negocio (las anteriores a la primera de Operaciones).
+    const pipelines = await tx<{ id: string; name: string; multi_open: boolean; has_items: boolean; stages: { id: string; name_es: string; name_en: string }[] }[]>`
+      select p.id, p.name, p.multi_open, p.has_items,
+             coalesce((select jsonb_agg(jsonb_build_object('id', s.id, 'name_es', s.name_es, 'name_en', s.name_en) order by s.position) from crm.stages s
+                        where s.pipeline_id = p.id and s.kind = 'open'
+                          and not exists (select 1 from crm.stages o where o.pipeline_id = p.id and o.is_ops and o.position <= s.position)), '[]'::jsonb) as stages
+        from crm.pipelines p where p.market_code = ${account.market_code} and p.is_active order by p.position`
     return {
       account,
       ancestors: [...ancestors],

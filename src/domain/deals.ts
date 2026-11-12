@@ -296,7 +296,15 @@ const createInput = z.object({
 
 export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): Promise<string> {
   const parsed = createInput.safeParse(input)
-  if (!parsed.success) throw invalid('Un negocio nace con título y próximo paso con fecha.', 'A deal starts with a title and a dated next step.')
+  if (!parsed.success) {
+    // El error dice qué campo y por qué.
+    const field = String(parsed.error.issues[0]?.path[0] ?? '')
+    if (field === 'title') throw invalid('Título: escribe entre 2 y 160 letras.', 'Title: enter between 2 and 160 characters.')
+    if (field === 'nextStep') throw invalid('Próximo paso: escribe qué sigue (2 a 200 letras). Un negocio nace con próximo paso con fecha.', 'Next step: say what comes next (2 to 200 characters). A deal starts with a dated next step.')
+    if (field === 'nextStepDue') throw invalid('Fecha del próximo paso: elige el día.', 'Next step date: pick the day.')
+    if (field === 'amount') throw invalid('Monto: escribe un número de cero en adelante, o déjalo vacío.', 'Amount: enter a number, zero or more, or leave it empty.')
+    throw invalid('Un negocio nace con título y próximo paso con fecha.', 'A deal starts with a title and a dated next step.')
+  }
   const v = parsed.data
   assertNoProhibited(v.title, v.nextStep)
   return withUser(ctx.user.id, async (tx) => {

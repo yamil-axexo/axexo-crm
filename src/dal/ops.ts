@@ -2,6 +2,7 @@ import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { notifiable } from '@/domain/ops'
+import { missingForStage, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
 
 export type OpsView = 'unassigned' | 'mine' | 'all'
@@ -164,5 +165,31 @@ export async function getOpsConfig(ctx: Ctx) {
     const stages = await tx<{ id: string; pipeline_id: string; name_es: string; name_en: string; kind: string; is_ops: boolean }[]>`
       select id, pipeline_id, name_es, name_en, kind, is_ops from crm.stages where kind in ('open', 'awaiting_txn') order by pipeline_id, position`
     return { catalog: [...catalog], products: [...products], pipelines: [...pipelines], stages: [...stages] }
+  })
+}
+
+export type GateInfo = { missing: string[]; stageName: { es: string; en: string }; amount: string | null; nextStep: string | null; nextStepDue: string | null; decisionMakerId: string | null; decisionMakerMet: boolean; contacts: { id: string; full_name: string }[]; accountId: string }
+
+/** Qué le falta a un negocio para entrar a una etapa, con lo necesario para resolverlo ahí mismo (candado de etapa). */
+export async function gateInfo(ctx: Ctx, dealId: string, toStageId: string): Promise<GateInfo | null> {
+  if (!isUuid(dealId) || !isUuid(toStageId)) return null
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ account_id: string; pipeline_id: string; stage_id: string; amount_minor: string | null; next_step: string | null; next_step_due: string | null; decision_maker_id: string | null; decision_maker_met: boolean; items: number }[]>`
+      select d.account_id, d.pipeline_id, d.stage_id, d.amount_minor::text, d.next_step, d.next_step_due::text, d.decision_maker_id, d.decision_maker_met,
+             (select count(*)::int from crm.deal_items i where i.deal_id = d.id) as items
+        from crm.deals d where d.id = ${dealId} and d.status = 'open'`
+    const d = rows[0]
+    if (!d) return null
+    const stages = await tx<{ id: string; position: number; kind: StageKind; required_fields: string[]; name_es: string; name_en: string }[]>`
+      select id, position, kind, required_fields, name_es, name_en from crm.stages where pipeline_id = ${d.pipeline_id} order by position`
+    const to = stages.find((s) => s.id === toStageId)
+    const from = stages.find((s) => s.id === d.stage_id)
+    if (!to || !from) return null
+    const need = [...new Set(stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn') && s.position > from.position && s.position <= to.position).flatMap((s) => s.required_fields))]
+    const missing = missingForStage({ ...d, items_count: d.items }, { kind: to.kind, required_fields: need })
+    const contacts = await tx<{ id: string; full_name: string }[]>`
+      select c.id, c.full_name from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id where ac.account_id = ${d.account_id} and ac.valid_to is null order by c.full_name`
+    return { missing, stageName: { es: to.name_es, en: to.name_en }, amount: d.amount_minor ? String(Number(d.amount_minor) / 100) : null, nextStep: d.next_step, nextStepDue: d.next_step_due,
+      decisionMakerId: d.decision_maker_id, decisionMakerMet: d.decision_maker_met, contacts: [...contacts], accountId: d.account_id }
   })
 }

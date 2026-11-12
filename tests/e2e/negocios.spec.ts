@@ -115,7 +115,12 @@ for (const w of WIDTHS) {
       const other = page.locator(`[data-card="${gated}"]`)
       if (w.name === 'desktop') await drag(page, other, 'interes')
       else await other.getByTestId('deal-stage-select').selectOption({ label: 'Interés del decisor' })
-      await expect(page.getByTestId('toast')).toContainText('falta: decisor')
+      // El candado de etapa se resuelve en una hoja ahí mismo (antes era un aviso): dice qué falta y la tarjeta no se mueve sola.
+      await expect(page.getByTestId('gate-dialog')).toBeVisible()
+      await expect(page.getByTestId('gate-dialog')).toContainText('Interés del decisor')
+      await expect(page.getByTestId('gate-fields')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(page.getByTestId('gate-dialog')).toBeHidden()
       await expect(page.getByTestId('stage-visitada').locator(`[data-card="${gated}"]`)).toHaveCount(1)
     })
   })
