@@ -349,3 +349,15 @@ insert into crm.saved_views (user_id, object, name, filters, is_shared) values
 
 -- Las personas de prueba ya pasaron por la bienvenida: entran directo a Hoy. La prueba del primer ingreso borra su fila antes de entrar.
 insert into crm.user_onboarding (user_id) select id from crm.users where is_synthetic on conflict do nothing;
+
+-- b2b
+-- El embudo B2B/ISO de México trae las etapas del proceso corporativo que pidió el comité: después de negociar vienen
+-- integración, pruebas, certificación y alta y capacitación. En producción las agrega administración desde la pantalla.
+update crm.stages set position = position + 4 where pipeline_id = pg_temp.uid('p-mx-b2b') and position >= 4;
+insert into crm.stages (id, pipeline_id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en) values
+  (pg_temp.uid('s-mx-b2b-integracion'), pg_temp.uid('p-mx-b2b'), 4, 'integracion', 'Integración', 'Integration', 'open', 65, 30, '{amount,decision_maker}', 'Credenciales entregadas y conexión hecha', 'Credentials delivered and connection made'),
+  (pg_temp.uid('s-mx-b2b-pruebas'), pg_temp.uid('p-mx-b2b'), 5, 'pruebas', 'Pruebas', 'Testing', 'open', 70, 21, '{}', 'Pruebas completas sin errores', 'Tests complete with no errors'),
+  (pg_temp.uid('s-mx-b2b-certificacion'), pg_temp.uid('p-mx-b2b'), 6, 'certificacion', 'Certificación', 'Certification', 'open', 75, 21, '{}', 'Certificación aprobada', 'Certification approved'),
+  (pg_temp.uid('s-mx-b2b-alta'), pg_temp.uid('p-mx-b2b'), 7, 'alta', 'Alta y capacitación', 'Go-live and training', 'open', 80, 14, '{}', 'Cuenta dada de alta y equipo capacitado', 'Account live and team trained');
+-- El formulario web B2B pide lo mínimo para calificar.
+update crm.web_forms set ask_fields = '{b2b_points_of_sale,b2b_monthly_volume,b2b_integration}' where id = pg_temp.uid('f-mx-b2b');
