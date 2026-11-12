@@ -94,7 +94,7 @@ test.describe('pedido, entrega a Operaciones, cola, devolución y ganar a mano',
 
   test('Operaciones entra a su cola, toma el negocio, mantiene sus campos y lo devuelve con motivo', async ({ page }) => {
     const errors = pageErrors(page)
-    await loginAs(page, 'tom.reyes')
+    await loginAs(page, 'tom.reyes', { stay: true })
     await expect(page).toHaveURL(/\/operaciones$/)
     await spanish(page)
     await page.reload()
