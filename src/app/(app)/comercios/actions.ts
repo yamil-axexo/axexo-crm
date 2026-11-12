@@ -3,7 +3,11 @@
 import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
 import { addContact, createAccount, mergeAccounts, reassignAccounts, setParent, updateAccount } from '@/domain/accounts'
-import { withUser } from '@/server/db'
+import { withUser, type Tx } from '@/server/db'
+import { invalid } from '@/lib/errors'
+import { isUuid } from '@/lib/ids'
+
+const BOOK_BATCH = 500
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -68,15 +72,27 @@ export async function setParentAction(_: R | null, fd: FormData): Promise<R> {
 export async function reassignAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     let ids = fd.getAll('account_id').filter((v): v is string => typeof v === 'string' && v.length > 0)
-    const from = str(fd, 'from_user_id')
+    // Cartera completa: "de" trae persona y mercado (id|MX); la región es opcional y tiene que ser del mismo mercado.
+    const [from, fromMarket] = str(fd, 'from_user_id').split('|')
+    let left = 0
     if (ids.length === 0 && from) {
-      const market = str(fd, 'market')
-      const rows = await withUser(ctx.user.id, (tx) => tx<{ id: string }[]>`
-        select id from crm.accounts where owner_id = ${from} and market_code = ${market} and archived_at is null limit 500`)
+      const market = fromMarket || str(fd, 'market')
+      const [regionMarket, ...rest] = str(fd, 'region').split('|')
+      const region = rest.join('|')
+      if (region && regionMarket !== market) throw invalid('Esa región es de otro mercado.', 'That region belongs to another market.')
+      if (!isUuid(from)) throw invalid('Elige de quién es la cartera.', 'Choose whose book it is.')
+      const scope = (tx: Tx) => tx`owner_id = ${from} and market_code = ${market} and archived_at is null ${region ? tx`and region = ${region}` : tx``}`
+      const rows = await withUser(ctx.user.id, (tx) => tx<{ id: string }[]>`select id from crm.accounts where ${scope(tx)} order by name_norm, id limit ${BOOK_BATCH}`)
       ids = rows.map((r) => r.id)
+      if (ids.length === BOOK_BATCH) {
+        const total = await withUser(ctx.user.id, (tx) => tx<{ n: number }[]>`select count(*)::int as n from crm.accounts where ${scope(tx)}`)
+        left = (total[0]?.n ?? 0) - ids.length
+      }
     }
+    if (ids.length === 0) throw invalid('No hay comercios que mover con esa selección.', 'There are no merchants to move with that selection.')
     const n = await reassignAccounts(ctx, ids, str(fd, 'to_user_id'))
-    return { message: [`${n} comercios reasignados, con sus negocios y tareas abiertas.`, `${n} merchants reassigned, with their open deals and tasks.`] }
+    const more = left > 0 ? [` Quedan ${left} con esa selección: repite para seguir.`, ` ${left} remain with that selection: repeat to continue.`] : ['', '']
+    return { message: [`${n} comercios reasignados, con sus negocios y tareas abiertas.${more[0]}`, `${n} merchants reassigned, with their open deals and tasks.${more[1]}`] }
   })
 }
 

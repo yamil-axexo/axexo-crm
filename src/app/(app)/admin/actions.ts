@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { runAction, str } from '@/server/action'
 import { systemCtx } from '@/server/context'
 import { env } from '@/env'
-import { createApiClient, endMembership, grantMembership, revokeApiClient, setRoutingMembers } from '@/domain/admin'
+import { createApiClient, createTeam, endMembership, grantMembership, revokeApiClient, setRoutingMembers } from '@/domain/admin'
 import { ingestMetricsFile, ingestSalesAppEvent } from '@/domain/integrations'
 import { forbidden, invalid, type ActionResult } from '@/lib/errors'
 import { configurePipeline } from '@/domain/custom'
@@ -16,6 +16,13 @@ export async function grantMembershipAction(_: R | null, fd: FormData): Promise<
   return runAction(async (ctx) => {
     await grantMembership(ctx, { email: str(fd, 'email'), fullName: str(fd, 'full_name'), role: str(fd, 'role') as 'rep', market: str(fd, 'market'), teamId: str(fd, 'team_id') }, env().AUTH_ALLOWED_DOMAINS)
     return { message: ['Acceso otorgado.', 'Access granted.'] }
+  })
+}
+
+export async function createTeamAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await createTeam(ctx, { market: str(fd, 'market'), name: str(fd, 'name'), motor: str(fd, 'motor') as 'd2d' })
+    return { message: ['Equipo creado.', 'Team created.'] }
   })
 }
 

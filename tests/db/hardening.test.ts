@@ -9,7 +9,7 @@ import { createLead, intakeFromForm, markContacted, qualifyLead, takeLead } from
 import { listLeads } from '@/dal/leads'
 import { getSupervisorBoard } from '@/dal/boards'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
-import { grantMembership } from '@/domain/admin'
+import { createTeam, grantMembership } from '@/domain/admin'
 import { getOnboarding, setOnboardingHidden, toggleStep } from '@/domain/onboarding'
 import { firstStop } from '@/server/first-stop'
 import { evaluateRules } from '@/domain/rules'
@@ -267,6 +267,18 @@ describe('hallazgos de QA', () => {
     expect((await asPersona('sam.ortiz', (tx) => tx`select 1 from crm.user_onboarding where user_id = ${jade.user.id}`)).length).toBe(0)
     expect((await asPersona('sam.ortiz', (tx) => tx`update crm.user_onboarding set done = '{}' where user_id = ${jade.user.id}`)).count).toBe(0)
     await expect(asPersona('sam.ortiz', (tx) => tx`insert into crm.user_onboarding (user_id) values (${jade.user.id})`)).rejects.toThrow()
+  })
+
+  it('equipos: administración los crea; un equipo es de un mercado y no admite gente de otro', async () => {
+    const nora = await ctxFor('nora.salas')
+    const name = `Equipo ${tag()}`
+    const id = await createTeam(nora, { market: 'US', name, motor: 'dealer' })
+    expect((await admin`select 1 from crm.audit_events where object_id = ${id} and action = 'team.created'`).length).toBe(1)
+    await expect(createTeam(nora, { market: 'US', name: name.toUpperCase(), motor: 'dealer' })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(createTeam(await ctxFor('robert.hale'), { market: 'US', name: `Otro ${tag()}`, motor: 'dealer' })).rejects.toMatchObject({ code: 'forbidden' })
+    const org = ['axexo.com']
+    await expect(grantMembership(nora, { email: `eq.${tag()}@axexo.com`, fullName: 'Persona MX', role: 'rep', market: 'MX', teamId: id }, org)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(grantMembership(nora, { email: `eq.${tag()}@axexo.com`, fullName: 'Persona US', role: 'rep', market: 'US', teamId: id }, org)).resolves.toBeUndefined()
   })
 
   it('QA-12: atender una sugerencia cierra los demás avisos abiertos del mismo negocio', async () => {

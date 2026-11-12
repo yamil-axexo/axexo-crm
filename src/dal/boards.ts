@@ -164,3 +164,29 @@ export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number }> {
     return { leadsWaiting: rows[0]?.n ?? 0 }
   })
 }
+
+export type BookSources = {
+  owners: { id: string; full_name: string; is_active: boolean; market_code: string; accounts: number }[]
+  regions: { market_code: string; region: string; accounts: number }[]
+}
+
+/**
+ * Para repartir cartera: quién tiene comercios en los mercados donde la persona puede reasignar, incluidas las cuentas
+ * de servicio y las personas que ya no están (ahí suele quedar lo que nadie atiende), y las regiones con más comercios.
+ */
+export async function getBookSources(ctx: Ctx): Promise<BookSources> {
+  const markets = ctx.markets.filter((m) => ctx.can('account.reassign', m.code)).map((m) => m.code)
+  if (markets.length === 0) return { owners: [], regions: [] }
+  return withUser(ctx.user.id, async (tx) => {
+    const owners = await tx<BookSources['owners']>`
+      select u.id, u.full_name, u.is_active, a.market_code, count(*)::int as accounts
+        from crm.accounts a join crm.users u on u.id = a.owner_id
+       where a.archived_at is null and a.market_code = any(${markets}::text[])
+       group by u.id, u.full_name, u.is_active, a.market_code order by a.market_code, count(*) desc, u.full_name`
+    const regions = await tx<BookSources['regions']>`
+      select a.market_code, a.region, count(*)::int as accounts from crm.accounts a
+       where a.archived_at is null and a.region is not null and a.region <> '' and a.market_code = any(${markets}::text[])
+       group by 1, 2 order by 1, 3 desc, 2 limit 120`
+    return { owners: [...owners], regions: [...regions] }
+  })
+}

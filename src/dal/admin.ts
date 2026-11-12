@@ -14,7 +14,10 @@ export async function getUsers(ctx: Ctx) {
     const memberships = await tx<{ id: string; user_id: string; market_code: string | null; role: string; team: string | null }[]>`
       select m.id, m.user_id, m.market_code, m.role, t.name as team from crm.memberships m left join crm.teams t on t.id = m.team_id
        where m.valid_to is null order by m.market_code nulls first, m.role`
-    const teams = await tx<{ id: string; name: string; market_code: string }[]>`select id, name, market_code from crm.teams order by market_code, name`
+    const teams = await tx<{ id: string; name: string; market_code: string; motor: string; members: number }[]>`
+      select t.id, t.name, t.market_code, t.motor,
+             (select count(*)::int from crm.memberships m where m.team_id = t.id and m.valid_to is null) as members
+        from crm.teams t order by t.market_code, t.name`
     return { users: [...users], memberships: [...memberships], teams: [...teams] }
   })
 }

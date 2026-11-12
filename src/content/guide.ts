@@ -528,7 +528,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'admin-teams', topic: 'admin', tracks: ['admin'],
     q: { es: '¿Cómo creo un equipo?', en: 'How do I create a team?' },
-    a: { es: 'Todavía no hay pantalla para eso: los equipos se cargan por base de datos. Pídelo a quien mantiene CONTIGO.', en: 'There is no screen for that yet: teams are loaded in the database. Ask whoever maintains CONTIGO.' },
+    a: { es: 'Administración, Personas, "Nuevo equipo": nombre, mercado y tipo de venta. Luego, al dar acceso, eliges el equipo. Quien tiene rol de supervisión en un equipo ve lo de su gente.', en: 'Admin, People, "New team": name, market and sales motion. Then, when granting access, you pick the team. Whoever holds the supervisor role on a team sees their people\'s records.' },
   },
   {
     id: 'admin-win', topic: 'admin', tracks: ['admin'],

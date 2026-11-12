@@ -59,11 +59,39 @@ export async function grantMembership(ctx: Ctx, input: z.input<typeof grant>, al
     if (!users[0]) users = await tx<{ id: string }[]>`insert into crm.users (email, full_name) values (${v.email}, ${v.fullName}) returning id`
     const userId = users[0]!.id
     const market = global ? null : v.market
+    if (v.teamId) {
+      // Un equipo es de un mercado: no se arma un equipo con gente de otro.
+      const team = await tx`select 1 from crm.teams where id = ${v.teamId} and market_code is not distinct from ${market}`
+      if (!team[0]) throw invalid('Ese equipo es de otro mercado.', 'That team belongs to another market.')
+    }
     const dup = await tx`select 1 from crm.memberships where user_id = ${userId} and role = ${v.role}
                           and market_code is not distinct from ${market} and (valid_to is null or valid_to > now())`
     if (dup[0]) throw invalid('Esa persona ya tiene ese rol.', 'That person already has that role.')
     await tx`insert into crm.memberships (user_id, market_code, role, team_id) values (${userId}, ${market}, ${v.role}, ${v.teamId || null})`
     await audit(tx, ctx, 'membership.granted', 'user', userId, market, null, { role: v.role, market })
+  })
+}
+
+const teamInput = z.object({
+  market: z.string().length(2),
+  name: z.string().trim().min(2).max(60),
+  motor: z.enum(['d2d', 'b2b', 'dealer', 'event', 'orders', 'other']),
+})
+
+/** Un equipo agrupa a quienes venden juntos bajo una supervisión. Quien supervisa ve lo de su equipo. */
+export async function createTeam(ctx: Ctx, input: z.input<typeof teamInput>): Promise<string> {
+  ctx.assert('config.manage')
+  const parsed = teamInput.safeParse(input)
+  if (!parsed.success) throw invalid('Un equipo lleva mercado, nombre y tipo de venta.', 'A team needs a market, a name and a sales motion.')
+  const v = parsed.data
+  return withUser(ctx.user.id, async (tx) => {
+    const mk = await tx`select 1 from crm.markets where code = ${v.market}`
+    if (!mk[0]) throw invalid('Ese mercado no existe.', 'That market does not exist.')
+    const dup = await tx`select 1 from crm.teams where market_code = ${v.market} and lower(name) = lower(${v.name})`
+    if (dup[0]) throw invalid('Ya hay un equipo con ese nombre en ese mercado.', 'There is already a team with that name in that market.')
+    const rows = await tx<{ id: string }[]>`insert into crm.teams (market_code, name, motor) values (${v.market}, ${v.name}, ${v.motor}) returning id`
+    await audit(tx, ctx, 'team.created', 'team', rows[0]!.id, v.market, null, { name: v.name, motor: v.motor })
+    return rows[0]!.id
   })
 }
 

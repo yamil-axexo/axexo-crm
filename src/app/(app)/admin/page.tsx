@@ -11,7 +11,7 @@ import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader, Pills, Ta
 import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
 import { ago, day, dayTime, num } from '@/lib/format'
 import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
-import { configurePipelineAction, createApiClientAction, endMembershipAction, grantMembershipAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction } from './actions'
+import { configurePipelineAction, createApiClientAction, createTeamAction, endMembershipAction, grantMembershipAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction } from './actions'
 import { PipedriveTab } from './pipedrive'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
@@ -63,16 +63,31 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <Card pad={false} data-testid="admin-people">
         <div className="flex items-start justify-between gap-4 px-7 pt-7">
           <CardTitle title={t('Personas', 'People')} hint={t('El acceso es una membresía con rol y mercado. Quitarlo la cierra con fecha; no borra a la persona ni su historial.', 'Access is a membership with a role and a market. Removing it closes it with a date; the person and their history stay.')} />
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <Dialog trigger={t('Nuevo equipo', 'New team')} title={t('Nuevo equipo', 'New team')} testId="team-open">
+            <ActionForm action={createTeamAction} onOk="close" className="grid grid-cols-2 gap-4">
+              <Field label={t('Nombre', 'Name')} className="col-span-2" hint={t('Quien supervisa un equipo ve lo de su gente.', 'Whoever supervises a team sees their people\'s records.')}><input name="name" className="input" required minLength={2} maxLength={60} data-testid="team-name" /></Field>
+              <Field label={t('Mercado', 'Market')}><select name="market" className="input" required data-testid="team-market">{live.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>
+              <Field label={t('Tipo de venta', 'Sales motion')}><select name="motor" className="input" data-testid="team-motor">{Object.keys(MOTOR).map((k) => <option key={k} value={k}>{lab(t, MOTOR[k])}</option>)}</select></Field>
+              <div className="col-span-2 flex justify-end"><Submit testId="team-save">{t('Crear equipo', 'Create team')}</Submit></div>
+            </ActionForm>
+          </Dialog>
           <Dialog trigger={t('Dar acceso', 'Grant access')} title={t('Dar acceso', 'Grant access')} variant="primary" testId="grant-open">
             <ActionForm action={grantMembershipAction} onOk="close" className="grid grid-cols-2 gap-4">
               <Field label={t('Correo', 'Email')} className="col-span-2" hint={t(`Solo cuentas de ${domainList(env().AUTH_ALLOWED_DOMAINS, 'o')}.`, `Only ${domainList(env().AUTH_ALLOWED_DOMAINS, 'or')} accounts.`)}><input name="email" type="email" className="input" required data-testid="grant-email" /></Field>
               <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="full_name" className="input" required minLength={2} data-testid="grant-name" /></Field>
               <Field label={t('Rol', 'Role')}><select name="role" className="input" data-testid="grant-role">{(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{t(ROLE_LABEL[r].es, ROLE_LABEL[r].en)}</option>)}</select></Field>
               <Field label={t('Mercado', 'Market')} hint={t('Vacío para roles globales.', 'Empty for global roles.')}><select name="market" className="input" data-testid="grant-market"><option value="">—</option>{live.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>
-              <Field label={t('Equipo', 'Team')} className="col-span-2"><select name="team_id" className="input"><option value="">—</option>{d.teams.map((x) => <option key={x.id} value={x.id}>{x.market_code} · {x.name}</option>)}</select></Field>
+              <Field label={t('Equipo', 'Team')} className="col-span-2" hint={t('Opcional. Tiene que ser del mismo mercado.', 'Optional. It must be in the same market.')}><select name="team_id" className="input" data-testid="grant-team"><option value="">—</option>{d.teams.map((x) => <option key={x.id} value={x.id}>{x.market_code} · {x.name}</option>)}</select></Field>
               <div className="col-span-2 flex justify-end"><Submit testId="grant-save">{t('Dar acceso', 'Grant access')}</Submit></div>
             </ActionForm>
           </Dialog>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 px-7 pt-4" data-testid="team-list">
+          <span className="text-[13px] font-medium text-muted-2">{t('Equipos:', 'Teams:')}</span>
+          {d.teams.length === 0 && <span className="text-[13px] text-muted">{t('todavía no hay ninguno', 'none yet')}</span>}
+          {d.teams.map((x) => <span key={x.id} className="rounded-full bg-surface-3 px-3 py-1 text-[12.5px] font-semibold text-muted-2" data-testid="team-chip">{x.market_code} · {x.name} · {x.members}</span>)}
         </div>
         <Table testId="people-table" head={<><th>{t('Persona', 'Person')}</th><th>{t('Acceso', 'Access')}</th><th>{t('Días activos (14)', 'Active days (14)')}</th><th>{t('Acciones (14 días)', 'Actions (14 days)')}</th><th>{t('Última vez', 'Last seen')}</th></>}>
           {d.users.map((u) => (

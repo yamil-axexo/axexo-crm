@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx, systemCtx } from '@/server/context'
-import { getSupervisorBoard } from '@/dal/boards'
+import { getBookSources, getSupervisorBoard } from '@/dal/boards'
 import { sellers } from '@/dal/leads'
 import { ensureRulesFresh, EXCEPTION_KINDS } from '@/domain/rules'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table } from '@/ui/kit'
@@ -22,6 +22,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const live = ctx.markets.filter((m) => m.status === 'live')
   const canReassign = ctx.can('account.reassign', sp.market)
   const people = canReassign ? await sellers(ctx, sp.market) : []
+  const book = canReassign ? await getBookSources(ctx) : { owners: [], regions: [] }
   const totalOpen = Object.values(board.byKind).reduce((a, b) => a + b, 0)
   const link = (patch: Record<string, string | undefined>) => qs('/supervisor', { market: sp.market, kind: sp.kind, owner: sp.owner, ...patch })
   const href = (e: (typeof board.queue)[number]) => (e.deal_id ? `/deals/${e.deal_id}` : e.lead_id ? `/leads/${e.lead_id}` : e.account_id ? `/comercios/${e.account_id}` : '/admin?tab=integraciones')
@@ -64,13 +65,13 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
             ))}
           </Table>
         )}
-        {canReassign && board.reps.length > 1 && (
+        {canReassign && book.owners.length > 0 && (
           <div className="border-t border-line px-7 py-5">
             <Dialog trigger={t('Reasignar una cartera completa', 'Reassign a whole book')} title={t('Reasignar cartera', 'Reassign book')} size="sm" testId="reassign-book">
               <ActionForm action={reassignAction} onOk="close" className="space-y-4">
-                <p className="text-[13.5px] text-muted-2">{t('Mueve todos los comercios de una persona a otra, con sus negocios y tareas abiertas. La atribución anterior queda con fecha de cierre.', 'Moves all of one person’s merchants to another, with their open deals and tasks. The previous attribution is closed with a date.')}</p>
-                <Field label={t('Mercado', 'Market')}><select name="market" className="input" defaultValue={sp.market ?? live[0]?.code}>{live.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>
-                <Field label={t('De', 'From')}><select name="from_user_id" className="input" data-testid="book-from">{board.reps.map((r) => <option key={`${r.id}${r.market_code}`} value={r.id}>{r.full_name} · {r.market_code} ({r.accounts})</option>)}</select></Field>
+                <p className="text-[13.5px] text-muted-2">{t('Mueve los comercios de una persona a otra, con sus negocios y tareas abiertas, de 500 en 500. La atribución anterior queda con fecha de cierre.', 'Moves one person’s merchants to another, with their open deals and tasks, 500 at a time. The previous attribution is closed with a date.')}</p>
+                <Field label={t('De', 'From')} hint={t('Incluye cuentas de servicio y personas que ya no están.', 'Includes service accounts and people who have left.')}><select name="from_user_id" className="input" required data-testid="book-from">{book.owners.map((o) => <option key={`${o.id}${o.market_code}`} value={`${o.id}|${o.market_code}`}>{o.full_name}{o.is_active ? '' : t(' (inactiva)', ' (inactive)')} · {o.market_code} ({o.accounts})</option>)}</select></Field>
+                {book.regions.length > 0 && <Field label={t('Solo esta región', 'Only this region')} hint={t('Opcional. Tiene que ser del mismo mercado.', 'Optional. It must be in the same market.')}><select name="region" className="input" data-testid="book-region"><option value="">{t('Todas las regiones', 'All regions')}</option>{book.regions.map((r) => <option key={`${r.market_code}${r.region}`} value={`${r.market_code}|${r.region}`}>{r.market_code} · {r.region} ({r.accounts})</option>)}</select></Field>}
                 <Field label={t('A', 'To')}><select name="to_user_id" className="input" data-testid="book-to">{people.map((p) => <option key={`${p.id}${p.market_code}`} value={p.id}>{p.full_name} · {p.market_code}</option>)}</select></Field>
                 <div className="flex justify-end"><Submit testId="book-save">{t('Reasignar', 'Reassign')}</Submit></div>
               </ActionForm>
