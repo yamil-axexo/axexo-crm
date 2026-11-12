@@ -6,7 +6,7 @@ import { useEffect } from 'react'
  *  - [data-reveal]: entra al asomarse en pantalla (lo que ya está a la vista al cargar no se toca).
  *    Se revisa en cada scroll, así que también entra lo que se pasó de largo: nada se queda oculto.
  *  - [data-parallax="0.06"]: escribe --py según la posición en pantalla.
- *  - [data-count="5"]: el número sube desde cero al entrar.
+ *  - [data-count="5"]: el número sube desde cero al entrar. Antes de entrar muestra su cifra real, nunca 0.
  *  - [data-spot]: la tarjeta sigue al cursor (--mx, --my, --rx, --ry). [data-glow]: brillo que sigue al cursor.
  * Con prefers-reduced-motion no arma nada: el contenido queda completo y quieto.
  */
@@ -28,6 +28,8 @@ export function MotionRoot() {
         if (k < 1) requestAnimationFrame(tick)
       }
       requestAnimationFrame(tick)
+      // Si la pestaña se oculta a media animación, el navegador deja de pintar: la cifra final queda escrita de todos modos.
+      window.setTimeout(() => { el.textContent = String(to) }, 1000)
     }
     const show = (el: HTMLElement) => {
       el.classList.add('is-in')
@@ -41,7 +43,8 @@ export function MotionRoot() {
       if (el.getBoundingClientRect().top < vh() * 0.92) el.classList.add('is-in')
       else {
         pending.push(el)
-        el.querySelectorAll<HTMLElement>('[data-count]').forEach((c) => { counters.add(c); c.textContent = '0' })
+        // La cifra real se queda escrita mientras espera: una captura o una página que nadie ha recorrido nunca muestra 0.
+        el.querySelectorAll<HTMLElement>('[data-count]').forEach((c) => counters.add(c))
       }
     }
     root.classList.add('sc-motion')

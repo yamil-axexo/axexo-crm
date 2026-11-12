@@ -80,8 +80,8 @@ const S = {
     key: 'convert',
     title: { es: 'Convierte un lead calificado en comercio y negocio', en: 'Convert a qualified lead into a merchant and a deal' },
     why: {
-      es: 'En el lead, "Calificar" y luego "Convertir en comercio y negocio": eliges el embudo y confirmas el tipo de cuenta. Sus notas y llamadas pasan al hilo.',
-      en: 'On the lead, "Qualify" and then "Convert to merchant and deal": you pick the pipeline and confirm the account type. Its notes and calls move to the thread.',
+      es: 'En el lead, "Calificar" y luego "Convertir en comercio y negocio": eliges el embudo y confirmas el tipo de cuenta. Sus notas, llamadas y tareas pasan al hilo, y también el mensaje que la persona escribió en el formulario.',
+      en: 'On the lead, "Qualify" and then "Convert to merchant and deal": you pick the pipeline and confirm the account type. Its notes, calls and tasks move to the thread, and so does the message the person wrote on the form.',
     },
     href: '/leads',
     cta: GO.leads,
@@ -90,18 +90,18 @@ const S = {
     key: 'mine',
     title: { es: 'Abre Comercios, toca "Míos" y confirma que están tus comercios', en: 'Open Merchants, tap "Mine" and confirm your merchants are there' },
     why: {
-      es: 'Si falta alguno, avisa a tu supervisor hoy: puede seguir a nombre de otra persona. Antes de crear uno, búscalo por nombre o teléfono con el buscador de arriba.',
-      en: 'If one is missing, tell your supervisor today: it may still be under someone else. Before adding one, search it by name or phone with the search box at the top.',
+      es: 'Si falta alguno, avisa hoy a tu supervisión o a quien lidera tu mercado: puede seguir a nombre de otra persona. Antes de crear uno, búscalo por nombre o teléfono con el buscador de arriba.',
+      en: 'If one is missing, tell your supervisor or whoever leads your market today: it may still be under someone else. Before adding one, search it by name or phone with the search box at the top.',
     },
     href: '/comercios?owner=me',
     cta: GO.merchants,
   },
   visit: {
     key: 'visit',
-    title: { es: 'Registra una visita o deja una nota en una ficha', en: 'Log a visit or leave a note on a record' },
+    title: { es: 'Registra una visita o una reunión, o deja una nota en una ficha', en: 'Log a visit or a meeting, or leave a note on a record' },
     why: {
-      es: 'En la ficha, "Visita" guarda cómo te fue y quién visitó; "Nota", lo que hablaron. Queda en el comercio, no en tu teléfono.',
-      en: 'On the record, "Visit" saves how it went and who visited; "Note", what you discussed. It stays with the merchant, not on your phone.',
+      es: 'En la ficha, "Visita" guarda cómo te fue y quién visitó. Si vendes a cadenas, distribuidores o ISO, registra la "Reunión". "Nota" guarda lo que hablaron. Queda en la cuenta, no en tu teléfono.',
+      en: 'On the record, "Visit" saves how it went and who visited. If you sell to chains, distributors or ISOs, log the "Meeting". "Note" saves what you discussed. It stays with the account, not on your phone.',
     },
     href: '/comercios?owner=me',
     cta: GO.merchants,
@@ -180,8 +180,8 @@ const S = {
     key: 'distribute',
     title: { es: 'Reparte la cartera que quedó por repartir', en: 'Distribute the book that has no current owner' },
     why: {
-      es: 'En Mi equipo, "Por repartir" te dice cuántos hay. "Repartir comercios" los pasa por plaza o territorio; "Reasignar cartera", los leads y negocios de una persona.',
-      en: 'In My team, "No current owner" tells you how many there are. "Distribute merchants" hands them out by place or territory; "Reassign book", one person\'s leads and deals.',
+      es: 'En Mi equipo, "Por repartir" te dice cuántos hay. "Repartir comercios" los pasa por plaza o territorio; en cadenas, distribuidores e ISO se reparte por quién lo lleva o por región. "Reasignar cartera" pasa los leads y negocios de una persona.',
+      en: 'In My team, "No current owner" tells you how many there are. "Distribute merchants" hands them out by place or territory; for chains, distributors and ISOs, distribute by owner or by region. "Reassign book" moves one person\'s leads and deals.',
     },
     href: '/supervisor',
     cta: GO.team,
@@ -366,6 +366,16 @@ const S = {
     href: '/admin?tab=reportes',
     cta: { es: 'Ir a Problemas reportados', en: 'Go to Reported problems' },
   },
+  pipedriveTab: {
+    key: 'pipedriveTab',
+    title: { es: 'Revisa la pestaña Pipedrive y las llaves de API', en: 'Review the Pipedrive tab and the API keys' },
+    why: {
+      es: 'En Administración, "Pipedrive" dice si la conexión está configurada, si la importación ya corrió, qué se copió y qué no se cargó. Las llaves de API están en "Integraciones": cada una con sus permisos, y se muestra una sola vez.',
+      en: 'In Administration, "Pipedrive" shows whether the connection is configured, whether the import has run, what was copied and what did not load. API keys live under "Integrations": each with its scopes, and shown only once.',
+    },
+    href: '/admin?tab=pipedrive',
+    cta: { es: 'Ir a la pestaña Pipedrive', en: 'Go to the Pipedrive tab' },
+  },
   status: {
     key: 'status',
     title: { es: 'Abre Estado de CONTIGO', en: 'Open CONTIGO status' },
@@ -386,7 +396,7 @@ export const STEPS: Record<Track, Step[]> = {
   lead: [S.teamHome, S.distribute, S.weekly, S.closed, S.exceptions, S.panelMenu, S.report],
   ops: [S.opsQueue, S.opsTake, S.opsReturn, S.opsFields, S.opsNote, S.report],
   lt: [S.panel, S.closed, S.team, S.readonly, S.missing],
-  admin: [S.access, S.rotation, S.territories, S.winRule, S.fx, S.quality, S.reports, S.status],
+  admin: [S.access, S.rotation, S.territories, S.winRule, S.fx, S.quality, S.pipedriveTab, S.reports, S.status],
 }
 
 // ---------------------------------------------------------------- hábitos por rol
@@ -731,7 +741,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'today-empty', topic: 'today', tracks: SELL,
     q: { es: '¿Por qué Hoy me sale "Todo al día" si tengo trabajo?', en: 'Why does Today say "All caught up" when I have work?' },
-    a: { es: 'Hoy muestra lo que está a tu nombre: leads nuevos, tareas con fecha, el próximo paso de tus negocios el día que toca, lo que te avisaron y sugerencias. Un próximo paso con fecha futura no aparece antes. Revisa Comercios, "Míos": si faltan comercios, pídele a tu supervisor que te los asigne.', en: 'Today shows what is under your name: new leads, dated tasks, the next step of your deals on its day, what people notified you about and suggestions. A next step dated in the future does not show earlier. Check Merchants, "Mine": if merchants are missing, ask your supervisor to assign them to you.' },
+    a: { es: 'Hoy muestra lo que está a tu nombre: leads nuevos, tareas con fecha, el próximo paso de tus negocios el día que toca, lo que te avisaron y sugerencias. Un próximo paso con fecha futura no aparece antes. Revisa Comercios, "Míos": si faltan comercios, pide a tu supervisión o a quien lidera tu mercado que te los asigne.', en: 'Today shows what is under your name: new leads, dated tasks, the next step of your deals on its day, what people notified you about and suggestions. A next step dated in the future does not show earlier. Check Merchants, "Mine": if merchants are missing, ask your supervisor to assign them to you.' },
   },
   {
     id: 'call-back', topic: 'today', tracks: SELL,
@@ -759,6 +769,11 @@ export const HELP: HelpItem[] = [
     id: 'lead-hours', topic: 'leads', tracks: [...SELL, 'admin'],
     q: { es: '¿El reloj corre de noche o en fin de semana?', en: 'Does the clock run at night or on weekends?' },
     a: { es: 'No. Solo corre en el horario hábil de tu mercado. Un lead que entra de noche o en fin de semana empieza a contar cuando abre el siguiente día hábil, y el lead dice a qué hora vence, en hora del mercado. Administración cambia el horario en "Formularios y turnos", "Horario hábil por mercado".', en: 'No. It only runs during your market\'s business hours. A lead that comes in at night or on a weekend starts counting when the next business day opens, and the lead says when it is due, in market time. An admin changes the hours under "Forms and rotation", "Business hours by market".' },
+  },
+  {
+    id: 'lead-alert', topic: 'leads', tracks: SELL,
+    q: { es: '¿CONTIGO me avisa cuando llega un lead?', en: 'Does CONTIGO tell me when a lead arrives?' },
+    a: { es: 'Con CONTIGO abierto en una pestaña, sí: el contador de Leads y Hoy se actualizan solos cada minuto y el título de la pestaña dice "(1) Lead nuevo". Si quieres además el aviso del navegador, abre tu menú y elige "Avisarme cuando llegue un lead"; el navegador te pide permiso una vez. Con la pestaña cerrada no avisa, y no llega por correo ni por Slack. Supervisión y quien lidera tienen en Mi equipo la "Guardia de leads": los que nadie ha intentado, con los minutos hábiles que les quedan.', en: 'While CONTIGO is open in a tab, yes: the Leads counter and Today refresh on their own every minute and the tab title reads "(1) New lead". If you also want the browser alert, open your menu and choose "Tell me when a lead arrives"; the browser asks for permission once. With the tab closed there is no alert, and nothing arrives by email or Slack. Supervisors and market leads have the "Lead watch" in My team: leads nobody has attempted, with the business minutes they have left.' },
   },
   {
     id: 'lead-take', topic: 'leads', tracks: SELL,
@@ -803,7 +818,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'lead-convert', topic: 'leads', tracks: SELL,
     q: { es: '¿Qué pasa cuando convierto un lead?', en: 'What happens when I convert a lead?' },
-    a: { es: 'Ya calificado, "Convertir en comercio y negocio" crea el comercio como prospecto, su contacto y un negocio con próximo paso. Eliges el embudo, confirmas el tipo de cuenta y qué hace la persona en el negocio; si el comercio ya existe, lo ligas. Las notas, llamadas y tareas del lead pasan al hilo del comercio y del negocio.', en: 'Once qualified, "Convert to merchant and deal" creates the merchant as a prospect, its contact and a deal with a next step. You pick the pipeline, confirm the account type and what the person does in the business; if the merchant already exists, you link it. The lead\'s notes, calls and tasks move to the merchant and deal thread.' },
+    a: { es: 'Ya calificado, "Convertir en comercio y negocio" crea el comercio como prospecto, su contacto y un negocio con próximo paso. Eliges el embudo, confirmas el tipo de cuenta y qué hace la persona en el negocio; si el comercio ya existe, lo ligas. Las notas, llamadas y tareas del lead pasan al hilo del comercio y del negocio, y el mensaje que la persona escribió en el formulario queda ahí como primera nota.', en: 'Once qualified, "Convert to merchant and deal" creates the merchant as a prospect, its contact and a deal with a next step. You pick the pipeline, confirm the account type and what the person does in the business; if the merchant already exists, you link it. The lead\'s notes, calls and tasks move to the merchant and deal thread.' },
   },
   {
     id: 'lead-type', topic: 'leads', tracks: SELL,
@@ -860,7 +875,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'deal-pause', topic: 'deals', tracks: WORK,
     q: { es: 'El cliente me pidió esperar. ¿Cómo pauso un negocio sin perderlo?', en: 'The customer asked me to wait. How do I pause a deal without losing it?' },
-    a: { es: 'En el negocio, "Poner en pausa": escribe por qué y cuándo lo revisas. Sigue abierto, no cuenta como estancado ni sin próximo paso, y vuelve a Hoy el día de la revisión. "Retomar el negocio" lo regresa. En Negocios, el filtro "En pausa" los junta.', en: 'On the deal, "Put on hold": write why and when you will review it. It stays open, does not count as stalled or missing a next step, and comes back to Today on the review day. "Resume the deal" brings it back. In Deals, the "On hold" filter gathers them.' },
+    a: { es: 'En el negocio, "Poner en pausa": escribe por qué y cuándo lo revisas. Sigue abierto, no cuenta como estancado ni sin próximo paso, y vuelve a Hoy el día de la revisión, como la tarea "Revisar negocio en pausa"; mientras tanto, el próximo paso del negocio dice esa fecha. "Retomar el negocio" lo regresa y te deja escribir el nuevo próximo paso. En Negocios, el filtro "En pausa" los junta.', en: 'On the deal, "Put on hold": write why and when you will review it. It stays open, does not count as stalled or missing a next step, and comes back to Today on the review day. "Resume the deal" brings it back. In Deals, the "On hold" filter gathers them.' },
   },
   {
     id: 'deal-bulk', topic: 'deals', tracks: [...MANAGE, 'ops'],
@@ -919,7 +934,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'merchant-missing', topic: 'merchants', tracks: SELL,
     q: { es: 'Busqué un comercio y no aparece, o dice "Existe y lo lleva otra persona". ¿Qué hago?', en: 'I searched a merchant and got nothing, or it says "It exists and someone else has it". What do I do?' },
-    a: { es: 'Tú abres lo tuyo y lo que está sin asignar. Si es de un compañero de tu mercado, el buscador te lo dice: "Existe y lo lleva otra persona", con el nombre de quien lo lleva. No lo crees otra vez: si te toca atenderlo, pide a tu supervisión que te lo pase. Si no aparece nada, búscalo por teléfono antes de crearlo.', en: 'You open your own records and the ones with no owner. If it belongs to a teammate in your market, search tells you: "It exists and someone else has it", with that person\'s name. Do not add it again: if you should be working it, ask your supervisor to pass it to you. If nothing shows, search by phone before adding it.' },
+    a: { es: 'Tú abres lo tuyo y lo que está sin asignar. Si es de un compañero de tu mercado, el buscador te lo dice: "Existe y lo lleva otra persona", con el nombre de quien lo lleva. No lo crees otra vez: si te toca atenderlo, pide a tu supervisión que te lo pase (si tu equipo no tiene supervisión, a quien lidera tu mercado). Si no aparece nada, búscalo por teléfono antes de crearlo.', en: 'You open your own records and the ones with no owner. If it belongs to a teammate in your market, search tells you: "It exists and someone else has it", with that person\'s name. Do not add it again: if you should be working it, ask your supervisor to pass it to you. If nothing shows, search by phone before adding it.' },
   },
   {
     id: 'merchant-new', topic: 'merchants', tracks: SELL,
@@ -1018,7 +1033,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'team-none', topic: 'team', tracks: ['lead', 'admin'],
     q: { es: 'Mi equipo no tiene supervisión. ¿Quién lo revisa?', en: 'My team has no supervisor. Who reviews it?' },
-    a: { es: 'Quien lidera el mercado. En Administración, "Personas y acceso", ese equipo sale con el aviso "Sin supervisión: lo cubre quien lidera el mercado".', en: 'Whoever leads the market. In Administration, "People and access", that team shows the notice "No supervisor: whoever leads the market covers it".' },
+    a: { es: 'Quien lidera el mercado. Lo ve en Mi equipo, arriba, con el aviso "Sin supervisión: lo cubre quien lidera el mercado" y el enlace para ver ese equipo. Quien administra CONTIGO lo ve además en Administración, "Personas y acceso". Si vendes y tu equipo no tiene supervisión, lo que pedirías a tu supervisión se lo pides a quien lidera tu mercado.', en: 'Whoever leads the market. They see it in My team, at the top, with the notice "No supervisor: whoever leads the market covers it" and a link to that team. CONTIGO admins also see it in Administration, "People and access". If you sell and your team has no supervisor, ask whoever leads your market for what you would ask a supervisor.' },
   },
   {
     id: 'filter-person', topic: 'team', tracks: WATCH,
@@ -1325,7 +1340,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'who-to-ask', topic: 'support', tracks: 'all',
     q: { es: '¿A quién acudo?', en: 'Who do I go to?' },
-    a: { es: 'Para dudas de uso, esta Ayuda. Para un acceso, quien administra CONTIGO. Para algo que falla o que hace falta, "Reportar un problema". Para tu cartera o un comercio que no ves, tu supervisor.', en: 'For how-to questions, this Help. For access, a CONTIGO admin. For something broken or missing, "Report a problem". For your book or a merchant you cannot see, your supervisor.' },
+    a: { es: 'Para dudas de uso, esta Ayuda. Para un acceso, quien administra CONTIGO. Para algo que falla o que hace falta, "Reportar un problema". Para tu cartera o un comercio que no ves, tu supervisión o quien lidera tu mercado.', en: 'For how-to questions, this Help. For access, a CONTIGO admin. For something broken or missing, "Report a problem". For your book or a merchant you cannot see, your supervisor or whoever leads your market.' },
   },
 ]
 
@@ -1515,9 +1530,10 @@ export const LANDING = {
       { label: { es: 'Visitas registradas a mano y reparto de cartera por territorio', en: 'Visits logged by hand and book distribution by territory' }, state: 'on' as const },
       { label: { es: 'Cola de Operaciones y pedidos con líneas de producto', en: 'Operations queue and orders with product lines' }, state: 'on' as const },
       { label: { es: 'Negocios cerrados y reporte semanal de campo, con exportación', en: 'Closed deals and the weekly field report, with export' }, state: 'on' as const },
+      { label: { es: 'Aviso de lead nuevo con CONTIGO abierto: contador, título de la pestaña y aviso del navegador', en: 'New lead alert while CONTIGO is open: counter, tab title and browser alert' }, state: 'on' as const },
       { label: { es: 'Visitas automáticas desde la Sales App', en: 'Automatic visits from the Sales App' }, state: 'soon' as const },
       { label: { es: 'Primera venta y ventas de cada comercio desde los datos de ventas', en: 'Each merchant\'s first sale and sales from the sales data' }, state: 'soon' as const },
-      { label: { es: 'Trabajo sin conexión, fotos o archivos adjuntos, mapa, app instalable y avisos por correo o Slack', en: 'Offline work, photo or file attachments, map, installable app and email or Slack notices' }, state: 'soon' as const },
+      { label: { es: 'Trabajo sin conexión, fotos o archivos adjuntos, mapa, app instalable y avisos por correo, Slack o con CONTIGO cerrado', en: 'Offline work, photo or file attachments, map, installable app and notices by email, Slack or while CONTIGO is closed' }, state: 'soon' as const },
     ],
     on: { es: 'Funcionando', en: 'Working' },
     soon: { es: 'Todavía no', en: 'Not yet' },

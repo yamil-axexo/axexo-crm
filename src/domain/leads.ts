@@ -69,12 +69,14 @@ type LeadRow = {
   account_type: string | null
   contact_role: string | null
   extra_contacts: ExtraContact[]
+  message: string | null
+  created_at: Date
 }
 export type ExtraContact = { name: string; phone: string | null; email: string | null; at: string }
 
 async function loadLead(tx: Tx, id: string): Promise<LeadRow> {
   const rows = await tx<LeadRow[]>`select id, market_code, status, owner_id, motor, business_name, contact_name, phone, email::text, locality,
-    account_id, first_touch_at, source, form_id, sla_due_at, account_type, contact_role, extra_contacts
+    account_id, first_touch_at, source, form_id, sla_due_at, account_type, contact_role, extra_contacts, message, created_at
       from crm.leads where id = ${id} for update`
   if (!rows[0]) throw notFound('No encontramos ese lead.', 'We could not find that lead.')
   return rows[0]
@@ -579,6 +581,13 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     } else {
       await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, deal_step)
                values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, ((${marketToday(tx, lead.market_code)} + 2 + time '15:00') at time zone 'UTC'), ${ownerId}, ${ctx.user.id}, 'sales')`
+    }
+    // Lo que la persona escribió al pedir contacto no se queda en el lead: pasa al hilo del comercio y del negocio como primera nota, con su fecha.
+    if (lead.message && lead.message.trim()) {
+      await tx`insert into crm.activities (market_code, lead_id, account_id, deal_id, kind, subject, body, done_at, owner_id, created_by, source)
+               values (${lead.market_code}, ${leadId}, ${accountId}, ${dealId}, 'note',
+                       ${lead.source === 'web_form' ? ctx.t('Mensaje del formulario', 'Message from the form') : ctx.t('Mensaje del lead', 'Message on the lead')},
+                       ${lead.message.trim().slice(0, 1000)}, ${lead.created_at}, ${ownerId}, ${ctx.user.id}, 'rule')`
     }
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`
     await audit(tx, ctx, 'lead.converted', 'lead', leadId, lead.market_code, { status: 'qualified' },
