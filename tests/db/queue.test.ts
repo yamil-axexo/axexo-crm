@@ -46,9 +46,12 @@ describe('cola de Hoy: completar siempre pide el próximo paso (handoff, secció
     expect(d).toMatchObject({ next_step: out.next, due: tomorrow })
     expect((await admin`select 1 from crm.audit_events where object_id = ${id} and action = 'activity.completed'`).length).toBe(1)
 
-    // repetir no duplica: la tarea ya estaba hecha
+    // repetir no duplica: la tarea ya estaba hecha. Se compara contra lo que había justo antes de repetir, porque otra prueba de
+    // la misma corrida pudo dejar su propio "Llamar a ..." en este negocio hace menos de un minuto.
+    const calls = async () => (await admin`select 1 from crm.activities where deal_id = ${deal.id} and done_at is null and subject like 'Llamar a %'`).length
+    const before = await calls()
     expect(await completeItem(marco, { type: 'task', id, result: 'done', next: 'call', when: tomorrow })).toEqual({ next: null, due: null })
-    expect((await admin`select 1 from crm.activities where deal_id = ${deal.id} and done_at is null and subject like 'Llamar a %' and created_at > now() - interval '1 minute'`).length).toBe(0)
+    expect(await calls()).toBe(before)
   })
 
   it('cerrar es la única forma de guardar sin próximo paso', async () => {
