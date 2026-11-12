@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { getOnboarding } from '@/domain/onboarding'
 import { HABITS, INTRO, STEPS, TRACK_LABEL, trackOf, type L, type Photo as PhotoName, type Track } from '@/content/guide'
+import { homePath, type Home } from '@/domain/policy'
 import { buttonClass } from '@/ui/kit'
 import { MotionRoot } from '@/ui/showcase/motion'
 import { Phone, Photo } from '@/ui/showcase/frames'
@@ -20,6 +21,15 @@ const TRACK_PHOTO: Record<Track, { name: PhotoName; pos: string } | null> = {
 }
 const i = (n: number) => ({ '--i': n }) as React.CSSProperties
 
+/** El botón del final lleva a la pantalla donde cada rol empieza a trabajar (la misma que decide homePath). */
+const GO_HOME: Record<Home, L> = {
+  '/hoy': { es: 'Ir a Hoy', en: 'Go to Today' },
+  '/operaciones': { es: 'Ir a mi cola', en: 'Go to my queue' },
+  '/supervisor': { es: 'Ir a Mi equipo', en: 'Go to My team' },
+  '/panel-lt': { es: 'Ir al Panel del LT', en: 'Go to the Leadership panel' },
+  '/admin': { es: 'Ir a Administración', en: 'Go to Administration' },
+}
+
 /** Primer ingreso: cómo se usa CONTIGO, paso a paso, y la lista de primeros pasos de la persona según su rol. */
 export default async function WelcomePage() {
   const ctx = await requireCtx()
@@ -28,6 +38,7 @@ export default async function WelcomePage() {
   const l = (x: L) => x[lang]
   const track = trackOf(ctx.memberships)
   const intro = INTRO[track]
+  const home = homePath(ctx.memberships)
   const steps = STEPS[track]
   const habits = HABITS[track]
   const ob = await getOnboarding(ctx)
@@ -113,7 +124,7 @@ export default async function WelcomePage() {
         />
 
         <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Link href="/hoy" className={buttonClass('primary')} data-testid="welcome-go">{t('Ir a Hoy', 'Go to Today')}</Link>
+          <Link href={home} className={buttonClass('primary')} data-testid="welcome-go">{l(GO_HOME[home])}</Link>
           {ob.hidden ? (
             <form action={showOnboardingAction} className="md:ml-auto">
               <button className={buttonClass('ghost')} data-testid="onboarding-show">{t('Volver a mostrar la lista en Hoy', 'Show the list in Today again')}</button>

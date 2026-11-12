@@ -5,7 +5,7 @@ import { getCtx, publicLocale } from '@/server/context'
 import { withoutUser } from '@/server/db'
 import { personasEnabled, ssoEnabled } from '@/env'
 import { translator } from '@/lib/format'
-import { ROLE_LABEL, type Role } from '@/domain/policy'
+import { ROLE_LABEL, homePath, type Role } from '@/domain/policy'
 import { loginAsPersona, setLocale } from '@/app/session-actions'
 import { flat } from '@/server/params'
 import { HELP, LANDING, TRACK_LABEL, type L } from '@/content/guide'
@@ -31,7 +31,9 @@ const i = (n: number) => ({ '--i': n }) as React.CSSProperties
 
 /** La entrada de CONTIGO: lo que el equipo ve antes de iniciar sesión. */
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  if (await getCtx()) redirect('/hoy')
+  // Quien ya tiene sesión va a la pantalla de su rol, la misma que decide la raíz.
+  const signedIn = await getCtx()
+  if (signedIn) redirect(homePath(signedIn.memberships))
   const { error } = flat(await searchParams)
   const locale = await publicLocale()
   const lang = locale === 'en' ? 'en' : 'es'

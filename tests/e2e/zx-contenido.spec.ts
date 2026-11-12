@@ -56,7 +56,12 @@ test.describe('la entrada abre en el idioma del navegador', () => {
   test('la entrada dice de frente lo que todavía no hace y a quién acudir', async ({ page }) => {
     await page.goto('/login')
     const status = page.getByTestId('landing-status')
-    for (const text of ['Visitas automáticas desde la Sales App', 'Trabajo sin conexión, fotos o archivos adjuntos y avisos por correo']) await expect(status).toContainText(text)
+    for (const text of ['Visitas automáticas desde la Sales App', 'Primera venta y ventas de cada comercio desde los datos de ventas', 'Trabajo sin conexión, fotos o archivos adjuntos, mapa, app instalable y avisos por correo o Slack']) await expect(status).toContainText(text)
+    // lo que entró en la ola 2 ya figura como funcionando, y la regla del piloto va con las palabras del producto
+    for (const text of ['Cola de Operaciones y pedidos con líneas de producto', 'Negocios cerrados y reporte semanal de campo, con exportación']) await expect(status).toContainText(text)
+    await expect(status.getByText('Todavía no', { exact: true })).toHaveCount(3)
+    await expect(page.getByTestId('landing-rule')).toHaveText('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.')
+    await expect(page.getByTestId('landing-roles')).toContainText('Tu cola: lo que Ventas entregó')
     const faq = page.getByTestId('landing-faq')
     await expect(faq).toContainText('¿A quién acudo?')
     await expect(faq).toContainText('Reportar un problema')
@@ -143,6 +148,94 @@ test.describe('primeros pasos por rol', () => {
     await expect(page.getByTestId('habits-asks')).toContainText('Always a next step')
     await expect(page.getByTestId('step-report')).toContainText('If something breaks or is missing, report it')
     await expect(page.getByTestId('onboarding')).not.toContainText(/próximo paso|comercio/i)
+  })
+})
+
+test.describe('pasada final (ola 3): cada rol empieza en su pantalla y la ayuda cubre lo integrado', () => {
+  const HOMES = [
+    ['lucia.vega', '/hoy', 'Ir a Hoy'],
+    ['fernando.ibarra', '/hoy', 'Ir a Hoy'],
+    ['ana.robles', '/supervisor', 'Ir a Mi equipo'],
+    ['valeria.soto', '/operaciones', 'Ir a mi cola'],
+    ['luis.tovar', '/panel-lt', 'Ir al Panel del LT'],
+    ['nora.salas', '/admin', 'Ir a Administración'],
+  ] as const
+
+  test('el primer paso de cada rol lleva a la pantalla donde aterriza, y el botón del final también', async ({ page }) => {
+    test.setTimeout(120_000)
+    for (const [persona, home, go] of HOMES) {
+      await loginAs(page, persona, { stay: true })
+      expect(new URL(page.url()).pathname, persona).toBe(home)
+      await page.goto('/bienvenida')
+      const first = page.getByTestId('onboarding').locator('li[data-testid^="step-"]').first().locator('a[href^="/"]').first()
+      expect((await first.getAttribute('href'))!.split('?')[0], persona).toBe(home)
+      await expect(page.getByTestId('welcome-go'), persona).toHaveText(go)
+      await expect(page.getByTestId('welcome-go'), persona).toHaveAttribute('href', home)
+    }
+  })
+
+  test('los pasos nuevos nombran botones que existen en la pantalla a la que llevan', async ({ page }) => {
+    // Operaciones: la cola, con sus pestañas y el nombre con el que la ayuda la cita
+    await loginAs(page, 'valeria.soto', { stay: true })
+    await expect(page.locator('main')).toContainText('Cola de Operaciones')
+    for (const text of ['Sin tomar', 'Míos', 'Pendientes de aprobación', 'Pendientes de capacitación']) await expect(page.locator('main')).toContainText(text)
+    await openMenu(page)
+    await expect(page.getByTestId('nav-ops-queue')).toContainText('Cola de Operaciones')
+    await expect(page.getByTestId('nav-alerts')).toHaveText('Avisos del mercado')
+    // supervisión: negocios cerrados con exportación, en su menú
+    await loginAs(page, 'fernando.ibarra')
+    await openMenu(page)
+    await page.getByTestId('nav-closed').click()
+    await expect(page).toHaveURL(/\/reportes\/cerrados/)
+    for (const text of ['Negocios cerrados', 'Exportar CSV', 'Por persona']) await expect(page.locator('main')).toContainText(text)
+    // quien lidera: Mi equipo con reparto pendiente, resultados por semana y el reporte de campo
+    await loginAs(page, 'ana.robles', { stay: true })
+    for (const text of ['Reporte de campo', 'Negocios cerrados', 'Resultados por semana', 'Reasignar cartera']) await expect(page.locator('main')).toContainText(text)
+    await page.goto('/reportes/campo')
+    for (const text of ['Reporte semanal de campo', 'Exportar altas y ganados', 'Exportar visitas']) await expect(page.locator('main')).toContainText(text)
+    await page.goto('/panel-lt')
+    await expect(page.locator('main')).toContainText('Cómo se calcula')
+    await expect(page.locator('main')).toContainText('Adopción')
+    // administración: horario hábil y turnos en la misma pestaña, territorios y tasa
+    await loginAs(page, 'nora.salas', { stay: true })
+    await page.goto('/admin?tab=entrada')
+    await expect(page.locator('main')).toContainText('Horario hábil por mercado')
+    await page.goto('/admin?tab=embudos')
+    for (const text of ['Tasa de cambio a USD', 'Orden de las etapas', 'Qué pide cada formulario web', 'Crear embudo', 'Crear campo']) await expect(page.locator('main')).toContainText(text)
+    await openMenu(page)
+    await expect(page.getByTestId('nav-ops-config')).toHaveText('Catálogos de Operaciones')
+    // ventas: convertir, pasar y soltar, con el nombre que usa la ayuda
+    await loginAs(page, 'diana.cruz')
+    await page.goto('/leads')
+    for (const text of ['Nuevo lead', 'Buscar en la lista', 'Sin reloj (importados)', 'Seleccionar los de esta página']) await expect(page.locator('main')).toContainText(text)
+  })
+
+  test('la ayuda responde lo que entró con leads, liderazgo, operaciones y b2b; reportar nombra las pantallas nuevas', async ({ page }) => {
+    await loginAs(page, 'nora.salas')
+    await page.goto('/ayuda')
+    const help = page.getByTestId('help')
+    const items = help.getByTestId('help-item')
+    for (const [word, q] of [
+      ['Merchant ID', '¿Dónde pongo el Merchant ID, la aprobación por proveedor y la capacitación?'],
+      ['convertir en comercio', '¿Qué pasa cuando convierto un lead?'],
+      ['poner en pausa', 'El cliente me pidió esperar. ¿Cómo pauso un negocio sin perderlo?'],
+      ['exportar csv', '¿Dónde veo los negocios ganados y perdidos por persona y por mes? ¿Puedo exportar?'],
+      ['pertenece a', '¿Cómo cuelgo una sucursal de su cadena, o un agente de su ISO?'],
+      ['horario habil', '¿El reloj corre de noche o en fin de semana?'],
+      ['devolver a ventas', '¿Cómo devuelvo una solicitud incompleta y cómo se entera quien vende?'],
+      ['tasa de cambio', '¿Cómo cargo la tasa de cambio?'],
+    ] as const) {
+      await help.getByTestId('help-search').fill(word)
+      await expect(items.first(), word).toBeVisible()
+      await expect(help, word).toContainText(q)
+    }
+    await help.getByTestId('help-clear').click()
+    for (const topic of ['ops', 'numbers']) await expect(help.getByTestId(`help-topic-${topic}`).getByTestId('help-item').first()).toBeVisible()
+    // "Reportar un problema" llama a las pantallas nuevas por su nombre
+    for (const [from, name] of [['/operaciones', 'Cola de Operaciones'], ['/reportes/cerrados', 'Negocios cerrados'], ['/reportes/campo', 'Reporte de campo'], ['/admin/operaciones', 'Catálogos de Operaciones'], ['/admin', 'Administración']] as const) {
+      await page.goto(`/reportar?desde=${from}`)
+      await expect(page.getByTestId('report-screen'), from).toHaveText(name)
+    }
   })
 })
 
@@ -279,8 +372,10 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     await expect(items.first().locator('p')).toContainText('Regla del piloto: los tres embudos de primera transacción se ganan a mano')
     await help.getByTestId('help-clear').click()
     await help.getByTestId('help-chip-limits').click()
-    await expect(items).toHaveCount(7)
-    for (const q of ['¿Las visitas llegan solas desde la Sales App?', '¿Puedo trabajar o leer sin conexión?', '¿Puedo adjuntar fotos, contratos o evidencia?', '¿CONTIGO me avisa por correo cuando me cae algo?']) await expect(help).toContainText(q)
+    await expect(items).toHaveCount(10)
+    for (const q of ['¿Las visitas llegan solas desde la Sales App?', '¿Puedo trabajar o leer sin conexión?', '¿Puedo adjuntar fotos, contratos o evidencia?', '¿CONTIGO me avisa por correo o por Slack cuando me cae algo?', '¿La primera venta y las ventas de cada comercio llegan solas?', '¿Dónde está el mapa de comercios?', '¿Hay una app para instalar desde la tienda de aplicaciones?']) await expect(help).toContainText(q)
+    // lo que ya hace no sale como pendiente
+    expect((await items.allTextContents()).join(' ')).not.toMatch(/exportar|pedido/i)
     await help.getByTestId('help-chip-limits').click()
 
     // en inglés, una palabra en español también encuentra
