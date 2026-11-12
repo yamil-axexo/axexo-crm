@@ -38,7 +38,9 @@ export async function getUsers(ctx: Ctx, access: AccessFilter = 'con') {
     const m = tx`m`
     const all = await tx<{ id: string; full_name: string; email: string; is_synthetic: boolean; last_seen: Date | null; active_days: number; actions: number; has_access: boolean; ended_at: Date | null }[]>`
       select u.id, u.full_name, u.email::text, u.is_synthetic,
-             (select max(e.at) from crm.usage_events e where e.user_id = u.id) as last_seen,
+             -- La última vez: el ingreso más reciente (la misma fuente que Adopción) o el último uso registrado, lo que sea más nuevo.
+             (select max(z.at) from (select max(e.at) as at from crm.usage_events e where e.user_id = u.id
+                                     union all select max(s.at) from crm.audit_events s where s.actor_id = u.id and s.action = 'session.started') z) as last_seen,
              (select count(distinct e.at::date)::int from crm.usage_events e where e.user_id = u.id and e.at > now() - interval '14 days') as active_days,
              (select count(*)::int from crm.audit_events a where a.actor_id = u.id and a.at > now() - interval '14 days') as actions,
              exists (select 1 from crm.memberships m where m.user_id = u.id and ${current(tx, m)}) as has_access,

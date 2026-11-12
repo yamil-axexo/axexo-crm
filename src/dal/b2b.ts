@@ -46,8 +46,8 @@ export async function getB2bConfig(ctx: Ctx) {
       select id, pipeline_id, name_es, name_en, archived_at from crm.stages where archived_at is not null order by archived_at desc`
     const stageDeals = await tx<{ stage_id: string; n: number }[]>`
       select stage_id, count(*)::int as n from crm.deals where status = 'open' group by stage_id`
-    const fields = await tx<{ id: string; object: string; key: string; label_es: string; label_en: string; data_type: string; market_code: string | null; motor: string | null; is_active: boolean; in_intake: boolean; source: string }[]>`
-      select id, object, key, label_es, label_en, data_type, market_code, motor, is_active, in_intake, source from crm.field_definitions
+    const fields = await tx<{ id: string; object: string; key: string; label_es: string; label_en: string; data_type: string; market_code: string | null; motor: string | null; is_active: boolean; in_intake: boolean; source: string; only_when: string | null }[]>`
+      select id, object, key, label_es, label_en, data_type, market_code, motor, is_active, in_intake, source, applies_when ->> 'equals' as only_when from crm.field_definitions
        where source = 'manual' and object in ('account', 'deal', 'lead') order by object, position, label_es`
     const reasons = await tx<{ code: string; label_es: string; label_en: string; market_code: string | null; motors: string[] | null; is_active: boolean }[]>`
       select code, label_es, label_en, market_code, motors, is_active from crm.loss_reasons where kind = 'lost' order by (motors is null) desc, position, label_es`
