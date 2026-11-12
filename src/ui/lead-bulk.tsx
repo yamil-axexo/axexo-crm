@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { buttonClass } from '@/ui/kit'
 import { offlineBlocked, showToast } from '@/ui/complete'
@@ -15,7 +15,8 @@ export const BULK_FORM = 'lead-bulk'
  */
 export function LeadBulk({ action, reasons, labels }: { action: FormAction; reasons: { code: string; label: string }[]; labels: { selectAll: string; one: string; many: string; reason: string; pick: string; close: string; hint: string } }) {
   const router = useRouter()
-  const [state, formAction, pending] = useActionState(action, null)
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
   const [count, setCount] = useState(0)
   const all = useRef<HTMLInputElement>(null)
   const boxes = () => Array.from(document.querySelectorAll<HTMLInputElement>(`input[type=checkbox][form=${BULK_FORM}]`))
@@ -38,25 +39,28 @@ export function LeadBulk({ action, reasons, labels }: { action: FormAction; reas
     return () => document.removeEventListener('change', sync)
   }, [])
 
-  useEffect(() => {
-    if (!state?.ok) return
-    // La confirmación va en el aviso de la pantalla: si se cerraron todos, la lista queda vacía y esta barra desaparece.
-    if (state.message) showToast(state.message)
-    for (const b of boxes()) b.checked = false
-    // El conteo se actualiza por el mismo camino que un clic: el oyente de "change" del documento.
-    document.dispatchEvent(new Event('change'))
-    router.refresh()
-  }, [state, router])
-
+  // La acción se espera aquí y no en un efecto: si se cerraron todos, la lista queda vacía, esta barra se desmonta y el
+  // aviso de confirmación tiene que salir igual.
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (offlineBlocked()) return
     const data = new FormData(e.currentTarget)
-    startTransition(() => formAction(data))
+    startTransition(async () => {
+      const res = await action(null, data)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      setError(null)
+      for (const b of boxes()) b.checked = false
+      document.dispatchEvent(new Event('change'))
+      showToast(res.message ?? null)
+      router.refresh()
+    })
   }
 
   return (
-    <form id={BULK_FORM} action={formAction} onSubmit={onSubmit} className="border-b border-line px-4 py-2 @3xl:px-5" data-testid="lead-bulk">
+    <form id={BULK_FORM} onSubmit={onSubmit} className="border-b border-line px-4 py-2 @3xl:px-5" data-testid="lead-bulk">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <label className="inline-flex min-h-11 cursor-pointer items-center gap-3 text-[13px] font-medium text-strong">
           <input
@@ -77,7 +81,7 @@ export function LeadBulk({ action, reasons, labels }: { action: FormAction; reas
         )}
       </div>
       {count > 0 && <p className="pb-1 text-[13px] text-muted">{labels.hint}</p>}
-      {state && !state.ok && <p role="alert" data-testid="lead-bulk-error" className="my-2 rounded-[10px] bg-risk-bg px-3 py-2 text-[13px] font-medium text-red-text">{state.error}</p>}
+      {error && <p role="alert" data-testid="lead-bulk-error" className="my-2 rounded-[10px] bg-risk-bg px-3 py-2 text-[13px] font-medium text-red-text">{error}</p>}
     </form>
   )
 }
