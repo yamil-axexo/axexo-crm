@@ -56,9 +56,14 @@ for (const data of ['Cadenas y distribuidores', 'Formulario web', 'Esperando pri
 // Aquí se busca el guion largo de una frase (entre palabras); los textos fuente los revisa completos tests/unit/vocabulario.test.ts.
 const dashes = (line: string) => LONG_DASH.test(line) && /\p{L}[.,;:!?)"]? [—–] [¿¡("]?\p{L}/u.test(line)
 
+// La bitácora técnica de Integraciones muestra el nombre de cada evento tal como viaja en el contrato ("deal.won",
+// "sales_app · visit.checked_out"): son los nombres que usan los equipos que conectan, no texto para quien vende.
+const contractEvent = (line: string) => /^([a-z_]+ · )?[a-z_]+\.[a-z_]+/.test(line)
+
 function findings(lines: string[], locale: Locale): string[] {
   const out: string[] = []
   for (const line of lines) {
+    if (contractEvent(line)) continue
     if (dashes(line)) out.push(`guion largo: ${line}`)
     if (locale === 'es') for (const h of checkEs(line) as string[]) if (h !== 'guion largo') out.push(`${h}: ${line}`)
     if (locale === 'en' && spanishOnly.has(line)) out.push(`sin traducir: ${line}`)

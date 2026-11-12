@@ -256,7 +256,7 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
     await tx`
       insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, source)
       select d.market_code, d.account_id, d.id, 'handoff',
-             case when mk.default_locale = 'en' then 'Handoff: welcome call and activation follow-up' else 'Handoff: bienvenida y seguimiento de activación' end,
+             case when mk.default_locale = 'en' then 'Handoff: welcome call and activation follow-up' else 'Entrega a Operaciones: bienvenida y seguimiento de activación' end,
              now() + interval '2 days',
              coalesce((select m.user_id from crm.memberships m where m.market_code = d.market_code and m.role = 'ops' and (m.valid_to is null or m.valid_to > now()) order by m.created_at limit 1), d.owner_id),
              ${sys.user.id}, 's5'
