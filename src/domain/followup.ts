@@ -64,6 +64,27 @@ export async function assertNextAllowed(tx: Tx, ctx: Ctx, p: { next: Next; accou
   if (!allowed.includes(p.next)) throw invalid('Ese próximo paso no es de tu lista. Elige uno de los que ofrece la hoja o usa "Otra tarea".', 'That next step is not on your list. Choose one the sheet offers or use "Other task".')
 }
 
+/**
+ * Motivo de una visita sin venta: uno de los motivos de calle del catálogo (kind = 'no_sale'), de este mercado o de todos.
+ * Sin motivo, "sin venta" no le dice nada a quien supervisa.
+ */
+export async function assertNoSaleReason(tx: Tx, market: string, raw: string | null | undefined): Promise<string> {
+  const code = (raw ?? '').trim()
+  const rows = code ? await tx`select 1 from crm.loss_reasons where code = ${code} and kind = 'no_sale' and is_active and (market_code is null or market_code = ${market})` : []
+  if (!rows[0]) throw invalid('Elige por qué no hubo venta.', 'Choose why there was no sale.')
+  return code
+}
+
+/**
+ * Una visita registrada reemplaza la visita por hacer que ya estaba para ese comercio: no quedan dos "Próximo".
+ * La visita por hacer no se cuenta como otra visita: queda como tarea cerrada (la visita hecha es la que se acaba de registrar).
+ */
+export async function closePlannedVisits(tx: Tx, accountId: string | null, except: string): Promise<void> {
+  if (!accountId) return
+  await tx`update crm.activities set kind = 'task', done_at = now(), outcome = 'done', deal_step = null
+            where account_id = ${accountId} and kind = 'visit' and done_at is null and id <> ${except}`
+}
+
 /** Nota corta que acompaña a lo que se completa o se registra. Vacía es "sin nota". */
 export function shortNote(raw: string | null | undefined): string | null {
   const v = (raw ?? '').trim()
@@ -117,7 +138,9 @@ export async function scheduleNext(tx: Tx, ctx: Ctx, p: NextStep): Promise<strin
   // Dos carriles por negocio: el próximo paso de Operaciones no pisa el de quien vende.
   const lane: 'sales' | 'ops' | null = !p.dealId ? null : p.lane ?? (ctx.can('deal.ops', p.market) && !ctx.can('deal.create', p.market) ? 'ops' : 'sales')
   const editable = Boolean(p.dealId && ctx.can('deal.edit', p.market))
-  if (lane && editable) await tx`update crm.activities set deal_step = null where deal_id = ${p.dealId} and deal_step = ${lane} and done_at is null`
+  // El paso anterior de ese carril queda reemplazado: se cierra, para que el negocio no muestre dos "Próximo".
+  if (lane && editable) await tx`update crm.activities set kind = case when kind = 'visit' then 'task' else kind end, deal_step = null, done_at = now(), outcome = 'done'
+                                  where deal_id = ${p.dealId} and deal_step = ${lane} and done_at is null`
   await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, due_at, owner_id, created_by, deal_step)
            values (${id}, ${p.market}, ${p.accountId}, ${p.dealId}, ${p.leadId}, ${kind}, ${subject}, ${`${p.when}T15:00:00Z`}, ${ctx.user.id}, ${ctx.user.id}, ${lane && editable ? lane : null})`
   await audit(tx, ctx, 'activity.added', 'activity', id, p.market, null, { kind, account_id: p.accountId, follows: p.follows })

@@ -6,7 +6,7 @@ import { requireCtx } from '@/server/context'
 import { recordActivity } from '@/domain/activities'
 import { reassignAccounts } from '@/domain/accounts'
 import { resolveException } from '@/domain/rules'
-import { findAccounts, visitorNames, type FoundAccount } from '@/dal/field'
+import { findAccounts, noSaleReasons, visitorNames, type FoundAccount } from '@/dal/field'
 import { withUser } from '@/server/db'
 import { weekday } from '@/lib/format'
 import { isUuid } from '@/lib/ids'
@@ -33,6 +33,7 @@ export async function logActivityAction(_: ActionResult<Done> | null, fd: FormDa
       outcome: kind === 'note' ? '' : str(fd, 'result'),
       on: kind === 'visit' ? str(fd, 'on') : '',
       visitedBy: kind === 'visit' ? str(fd, 'visited_by') : '',
+      noSaleReason: kind === 'visit' ? str(fd, 'no_sale_reason') : '',
       next: kind === 'note' ? '' : str(fd, 'next'),
       nextWhen: str(fd, 'when'),
       nextText: str(fd, 'next_text'),
@@ -99,4 +100,12 @@ export async function notifyOptionsAction(accountId: string, dealId: string | nu
   const ctx = await requireCtx()
   if (!ctx.can('activity.write')) return []
   return notifyOptions(ctx, { accountId, dealId })
+}
+
+/** Motivos de una visita sin venta (catálogo de motivos de calle) del mercado, o de los mercados de la persona. */
+export async function noSaleReasonsAction(market?: string): Promise<{ value: string; label: string }[]> {
+  const ctx = await requireCtx()
+  const markets = typeof market === 'string' && market ? [market] : ctx.markets.map((m) => m.code)
+  const rows = await noSaleReasons(ctx, markets)
+  return rows.map((r) => ({ value: r.code, label: ctx.t(r.label_es, r.label_en) }))
 }

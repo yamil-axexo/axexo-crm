@@ -103,14 +103,14 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const h3 = 'text-[15px] leading-6 font-semibold'
 
   type Item = (typeof timeline)[number]
-  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null }
+  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null; type_label?: string | null }
   const meta = (it: Item) => it.meta as Meta
   // Una visita dice de dónde viene: la que alguien registró en CONTIGO o la que llegó de la Sales App.
   const manualVisit = (it: Item) => it.kind === 'visit' && meta(it).origin === 'manual'
   const outcomeText = (o: string | null | undefined) => (o && o !== 'done' ? m(`complete.result.${o}` as MessageKey) : null)
   const visitText = (it: Item) => {
     const v = meta(it)
-    if (manualVisit(it)) return [t('Visita', 'Visit'), outcomeText(v.outcome)].filter(Boolean).join(' · ')
+    if (manualVisit(it)) return [t('Visita', 'Visit'), outcomeText(v.outcome), v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null].filter(Boolean).join(' · ')
     const base = it.title === 'sale' ? t('Visita con venta', 'Visit with a sale') : t('Visita sin venta', 'Visit with no sale')
     const why = v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null
     return `${base}${why ? ` · ${why}` : ''}${v.revisit ? ` · ${t('pide revisita', 'needs a revisit')}` : ''}${v.minutes ? ` · ${v.minutes} min` : ''}`
@@ -136,7 +136,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
   // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.
   const threadKind = (it: Item) =>
-    ['note', 'call', 'meeting', 'task', 'email', 'handoff'].includes(it.kind) ? [lab(t, ACTIVITY[it.kind]), outcomeText(meta(it).outcome)].filter(Boolean).join(' · ') : null
+    ['note', 'call', 'meeting', 'task', 'email', 'handoff'].includes(it.kind) ? [meta(it).type_label === 'in_person' ? t('En persona', 'In person') : lab(t, ACTIVITY[it.kind]), outcomeText(meta(it).outcome)].filter(Boolean).join(' · ') : null
   const threadDetail = (it: Item) =>
     [manualVisit(it) && meta(it).visited_by ? t(`Visitó: ${meta(it).visited_by}`, `Visited by: ${meta(it).visited_by}`) : null, it.kind !== 'stage' ? it.body : null].filter(Boolean)
 

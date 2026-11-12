@@ -148,9 +148,10 @@ async function insertLead(
     ...(opts.source === 'web_form' ? { consent: Boolean(o.consentAt) } : {}),
   })
   if (spoke) {
-    await tx`insert into crm.activities (market_code, lead_id, kind, subject, done_at, outcome, owner_id, created_by)
-             values (${v.market}, ${id}, 'call', ${ctx.t('Primer contacto: en persona, al capturar el lead', 'First contact: in person, when the lead was added')},
-                     now(), 'reached', ${ctx.user.id}, ${ctx.user.id})`
+    // Fue en persona, no una llamada: queda como reunión con la marca "en persona" (el hilo dice "En persona").
+    await tx`insert into crm.activities (market_code, lead_id, kind, subject, done_at, outcome, owner_id, created_by, type_label)
+             values (${v.market}, ${id}, 'meeting', ${ctx.t('Primer contacto: en persona, al capturar el lead', 'First contact: in person, when the lead was added')},
+                     now(), 'reached', ${ctx.user.id}, ${ctx.user.id}, 'in_person')`
     await audit(tx, ctx, 'lead.contacted', 'lead', id, v.market, { status: 'new' }, { status: 'contacted', outcome: 'reached', at: 'creation' })
   }
   await emit(tx, 'lead.created', 'lead', id, v.market, { source: opts.source, motor: v.motor })

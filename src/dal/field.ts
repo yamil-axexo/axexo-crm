@@ -66,3 +66,13 @@ export async function accountPhone(ctx: Ctx, accountId: string): Promise<{ phone
     return r?.phone ? { phone: r.phone, who: r.who } : null
   })
 }
+
+/** Motivos de una visita sin venta: los de calle del catálogo (kind = 'no_sale'), de esos mercados o de todos. */
+export async function noSaleReasons(ctx: Ctx, markets: string[]): Promise<{ code: string; label_es: string; label_en: string }[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ code: string; label_es: string; label_en: string }[]>`
+      select code, label_es, label_en from crm.loss_reasons
+       where kind = 'no_sale' and is_active and (market_code is null or market_code = any(${markets}::text[])) order by position, label_es`
+    return [...rows]
+  })
+}

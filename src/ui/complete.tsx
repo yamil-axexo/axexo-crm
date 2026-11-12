@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition, type FormEvent } from 'reac
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import type { ActionResult } from '@/lib/errors'
-import { visitorNamesAction } from '@/app/(app)/actividades/log-actions'
+import { noSaleReasonsAction, visitorNamesAction } from '@/app/(app)/actividades/log-actions'
 
 export type SheetItem = {
   type: 'task' | 'lead' | 'suggestion'
@@ -50,6 +50,8 @@ export type SheetConfig = {
     nextText: string
     visitedBy: string
     visitedByHint: string
+    noSaleReason: string
+    pickReason: string
   }
   nextOptions: { value: string; label: string }[]
   nextSets: { default: string[]; b2b: string[]; ops: string[] }
@@ -121,6 +123,7 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
   const nextOptions = nextFor(config, item.motor)
   const [error, setError] = useState<string | null>(null)
   const [next, setNext] = useState('')
+  const [picked, setPicked] = useState(item.defaultResult ?? '')
   const [when, setWhen] = useState(defaultWhen)
   const [pending, startTransition] = useTransition()
 
@@ -150,7 +153,8 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
       </h2>
 
       {/* Si hay que volver con quien decide, lo que sigue es visitar: queda elegido y la persona lo puede cambiar. */}
-      <Choices name="result" legend={labels.result} options={item.results} defaultValue={item.defaultResult} onPick={(v) => v === 'revisit' && !next && setNext('visit')} />
+      <Choices name="result" legend={labels.result} options={item.results} defaultValue={item.defaultResult} onPick={(v) => { setPicked(v); if (v === 'revisit' && !next) setNext('visit') }} />
+      {item.visit && picked === 'no_sale' && <NoSaleReason label={labels.noSaleReason} pick={labels.pickReason} />}
       {item.visit && <VisitorField label={labels.visitedBy} hint={labels.visitedByHint} />}
       <SheetText name="note" label={labels.note} maxLength={500} testId="sheet-note" />
       <NextStep labels={labels} options={item.closable === false ? nextOptions.filter((o) => o.value !== 'none') : nextOptions} whenOptions={whenOptions} minDate={minDate} next={next} onNext={setNext} when={when} onWhen={setWhen} />
@@ -183,6 +187,27 @@ export function SheetText({ name, label, maxLength, testId, placeholder, require
     <label className="mt-6 block">
       <span className="mb-2.5 block text-[15px] font-semibold">{label}</span>
       <input name={name} maxLength={maxLength} placeholder={placeholder} required={required} defaultValue={defaultValue} autoComplete="off" enterKeyHint="done" className={SHEET_INPUT} data-testid={testId} />
+    </label>
+  )
+}
+
+/** Por qué no hubo venta: lo pide toda visita que termina sin venta. Los motivos son los de calle del catálogo del mercado. */
+export function NoSaleReason({ label, pick, market }: { label: string; pick: string; market?: string }) {
+  const [reasons, setReasons] = useState<{ value: string; label: string }[]>([])
+  useEffect(() => {
+    let live = true
+    noSaleReasonsAction(market).then((list) => live && setReasons(list), () => {})
+    return () => {
+      live = false
+    }
+  }, [market])
+  return (
+    <label className="mt-6 block">
+      <span className="mb-2.5 block text-[15px] font-semibold">{label}</span>
+      <select name="no_sale_reason" required defaultValue="" className={SHEET_INPUT} data-testid="sheet-no-sale-reason">
+        <option value="">{pick}</option>
+        {reasons.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+      </select>
     </label>
   )
 }

@@ -174,8 +174,9 @@ export async function getAccount(ctx: Ctx, id: string) {
         -- Lo hecho se fecha con el día en que se hizo, no con el día en que se creó la tarea.
         select coalesce(a.done_at, a.created_at) as at, a.kind, a.subject as title, a.body, u.full_name as actor,
                jsonb_build_object('done', a.done_at is not null, 'source', a.source, 'outcome', a.outcome, 'visited_by', a.visited_by,
-                                  'origin', case when a.kind = 'visit' then 'manual' end) as meta
-          from crm.activities a left join crm.users u on u.id = a.created_by where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
+                                  'origin', case when a.kind = 'visit' then 'manual' end, 'type_label', a.type_label,
+                                  'rejection', a.no_sale_code, 'rejection_es', nr.label_es, 'rejection_en', nr.label_en) as meta
+          from crm.activities a left join crm.users u on u.id = a.created_by left join crm.loss_reasons nr on nr.code = a.no_sale_code where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
         union all
         select v.checked_in_at, 'visit', v.outcome, v.note, coalesce(u.full_name, v.salesperson_ref),
                jsonb_build_object('origin', 'sales_app', 'rejection', v.rejection_code, 'rejection_es', r.label_es, 'rejection_en', r.label_en,

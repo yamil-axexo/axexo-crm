@@ -12,7 +12,7 @@ export async function completeItemAction(_: ActionResult<Done> | null, fd: FormD
   return runAction<Done>(async (ctx) => {
     const done = await completeItem(ctx, {
       type: str(fd, 'type'), id: str(fd, 'id'), result: str(fd, 'result'), next: str(fd, 'next'), when: str(fd, 'when'),
-      note: str(fd, 'note'), nextText: str(fd, 'next_text'), visitedBy: str(fd, 'visited_by'),
+      note: str(fd, 'note'), nextText: str(fd, 'next_text'), visitedBy: str(fd, 'visited_by'), noSaleReason: str(fd, 'no_sale_reason'),
     })
     const toast = done.next ? ctx.m('complete.toast', { next: done.next, when: weekday(done.due, ctx.locale) }) : ctx.m('complete.toastClosed')
     return { data: { toast } }
