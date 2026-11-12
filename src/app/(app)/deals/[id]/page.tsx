@@ -59,7 +59,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <PageHeader
-        eyebrow={`Deal · ${deal.pipeline_name}`}
+        eyebrow={`${t('Negocio', 'Deal')} · ${deal.pipeline_name}`}
         title={deal.title}
         actions={<>
           {callee && (canLog
@@ -255,7 +255,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           <Card>
-            <CardTitle title="Timeline" />
+            <CardTitle title={t('Hilo', 'Thread')} />
             {ctx.can('activity.write', deal.market_code) && (
               <ActionForm action={addActivityAction} onOk="reset" className="mb-6">
                 <input type="hidden" name="deal_id" value={deal.id} />

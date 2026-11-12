@@ -100,7 +100,7 @@ function noun(what: RepartoPayload['what'], count: number, locale: Locale): stri
   return t(`${n} ${plural(count, 'comercio', 'comercios')}`, `${n} ${plural(count, 'merchant', 'merchants')}`)
 }
 
-/** Lo que se va con los comercios: "con 4 negocios abiertos y 3 tareas abiertas", o sin números cuando no se contaron. */
+/** Lo que se va con los comercios: "con 4 negocios abiertos y 3 pendientes", o sin números cuando no se contaron. */
 function carried(plan: Pick<Plan, 'payload' | 'deals' | 'tasks'>, locale: Locale): string {
   const t = tr(locale)
   if (plan.payload.what !== 'accounts') return ''
@@ -109,7 +109,7 @@ function carried(plan: Pick<Plan, 'payload' | 'deals' | 'tasks'>, locale: Locale
   const k = fmt(plan.tasks ?? 0, locale)
   return t(
     `, con ${d} ${plural(plan.deals, 'negocio abierto', 'negocios abiertos')} y ${k} ${plural(plan.tasks ?? 0, 'pendiente', 'pendientes')}`,
-    `, with ${d} open ${plural(plan.deals, 'deal', 'deals')} and ${k} open ${plural(plan.tasks ?? 0, 'task', 'tasks')}`,
+    `, with ${d} open ${plural(plan.deals, 'deal', 'deals')} and ${k} ${plural(plan.tasks ?? 0, 'to-do', 'to-dos')}`,
   )
 }
 
@@ -351,7 +351,7 @@ export function RepartoForm({ locale, markets, holders, regions, territories, pe
   const vacantTotal = inMarket.filter((h) => !h.current).reduce((a, h) => a + n(h), 0)
   const named = inMarket.filter((h) => h.owner_id !== null).sort((a, b) => Number(a.current) - Number(b.current) || n(b) - n(a))
   const targets = people.filter((p) => p.market_code === market)
-  const tag = (h: RepartoHolder) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (ya no vende ni opera en este mercado)', ' (no longer sells or runs operations in this market)') : '')
+  const tag = (h: RepartoHolder) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (no vende ni opera en este mercado)', ' (does not sell or run operations in this market)') : '')
   const filter: RepartoFilter = { market, owner: from, region: region || undefined, city: city.trim() || undefined, territory: territory || undefined }
   const listHref = what === 'accounts' ? `/comercios?${new URLSearchParams(Object.entries({ ...filter, repartir: '1' }).filter((e): e is [string, string] => !!e[1])).toString()}` : undefined
 

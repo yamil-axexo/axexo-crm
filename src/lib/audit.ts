@@ -193,7 +193,7 @@ const FIELD: Record<string, Pair> = {
   fallback_id: ['Respaldo', 'Fallback'],
   scopes: ['Permisos', 'Scopes'],
   source: ['Origen', 'Source'],
-  motor: ['Tipo de venta', 'Sales motion'],
+  motor: ['Tipo de venta', 'Sale type'],
   count: ['Cantidad', 'Count'],
   account_ids: ['Comercios movidos', 'Merchants moved'],
   lead_ids: ['Leads movidos', 'Leads moved'],

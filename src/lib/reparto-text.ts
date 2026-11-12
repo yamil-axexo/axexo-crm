@@ -21,4 +21,4 @@ export const holdsText = (t: T, locale: Locale, h: Held): string =>
 
 /** Nombre de quien los tiene, con por qué no cuenta como dueño vigente. */
 export const holderName = (t: T, h: Held): string =>
-  h.owner_id ? `${h.full_name}${h.is_active === false ? t(' (inactiva)', ' (inactive)') : t(' (ya no vende ni opera en este mercado)', ' (no longer sells or runs operations in this market)')}` : t('Sin asignar', 'No owner')
+  h.owner_id ? `${h.full_name}${h.is_active === false ? t(' (inactiva)', ' (inactive)') : t(' (no vende ni opera en este mercado)', ' (does not sell or run operations in this market)')}` : t('Sin asignar', 'No owner')

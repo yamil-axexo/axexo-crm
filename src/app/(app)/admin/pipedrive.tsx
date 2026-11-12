@@ -176,7 +176,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
       <div className="space-y-8">
         <Card pad={false} data-testid="import-totals">
           <div className="px-7 pt-7"><CardTitle title={t('Lo que hay hoy en CONTIGO', 'What CONTIGO holds today')} /></div>
-          <Table head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Contactos', 'Contacts')}</th><th>Deals</th><th>Leads</th><th>{t('Actividades', 'Activities')}</th></>}>
+          <Table head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Contactos', 'Contacts')}</th><th>{t('Negocios', 'Deals')}</th><th>Leads</th><th>{t('Actividades', 'Activities')}</th></>}>
             {d.totals.map((m) => <tr key={m.market_code} className="table-row"><td className="font-semibold text-strong">{m.market_code}</td><td className="num">{num(m.accounts, locale)}</td><td className="num">{num(m.contacts, locale)}</td><td className="num">{num(m.deals, locale)}</td><td className="num">{num(m.leads, locale)}</td><td className="num">{num(m.activities, locale)}</td></tr>)}
           </Table>
           <p className="px-7 pb-6 text-[12.5px] text-muted" data-testid="import-users">

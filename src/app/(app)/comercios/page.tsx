@@ -66,7 +66,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const placeOn = !!(sp.region || sp.city || sp.territory || sp.team || sp.pipeline || (sp.owner && sp.owner !== 'me'))
   const teams = options ? inMarket(options.teams) : []
   const pipes = options ? inMarket(options.pipelines) : []
-  const ownerTag = (h: { is_active: boolean | null; current: boolean }) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (ya no vende ni opera en este mercado)', ' (no longer sells or runs operations in this market)') : '')
+  const ownerTag = (h: { is_active: boolean | null; current: boolean }) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (no vende ni opera en este mercado)', ' (does not sell or run operations in this market)') : '')
   const withMarket = (label: string, code: string) => (multi && !sp.market ? `${label} · ${code}` : label)
   const current = sp.ver ?? (sp.lifecycle ? `lc:${sp.lifecycle}` : sp.kind ? `k:${sp.kind}` : '')
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')

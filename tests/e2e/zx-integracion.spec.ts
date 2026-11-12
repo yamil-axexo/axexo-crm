@@ -68,7 +68,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900, tag: 'E' }, { n
       const confirm = page.locator('dialog[open]')
       await expect(confirm.getByTestId('membership-role')).toHaveText('Operaciones · US')
       await expect(confirm.getByTestId('end-owned')).toHaveText(`${name} tiene a su nombre 2 comercios y 1 lead abierto en US.`)
-      await expect(confirm.getByTestId('end-vacates')).toContainText('queda sin dueño vigente')
+      await expect(confirm.getByTestId('end-vacates')).toContainText('queda por repartir')
       await expect(confirm.getByTestId('end-rules')).toHaveCount(0) // Operaciones no está en turnos de leads
       await clean(page, `${w.name} confirmar`)
       await confirm.getByTestId('membership-end').click()
@@ -76,12 +76,12 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900, tag: 'E' }, { n
       // El aviso cuenta lo mismo y lleva a repartir; el bloque de cartera sin dueño vigente, también.
       const notice = page.getByTestId('admin-notice')
       await expect(notice).toContainText(`Acceso cerrado: ${name} ya no tiene ese rol.`)
-      await expect(notice).toContainText('Lo que tiene a su nombre (2 comercios y 1 lead abierto) quedó sin dueño vigente en US y hay que repartirlo.')
+      await expect(notice).toContainText('Lo que tiene a su nombre (2 comercios y 1 lead abierto) quedó por repartir en US: nadie lo atiende hasta que lo repartas.')
       const go = notice.getByTestId('admin-notice-link')
       await expect(go).toHaveText('Repartir')
       await expect(go).toHaveAttribute('href', `/comercios?owner=${person!.id}&market=US&repartir=1`)
       expect(await go.evaluate((el) => (el as HTMLElement).offsetHeight)).toBeGreaterThanOrEqual(44)
-      await expect(page.getByTestId('admin-vacant-row').filter({ hasText: name })).toContainText('Tiene 2 comercios y 1 lead abierto sin dueño vigente.')
+      await expect(page.getByTestId('admin-vacant-row').filter({ hasText: name })).toContainText('Tiene 2 comercios y 1 lead abierto por repartir.')
       await clean(page, `${w.name} aviso`)
 
       // El enlace abre la herramienta de reparto con lo suyo ya filtrado.
@@ -103,7 +103,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900, tag: 'E' }, { n
       // La visita por hacer cuenta entre lo que se va con los comercios.
       await expect(page.getByTestId('reparto-confirm')).toContainText('You are about to move 2 merchants to Jade Kim, with 0 open deals and 1 open task.')
       await page.getByTestId('reparto-go').click()
-      await expect(page.getByTestId('reparto-done')).toContainText('Done. 2 merchants moved to Jade Kim')
+      await expect(page.getByTestId('reparto-done')).toContainText('2 merchants moved to Jade Kim')
       const [moved] = await sql<{ owner: string }[]>`select u.full_name as owner from crm.activities x join crm.users u on u.id = x.owner_id where x.id = ${visit!.id}`
       expect(moved!.owner).toBe('Jade Kim')
 

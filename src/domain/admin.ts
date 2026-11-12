@@ -156,7 +156,7 @@ const teamInput = z.object({
 export async function createTeam(ctx: Ctx, input: z.input<typeof teamInput>): Promise<string> {
   ctx.assert('config.manage')
   const parsed = teamInput.safeParse(input)
-  if (!parsed.success) throw invalid('Un equipo lleva mercado, nombre y tipo de venta.', 'A team needs a market, a name and a sales motion.')
+  if (!parsed.success) throw invalid('Un equipo lleva mercado, nombre y tipo de venta.', 'A team needs a market, a name and a sale type.')
   const v = parsed.data
   return withUser(ctx.user.id, async (tx) => {
     const mk = await tx`select 1 from crm.markets where code = ${v.market}`

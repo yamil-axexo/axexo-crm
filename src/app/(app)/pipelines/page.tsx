@@ -14,7 +14,7 @@ export default async function PipelinesIndex({ searchParams }: { searchParams: P
   if (first) redirect(qs(`/pipelines/${first.id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso }))
   return (
     <>
-      <PageHeader title="Pipelines" />
+      <PageHeader title={ctx.t('Negocios', 'Deals')} />
       <Empty title={ctx.t('Tu mercado todavía no tiene embudos', 'Your market has no pipelines yet')} />
     </>
   )

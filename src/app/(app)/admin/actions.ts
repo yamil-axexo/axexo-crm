@@ -70,7 +70,7 @@ export async function endMembershipAction(_: R | null, fd: FormData): Promise<R>
     if (out.vacant && out.market) {
       // Lo que tenía a su nombre quedó sin dueño vigente: se dice con la misma cuenta que muestra Mi equipo y el aviso
       // lleva directo a repartirlo (los comercios, con sus negocios; si solo hay leads o negocios, a "Reasignar cartera").
-      es.push(`Lo que tiene a su nombre (${ownedEs}) quedó por repartir en ${out.market} y hay que repartirlo.`)
+      es.push(`Lo que tiene a su nombre (${ownedEs}) quedó por repartir en ${out.market}: nadie lo atiende hasta que lo repartas.`)
       en.push(`What they hold (${ownedEn}) now has no current owner in ${out.market} and needs to be distributed.`)
       const href = out.accounts > 0 ? qs('/comercios', { owner: out.userId, market: out.market, repartir: '1' }) : qs('/supervisor', { market: out.market })
       return { message: [es.join(' '), en.join(' ')], data: { link: { href, label: ctx.t('Repartir', 'Distribute') } } }

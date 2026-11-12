@@ -78,7 +78,7 @@ for (const w of WIDTHS) {
       const ficha = page.getByTestId('ficha')
       await expect(ficha.locator('#ficha-title')).toHaveText('Grupo Abarrotero del Valle')
       await expect(ficha.getByTestId('account-facts')).toContainText(/Cadena · \d+ puntos de venta/)
-      await expect(ficha.getByTestId('health')).toHaveText(/Activo|Sin transaccionar|En riesgo|Lead nuevo/)
+      await expect(ficha.getByTestId('health')).toHaveText(/Activo|Sin transaccionar|En riesgo|Recién llegado/)
       await expect(ficha.getByTestId('ficha-next')).toContainText('Lo siguiente')
       await expect(ficha.getByTestId('ficha-actions').locator(':scope > a, :scope > button, :scope > span')).toHaveCount(6)
       await expect(page.getByTestId('tab-hilo')).toHaveAttribute('aria-current', 'page')
