@@ -70,7 +70,7 @@ const S = {
     key: 'leads',
     title: { es: 'Abre Leads y llama al que tiene menos tiempo', en: 'Open Leads and call the one with the least time left' },
     why: {
-      es: 'Un lead nuevo trae su meta de primer contacto. Llamar desde aquí deja el intento registrado. Si no tiene dueño, "Tomar y llamar" lo deja a tu nombre.',
+      es: 'Un lead nuevo trae su meta de primer contacto. Llamar desde aquí deja el intento registrado. Si está sin asignar, "Tomar y llamar" lo deja a tu nombre.',
       en: 'A new lead carries its first-contact goal. Calling from here logs the attempt. If it has no owner, "Take and call" makes it yours.',
     },
     href: '/leads',
@@ -158,9 +158,9 @@ const S = {
   },
   exceptions: {
     key: 'exceptions',
-    title: { es: 'Atiende o descarta un aviso de la cola de excepciones', en: 'Handle or dismiss one item in the exception queue' },
+    title: { es: 'Atiende o descarta un aviso de Pendientes del equipo', en: 'Handle or dismiss one item in Team alerts' },
     why: {
-      es: 'La cola se llena sola con lo que se salió de la regla y cada aviso se cierra solo cuando se corrige. Nadie tiene que reportar nada.',
+      es: 'La lista se llena sola con lo que se salió de la regla y cada aviso se cierra solo cuando se corrige. Nadie tiene que reportar nada.',
       en: 'The queue fills itself with what broke a rule, and each item closes on its own once it is fixed. Nobody has to report anything.',
     },
     href: '/supervisor',
@@ -170,7 +170,7 @@ const S = {
     key: 'reassign',
     title: { es: 'Reasigna un lead a quien cubre esa zona', en: 'Reassign a lead to whoever covers that area' },
     why: {
-      es: 'Abre el lead y cambia el dueño en "Dueño". En un comercio, el enlace "Reasignar" está junto al dueño. Queda en la bitácora con tu nombre.',
+      es: 'Abre el lead y cambia a la persona en "Quién lo lleva". En un comercio, el enlace "Reasignar" está junto a quien lo lleva. Queda en la bitácora con tu nombre.',
       en: 'Open the lead and change the owner under "Owner". On a merchant, the "Reassign" link sits next to the owner. It is logged with your name.',
     },
     href: '/leads',
@@ -178,9 +178,9 @@ const S = {
   },
   distribute: {
     key: 'distribute',
-    title: { es: 'Reparte la cartera que no tiene dueño vigente', en: 'Distribute the book that has no current owner' },
+    title: { es: 'Reparte la cartera que quedó por repartir', en: 'Distribute the book that has no current owner' },
     why: {
-      es: 'En Mi equipo, "Sin dueño vigente" te dice cuántos hay. "Repartir comercios" los pasa por plaza o territorio; "Reasignar cartera", los leads y negocios de una persona.',
+      es: 'En Mi equipo, "Por repartir" te dice cuántos hay. "Repartir comercios" los pasa por plaza o territorio; "Reasignar cartera", los leads y negocios de una persona.',
       en: 'In My team, "No current owner" tells you how many there are. "Distribute merchants" hands them out by place or territory; "Reassign book", one person\'s leads and deals.',
     },
     href: '/supervisor',
@@ -350,7 +350,7 @@ const S = {
     key: 'quality',
     title: { es: 'Abre Calidad de datos', en: 'Open Data quality' },
     why: {
-      es: 'Ahí salen los comercios, negocios y leads sin dueño por mercado y los posibles duplicados. Llévale los sin dueño a quien lidera ese mercado.',
+      es: 'Ahí salen los comercios, negocios y leads sin asignar por mercado y los posibles duplicados. Llévale los sin asignar a quien lidera ese mercado.',
       en: 'Merchants, deals and leads with no owner per market and possible duplicates show up there. Take the unowned ones to that market\'s lead.',
     },
     href: '/admin?tab=calidad',
@@ -412,25 +412,25 @@ export const HABITS: Record<Track, Habits> = {
   supervisor: {
     changes: [
       { es: 'Mi equipo se arma solo con lo que la gente registra: nadie te llena un reporte.', en: 'My team builds itself from what people log: nobody fills in a report for you.' },
-      { es: 'Tú mueves dueños: un lead, un comercio o una cartera, sin pedirlo a nadie.', en: 'You move owners: a lead, a merchant or a book, without asking anyone.' },
-      { es: 'La cola de excepciones te avisa lo que se salió de la regla.', en: 'The exception queue tells you what broke a rule.' },
+      { es: 'Tú reasignas: un lead, un comercio o una cartera, sin pedirlo a nadie.', en: 'You move owners: a lead, a merchant or a book, without asking anyone.' },
+      { es: 'Pendientes del equipo te avisa lo que se salió de la regla.', en: 'Team alerts tell you what broke a rule.' },
       { es: 'Los ganados y perdidos de tu equipo están en "Negocios cerrados" y se exportan.', en: 'Your team\'s won and lost deals are under "Closed deals" and can be exported.' },
     ],
     asks: [
       { es: 'Revisa Mi equipo cada semana con tu gente, fila por fila.', en: 'Review My team every week with your people, row by row.' },
-      { es: 'Reparte lo que no tiene dueño vigente: lo que nadie tiene, nadie lo trabaja.', en: 'Distribute what has no current owner: what nobody holds, nobody works.' },
+      { es: 'Reparte lo que quedó por repartir: lo que nadie lleva, nadie lo trabaja.', en: 'Distribute what has no current owner: what nobody holds, nobody works.' },
       ASK.nextStep,
       ASK.firstAttempt,
     ],
   },
   lead: {
     changes: [
-      { es: 'Ves todo tu mercado en un lugar: embudos, equipos y lo que quedó sin dueño vigente.', en: 'You see your whole market in one place: pipelines, teams and what was left with no current owner.' },
+      { es: 'Ves todo tu mercado en un lugar: embudos, equipos y lo que quedó por repartir.', en: 'You see your whole market in one place: pipelines, teams and what was left with no current owner.' },
       { es: 'Un negocio cuenta como ganado con la primera transacción, no con la firma. En el piloto se gana a mano, con la fecha real de cierre.', en: 'A deal counts as won at the first transaction, not at signing. During the pilot it is won by hand, with the actual close date.' },
       { es: 'El acceso es por rol: sumar a alguien no cuesta una licencia.', en: 'Access is by role: adding someone does not cost a license.' },
     ],
     asks: [
-      { es: 'Decide con tus supervisores cómo se reparte lo que no tiene dueño vigente.', en: 'Decide with your supervisors how records with no current owner are distributed.' },
+      { es: 'Decide con tus supervisores a quién le toca lo que quedó por repartir.', en: 'Decide with your supervisors how records with no current owner are distributed.' },
       { es: 'Saca el número de la semana del Reporte de campo, en lugar de una hoja aparte.', en: 'Take the weekly number from the Field report instead of a separate sheet.' },
       ASK.nextStep,
       ASK.firstAttempt,
@@ -502,7 +502,7 @@ const HOW = {
   record: {
     title: { es: 'Todo lo de un comercio está en su ficha', en: 'Everything about a merchant is on its record' },
     text: {
-      es: 'El hilo junta notas, llamadas, cambios de etapa y de dueño. El árbol muestra la cadena y sus tiendas.',
+      es: 'El hilo junta notas, llamadas, cambios de etapa y de quién lo lleva. El árbol muestra la cadena y sus tiendas.',
       en: 'The thread gathers notes, calls, stage and owner changes. The tree shows the chain and its stores.',
     },
     visual: { shot: 'comercio' },
@@ -524,9 +524,9 @@ const HOW = {
     visual: { shot: 'equipo' },
   },
   owners: {
-    title: { es: 'Tú decides quién es dueño de qué', en: 'You decide who owns what' },
+    title: { es: 'Tú decides quién lleva qué', en: 'You decide who owns what' },
     text: {
-      es: 'Reasignas leads y comercios de tu equipo. Los leads sin dueño los ve cualquier vendedor del mercado y los puede tomar.',
+      es: 'Reasignas leads y comercios de tu equipo. Los leads sin asignar los ve cualquier vendedor del mercado y los puede tomar.',
       en: 'You reassign your team\'s leads and merchants. Leads with no owner are visible to any seller in the market, who can take them.',
     },
     visual: { shot: 'leads' },
@@ -582,7 +582,7 @@ const HOW = {
   logged: {
     title: { es: 'Todo cambio queda escrito', en: 'Every change is written down' },
     text: {
-      es: 'Accesos, dueños, etapas y configuración quedan en la bitácora con quién, qué y cuándo. Nada se borra: se cierra con fecha.',
+      es: 'Accesos, reasignaciones, etapas y configuración quedan en la bitácora con quién, qué y cuándo. Nada se borra: se cierra con fecha.',
       en: 'Access, owners, stages and configuration are logged with who, what and when. Nothing is deleted: it is ended with a date.',
     },
     visual: { art: 'log' },
@@ -595,11 +595,11 @@ export const INTRO: Record<Track, Intro> = {
     how: [HOW.queue, HOW.done, HOW.record, HOW.deals],
   },
   supervisor: {
-    lead: { es: 'Además de tu propia cola, ves cómo va cada persona de tu equipo y mueves lo que se quedó sin dueño.', en: 'Besides your own queue, you see how each person on your team is doing and move what was left without an owner.' },
+    lead: { es: 'Además de tu propia cola, ves cómo va cada persona de tu equipo y mueves lo que quedó sin asignar.', en: 'Besides your own queue, you see how each person on your team is doing and move what was left without an owner.' },
     how: [HOW.teamView, HOW.owners, HOW.queue, HOW.deals],
   },
   lead: {
-    lead: { es: 'Entras a Mi equipo y tienes la vista completa de tu mercado: los embudos, los equipos y lo que todavía no tiene un dueño real.', en: 'You land on My team and have the full view of your market: the pipelines, the teams and what does not have a real owner yet.' },
+    lead: { es: 'Entras a Mi equipo y tienes la vista completa de tu mercado: los embudos, los equipos y lo que todavía está por repartir.', en: 'You land on My team and have the full view of your market: the pipelines, the teams and what does not have a real owner yet.' },
     how: [HOW.market, HOW.teamView, HOW.owners, HOW.numbers],
   },
   ops: {
@@ -630,7 +630,7 @@ export const HELP_TOPICS: Record<HelpTopic, L> = {
   merchants: { es: 'Comercios', en: 'Merchants' },
   ops: { es: 'Operaciones y pedidos', en: 'Operations and orders' },
   field: { es: 'Visitas y campo', en: 'Visits and field work' },
-  team: { es: 'Equipo y dueños', en: 'Team and owners' },
+  team: { es: 'Equipo y quién lleva qué', en: 'Team and owners' },
   numbers: { es: 'Panel, cifras y reportes', en: 'Panel, figures and reports' },
   data: { es: 'Datos, Pipedrive e integraciones', en: 'Data, Pipedrive and integrations' },
   access: { es: 'Acceso y permisos', en: 'Access and permissions' },
@@ -762,18 +762,18 @@ export const HELP: HelpItem[] = [
   },
   {
     id: 'lead-take', topic: 'leads', tracks: SELL,
-    q: { es: '¿Puedo tomar un lead sin dueño?', en: 'Can I take a lead with no owner?' },
-    a: { es: 'Sí, si es de tu mercado. "Tomar y llamar" lo deja a tu nombre y abre la llamada. En Leads, el filtro "Sin dueño" te los junta. No puedes tomar el lead de otra persona: pídele que te lo pase.', en: 'Yes, if it is in your market. "Take and call" makes it yours and opens the call. In Leads, the "No owner" filter gathers them. You cannot take someone else\'s lead: ask them to pass it to you.' },
+    q: { es: '¿Puedo tomar un lead sin asignar?', en: 'Can I take a lead with no owner?' },
+    a: { es: 'Sí, si es de tu mercado. "Tomar y llamar" lo deja a tu nombre y abre la llamada. En Leads, el filtro "Sin asignar" te los junta. No puedes tomar el lead de otra persona: pídele que te lo pase.', en: 'Yes, if it is in your market. "Take and call" makes it yours and opens the call. In Leads, the "No owner" filter gathers them. You cannot take someone else\'s lead: ask them to pass it to you.' },
   },
   {
     id: 'lead-pass', topic: 'leads', tracks: SELL,
     q: { es: '¿Puedo pasarle un lead a un compañero? ¿Y soltarlo?', en: 'Can I pass a lead to a teammate? Or release it?' },
-    a: { es: 'Sí. En el lead, en "Dueño", "Pasar a un compañero": eliges a quién y escribes una nota. Deja de ser tuyo y, si ya hubo contacto, el reloj no vuelve a empezar. "Soltar" lo deja sin dueño, con el motivo, y lo puede tomar cualquiera que venda en tu mercado. Las dos cosas quedan en la bitácora.', en: 'Yes. On the lead, under "Owner", "Pass to a teammate": pick who and write a note. It stops being yours and, if there was contact already, the clock does not restart. "Release" leaves it with no owner, with the reason, and anyone who sells in your market can take it. Both are logged.' },
+    a: { es: 'Sí. En el lead, en "Quién lo lleva", "Pasar a un compañero": eliges a quién y escribes una nota. Deja de ser tuyo y, si ya hubo contacto, el reloj no vuelve a empezar. "Soltar" lo deja sin asignar, con el motivo, y lo puede tomar cualquiera que venda en tu mercado. Las dos cosas quedan en la bitácora.', en: 'Yes. On the lead, under "Owner", "Pass to a teammate": pick who and write a note. It stops being yours and, if there was contact already, the clock does not restart. "Release" leaves it with no owner, with the reason, and anyone who sells in your market can take it. Both are logged.' },
   },
   {
     id: 'lead-rotation', topic: 'leads', tracks: [...SELL, 'admin'],
     q: { es: '¿Cómo se reparten los leads del formulario web?', en: 'How are web form leads distributed?' },
-    a: { es: 'Por turno, entre las personas que administración puso en el turno de ese formulario. Si en el turno no queda nadie, el lead va al respaldo; si no hay respaldo, queda sin dueño y lo ve quien vende en ese mercado.', en: 'In rotation, among the people an admin put in that form\'s rotation. If nobody is left in the rotation, the lead goes to the fallback; with no fallback, it stays unowned and that market\'s sellers see it.' },
+    a: { es: 'Por turno, entre las personas que administración puso en el turno de ese formulario. Si en el turno no queda nadie, el lead va al respaldo; si no hay respaldo, queda sin asignar y lo ve quien vende en ese mercado.', en: 'In rotation, among the people an admin put in that form\'s rotation. If nobody is left in the rotation, the lead goes to the fallback; with no fallback, it stays unowned and that market\'s sellers see it.' },
   },
   {
     id: 'lead-imported', topic: 'leads', tracks: SELL,
@@ -788,7 +788,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'lead-find', topic: 'leads', tracks: SELL,
     q: { es: '¿Cómo encuentro un lead entre cientos?', en: 'How do I find one lead among hundreds?' },
-    a: { es: 'En Leads, "Buscar en la lista" encuentra por nombre, persona o teléfono. Filtra por "Reloj" (con reloj corriendo o sin reloj), por "Origen" y por dueño, elige el "Orden" (más recientes, más antiguos o vence primero) y toca "Aplicar".', en: 'In Leads, "Search this list" finds by name, person or phone. Filter by "Clock" (running or none), by "Source" and by owner, choose the "Order" (newest, oldest or due first) and tap "Apply".' },
+    a: { es: 'En Leads, "Buscar en la lista" encuentra por nombre, persona o teléfono. Filtra por "Reloj" (con reloj corriendo o sin reloj), por "Origen" y por quién lo lleva, elige el "Orden" (más recientes, más antiguos o vence primero) y toca "Aplicar".', en: 'In Leads, "Search this list" finds by name, person or phone. Filter by "Clock" (running or none), by "Source" and by owner, choose the "Order" (newest, oldest or due first) and tap "Apply".' },
   },
   {
     id: 'lead-bulk', topic: 'leads', tracks: SELL,
@@ -813,7 +813,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'lead-contact-role', topic: 'leads', tracks: SELL,
     q: { es: '¿Qué rol le pongo al contacto al convertir?', en: 'Which role do I give the contact when converting?' },
-    a: { es: 'El que tiene en el negocio; por ejemplo dueño, encargado, decisor, personal, compras o finanzas. Lo eliges en "Qué hace" la persona en el negocio, al crear el lead o al convertirlo. Si no lo sabes, deja "Todavía no sé" y corrígelo después en la ficha, en Contactos.', en: 'The one they hold in the business; for example owner, manager, decision-maker, staff, purchasing or finance. You choose it under the person\'s "role in the business", when creating the lead or converting it. If you do not know, leave "Not sure yet" and fix it later on the record, under Contacts.' },
+    a: { es: 'El que tiene en el negocio; por ejemplo dueño del comercio, encargado, decisor, personal, compras o finanzas. Lo eliges en "Qué hace" la persona en el negocio, al crear el lead o al convertirlo. Si no lo sabes, deja "Todavía no sé" y corrígelo después en la ficha, en Contactos.', en: 'The one they hold in the business; for example owner, manager, decision-maker, staff, purchasing or finance. You choose it under the person\'s "role in the business", when creating the lead or converting it. If you do not know, leave "Not sure yet" and fix it later on the record, under Contacts.' },
   },
   {
     id: 'lead-twice', topic: 'leads', tracks: [...SELL, 'admin'],
@@ -887,7 +887,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'ops-queue', topic: 'ops', tracks: ['ops', 'admin'],
     q: { es: '¿Dónde está mi cola y cómo sé que me entró un negocio?', en: 'Where is my queue and how do I know a deal came in?' },
-    a: { es: 'Es tu pantalla de inicio. También está en la barra, como "Cola", y en tu menú, "Cola de Operaciones", con el número de los que esperan. "Sin tomar" son los que nadie lleva; "Tomar" lo deja a tu nombre y pasa a "Míos". Arriba ves cuántos tienen aprobación o capacitación pendiente.', en: 'It is your home screen. It is also in the bar, as "Queue", and in your menu, "Operations queue", with the number waiting. "Not taken" are the ones nobody carries; "Take" puts it under your name and it moves to "Mine". At the top you see how many have a pending approval or training.' },
+    a: { es: 'Es donde entras al abrir CONTIGO. También está en la barra, como "Cola", y en tu menú, "Cola de Operaciones", con el número de los que esperan. "Sin tomar" son los que nadie lleva; "Tomar" lo deja a tu nombre y pasa a "Míos". Arriba ves cuántos tienen aprobación o capacitación pendiente.', en: 'It is where you land when you open CONTIGO. It is also in the bar, as "Queue", and in your menu, "Operations queue", with the number waiting. "Not taken" are the ones nobody carries; "Take" puts it under your name and it moves to "Mine". At the top you see how many have a pending approval or training.' },
   },
   {
     id: 'ops-handoff', topic: 'ops', tracks: [...SELL, 'ops'],
@@ -914,12 +914,12 @@ export const HELP: HelpItem[] = [
   {
     id: 'merchant-find', topic: 'merchants', tracks: 'all',
     q: { es: '¿Cómo encuentro un comercio?', en: 'How do I find a merchant?' },
-    a: { es: 'Con el buscador de arriba: por nombre, teléfono, nombre del contacto o ID. En escritorio, la tecla "/" te lleva al buscador. En el teléfono, toca la lupa.', en: 'With the search box at the top: by name, phone, contact name or ID. On a desktop, the "/" key takes you to the search box. On a phone, tap the magnifying glass.' },
+    a: { es: 'Con el buscador de arriba: por nombre, teléfono, nombre del contacto o ID. En computadora, la tecla "/" te lleva al buscador. En el teléfono, toca la lupa.', en: 'With the search box at the top: by name, phone, contact name or ID. On a desktop, the "/" key takes you to the search box. On a phone, tap the magnifying glass.' },
   },
   {
     id: 'merchant-missing', topic: 'merchants', tracks: SELL,
     q: { es: 'Busqué un comercio y no aparece, o dice "Existe y lo lleva otra persona". ¿Qué hago?', en: 'I searched a merchant and got nothing, or it says "It exists and someone else has it". What do I do?' },
-    a: { es: 'Tú abres lo tuyo y lo que no tiene dueño. Si es de un compañero de tu mercado, el buscador te lo dice: "Existe y lo lleva otra persona", con el nombre de quien lo lleva. No lo crees otra vez: si te toca atenderlo, pide a tu supervisión que te lo pase. Si no aparece nada, búscalo por teléfono antes de crearlo.', en: 'You open your own records and the ones with no owner. If it belongs to a teammate in your market, search tells you: "It exists and someone else has it", with that person\'s name. Do not add it again: if you should be working it, ask your supervisor to pass it to you. If nothing shows, search by phone before adding it.' },
+    a: { es: 'Tú abres lo tuyo y lo que está sin asignar. Si es de un compañero de tu mercado, el buscador te lo dice: "Existe y lo lleva otra persona", con el nombre de quien lo lleva. No lo crees otra vez: si te toca atenderlo, pide a tu supervisión que te lo pase. Si no aparece nada, búscalo por teléfono antes de crearlo.', en: 'You open your own records and the ones with no owner. If it belongs to a teammate in your market, search tells you: "It exists and someone else has it", with that person\'s name. Do not add it again: if you should be working it, ask your supervisor to pass it to you. If nothing shows, search by phone before adding it.' },
   },
   {
     id: 'merchant-new', topic: 'merchants', tracks: SELL,
@@ -928,13 +928,13 @@ export const HELP: HelpItem[] = [
   },
   {
     id: 'merchant-contacts', topic: 'merchants', tracks: WORK,
-    q: { es: 'Quien me atendió no es el dueño, o la cuenta tiene varios directivos. ¿Cómo los registro?', en: 'The person I spoke with is not the owner, or the account has several executives. How do I record them?' },
-    a: { es: 'En la ficha, Datos, Contactos, "Agregar". Cada persona va con su rol: dueño, encargado, decisor, y en cuentas grandes dirección, compras, finanzas, tecnología e integración, legal u operación. Una cuenta puede tener varios contactos; "Hacer principal" marca al principal.', en: 'On the record, Details, Contacts, "Add". Each person carries a role: owner, manager, decision-maker, and on large accounts executive, purchasing, finance, technology and integration, legal or operations. An account can have several contacts; "Make primary" marks the main one.' },
+    q: { es: 'Quien me atendió no es el dueño del comercio, o la cuenta tiene varios directivos. ¿Cómo los registro?', en: 'The person I spoke with is not the owner, or the account has several executives. How do I record them?' },
+    a: { es: 'En la ficha, Datos, Contactos, "Agregar". Cada persona va con su rol: dueño del comercio, encargado, decisor, y en cuentas grandes dirección, compras, finanzas, tecnología e integración, legal u operación. Una cuenta puede tener varios contactos; "Hacer principal" marca al principal.', en: 'On the record, Details, Contacts, "Add". Each person carries a role: owner, manager, decision-maker, and on large accounts executive, purchasing, finance, technology and integration, legal or operations. An account can have several contacts; "Make primary" marks the main one.' },
   },
   {
     id: 'merchant-health', topic: 'merchants', tracks: 'all',
     q: { es: '¿Qué significa la salud de un comercio?', en: 'What does a merchant\'s health mean?' },
-    a: { es: 'Activo: está vendiendo. Sin transaccionar: ya se dio de alta y todavía no vende. En riesgo: bajó o dejó de vender. Lead nuevo: todavía es prospecto. Estos estados dependen de los datos de ventas, que aún no están conectados.', en: 'Active: it is selling. Not transacting: it enrolled and is not selling yet. At risk: sales dropped or stopped. New lead: still a prospect. These states depend on sales data, which is not connected yet.' },
+    a: { es: 'Activo: está vendiendo. Sin transaccionar: ya se dio de alta y todavía no vende. En riesgo: bajó o dejó de vender. Recién llegado: acaba de entrar y todavía no tiene negocio. Estos estados dependen de los datos de ventas, que aún no están conectados.', en: 'Active: it is selling. Not transacting: it enrolled and is not selling yet. At risk: sales dropped or stopped. Just arrived: it just came in and has no deal yet. These states depend on sales data, which is not connected yet.' },
   },
   {
     id: 'merchant-tree', topic: 'merchants', tracks: 'all',
@@ -968,8 +968,8 @@ export const HELP: HelpItem[] = [
   },
   {
     id: 'merchant-attribution', topic: 'merchants', tracks: 'all',
-    q: { es: '¿Quién es el dueño de un comercio y desde cuándo?', en: 'Who owns a merchant, and since when?' },
-    a: { es: 'En la ficha, Datos, "Atribución": origen, canal y dueño, cada uno con su fecha. Lo anterior no se borra.', en: 'On the record, Details, "Attribution": source, channel and owner, each with its date. Earlier values are not deleted.' },
+    q: { es: '¿Quién lleva un comercio y desde cuándo?', en: 'Who owns a merchant, and since when?' },
+    a: { es: 'En la ficha, Datos, "Atribución": origen, canal y quién lo lleva, cada uno con su fecha. Lo anterior no se borra.', en: 'On the record, Details, "Attribution": source, channel and owner, each with its date. Earlier values are not deleted.' },
   },
   {
     id: 'merchant-directions', topic: 'merchants', tracks: SELL,
@@ -998,12 +998,12 @@ export const HELP: HelpItem[] = [
   {
     id: 'see-what', topic: 'team', tracks: 'all',
     q: { es: '¿Qué puedo ver?', en: 'What can I see?' },
-    a: { es: 'Ventas ve lo suyo, los leads sin dueño de su mercado y los comercios sin dueño de sus territorios. Supervisión, lo de su equipo. Líder de mercado y Operaciones, todo su mercado. Leadership y Administración, todos los mercados; Leadership, en solo lectura.', en: 'Sales sees their own records, the unowned leads of their market and the unowned merchants of their territories. Supervisors, their team\'s. Market leads and Operations, their whole market. Leadership and Administration, every market; Leadership, read-only.' },
+    a: { es: 'Ventas ve lo suyo, los leads sin asignar de su mercado y los comercios sin asignar de sus territorios. Supervisión, lo de su equipo. Líder de mercado y Operaciones, todo su mercado. Leadership y Administración, todos los mercados; Leadership, en solo lectura.', en: 'Sales sees their own records, the unowned leads of their market and the unowned merchants of their territories. Supervisors, their team\'s. Market leads and Operations, their whole market. Leadership and Administration, every market; Leadership, read-only.' },
   },
   {
     id: 'team-views', topic: 'team', tracks: ['supervisor', 'lead'],
     q: { es: '¿Dónde veo a mi equipo?', en: 'Where do I see my team?' },
-    a: { es: 'En dos lugares. En Hoy, "Mi equipo": quién necesita apoyo ahora. En tu menú, "Mi equipo": la tabla por persona, "Resultados por semana", lo que no tiene dueño vigente y la cola de excepciones. Quien lidera el mercado entra directo ahí.', en: 'Two places. In Today, "My team": who needs support now. In your menu, "My team": the table per person, "Results by week", what has no current owner and the exception queue. Market leads land right there.' },
+    a: { es: 'En dos lugares. En Hoy, "Mi equipo": quién necesita apoyo ahora. En tu menú, "Mi equipo": la tabla por persona, "Resultados por semana", lo que quedó por repartir y Pendientes del equipo. Quien lidera el mercado entra directo ahí.', en: 'Two places. In Today, "My team": who needs support now. In your menu, "My team": the table per person, "Results by week", what has no current owner and Team alerts. Market leads land right there.' },
   },
   {
     id: 'metrics', topic: 'team', tracks: WATCH,
@@ -1023,27 +1023,27 @@ export const HELP: HelpItem[] = [
   {
     id: 'filter-person', topic: 'team', tracks: WATCH,
     q: { es: '¿Cómo filtro el tablero o Comercios por persona, equipo o embudo?', en: 'How do I filter the board or Merchants by person, team or pipeline?' },
-    a: { es: 'En Negocios, con los selectores "Equipo" y "Persona", junto al embudo. En Comercios, abre "Filtrar por dueño, equipo, embudo, plaza o territorio".', en: 'In Deals, with the "Team" and "Person" selectors, next to the pipeline. In Merchants, open "Filter by owner, team, pipeline, place or territory".' },
+    a: { es: 'En Negocios, con los selectores "Equipo" y "Persona", junto al embudo. En Comercios, abre "Filtrar por quién lo lleva, equipo, embudo, plaza o territorio".', en: 'In Deals, with the "Team" and "Person" selectors, next to the pipeline. In Merchants, open "Filter by owner, team, pipeline, place or territory".' },
   },
   {
     id: 'exceptions', topic: 'team', tracks: MANAGE,
-    q: { es: '¿Qué es la cola de excepciones y qué hace "Descartar"?', en: 'What is the exception queue and what does "Dismiss" do?' },
-    a: { es: 'Junta lo que se salió de la regla: un negocio sin próximo paso o estancado, una revisita pendiente, un comercio en riesgo o sin dueño. Cada aviso se cierra solo cuando se corrige. "Descartar" lo saca de la lista y no vuelve en 7 días, aunque siga sin corregirse.', en: 'It gathers what broke a rule: a deal with no next step or stalled, a pending revisit, a merchant at risk or with no owner. Each item closes on its own once it is fixed. "Dismiss" removes it from the list and it does not come back for 7 days, even if it is still not fixed.' },
+    q: { es: '¿Qué es "Pendientes del equipo" y qué hace "Descartar"?', en: 'What are Team alerts and what does "Dismiss" do?' },
+    a: { es: 'Junta lo que se salió de la regla: un negocio sin próximo paso o estancado, una revisita pendiente, un comercio en riesgo o sin asignar. Cada aviso se cierra solo cuando se corrige. "Descartar" lo saca de la lista y no vuelve en 7 días, aunque siga sin corregirse.', en: 'It gathers what broke a rule: a deal with no next step or stalled, a pending revisit, a merchant at risk or with no owner. Each item closes on its own once it is fixed. "Dismiss" removes it from the list and it does not come back for 7 days, even if it is still not fixed.' },
   },
   {
     id: 'reassign', topic: 'team', tracks: MANAGE,
     q: { es: '¿Cómo reasigno un lead o un comercio?', en: 'How do I reassign a lead or a merchant?' },
-    a: { es: 'Comercio: abre la ficha y toca "Reasignar", junto al dueño; te pide confirmar. Lead: abre el lead y, en "Dueño", elige a la persona y toca "Reasignar". Para muchos a la vez, usa "Repartir" en Comercios o "Reasignar cartera" en Mi equipo. Quien vende puede pasar sus propios leads con "Pasar a un compañero".', en: 'Merchant: open the record and tap "Reassign", next to the owner; it asks you to confirm. Lead: open the lead and, under "Owner", pick the person and tap "Reassign". For many at once, use "Distribute" in Merchants or "Reassign book" in My team. Sellers can pass their own leads with "Pass to a teammate".' },
+    a: { es: 'Comercio: abre la ficha y toca "Reasignar", junto a quien lo lleva; te pide confirmar. Lead: abre el lead y, en "Quién lo lleva", elige a la persona y toca "Reasignar". Para muchos a la vez, usa "Repartir" en Comercios o "Reasignar cartera" en Mi equipo. Quien vende puede pasar sus propios leads con "Pasar a un compañero".', en: 'Merchant: open the record and tap "Reassign", next to the owner; it asks you to confirm. Lead: open the lead and, under "Owner", pick the person and tap "Reassign". For many at once, use "Distribute" in Merchants or "Reassign book" in My team. Sellers can pass their own leads with "Pass to a teammate".' },
   },
   {
     id: 'moves-with', topic: 'team', tracks: MANAGE,
     q: { es: '¿Qué se va con el comercio cuando lo reasigno?', en: 'What moves with the merchant when I reassign it?' },
-    a: { es: 'Sus negocios y tareas abiertas. La historia se queda en la ficha y el cambio queda en la bitácora con tu nombre.', en: 'Its open deals and tasks. The history stays on the record and the change is logged with your name.' },
+    a: { es: 'Sus negocios abiertos y sus pendientes. La historia se queda en la ficha y el cambio queda en la bitácora con tu nombre.', en: 'Its open deals and to-dos. The history stays on the record and the change is logged with your name.' },
   },
   {
     id: 'distribute', topic: 'team', tracks: MANAGE,
     q: { es: '¿Cómo reparto por ciudad o territorio?', en: 'How do I distribute by city or territory?' },
-    a: { es: 'En Comercios, abre "Filtrar por dueño, equipo, embudo, plaza o territorio" y luego "Repartir": marca varios o elige "Todos los de este filtro" y a quién se los pasas.', en: 'In Merchants, open "Filter by owner, team, pipeline, place or territory", then "Distribute": tick some or choose "Everything in this filter" and who gets them.' },
+    a: { es: 'En Comercios, abre "Filtrar por quién lo lleva, equipo, embudo, plaza o territorio" y luego "Repartir": marca varios o elige "Todos los de este filtro" y a quién se los pasas.', en: 'In Merchants, open "Filter by owner, team, pipeline, place or territory", then "Distribute": tick some or choose "Everything in this filter" and who gets them.' },
   },
   {
     id: 'book-part', topic: 'team', tracks: MANAGE,
@@ -1052,8 +1052,8 @@ export const HELP: HelpItem[] = [
   },
   {
     id: 'house-account', topic: 'team', tracks: MANAGE,
-    q: { es: '¿Qué es "sin dueño vigente" y quién lo ve?', en: 'What is "no current owner" and who sees it?' },
-    a: { es: 'Es un comercio o lead sin dueño, o a nombre de una cuenta de servicio o de alguien que ya no vende en ese mercado. Lo ven supervisión y quien lidera el mercado, en Mi equipo. Quien vende no lo ve hasta que se le reparte.', en: 'It is a merchant or lead with no owner, or under a service account or someone who no longer sells in that market. Supervisors and the market lead see it, in My team. Sellers do not see it until it is distributed to them.' },
+    q: { es: '¿Qué es "por repartir" y quién lo ve?', en: 'What is "no current owner" and who sees it?' },
+    a: { es: 'Es un comercio o lead sin asignar, o a nombre de una cuenta de servicio o de alguien que ya no vende en ese mercado. Lo ven supervisión y quien lidera el mercado, en Mi equipo. Quien vende no lo ve hasta que se le reparte.', en: 'It is a merchant or lead with no owner, or under a service account or someone who no longer sells in that market. Supervisors and the market lead see it, in My team. Sellers do not see it until it is distributed to them.' },
   },
   {
     id: 'move-to-team', topic: 'team', tracks: ['supervisor'],
@@ -1073,7 +1073,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'access-removed-book', topic: 'team', tracks: MANAGE,
     q: { es: 'Le quitaron el acceso a alguien. ¿Qué pasa con su cartera?', en: 'Someone\'s access was removed. What happens to their book?' },
-    a: { es: 'Queda sin dueño vigente. Aparece en Administración, "Personas y acceso", y en Mi equipo con "Repartir comercios".', en: 'It has no current owner. It shows in Administration, "People and access", and in My team with "Distribute merchants".' },
+    a: { es: 'Queda por repartir. Aparece en Administración, "Personas y acceso", y en Mi equipo con "Repartir comercios".', en: 'It has no current owner. It shows in Administration, "People and access", and in My team with "Distribute merchants".' },
   },
   {
     id: 'supervisor-own', topic: 'team', tracks: ['supervisor'],
@@ -1159,7 +1159,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'who-sees-changes', topic: 'access', tracks: 'all',
     q: { es: '¿Queda registro de lo que hago?', en: 'Is there a record of what I do?' },
-    a: { es: 'Sí. Los cambios de etapa, de dueño, de datos y los inicios de sesión quedan en la bitácora con tu nombre y la hora. Lo que solo consultas no se registra.', en: 'Yes. Stage, owner and data changes, and sign-ins, are logged with your name and the time. What you only look at is not logged.' },
+    a: { es: 'Sí. Los cambios de etapa, de quién lo lleva, de datos y los inicios de sesión quedan en la bitácora con tu nombre y la hora. Lo que solo consultas no se registra.', en: 'Yes. Stage, owner and data changes, and sign-ins, are logged with your name and the time. What you only look at is not logged.' },
   },
   {
     id: 'other-markets', topic: 'access', tracks: 'all',
@@ -1174,7 +1174,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'ops-scope', topic: 'access', tracks: ['ops'],
     q: { es: '¿Qué hace Operaciones en CONTIGO?', en: 'What does Operations do in CONTIGO?' },
-    a: { es: 'Trabaja su cola: toma los negocios que Ventas entregó, los avanza, los devuelve con motivo y los cierra. Mantiene el Merchant ID, las aprobaciones, los documentos y la capacitación, completa los datos del comercio y deja notas y tareas. No crea comercios, leads ni negocios, y no cambia dueños: eso se pide a ventas o a quien lidera el mercado.', en: 'It works its queue: takes the deals Sales handed over, moves them forward, sends them back with a reason and closes them. It keeps the Merchant ID, approvals, documents and training, completes merchant details and leaves notes and tasks. It does not create merchants, leads or deals, and does not change owners: ask sales or the market lead for that.' },
+    a: { es: 'Trabaja su cola: toma los negocios que Ventas entregó, los avanza, los devuelve con motivo y los cierra. Mantiene el Merchant ID, las aprobaciones, los documentos y la capacitación, completa los datos del comercio y deja notas y tareas. No crea comercios, leads ni negocios, y no reasigna: eso se pide a ventas o a quien lidera el mercado.', en: 'It works its queue: takes the deals Sales handed over, moves them forward, sends them back with a reason and closes them. It keeps the Merchant ID, approvals, documents and training, completes merchant details and leaves notes and tasks. It does not create merchants, leads or deals, and does not change owners: ask sales or the market lead for that.' },
   },
 
   // ------------------------------------------------------------ administración
@@ -1201,7 +1201,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'admin-rotation-empty', topic: 'admin', tracks: ['admin'],
     q: { es: '¿Qué pasa si en un turno no queda nadie?', en: 'What if nobody is left in a rotation?' },
-    a: { es: 'El lead va al respaldo; si no hay, queda sin dueño y lo ve quien vende en ese mercado.', en: 'The lead goes to the fallback; with none, it stays unowned and that market\'s sellers see it.' },
+    a: { es: 'El lead va al respaldo; si no hay, queda sin asignar y lo ve quien vende en ese mercado.', en: 'The lead goes to the fallback; with none, it stays unowned and that market\'s sellers see it.' },
   },
   {
     id: 'admin-win', topic: 'admin', tracks: ['admin'],
@@ -1298,7 +1298,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'no-app', topic: 'limits', tracks: 'all',
     q: { es: '¿Hay una app para instalar desde la tienda de aplicaciones?', en: 'Is there an app to install from the app store?' },
-    a: { es: 'No. CONTIGO se usa en el navegador, también en el teléfono. Puedes agregar el acceso a tu pantalla de inicio desde el menú del navegador.', en: 'No. CONTIGO runs in the browser, on a phone too. You can add a shortcut to your home screen from the browser menu.' },
+    a: { es: 'No. CONTIGO se usa en el navegador, también en el teléfono. Puedes dejar un acceso directo en tu teléfono desde el menú del navegador.', en: 'No. CONTIGO runs in the browser, on a phone too. You can leave a shortcut on your phone from the browser menu.' },
   },
   {
     id: 'no-new-form', topic: 'limits', tracks: ['admin'],
@@ -1355,7 +1355,7 @@ export const TRAINING: Record<Track, Training> = {
       { es: 'Pasar un lead a un compañero o soltarlo, y cerrar varios leads de una vez con su motivo.', en: 'Pass a lead to a teammate or release it, and close several leads at once with a reason.' },
       { es: 'En cuentas grandes: tipo de cuenta, a quién pertenece y los contactos con su rol.', en: 'On large accounts: account type, who it belongs to and the contacts with their role.' },
       { es: 'Cerrar un negocio que no avanza con "Marcar como perdido" y su motivo.', en: 'Close a deal that is not moving with "Mark as lost" and its reason.' },
-      { es: 'Saber qué ves y qué no: lo tuyo y lo que no tiene dueño. Lo demás se pide a supervisión.', en: 'Know what you see and what you do not: your own records and the unowned ones. The rest goes through your supervisor.' },
+      { es: 'Saber qué ves y qué no: lo tuyo y lo que está sin asignar. Lo demás se pide a supervisión.', en: 'Know what you see and what you do not: your own records and the unowned ones. The rest goes through your supervisor.' },
       { es: 'Saber qué no hace CONTIGO todavía: rutas, ubicación, mapa, fotos, avisos por correo y trabajo sin conexión.', en: 'Know what CONTIGO does not do yet: routes, location, map, photos, email notices and offline work.' },
     ],
   },
@@ -1371,7 +1371,7 @@ export const TRAINING: Record<Track, Training> = {
       { es: 'Negocios cerrados: ganados y perdidos por persona y periodo, y exportar lo filtrado.', en: 'Closed deals: won and lost by person and period, and exporting what is filtered.' },
       { es: 'El Reporte de campo y "Resultados por semana" para la revisión semanal.', en: 'The Field report and "Results by week" for the weekly review.' },
       { es: 'Cerrar en bloque los negocios sin movimiento y los leads viejos, con su motivo.', en: 'Close in bulk the deals with no movement and the old leads, with a reason.' },
-      { es: 'La cola de excepciones: qué abre cada aviso, que se cierran solos y cuándo usar "Descartar".', en: 'The exception queue: what opens each item, that they close on their own and when to use "Dismiss".' },
+      { es: 'Pendientes del equipo: qué abre cada aviso, que se cierran solos y cuándo usar "Descartar".', en: 'Team alerts: what opens each item, that they close on their own and when to use "Dismiss".' },
       { es: 'Usar el tablero de Negocios como agenda de tu revisión semanal.', en: 'Use the Deals board as the agenda for your weekly review.' },
       { es: 'Exigir el próximo paso sin que se llene de fechas de relleno.', en: 'Hold the team to the next step without it filling up with filler dates.' },
       { es: 'La regla del piloto: los tres embudos de primera transacción se ganan a mano.', en: 'The pilot rule: the three first-transaction pipelines are won by hand.' },
@@ -1387,7 +1387,7 @@ export const TRAINING: Record<Track, Training> = {
       { es: 'Reasignar un lead y un comercio.', en: 'Reassign a lead and a merchant.' },
     ],
     week1: [
-      { es: 'Repartir lo que no tiene dueño vigente, por plaza o territorio, y una cartera completa.', en: 'Distribute what has no current owner, by place or territory, and a whole book.' },
+      { es: 'Repartir lo que quedó por repartir, por plaza o territorio, y una cartera completa.', en: 'Distribute what has no current owner, by place or territory, and a whole book.' },
       { es: 'Negocios cerrados y Reporte de campo: filtrar por embudo, equipo y persona, y exportar.', en: 'Closed deals and the Field report: filter by pipeline, team and person, and export.' },
       { es: 'Leer el panel "Por embudo" para separar tiendas de cadenas y distribuidores, y "Cómo se calcula" en cada cifra.', en: 'Read the panel "By pipeline" to separate stores from chains and distributors, and "How it is calculated" on each figure.' },
       { es: 'Tipo de cuenta, jerarquía ("Pertenece a") y etapas del embudo de cadenas y distribuidores.', en: 'Account type, hierarchy ("Belongs to") and the stages of the chains and distributors pipeline.' },
@@ -1423,7 +1423,7 @@ export const TRAINING: Record<Track, Training> = {
       { es: 'Qué puede tu rol: ver todo, cambiar nada.', en: 'What your role can do: see everything, change nothing.' },
     ],
     week1: [
-      { es: 'Leer Mi equipo por mercado, con su cola de excepciones.', en: 'Read My team by market, with its exception queue.' },
+      { es: 'Leer Mi equipo por mercado, con sus Pendientes del equipo.', en: 'Read My team by market, with its Team alerts.' },
       { es: 'Negocios cerrados: ganados y perdidos por persona y periodo, y exportar.', en: 'Closed deals: won and lost by person and period, and exporting.' },
       { es: 'El consolidado en USD: con qué tasa se calcula, de qué fecha es y qué pasa si falta.', en: 'The USD total: which rate it uses, its date and what happens when it is missing.' },
       { es: 'Adopción y el Reporte de campo.', en: 'Adoption and the Field report.' },
@@ -1445,7 +1445,7 @@ export const TRAINING: Record<Track, Training> = {
       { es: 'Embudos y campos: agregar, mover y archivar etapas; crear un embudo, un campo, un tipo de cuenta o un motivo de pérdida.', en: 'Pipelines and fields: add, move and archive stages; create a pipeline, a field, an account type or a loss reason.' },
       { es: 'La tasa de cambio a USD y la sección Operaciones de Administración: etapas de Operaciones, productos, proveedores y documentos.', en: 'The exchange rate to USD and the Operations section of Administration: Operations stages, products, providers and documents.' },
       { es: 'La regla de cierre por embudo: primera transacción o a mano, y la regla del piloto.', en: 'The closing rule per pipeline: first transaction or by hand, and the pilot rule.' },
-      { es: 'Calidad de datos: registros sin dueño por mercado y fusionar duplicados.', en: 'Data quality: unowned records per market and merging duplicates.' },
+      { es: 'Calidad de datos: registros sin asignar por mercado y fusionar duplicados.', en: 'Data quality: unowned records per market and merging duplicates.' },
       { es: 'La pestaña Pipedrive: qué no se trajo y cómo leer "No cargados".', en: 'The Pipedrive tab: what was not brought over and how to read "Not loaded".' },
       { es: 'Leer la bitácora con sus filtros y Estado de CONTIGO.', en: 'Read the audit log with its filters, and CONTIGO status.' },
       { es: 'Qué no hace CONTIGO todavía, para responderle al equipo sin prometer.', en: 'What CONTIGO does not do yet, so you can answer the team without promising.' },
@@ -1491,7 +1491,7 @@ export const LANDING = {
     cards: [
       { track: 'rep' as Track, points: [{ es: 'Tu día ya ordenado, en el teléfono y sin instalar nada', en: 'Your day already sorted, on your phone and with nothing to install' }, { es: 'Conviertes el lead en comercio y negocio sin capturarlo otra vez', en: 'You convert the lead into a merchant and a deal without typing it again' }, { es: 'Llamas, escribes por WhatsApp y registras la visita desde la ficha', en: 'You call, message on WhatsApp and log the visit from the record' }] },
       { track: 'supervisor' as Track, points: [{ es: 'Una fila por persona de tu equipo', en: 'One row per person on your team' }, { es: 'Repartes leads y comercios, uno o por territorio', en: 'You hand out leads and merchants, one by one or by territory' }, { es: 'Ves quién va tarde, qué negocio no tiene próximo paso y los cerrados por persona', en: 'You see who is late, which deal has no next step and closed deals by person' }] },
-      { track: 'lead' as Track, points: [{ es: 'Todo tu mercado: embudos, equipos y cartera', en: 'Your whole market: pipelines, teams and book' }, { es: 'Lo que quedó sin dueño vigente, listo para repartir', en: 'What was left with no current owner, ready to distribute' }, { es: 'El Panel del LT, los negocios cerrados y el reporte semanal de campo de tu mercado', en: 'The Leadership panel, closed deals and the weekly field report for your market' }] },
+      { track: 'lead' as Track, points: [{ es: 'Todo tu mercado: embudos, equipos y cartera', en: 'Your whole market: pipelines, teams and book' }, { es: 'Lo que quedó por repartir, a la vista', en: 'What was left with no current owner, ready to distribute' }, { es: 'El Panel del LT, los negocios cerrados y el reporte semanal de campo de tu mercado', en: 'The Leadership panel, closed deals and the weekly field report for your market' }] },
       { track: 'ops' as Track, points: [{ es: 'Tu cola: lo que Ventas entregó, para tomarlo o devolverlo con el motivo', en: 'Your queue: what Sales handed over, to take it or send it back with the reason' }, { es: 'Merchant ID, aprobaciones, documentos y capacitación en el mismo negocio', en: 'Merchant ID, approvals, documents and training on the same deal' }, { es: 'Cada cambio de etapa queda con nombre y hora', en: 'Every stage change is saved with a name and a time' }] },
       { track: 'lt' as Track, points: [{ es: 'Todos los mercados, en solo lectura', en: 'Every market, read-only' }, { es: 'Embudo, respuesta a leads y comercios en riesgo, y cada cifra dice cómo se calcula', en: 'Pipeline, lead response and merchants at risk, and each figure says how it is calculated' }, { es: 'Negocios cerrados por persona, sin pedir reportes a nadie', en: 'Closed deals by person, without asking anyone for reports' }] },
       { track: 'admin' as Track, points: [{ es: 'Accesos por rol, con mercado, equipo y fecha de fin', en: 'Access by role, with market, team and end date' }, { es: 'Embudos y etapas, turnos de leads, horario hábil, territorios y calidad de datos', en: 'Pipelines and stages, lead rotations, business hours, territories and data quality' }, { es: 'Bitácora de cada cambio y reportes del equipo', en: 'An audit log of every change and the team\'s reports' }] },
@@ -1591,7 +1591,7 @@ export const LANDING = {
       { es: 'Panel del LT', en: 'Leadership panel' },
       { es: 'Bitácora de cambios', en: 'Audit log' },
       { es: 'Español e inglés', en: 'Spanish and English' },
-      { es: 'Teléfono, tablet y escritorio', en: 'Phone, tablet and desktop' },
+      { es: 'Teléfono, tablet y computadora', en: 'Phone, tablet and desktop' },
     ],
   },
   tour: {

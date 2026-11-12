@@ -397,7 +397,7 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     const help = page.getByTestId('help')
     const items = help.getByTestId('help-item')
     const all = await items.count()
-    // Leadership: en "Equipo y dueños", después de lo que es para todos va lo suyo, antes de lo de supervisión
+    // Leadership: en "Equipo y quién lleva qué", después de lo que es para todos va lo suyo, antes de lo de supervisión
     const team = help.getByTestId('help-topic-team').getByTestId('help-item')
     await expect(team.nth(0)).toContainText('¿Qué puedo ver?')
     await expect(team.nth(1)).toContainText('¿Qué diferencia hay entre "Primer intento a tiempo" y "Contacto logrado"?')
@@ -414,7 +414,7 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     await expect(help).toContainText('¿Dónde veo lo que el equipo reporta?')
     await help.getByTestId('help-role-ops').click()
     await expect(help).toContainText('¿Qué hace Operaciones en CONTIGO?')
-    await expect(help).not.toContainText('¿Puedo tomar un lead sin dueño?')
+    await expect(help).not.toContainText('¿Puedo tomar un lead sin asignar?')
     await help.getByTestId('help-all').click()
     await expect(items).toHaveCount(all)
   })
