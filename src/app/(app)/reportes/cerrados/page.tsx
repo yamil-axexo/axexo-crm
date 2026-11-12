@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
-import { getClosedDeals, getReportOptions, marketPeriods } from '@/dal/reports'
+import { getClosedDeals, getReportOptions, marketPeriods, reportScope } from '@/dal/reports'
 import { EXPORT_MAX } from '@/domain/reports'
 import { track } from '@/dal/boards'
 import { Badge, Card, CardTitle, Empty, PageHeader, NoData } from '@/ui/kit'
@@ -22,9 +22,9 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
   const { t, locale } = ctx
   const sp = flat(await searchParams)
   const period = marketPeriods(ctx, sp.periodo, sp.desde, sp.hasta, 'mes')
-  const options = await getReportOptions(ctx)
+  const options = await getReportOptions(ctx, reportScope(ctx, own))
   const f = reportFilters(sp, options)
-  const data = await getClosedDeals(ctx, period, f, LIMIT)
+  const data = await getClosedDeals(ctx, period, f, LIMIT, own)
   await track(ctx, 'view.report.closed')
   const params = { periodo: period.key, desde: period.key === 'rango' ? period.first.from : undefined, hasta: period.key === 'rango' ? period.first.to : undefined, mercado: f.market, embudo: f.pipeline, equipo: f.team, persona: f.owner, resultado: f.result }
   const sel = reportSelects(t, options, f)

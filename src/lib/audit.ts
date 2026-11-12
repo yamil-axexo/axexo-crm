@@ -115,7 +115,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 /** Tipos de acción para filtrar la bitácora. El valor vacío es la vista de entrada: todo menos inicios y cierres de sesión. */
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
-  access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%'], not: null },
+  access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
   config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported'], not: null },

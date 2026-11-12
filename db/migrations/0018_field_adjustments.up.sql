@@ -66,9 +66,9 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
 $$;
 
 -- ---------------------------------------------------------------- 2) motivo de la visita sin venta
+-- Sin restricción de tipo en la base: bajar 0010 convierte las visitas en otra cosa y conserva sus datos. La regla (solo una visita
+-- sin venta lleva motivo, y el motivo es del catálogo de calle) vive en el dominio.
 alter table crm.activities add column no_sale_code text references crm.loss_reasons(code);
-alter table crm.activities add constraint activities_no_sale_code_check
-  check (no_sale_code is null or (kind = 'visit' and outcome = 'no_sale'));
 
 -- ---------------------------------------------------------------- 3) Merchant ID
 create index accounts_merchant_ref_idx on crm.accounts (market_code, upper(btrim(merchant_ref))) where merchant_ref is not null;

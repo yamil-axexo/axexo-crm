@@ -8,7 +8,7 @@ import { recordActivity } from '@/domain/activities'
 import { addStreetSeller, updateStreetSeller } from '@/domain/street'
 import { exportFieldReport } from '@/domain/reports'
 import { createLead } from '@/domain/leads'
-import { getFieldReport } from '@/dal/reports'
+import { getClosedDeals, getFieldReport, marketPeriods, reportScope } from '@/dal/reports'
 import { listAccounts } from '@/dal/accounts'
 import { visitorNames, noSaleReasons } from '@/dal/field'
 import { streetSellers, streetSummary } from '@/dal/street'
@@ -251,12 +251,9 @@ describe('visitas: motivo de la visita sin venta, la tarea que ya estaba y el pr
     expect((await one(admin<{ no_sale_code: string }[]>`select no_sale_code from crm.activities where id = ${out.id}`)).no_sale_code).toBe('no_cash')
     const row = (await getAccount(marco, store.id))!.timeline.find((x) => x.kind === 'visit')!
     expect(row.meta).toMatchObject({ rejection: 'no_cash', rejection_es: 'Sin efectivo hoy' })
-    // la base no deja poner motivo a una visita con venta
-    expect(await admin`update crm.activities set no_sale_code = 'no_cash' where id = ${out.id} and outcome = 'sale'`.then((r) => r.count)).toBe(0)
-    await expect(admin`insert into crm.activities (market_code, account_id, kind, subject, done_at, outcome, no_sale_code) values ('MX', ${store.id}, 'visit', 'x', now(), 'sale', 'no_cash')`).rejects.toMatchObject({ code: '23514' })
   })
 
-  it('registrar una visita cierra la visita por hacer que ya estaba, sin contarla dos veces', async () => {
+  it('registrar una visita cierra la visita por hacer que la misma persona ya tenía, sin contarla dos veces', async () => {
     const marco = await ctxFor('marco.pena')
     const store = await marcoStore(6)
     const planned = await recordActivity(marco, { accountId: store.id, kind: 'visit', dueAt: addDays(todayMX, 3) })
@@ -295,5 +292,21 @@ describe('motivos de pérdida de calle: de México', () => {
     await expect(moveDeal(jade, id, lost, { reasonCode: 'landline_only' })).rejects.toMatchObject({ code: 'invalid' })
     await moveDeal(jade, id, lost, { reasonCode: 'no_response' })
     expect((await one(admin<{ status: string }[]>`select status from crm.deals where id = ${id}`)).status).toBe('lost')
+  })
+})
+
+describe('quien vende ve SUS negocios cerrados', () => {
+  it('el alcance propio existe solo para esa pantalla, y trae únicamente lo que la persona lleva', async () => {
+    const marco = await ctxFor('marco.pena')
+    expect(reportScope(marco)).toEqual({ full: [], team: [] })
+    expect(reportScope(marco, true)).toEqual({ full: [], team: ['MX'] })
+    const period = marketPeriods(marco, 'rango', addDays(todayMX, -400), todayMX)
+    expect((await getClosedDeals(marco, period, {})).total).toBe(0)
+    const own = await getClosedDeals(marco, period, {}, 200, true)
+    const mine = await one(admin<{ n: number }[]>`select count(*)::int as n from crm.deals where owner_id = ${marco.user.id} and status in ('won', 'lost')`)
+    expect(mine.n).toBeGreaterThan(0)
+    expect(own.total).toBeGreaterThan(0)
+    expect(own.total).toBeLessThanOrEqual(mine.n)
+    expect(own.rows.every((r) => r.owner_name === 'Marco Peña')).toBe(true)
   })
 })

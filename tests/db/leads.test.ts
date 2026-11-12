@@ -161,7 +161,7 @@ describe('6: un lead creado dentro de la tienda puede nacer contactado', () => {
     const lead = await one(admin`select status, source, first_touch_at is not null as touched, first_touch_at <= sla_due_at as on_time from crm.leads where id = ${id}`)
     expect(lead).toEqual({ status: 'contacted', source: 'walk_in', touched: true, on_time: true })
     const log = await admin`select kind, outcome from crm.activities where lead_id = ${id}`
-    expect(log.map((a) => [a.kind, a.outcome])).toEqual([['call', 'reached']])
+    expect(log.map((a) => [a.kind, a.outcome])).toEqual([['meeting', 'reached']])
     expect((await getQueue(sam)).rows.some((r) => r.type === 'lead' && r.id === id)).toBe(false)
     expect((await admin`select action from crm.audit_events where object_id = ${id} order by at`).map((a) => a.action)).toEqual(['lead.created', 'lead.contacted'])
   })

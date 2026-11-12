@@ -244,7 +244,7 @@ test('en teléfono el candado de etapa se resuelve en una hoja, sin salir del ta
   await page.getByTestId('gate-amount').fill('1200')
   await page.getByTestId('gate-save').click()
   await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Envío a carriers')
-  await sql`update crm.stages set required_fields = '{next_step}' where id = ${await uid('s-us-dealer-carrier')}`
+  await sql`update crm.stages set required_fields = '{next_step,amount,field:account_funding}' where id = ${await uid('s-us-dealer-carrier')}`
 })
 
 test('la hoja de completar le habla a Operaciones de documentos y proveedores, no de llamadas y propuestas', async ({ page }) => {

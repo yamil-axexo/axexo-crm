@@ -15,12 +15,13 @@ type Frag = postgres.Fragment
  * y mercados donde solo ve a su equipo (supervisión). RLS decide la fila; esto lo repite de forma explícita (AUTHZ-07).
  */
 export type ReportScope = { full: string[]; team: string[] }
-export function reportScope(ctx: Ctx): ReportScope {
+export function reportScope(ctx: Ctx, own = false): ReportScope {
   const live = ctx.markets.filter((m) => m.status === 'live').map((m) => m.code)
   const has = (code: string, roles: Role[]) => ctx.memberships.some((m) => roles.includes(m.role) && (m.market === null || m.market === code))
   const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead']))
-  // Supervisión ve a su equipo; quien vende, solo lo que lleva (app.supervised_user_ids() devuelve a la propia persona y a quienes supervisa).
-  const team = live.filter((c) => !full.includes(c) && has(c, ['supervisor', 'rep']))
+  // Supervisión ve a su equipo. Con `own` (solo "Mis negocios cerrados"), quien vende ve lo que lleva: app.supervised_user_ids()
+  // devuelve a la propia persona y a quienes supervisa. Los demás reportes no le dan alcance a quien vende.
+  const team = live.filter((c) => !full.includes(c) && has(c, own ? ['supervisor', 'rep'] : ['supervisor']))
   return { full, team }
 }
 export const scopeMarkets = (s: ReportScope) => [...s.full, ...s.team]
@@ -136,8 +137,8 @@ export type ClosedPerson = { owner_id: string | null; owner_name: string | null;
  * Negocios ganados y perdidos en el periodo, dentro del alcance de quien mira. La fecha de cierre es el día de calendario
  * en la zona del mercado. Los montos se suman por moneda: aquí nunca se convierten.
  */
-export async function getClosedDeals(ctx: Ctx, p: MarketPeriods, f: ClosedFilters, limit = 200) {
-  const scope = reportScope(ctx)
+export async function getClosedDeals(ctx: Ctx, p: MarketPeriods, f: ClosedFilters, limit = 200, own = false) {
+  const scope = reportScope(ctx, own)
   return withUser(ctx.user.id, async (tx) => {
     const base = closedBase(tx, scope, p, f)
     const rows = await tx<ClosedRow[]>`${closedSelect(tx)} ${base} order by closed_on desc, d.id desc limit ${limit}`

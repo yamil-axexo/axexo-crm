@@ -128,7 +128,7 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
     await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, body, due_at, done_at, outcome, visited_by, no_sale_code, owner_id, created_by)
              values (${id}, ${market!}, ${accountId}, ${dealId}, ${v.leadId ?? null}, ${v.kind}, ${subject}, ${clean(v.body)},
                      ${due}, ${done}, ${v.outcome || null}, ${visitor}, ${noSale}, ${ctx.user.id}, ${ctx.user.id})`
-    if (v.kind === 'visit' && !planned) await closePlannedVisits(tx, accountId, id)
+    if (v.kind === 'visit' && !planned) await closePlannedVisits(tx, accountId, ctx.user.id, id)
     await audit(tx, ctx, 'activity.added', 'activity', id, market!, null, {
       kind: v.kind, account_id: accountId, ...(v.outcome ? { outcome: v.outcome } : {}), ...(v.kind === 'visit' && !planned ? { origin: 'manual', on: v.on || null, visited_by: visitor, ...(noSale ? { no_sale_reason: noSale } : {}) } : {}),
     })

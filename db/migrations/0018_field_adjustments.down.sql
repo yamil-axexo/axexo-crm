@@ -6,7 +6,6 @@ update crm.loss_reasons set market_code = null
 
 drop index crm.accounts_merchant_ref_idx;
 
-alter table crm.activities drop constraint activities_no_sale_code_check;
 alter table crm.activities drop column no_sale_code;
 
 create or replace function app.visitor_names(p_market text) returns table (name text)

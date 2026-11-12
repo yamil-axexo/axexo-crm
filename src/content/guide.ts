@@ -230,8 +230,8 @@ const S = {
     key: 'win-rule',
     title: { es: 'Revisa cómo se gana un negocio en cada embudo', en: 'Review how a deal is won in each pipeline' },
     why: {
-      es: 'En "Embudos y campos", cada embudo dice si se gana con la primera transacción o a mano. En el piloto se gana a mano y, en los embudos con etapas de Operaciones, lo marca Operaciones; cuando llegue la primera transacción se confirmará sola.',
-      en: 'Under "Pipelines and fields", each pipeline says whether it is won by the first transaction or by hand. During the pilot a deal is won by hand and, in pipelines with Operations stages, Operations marks it; when the first transaction arrives it will be confirmed on its own.',
+      es: 'En "Embudos y campos", cada embudo dice si se gana con la primera transacción o a mano. En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola. En los embudos con etapas de Operaciones, lo marca Operaciones.',
+      en: 'Under "Pipelines and fields", each pipeline says whether it is won by the first transaction or by hand. During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own. In pipelines with Operations stages, Operations marks it.',
     },
     href: '/admin?tab=embudos',
     cta: { es: 'Ir a Embudos y campos', en: 'Go to Pipelines and fields' },
@@ -836,7 +836,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'deal-decision', topic: 'deals', tracks: WORK,
     q: { es: '¿Por qué me pide haber hablado con quien decide?', en: 'Why does it ask whether I spoke with the decision-maker?' },
-    a: { es: 'Hay etapas que no dejan entrar sin saber quién decide y haber hablado con esa persona. Agrega a la persona en la ficha del comercio (Datos, Contactos, "Agregar"). Luego, en el negocio, elígela en "Decisor" y marca "Ya hablé con quien decide" solo cuando sea cierto.', en: 'Some stages cannot be entered without a decision-maker identified and reached. Add the person on the merchant record (Details, Contacts, "Add"). Then, on the deal, pick them under "Decision-maker" and tick "I have spoken with the decision-maker" only when it is true.' },
+    a: { es: 'Hay etapas que no dejan entrar sin saber quién decide y haber hablado con esa persona. Agrega a la persona en la ficha del comercio (Datos, Contactos, "Agregar"). Luego, en el negocio, elígela en "Quien decide" y marca "Ya hablé con quien decide" solo cuando sea cierto.', en: 'Some stages cannot be entered without a decision-maker identified and reached. Add the person on the merchant record (Details, Contacts, "Add"). Then, on the deal, pick them under "Decision-maker" and tick "I have spoken with the decision-maker" only when it is true.' },
   },
   {
     id: 'deal-won', topic: 'deals', tracks: 'all',

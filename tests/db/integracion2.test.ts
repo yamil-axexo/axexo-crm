@@ -249,7 +249,8 @@ describe('en pausa no es un negocio frío', () => {
     const row = q.rows.find((r) => r.id === deal)
     expect(row?.paused_at).toBeTruthy()
     expect(row?.pause_review_on).toBe(addDays(today, 10))
-    expect(q.counts.training).toBe(before.training - 1)
+    // Un pedido no lleva la lista de alta (0018, ola 4): no contaba como capacitación pendiente ni antes ni después de la pausa.
+    expect(q.counts.training).toBe(before.training)
     expect(q.counts.all).toBe(before.all) // sigue en la cola
     expect((await getOpsQueue(tom, { focus: 'training' })).rows.some((r) => r.id === deal)).toBe(false)
   })

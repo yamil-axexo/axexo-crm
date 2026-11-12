@@ -76,13 +76,14 @@ export async function assertNoSaleReason(tx: Tx, market: string, raw: string | n
 }
 
 /**
- * Una visita registrada reemplaza la visita por hacer que ya estaba para ese comercio: no quedan dos "Próximo".
+ * Una visita registrada reemplaza la visita por hacer que la misma persona ya tenía para ese comercio: no quedan dos "Próximo".
  * La visita por hacer no se cuenta como otra visita: queda como tarea cerrada (la visita hecha es la que se acaba de registrar).
  */
-export async function closePlannedVisits(tx: Tx, accountId: string | null, except: string): Promise<void> {
+export async function closePlannedVisits(tx: Tx, accountId: string | null, ownerId: string, except: string): Promise<void> {
   if (!accountId) return
+  // Solo las de quien registra: la visita por hacer de otra persona sigue siendo suya.
   await tx`update crm.activities set kind = 'task', done_at = now(), outcome = 'done', deal_step = null
-            where account_id = ${accountId} and kind = 'visit' and done_at is null and id <> ${except}`
+            where account_id = ${accountId} and kind = 'visit' and done_at is null and owner_id = ${ownerId} and id <> ${except}`
 }
 
 /** Nota corta que acompaña a lo que se completa o se registra. Vacía es "sin nota". */
