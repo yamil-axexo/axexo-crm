@@ -63,6 +63,8 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'import.completed': ['Terminó la importación de Pipedrive', 'The Pipedrive import finished'],
   'import.raw_purged': ['Vació la copia cruda de Pipedrive', 'Emptied the raw Pipedrive copy'],
   'rules.evaluated': ['Evaluó las reglas a mano', 'Ran the rules by hand'],
+  'report.created': ['Reportó un problema o pidió algo', 'Reported a problem or asked for something'],
+  'report.answered': ['Respondió un reporte del equipo', 'Answered a team report'],
   'session.started': ['Inició sesión', 'Signed in'],
   'session.ended': ['Cerró sesión', 'Signed out'],
 }
@@ -74,6 +76,7 @@ export const AUDIT_GROUPS = {
   config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
+  reports: { label: ['Reportes del equipo', 'Team reports'] as Pair, like: ['report.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const
@@ -90,6 +93,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   exception: ['Aviso', 'Alert'],
   team: ['Equipo', 'Team'],
   territory: ['Territorio', 'Territory'],
+  problem_report: ['Reporte', 'Report'],
   pipeline: ['Embudo', 'Pipeline'],
   stage: ['Etapa', 'Stage'],
   routing_rule: ['Turno de leads', 'Lead rotation'],

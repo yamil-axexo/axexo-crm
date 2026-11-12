@@ -1,12 +1,14 @@
 'use client'
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
-import { Database, Flag, Inbox, Kanban, KeyRound, Search, Settings, Store, Sun, Users, X, type LucideIcon } from 'lucide-react'
+import { Ban, Database, Flag, Inbox, Kanban, KeyRound, LifeBuoy, MapPin, Search, Settings, Store, Sun, Users, X, type LucideIcon } from 'lucide-react'
 import { EmptyArt, HelpArt } from '@/ui/showcase/art'
 
-export type HelpRow = { id: string; topic: string; topicLabel: string; q: string; a: string; mine: boolean }
-export type HelpLabels = { title: string; desc: string; search: string; mine: string; all: string; empty: string; emptyTitle: string; clear: string; count: string; topics: string }
+/** `other` es la misma pregunta en el otro idioma: el buscador encuentra en español y en inglés. `tracks` son los roles a los que les sirve. */
+export type HelpRow = { id: string; topic: string; topicLabel: string; q: string; a: string; other: string; tracks: string[] }
+export type HelpRole = { key: string; label: string }
+export type HelpLabels = { title: string; desc: string; search: string; roles: string; all: string; empty: string; emptyTitle: string; clear: string; count: string; topics: string }
 
-const ICON: Record<string, LucideIcon> = { start: Flag, today: Sun, leads: Inbox, deals: Kanban, merchants: Store, team: Users, data: Database, access: KeyRound, admin: Settings }
+const ICON: Record<string, LucideIcon> = { start: Flag, today: Sun, leads: Inbox, deals: Kanban, merchants: Store, field: MapPin, team: Users, data: Database, access: KeyRound, admin: Settings, limits: Ban, support: LifeBuoy }
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 /** Resalta las palabras buscadas sin importar acentos ni mayúsculas. */
@@ -54,13 +56,16 @@ function excerpt(text: string, words: string[]): string | null {
   return `${from > 0 ? '… ' : ''}${text.slice(from, to === -1 ? text.length : to).trim()}${to !== -1 ? ' …' : ''}`
 }
 
-/** La ayuda: encabezado con buscador, temas con icono, resultado al escribir con resaltado y filtro por rol. */
-export function HelpList({ rows, labels }: { rows: HelpRow[]; labels: HelpLabels }) {
+/**
+ * La ayuda: encabezado con buscador, temas con icono, resultado al escribir con resaltado y filtro por rol.
+ * Las filas llegan con lo del rol de la persona primero; el filtro deja ver lo de cualquier rol.
+ */
+export function HelpList({ rows, labels, roles, mine }: { rows: HelpRow[]; labels: HelpLabels; roles: HelpRole[]; mine: string }) {
   const [text, setText] = useState('')
-  const [onlyMine, setOnlyMine] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
   const [topic, setTopic] = useState<string | null>(null)
   const words = useMemo(() => norm(text).split(/\s+/).filter(Boolean), [text])
-  const base = useMemo(() => rows.filter((r) => (!onlyMine || r.mine) && words.every((w) => norm(`${r.q} ${r.a} ${r.topicLabel}`).includes(w))), [rows, words, onlyMine])
+  const base = useMemo(() => rows.filter((r) => (!role || r.tracks.includes(role)) && words.every((w) => norm(`${r.q} ${r.a} ${r.topicLabel} ${r.other}`).includes(w))), [rows, words, role])
   const shown = topic ? base.filter((r) => r.topic === topic) : base
   const allTopics = [...new Map(rows.map((r) => [r.topic, r.topicLabel])).entries()]
   const topics = allTopics.filter(([t]) => shown.some((r) => r.topic === t))
@@ -68,6 +73,7 @@ export function HelpList({ rows, labels }: { rows: HelpRow[]; labels: HelpLabels
   const reset = () => {
     setText('')
     setTopic(null)
+    setRole(null)
   }
 
   return (
@@ -106,9 +112,11 @@ export function HelpList({ rows, labels }: { rows: HelpRow[]; labels: HelpLabels
       </header>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <div className="flex gap-2" role="group" aria-label={labels.mine}>
-          <button type="button" aria-pressed={!onlyMine} onClick={() => setOnlyMine(false)} className={pill(!onlyMine)} data-testid="help-all">{labels.all}</button>
-          <button type="button" aria-pressed={onlyMine} onClick={() => setOnlyMine(true)} className={pill(onlyMine)} data-testid="help-mine">{labels.mine}</button>
+        <div className="flex flex-wrap gap-2" role="group" aria-label={labels.roles} data-testid="help-roles">
+          <button type="button" aria-pressed={!role} onClick={() => setRole(null)} className={pill(!role)} data-testid="help-all">{labels.all}</button>
+          {[...roles.filter((r) => r.key === mine), ...roles.filter((r) => r.key !== mine)].map((r) => (
+            <button key={r.key} type="button" aria-pressed={role === r.key} onClick={() => setRole(r.key)} className={pill(role === r.key)} data-testid={r.key === mine ? 'help-mine' : `help-role-${r.key}`}>{r.label}</button>
+          ))}
         </div>
         <p className="ml-auto text-[13.5px] text-muted-2" aria-live="polite" data-testid="help-count">{labels.count.replace('{n}', String(shown.length))}</p>
       </div>
@@ -174,5 +182,45 @@ export function HelpList({ rows, labels }: { rows: HelpRow[]; labels: HelpLabels
         )
       })}
     </div>
+  )
+}
+
+export type TrainingPlan = { key: string; label: string; day1: string[]; week1: string[] }
+export type TrainingLabels = { title: string; desc: string; roles: string; day1: string; week1: string }
+
+/** Capacitación por rol: lo que hay que saber hacer el día uno y la primera semana, en orden. Abre en el rol de la persona. */
+export function Training({ plans, mine, labels }: { plans: TrainingPlan[]; mine: string; labels: TrainingLabels }) {
+  const [key, setKey] = useState(plans.some((p) => p.key === mine) ? mine : (plans[0]?.key ?? ''))
+  const plan = plans.find((p) => p.key === key)
+  const pill = (on: boolean) => `press inline-flex min-h-[44px] items-center rounded-full px-4 text-[14px] font-medium ${on ? 'bg-ink text-white' : 'border border-line-2 bg-surface text-strong hover:bg-green-50'}`
+  const list = (title: string, items: string[], testId: string) => (
+    <div className="card px-5 py-5 md:px-6" data-testid={testId}>
+      <h3 className="text-[16.5px] font-semibold text-strong">{title}</h3>
+      <ol className="mt-3 space-y-3">
+        {items.map((x, n) => (
+          <li key={x} className="grid grid-cols-[32px_1fr] items-start gap-3 text-[14.5px] leading-6 text-muted-2">
+            <span aria-hidden className="num grid h-8 w-8 place-items-center rounded-full bg-green-100 text-[13.5px] font-semibold text-brand-text">{n + 1}</span>
+            <span className="pt-1">{x}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+  return (
+    <section id="capacitacion" className="mt-12 scroll-mt-24" aria-labelledby="training-title" data-testid="training">
+      <h2 id="training-title" className="text-[24px] leading-8 font-semibold tracking-[-0.01em] text-strong">{labels.title}</h2>
+      <p className="mt-2 max-w-[60ch] text-[15px] leading-6 text-muted-2">{labels.desc}</p>
+      <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label={labels.roles}>
+        {plans.map((p) => (
+          <button key={p.key} type="button" aria-pressed={p.key === key} onClick={() => setKey(p.key)} className={pill(p.key === key)} data-testid={`training-role-${p.key}`}>{p.label}</button>
+        ))}
+      </div>
+      {plan && (
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+          {list(labels.day1, plan.day1, 'training-day1')}
+          {list(labels.week1, plan.week1, 'training-week1')}
+        </div>
+      )}
+    </section>
   )
 }

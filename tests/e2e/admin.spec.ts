@@ -304,7 +304,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
         await expect(page.locator('h1')).toHaveText('Estado de CONTIGO')
         await expect(page.getByTestId('status-env')).toContainText('Pruebas automáticas')
         await expect(page.getByTestId('status-version')).toContainText('Sin dato')
-        await expect(page.getByTestId('status-db')).toContainText('0012_admin_controls')
+        await expect(page.getByTestId('status-db')).toContainText(/\d{4}_[a-z_]+/) // la última migración aplicada, cualquiera que sea
         await expect(page.getByTestId('status-zone')).toContainText('hora de Puerto Rico (GMT-4)')
         // Frescura e integraciones, con "sin conectar" donde nada está conectado.
         await expect(page.getByTestId('status-row-pipedrive').getByTestId('status-last')).toHaveText('Nunca se ha importado')

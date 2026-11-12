@@ -1,6 +1,6 @@
 import 'server-only'
 import { cache } from 'react'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createHash, randomBytes } from 'node:crypto'
 import { withUser, withoutUser, systemUserId } from '@/server/db'
@@ -132,7 +132,28 @@ export async function destroySession(): Promise<void> {
   jar.delete(SESSION_COOKIE)
 }
 
+/**
+ * El idioma del navegador, leído de Accept-Language: inglés si es el primero que el navegador pide (el caso de US);
+ * español en todo lo demás, también cuando el encabezado no viene.
+ */
+export function browserLocale(acceptLanguage: string | null | undefined): Locale {
+  const ranked = (acceptLanguage ?? '')
+    .split(',')
+    .map((part, i) => {
+      const [tag = '', ...params] = part.trim().split(';')
+      const q = params.map((x) => x.trim()).find((x) => x.startsWith('q='))
+      const weight = q ? Number(q.slice(2)) : 1
+      return { tag: tag.toLowerCase(), weight: Number.isFinite(weight) ? weight : 0, i }
+    })
+    .filter((x) => x.tag && x.tag !== '*' && x.weight > 0)
+    .sort((a, b) => b.weight - a.weight || a.i - b.i)
+  const first = ranked[0]?.tag ?? ''
+  return first === 'en' || first.startsWith('en-') ? 'en' : 'es'
+}
+
+/** Idioma de las páginas sin sesión (la entrada): gana lo que la persona eligió con el interruptor; si no ha elegido, el del navegador. */
 export async function publicLocale(): Promise<Locale> {
   const raw = (await cookies()).get(LOCALE_COOKIE)?.value
-  return raw === 'en' ? 'en' : 'es'
+  if (raw === 'en' || raw === 'es') return raw
+  return browserLocale((await headers()).get('accept-language'))
 }

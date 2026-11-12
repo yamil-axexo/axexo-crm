@@ -81,9 +81,13 @@ describe('diseño: capturas, fotos y contenido de la entrada', () => {
 
   it('la entrada no promete lo que todavía no existe', () => {
     const soon = LANDING.status.rows.filter((r) => r.state === 'soon').map((r) => r.label.es).join(' ')
+    // Lo que CONTIGO no hace todavía se dice de frente: Sales App sin conectar, sin trabajo sin conexión, sin adjuntos y sin avisos por correo.
     expect(soon).toMatch(/Sales App/)
-    expect(soon).toMatch(/S5/)
-    expect(soon).toMatch(/Exportes/)
+    expect(soon).toMatch(/datos de ventas/)
+    expect(soon).toMatch(/sin conexión/)
+    expect(soon).toMatch(/fotos/)
+    expect(soon).toMatch(/correo/)
+    expect(LANDING.status.soon.es).toBe('Todavía no')
     const ribbon = LANDING.ribbon.items.map((x) => x.es).join(' ')
     expect(ribbon).not.toMatch(/Sales App|S5|export|sin conexión/i)
   })
