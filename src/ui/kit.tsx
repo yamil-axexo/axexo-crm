@@ -4,7 +4,7 @@ import { noData, noDataLabel } from '@/lib/no-data'
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ')
 
-export function PageHeader({ eyebrow, title, desc, actions }: { eyebrow?: string; title: string; desc?: string; actions?: ReactNode }) {
+export function PageHeader({ eyebrow, title, desc, actions }: { eyebrow?: string; title: string; desc?: ReactNode; actions?: ReactNode }) {
   return (
     <header className="mb-7 flex flex-wrap items-end justify-between gap-5">
       <div className="max-w-2xl">

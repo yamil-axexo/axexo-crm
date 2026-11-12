@@ -61,10 +61,11 @@ export default async function StatusPage() {
       key: 'pipedrive',
       name: 'Pipedrive',
       what: t('Importación a mano, solo lectura', 'Manual import, read-only'),
-      state: pipedriveConfigured() ? { tone: 'good', text: t('Conectado', 'Connected') } : { tone: 'neutral', text: t('Sin conectar: falta el token', 'Not connected: the token is missing') },
+      state: !pipedriveConfigured() ? { tone: 'neutral', text: t('Sin conectar: falta el token', 'Not connected: the token is missing') }
+        : s.pipedrive ? { tone: 'good', text: t('Conexión configurada', 'Connection configured') } : { tone: 'neutral', text: t('Conexión configurada, importación sin correr', 'Connection configured, import not run yet') },
       last: s.pipedrive
         ? [t(`Última importación: ${when(s.pipedrive.finished_at ?? s.pipedrive.started_at)}`, `Last import: ${when(s.pipedrive.finished_at ?? s.pipedrive.started_at)}`), mode[s.pipedrive.mode ?? ''] ? t(...mode[s.pipedrive.mode ?? '']!) : '', runState[s.pipedrive.status] ? t(...runState[s.pipedrive.status]!) : ''].filter(Boolean).join(', ')
-        : t('Nunca se ha importado', 'Never imported'),
+        : t('Importación sin correr: todavía no se ha copiado nada de Pipedrive', 'Import not run: nothing has been copied from Pipedrive yet'),
     },
     {
       key: 's5',
@@ -108,8 +109,8 @@ export default async function StatusPage() {
         <Stat
           testId="status-version"
           label={t('Versión desplegada', 'Deployed version')}
-          value={<span className="text-[18px] leading-7 md:text-[20px]">{version.commit ? version.commit.slice(0, 7) : t('Sin dato', 'No data')}</span>}
-          hint={version.commit ? (version.ref ? t(`Rama ${version.ref}`, `Branch ${version.ref}`) : undefined) : t('Este despliegue no dejó su versión en el ambiente.', 'This deployment did not leave its version in the environment.')}
+          value={<span className="text-[18px] leading-7 md:text-[20px]">{version.commit ? version.commit.slice(0, 7) : t('Entorno local, sin versión', 'Local environment, no version')}</span>}
+          hint={version.commit ? (version.ref ? t(`Rama ${version.ref}`, `Branch ${version.ref}`) : undefined) : t('El commit aparece aquí cuando el despliegue lo deja en el ambiente; en staging y producción la plataforma lo pone sola.', 'The commit shows here when the deployment leaves it in the environment; on staging and production the platform sets it on its own.')}
         />
         <Stat
           testId="status-db"

@@ -106,6 +106,10 @@ export type ClosedRow = {
   currency: string
   reason_es: string | null
   reason_en: string | null
+  /** Cómo se cerró: 'manual' (alguien lo marcó) o 'transaction' (lo confirmó la primera venta). */
+  closed_by: string | null
+  /** Quién lo marcó como ganado o perdido, cuando fue a mano. */
+  closed_by_name: string | null
 }
 
 const closedBase = (tx: Tx, scope: ReportScope, p: MarketPeriods, f: ClosedFilters): Frag => tx`
@@ -127,7 +131,9 @@ const closedBase = (tx: Tx, scope: ReportScope, p: MarketPeriods, f: ClosedFilte
 const closedSelect = (tx: Tx): Frag => tx`
   select d.id, d.title, d.account_id, a.name as account_name, d.market_code, p.name as pipeline_name, u.full_name as owner_name, tm.name as team_name, d.status,
          ((case d.status when 'won' then d.won_at else d.lost_at end) at time zone mk.timezone)::date::text as closed_on,
-         d.amount_minor::text, d.currency, r.label_es as reason_es, r.label_en as reason_en`
+         d.amount_minor::text, d.currency, r.label_es as reason_es, r.label_en as reason_en, d.closed_by,
+         (select cu.full_name from crm.deal_stage_events e join crm.stages cs on cs.id = e.to_stage_id left join crm.users cu on cu.id = e.actor_id and not cu.is_system
+           where e.deal_id = d.id and cs.kind = d.status order by e.at desc limit 1) as closed_by_name`
 
 export type ClosedPerson = { owner_id: string | null; owner_name: string | null; team_name: string | null; market_code: string; won: number; lost: number; amounts: { currency: string; amount: string }[] }
 
@@ -395,4 +401,15 @@ export async function fieldReportForExport(tx: Tx, ctx: Ctx, f: FieldFilters) {
   const weeks = lastWeeks(ctx, f.weeks ?? 8)
   const since = weeks[weeks.length - 1]!
   return { weeks, places: await fieldPlaces(tx, scope, f, since), visits: await fieldVisits(tx, scope, f, since) }
+}
+
+/** Cómo se gana cada embudo activo de los mercados dados: el texto del panel sale de esta configuración, no de una frase fija. */
+export async function closeRules(ctx: Ctx, markets: string[]): Promise<{ byTransaction: number; byHand: number }> {
+  if (markets.length === 0) return { byTransaction: 0, byHand: 0 }
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ by_txn: number; by_hand: number }[]>`
+      select count(*) filter (where p.close_by_transaction)::int as by_txn, count(*) filter (where not p.close_by_transaction)::int as by_hand
+        from crm.pipelines p where p.is_active and p.market_code = any(${markets}::text[])`
+    return { byTransaction: rows[0]?.by_txn ?? 0, byHand: rows[0]?.by_hand ?? 0 }
+  })
 }

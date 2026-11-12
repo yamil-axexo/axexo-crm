@@ -12,6 +12,8 @@ import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
+import { TimezoneSync } from '@/ui/admin'
+import { readerTimeZone } from '@/server/timezone'
 
 const initials = (name: string) =>
   name
@@ -130,6 +132,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         />
       )}
       {canLog && <LogHost config={logConfig(ctx)} />}
+      {/* La zona horaria del navegador queda guardada desde cualquier pantalla: Adopción, Estado y la bitácora muestran la misma hora. */}
+      <TimezoneSync current={await readerTimeZone(ctx)} />
       <ToastHost />
     </div>
   )

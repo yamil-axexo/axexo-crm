@@ -36,9 +36,10 @@ export async function exportClosedDeals(ctx: Ctx, p: MarketPeriods, f: ClosedFil
     const rows = all.slice(0, EXPORT_MAX)
     const csv = toCsv(
       [t('Comercio', 'Merchant'), t('Negocio', 'Deal'), t('Mercado', 'Market'), t('Embudo', 'Pipeline'), t('Equipo', 'Team'), t('Quién', 'Owner'), t('Resultado', 'Result'),
-        t('Fecha de cierre', 'Close date'), t('Monto', 'Amount'), t('Moneda', 'Currency'), t('Motivo de pérdida', 'Loss reason')],
+        t('Fecha de cierre', 'Close date'), t('Monto', 'Amount'), t('Moneda', 'Currency'), t('Motivo de pérdida', 'Loss reason'), t('Cómo se ganó', 'How it was won'), t('Quién lo marcó', 'Marked by')],
       rows.map((r) => [safe(r.account_name), safe(r.title), r.market_code, r.pipeline_name, r.team_name ?? '', r.owner_name ?? '', r.status === 'won' ? t('Ganado', 'Won') : t('Perdido', 'Lost'),
-        r.closed_on, money(r.amount_minor), r.amount_minor === null ? '' : r.currency.trim(), r.status === 'lost' ? (t(r.reason_es ?? '', r.reason_en ?? '')) : '']),
+        r.closed_on, money(r.amount_minor), r.amount_minor === null ? '' : r.currency.trim(), r.status === 'lost' ? (t(r.reason_es ?? '', r.reason_en ?? '')) : '',
+        r.status === 'won' ? (r.closed_by === 'transaction' ? t('Por primera venta', 'By first sale') : t('A mano', 'By hand')) : '', r.closed_by === 'transaction' ? '' : safe(r.closed_by_name ?? '')]),
     )
     await audit(tx, ctx, 'report.exported', 'report', null, f.market ?? (markets.length === 1 ? markets[0]! : null), null, {
       report: 'closed_deals', rows: rows.length, truncated: all.length > EXPORT_MAX,

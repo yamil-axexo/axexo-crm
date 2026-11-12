@@ -83,7 +83,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
         {data.rows.length === 0 ? <div className="p-7 pt-0"><Empty title={t('Ningún negocio cerrado con estos filtros', 'No closed deals with these filters')} hint={t('Prueba con un periodo más largo o quita un filtro.', 'Try a longer period or remove a filter.')} /></div> : (
           <>
             <div aria-hidden className={`hidden border-y border-line px-7 py-2.5 text-[13px] font-medium text-muted ${GRID}`}>
-              <span>{t('Comercio', 'Merchant')}</span><span>{t('Negocio', 'Deal')}</span><span>{t('Embudo', 'Pipeline')}</span><span>{t('Quién', 'Owner')}</span><span>{t('Cierre', 'Closed')}</span><span>{t('Monto', 'Amount')}</span><span>{t('Motivo de pérdida', 'Loss reason')}</span>
+              <span>{t('Comercio', 'Merchant')}</span><span>{t('Negocio', 'Deal')}</span><span>{t('Embudo', 'Pipeline')}</span><span>{t('Quién', 'Owner')}</span><span>{t('Cierre', 'Closed')}</span><span>{t('Monto', 'Amount')}</span><span>{t('Cómo se ganó o motivo de pérdida', 'How it was won, or loss reason')}</span>
             </div>
             <ul className="divide-y divide-line">
               {data.rows.map((r) => (
@@ -97,7 +97,8 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
                   <span className="block text-[14px] text-strong"><span className={mobile}>{t('Quién: ', 'Owner: ')}</span>{r.owner_name ?? t('Sin asignar', 'No owner')}</span>
                   <span className="num block text-[14px] text-strong"><span className={mobile}>{t('Cierre: ', 'Closed: ')}</span>{day(r.closed_on, locale)}</span>
                   <span className="num block text-[14px] text-strong"><span className={mobile}>{t('Monto: ', 'Amount: ')}</span>{r.amount_minor ? money(Number(r.amount_minor), r.currency.trim(), locale) : <NoData locale={locale} />}</span>
-                  <span className="block text-[14px] text-muted-2">{r.status === 'lost' ? <><span className={mobile}>{t('Motivo: ', 'Reason: ')}</span>{r.reason_es ? t(r.reason_es, r.reason_en ?? r.reason_es) : <NoData locale={locale} />}</> : <span className="hidden @4xl:inline"><NoData locale={locale} /></span>}</span>
+                  <span className="block text-[14px] text-muted-2">{r.status === 'lost' ? <><span className={mobile}>{t('Motivo: ', 'Reason: ')}</span>{r.reason_es ? t(r.reason_es, r.reason_en ?? r.reason_es) : <NoData locale={locale} />}</>
+                    : <span data-testid="closed-how"><span className={mobile}>{t('Cómo se ganó: ', 'How it was won: ')}</span>{r.closed_by === 'transaction' ? t('Por primera venta', 'By first sale') : t(`A mano${r.closed_by_name ? `, lo marcó ${r.closed_by_name}` : ''}`, `By hand${r.closed_by_name ? `, marked by ${r.closed_by_name}` : ''}`)}</span>}</span>
                 </li>
               ))}
             </ul>

@@ -57,7 +57,7 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
       </div>
       <Card pad={false} className="@container" data-testid="adoption-list">
         <div className="px-5 pt-5 @3xl:px-7 @3xl:pt-6">
-          <CardTitle title={t('Por persona', 'By person')} hint={t(`Ingresos y actividades ${periodText(t, locale, period)}. El último ingreso es el más reciente que existe, aunque sea de antes del periodo. Hora en ${zoneLabel(tz, locale)}.`, `Sign-ins and activities ${periodText(t, locale, period)}. The last sign-in is the most recent on record, even if it is from before the period. Time in ${zoneLabel(tz, locale)}.`)} />
+          <CardTitle title={t('Por persona', 'By person')} hint={t(`Ingresos y actividades ${periodText(t, locale, period)}. El último ingreso es el más reciente que existe, aunque sea de antes del periodo. Las horas están en ${zoneLabel(tz, locale)}, la zona de tu navegador.`, `Sign-ins and activities ${periodText(t, locale, period)}. The last sign-in is the most recent on record, even if it is from before the period. Times are in ${zoneLabel(tz, locale)}, your browser’s time zone.`)} />
         </div>
         {rows.length === 0 ? <div className="p-7 pt-0"><Empty title={t('Nadie en esta vista', 'Nobody in this view')} /></div> : (
           <>
