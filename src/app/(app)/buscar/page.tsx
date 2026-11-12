@@ -14,7 +14,7 @@ export default async function BuscarPage({ searchParams }: { searchParams: Promi
   const { t, m } = ctx
   const q = (flat(await searchParams).q ?? '').slice(0, 80).trim()
   const r = await searchAll(ctx, q)
-  const none = r.accounts.length + r.leads.length + r.deals.length === 0
+  const none = r.accounts.length + r.leads.length + r.deals.length + r.others.length === 0
   const group = (title: string, count: number) => (
     <h2 className="mb-2 flex items-baseline gap-2 text-[15px] leading-6 font-semibold">{title}<span className="num text-[13px] font-normal text-muted">{count}</span></h2>
   )
@@ -72,6 +72,23 @@ export default async function BuscarPage({ searchParams }: { searchParams: Promi
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+          {r.others.length > 0 && (
+            <section data-testid="search-others">
+              {group(t('Existe y lo lleva otra persona', 'It exists and someone else has it'), r.others.length)}
+              <ul className="card divide-y divide-line overflow-hidden">
+                {r.others.map((o, i) => (
+                  <li key={`${o.kind}-${i}`} className="flex items-center justify-between gap-4 px-4 py-3.5 md:px-5" data-testid="search-other">
+                    <span className="min-w-0">
+                      <span className="block truncate text-[15px] font-medium text-strong">{o.name}</span>
+                      <span className="block truncate text-[13px] text-muted">{[o.kind === 'lead' ? 'Lead' : t('Comercio', 'Merchant'), o.locality, ctx.markets.length > 1 ? o.market_code : null].filter(Boolean).join(' · ')}</span>
+                    </span>
+                    <span className="shrink-0 text-right text-[14px] text-strong" data-testid="search-other-owner">{t(`Lo lleva ${o.owner_name}`, `${o.owner_name} has it`)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[13px] text-muted">{t('No puedes abrirlo porque no es tuyo. Si te toca atenderlo, pide a tu supervisión que te lo pase.', 'You cannot open it because it is not yours. If you should be working it, ask your supervisor to pass it to you.')}</p>
             </section>
           )}
           {r.deals.length > 0 && (

@@ -18,6 +18,8 @@ export const CAPABILITIES = {
   'lead.create': SELLERS,
   'lead.work': SELLERS,
   'lead.assign': MANAGERS,
+  // Quien vende puede pasar un lead SUYO a otra persona que vende en su mercado, con nota (decisión de la ola 2, por defecto).
+  'lead.pass': SELLERS,
   // Reparto: pasar negocios abiertos de una persona a otra sin mover el comercio, y poner territorio a comercios.
   // Supervisión reparte dentro de su equipo; el líder de mercado, en todo su mercado (ver domain/reparto.ts).
   'deal.reassign': MANAGERS,

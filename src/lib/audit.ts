@@ -34,6 +34,11 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'lead.qualified': ['Calificó un lead', 'Qualified a lead'],
   'lead.disqualified': ['Descartó un lead', 'Disqualified a lead'],
   'lead.converted': ['Convirtió un lead en comercio', 'Converted a lead into a merchant'],
+  'lead.updated': ['Corrigió el tipo o el rol de un lead', 'Fixed a lead’s type or role'],
+  'lead.passed': ['Pasó un lead a un compañero', 'Passed a lead to a teammate'],
+  'lead.released': ['Soltó un lead', 'Released a lead'],
+  'lead.repeat_request': ['Llegó otra solicitud web de la misma empresa', 'Another web request came in from the same business'],
+  'routing.hours_updated': ['Cambió el horario hábil de un mercado', 'Changed a market’s business hours'],
   'exception.dismissed': ['Descartó un aviso', 'Dismissed an alert'],
   'exception.scheduled': ['Atendió un aviso con un próximo paso', 'Handled an alert with a next step'],
   'membership.granted': ['Dio acceso', 'Granted access'],
@@ -329,7 +334,7 @@ export function summary(t: T, locale: Locale, action: string, before: Record<str
     return [...parts, out].filter(Boolean).join(' · ')
   }
   if (action === 'deal.stage_changed') return t(`de ${w('stage_id', before?.stage_id)} a ${w('stage_id', after?.stage_id)}`, `from ${w('stage_id', before?.stage_id)} to ${w('stage_id', after?.stage_id)}`)
-  if (action === 'lead.assigned' || action === 'lead.taken') return t(`de ${w('owner_id', before?.owner_id)} a ${w('owner_id', after?.owner_id)}`, `from ${w('owner_id', before?.owner_id)} to ${w('owner_id', after?.owner_id)}`)
+  if (action === 'lead.assigned' || action === 'lead.taken' || action === 'lead.passed') return t(`de ${w('owner_id', before?.owner_id)} a ${w('owner_id', after?.owner_id)}`, `from ${w('owner_id', before?.owner_id)} to ${w('owner_id', after?.owner_id)}`)
   if (action === 'account.reassigned') return t(`${w('count', before?.count)} comercios a ${w('to_user_id', after?.to_user_id)}`, `${w('count', before?.count)} merchants to ${w('to_user_id', after?.to_user_id)}`)
   if (action === 'lead.reassigned') return t(`${w('count', before?.count)} leads a ${w('to_user_id', after?.to_user_id)}`, `${w('count', before?.count)} leads to ${w('to_user_id', after?.to_user_id)}`)
   if (action === 'deal.reassigned') return t(`${w('count', before?.count)} negocios a ${w('to_user_id', after?.to_user_id)}`, `${w('count', before?.count)} deals to ${w('to_user_id', after?.to_user_id)}`)

@@ -220,7 +220,7 @@ export async function parentOptions(ctx: Ctx, market: string) {
 /** UX-02: búsqueda global por nombre, teléfono o alias externo. */
 export async function searchAll(ctx: Ctx, q: string) {
   const term = q.trim()
-  if (term.length < 2) return { accounts: [], leads: [], deals: [] }
+  if (term.length < 2) return { accounts: [], leads: [], deals: [], others: [] }
   return withUser(ctx.user.id, async (tx) => {
     const digits = term.replace(/[^\d]/g, '')
     const accounts = await tx<{ id: string; name: string; market_code: string; lifecycle: string; locality: string | null; via: string | null; has_deal: boolean }[]>`
@@ -245,6 +245,15 @@ export async function searchAll(ctx: Ctx, q: string) {
        order by created_at desc limit 8`
     const deals = await tx<{ id: string; title: string; market_code: string; status: string }[]>`
       select id, title, market_code, status from crm.deals where app.norm(title) like ${'%'} || app.norm(${term}) || ${'%'} order by created_at desc limit 8`
-    return { accounts: [...accounts], leads: [...leads], deals: [...deals] }
+    // "Existe y lo lleva X": lo que es de otra persona en un mercado donde vendo. La función solo da nombre, ciudad y dueño;
+    // aquí se quita lo que la persona sí puede abrir (por ejemplo, lo de su equipo), para no repetirlo.
+    const found = await tx<{ kind: 'account' | 'lead'; id: string; name: string; locality: string | null; owner_name: string; market_code: string }[]>`
+      select kind, id, name, locality, owner_name, market_code from app.search_others(${term})`
+    const ids = found.map((o) => o.id)
+    const mine = ids.length === 0 ? [] : await tx<{ id: string }[]>`
+      select id from crm.accounts where id = any(${ids}::uuid[]) union all select id from crm.leads where id = any(${ids}::uuid[])`
+    const visible = new Set(mine.map((r) => r.id))
+    const others = found.filter((o) => !visible.has(o.id)).map(({ kind, name, locality, owner_name, market_code }) => ({ kind, name, locality, owner_name, market_code }))
+    return { accounts: [...accounts], leads: [...leads], deals: [...deals], others }
   })
 }

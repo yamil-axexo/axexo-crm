@@ -7,6 +7,8 @@
 -- 5) Motivos de pérdida por tipo de venta: loss_reasons.motors (null = todos) y los motivos de B2B y de campo.
 -- 6) Contactos de una cuenta corporativa: más roles, uno principal por cuenta, idioma preferido y "móvil que recibe SMS".
 -- 7) Formularios web: qué campos adicionales pide cada uno (web_forms.ask_fields).
+-- 8) Un solo catálogo con 0013 (leads): el lead y el formulario guardan el tipo de cuenta del catálogo (no el nivel) y el rol
+--    del contacto del lead admite los mismos códigos que account_contacts.
 
 -- ---------------------------------------------------------------- 1) tipo de cuenta
 create table crm.account_types (
@@ -151,6 +153,7 @@ insert into crm.loss_reasons (code, kind, label_es, label_en, market_code, motor
 on conflict (code) do nothing;
 
 -- ---------------------------------------------------------------- 6) contactos de una cuenta corporativa
+-- 0013 (leads) ya había sumado compras, finanzas y tecnología: esta es la lista completa y la única.
 alter table crm.account_contacts drop constraint account_contacts_role_check;
 alter table crm.account_contacts add constraint account_contacts_role_check
   check (role in ('owner','decision_maker','manager','staff','billing','executive','purchasing','finance','technology','legal','operations'));
@@ -177,3 +180,37 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
 $$;
 revoke execute on function app.form_fields(text) from public;
 grant execute on function app.form_fields(text) to contigo_app;
+
+-- ---------------------------------------------------------------- 8) un solo catálogo con el paquete leads (0013)
+-- El lead y el formulario web guardaban el nivel (tienda, cadena, distribuidor, organización). Ahora guardan el tipo de cuenta
+-- del catálogo, que es con el que nace el comercio al convertir. Los niveles 'store', 'chain' y 'distributor' ya son códigos
+-- del catálogo; 'organization' pasa a 'corporate'.
+alter table crm.leads drop constraint leads_account_kind_check;
+alter table crm.leads rename column account_kind to account_type;
+alter table crm.web_forms drop constraint web_forms_account_kind_check;
+alter table crm.web_forms rename column account_kind to account_type;
+alter table crm.leads disable trigger user;
+update crm.leads set account_type = 'corporate' where account_type = 'organization';
+alter table crm.leads enable trigger user;
+update crm.web_forms set account_type = 'corporate' where account_type = 'organization';
+
+-- Un tipo que no existe para el mercado no entra, ni en el lead ni en el formulario (misma regla que en crm.accounts).
+create function crm.catalog_account_type_check() returns trigger
+language plpgsql security definer set search_path = crm, app, pg_catalog as $$
+begin
+  if new.account_type is not null and not exists (
+       select 1 from crm.account_types t
+        where t.code = new.account_type and (t.market_code is null or t.market_code = new.market_code)) then
+    raise exception 'unknown account type' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger leads_account_type_check before insert or update of account_type on crm.leads
+  for each row execute function crm.catalog_account_type_check();
+create trigger web_forms_account_type_check before insert or update of account_type on crm.web_forms
+  for each row execute function crm.catalog_account_type_check();
+
+-- El rol de la persona de contacto del lead usa el mismo catálogo que account_contacts.
+alter table crm.leads drop constraint leads_contact_role_check;
+alter table crm.leads add constraint leads_contact_role_check
+  check (contact_role is null or contact_role in ('owner','decision_maker','manager','staff','billing','executive','purchasing','finance','technology','legal','operations'));
