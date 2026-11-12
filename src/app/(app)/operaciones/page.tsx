@@ -63,7 +63,7 @@ export default async function OpsQueuePage({ searchParams }: { searchParams: Pro
             const missing = [
               r.docs_missing ? t(`${r.docs_missing} ${r.docs_missing === 1 ? 'documento por recibir' : 'documentos por recibir'}`, `${r.docs_missing} ${r.docs_missing === 1 ? 'document to receive' : 'documents to receive'}`) : null,
               r.providers_pending ? t(`${r.providers_pending} ${r.providers_pending === 1 ? 'proveedor sin respuesta' : 'proveedores sin respuesta'}`, `${r.providers_pending} ${r.providers_pending === 1 ? 'provider to answer' : 'providers to answer'}`) : null,
-              r.training_status !== 'done' ? (r.training_status === 'scheduled' ? t('capacitación agendada', 'training scheduled') : t('capacitación pendiente', 'training pending')) : null,
+              r.checklist && r.training_status !== 'done' ? (r.training_status === 'scheduled' ? t('capacitación agendada', 'training scheduled') : t('capacitación pendiente', 'training pending')) : null,
             ].filter(Boolean)
             return (
               <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 md:px-5" data-testid="ops-row">

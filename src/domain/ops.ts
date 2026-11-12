@@ -179,7 +179,7 @@ export async function setTraining(ctx: Ctx, dealId: string, status: string, on: 
 }
 
 /** Merchant ID del comercio: lo anota Operaciones y se ve (y se copia) en la ficha y en el negocio. */
-export async function setMerchantRef(ctx: Ctx, accountId: string, raw: string): Promise<void> {
+export async function setMerchantRef(ctx: Ctx, accountId: string, raw: string, confirmDuplicate = false): Promise<void> {
   const value = clean(raw)
   if (value && !/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/.test(value)) throw invalid('El Merchant ID lleva letras, números, punto, guion o espacio, hasta 40 caracteres.', 'The Merchant ID takes letters, numbers, dot, hyphen or space, up to 40 characters.')
   assertNoProhibited(value)
@@ -188,8 +188,18 @@ export async function setMerchantRef(ctx: Ctx, accountId: string, raw: string): 
     const a = rows[0]
     if (!a) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
     ctx.assert('deal.ops', a.market_code)
+    // El mismo Merchant ID en dos comercios del mercado casi siempre es un error de captura: se avisa cuál lo tiene y se pide confirmar.
+    const others = value ? await tx<{ name: string }[]>`
+      select name from crm.accounts where market_code = ${a.market_code} and merchant_ref is not null and upper(btrim(merchant_ref)) = upper(${value}) and id <> ${accountId} and archived_at is null
+       order by name limit 3` : []
+    if (others.length > 0 && !confirmDuplicate) {
+      const names = others.map((o) => `"${o.name}"`).join(', ')
+      throw new DomainError('merchant_ref_duplicate',
+        `Ese Merchant ID ya lo tiene ${names} en este mercado. Revisa si es el mismo comercio antes de guardarlo aquí también.`,
+        `That Merchant ID already belongs to ${names} in this market. Check whether it is the same merchant before saving it here too.`, 409)
+    }
     await tx`update crm.accounts set merchant_ref = ${value} where id = ${accountId}`
-    await audit(tx, ctx, 'account.merchant_ref', 'account', accountId, a.market_code, { merchant_ref: a.merchant_ref }, { merchant_ref: value })
+    await audit(tx, ctx, 'account.merchant_ref', 'account', accountId, a.market_code, { merchant_ref: a.merchant_ref }, { merchant_ref: value, ...(others.length > 0 ? { duplicate_confirmed: true, same_as: others.map((o) => o.name) } : {}) })
   })
 }
 

@@ -411,3 +411,16 @@ select mm.account_id, current_date - 31, mm.market_code, mm.first_txn_at, now() 
 -- El criterio de salida de la etapa que espera la primera venta habla de los datos de ventas, no del nombre interno del sistema.
 update crm.stages set exit_es = 'Los datos de ventas traen la primera transacción', exit_en = 'The sales data shows the first transaction'
  where exit_es = 'S5 reporta la primera transacción';
+
+-- ajustes-campo
+-- La entrega a Operaciones pide lo mínimo: en el alta de dealers de US, la primera etapa de Operaciones pide monto y "Cuenta ACH o prepago".
+update crm.stages set required_fields = '{next_step,amount,field:account_funding}'
+ where pipeline_id = pg_temp.uid('p-us-dealer') and code = 'carrier';
+-- La lista de alta (documentos, proveedores, capacitación) no aplica a los embudos de pedidos o recompra.
+update crm.pipelines set ops_checklist = false where multi_open;
+-- Una tienda de cada persona de tiendas en México con dirección, para que "Cómo llegar" se pueda ver (dirección inventada).
+update crm.accounts a set address_line = 'Av. Principal 120, Centro', postal_code = '64000'
+ where a.id in (select distinct on (x.owner_id) x.id from crm.accounts x
+                 where x.market_code = 'MX' and x.kind = 'store' and x.archived_at is null
+                   and x.owner_id in (pg_temp.uid('lucia.vega'), pg_temp.uid('marco.pena'))
+                 order by x.owner_id, x.name, x.id);

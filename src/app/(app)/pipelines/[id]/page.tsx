@@ -237,6 +237,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
                 decisionMaker: t('Quien decide', 'Decision-maker'), pick: t('Elige quién decide', 'Pick the decision-maker'), met: t('Ya hablé con quien decide', 'I have spoken with the decision-maker'),
                 noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
                 items: t('Falta al menos una línea de producto.', 'It needs at least one product line.'), openDeal: t('Agregar líneas en el negocio', 'Add lines on the deal'),
+                lang: locale, pickOne: t('Elige una opción', 'Pick an option'),
               },
               win: {
                 button: t('Marcar como ganado', 'Mark as won'), title: t('Marcar como ganado: %s', 'Mark as won: %s'),

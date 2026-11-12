@@ -1,8 +1,8 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { notifiable } from '@/domain/ops'
-import { missingForStage, type StageKind } from '@/domain/deals'
+import { fieldKey, missingForStage, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
 
 export type OpsView = 'unassigned' | 'mine' | 'all'
@@ -26,6 +26,8 @@ export type OpsRow = {
   docs_missing: number
   providers_pending: number
   training_status: string
+  /** El embudo lleva la lista de alta (documentos, proveedores, capacitación). Un pedido no. */
+  checklist: boolean
   /** En pausa (paquete b2b): sigue en la cola, pero no cuenta como pendiente ni como negocio sin movimiento. */
   paused_at: Date | null
   pause_review_on: string | null
@@ -50,23 +52,24 @@ export async function getOpsQueue(ctx: Ctx, f: { view?: OpsView; market?: string
       join crm.accounts a on a.id = d.account_id
       left join crm.users u on u.id = d.owner_id left join crm.users o on o.id = d.ops_owner_id
       cross join lateral (
-        select (select count(*)::int from crm.ops_catalog c where c.kind = 'document' and c.is_active and (c.market_code is null or c.market_code = d.market_code)
+        -- La lista de alta (documentos, proveedores, capacitación) aplica por embudo: un pedido no la lleva ni infla estos contadores.
+        select (select count(*)::int from crm.ops_catalog c where p.ops_checklist and c.kind = 'document' and c.is_active and (c.market_code is null or c.market_code = d.market_code)
                   and not exists (select 1 from crm.deal_ops_checks k where k.deal_id = d.id and k.catalog_id = c.id and k.status in ('received', 'validated'))) as docs_missing,
-               (select count(*)::int from crm.ops_catalog c where c.kind = 'provider' and c.is_active and (c.market_code is null or c.market_code = d.market_code)
+               (select count(*)::int from crm.ops_catalog c where p.ops_checklist and c.kind = 'provider' and c.is_active and (c.market_code is null or c.market_code = d.market_code)
                   and not exists (select 1 from crm.deal_ops_checks k where k.deal_id = d.id and k.catalog_id = c.id and k.status in ('approved', 'rejected'))) as providers_pending) x
      where d.status = 'open' and d.market_code = any(${scope}::text[])`
     const view = f.view === 'mine' ? tx`and d.ops_owner_id = ${ctx.user.id}` : f.view === 'all' ? tx`` : tx`and d.ops_owner_id is null`
     // Un negocio en pausa no cuenta como pendiente de aprobación ni de capacitación: espera a su fecha de revisión.
-    const focus = f.focus === 'approval' ? tx`and x.providers_pending > 0 and d.paused_at is null` : f.focus === 'training' ? tx`and d.training_status <> 'done' and d.paused_at is null` : tx``
+    const focus = f.focus === 'approval' ? tx`and x.providers_pending > 0 and d.paused_at is null` : f.focus === 'training' ? tx`and p.ops_checklist and d.training_status <> 'done' and d.paused_at is null` : tx``
     const rows = await tx<OpsRow[]>`
       select d.id, d.title, d.account_id, a.name as account_name, a.merchant_ref, d.market_code, p.name as pipeline_name, s.name_es as stage_es, s.name_en as stage_en,
              coalesce(d.ops_entered_at, d.stage_entered_at) as since, u.full_name as seller, d.ops_owner_id, o.full_name as ops_owner,
-             d.ops_next_step, d.ops_next_step_due::text, x.docs_missing, x.providers_pending, d.training_status, d.paused_at, d.pause_review_on::text
+             d.ops_next_step, d.ops_next_step_due::text, x.docs_missing, x.providers_pending, d.training_status, p.ops_checklist as checklist, d.paused_at, d.pause_review_on::text
         ${base} ${f.focus ? tx`` : view} ${focus}
        order by (d.paused_at is not null), coalesce(d.ops_entered_at, d.stage_entered_at) limit 100`
     const c = await tx<{ unassigned: number; mine: number; all: number; approval: number; training: number }[]>`
       select count(*) filter (where d.ops_owner_id is null)::int as unassigned, count(*) filter (where d.ops_owner_id = ${ctx.user.id})::int as mine, count(*)::int as all,
-             count(*) filter (where x.providers_pending > 0 and d.paused_at is null)::int as approval, count(*) filter (where d.training_status <> 'done' and d.paused_at is null)::int as training
+             count(*) filter (where x.providers_pending > 0 and d.paused_at is null)::int as approval, count(*) filter (where p.ops_checklist and d.training_status <> 'done' and d.paused_at is null)::int as training
         ${base}`
     return { rows: [...rows], counts: c[0] ?? empty.counts, markets }
   })
@@ -90,9 +93,9 @@ export type OpsCheck = { catalog_id: string; kind: 'provider' | 'document'; labe
 export async function getDealOps(ctx: Ctx, dealId: string) {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string; account_id: string; ops_owner_id: string | null; ops_owner: string | null; ops_next_step: string | null; ops_next_step_due: string | null; training_status: string; training_on: string | null;
-      merchant_ref: string | null; is_ops: boolean; has_items: boolean; multi_open: boolean; ops_entered_at: Date | null; return_to: string | null }[]>`
+      merchant_ref: string | null; is_ops: boolean; has_items: boolean; multi_open: boolean; checklist: boolean; ops_entered_at: Date | null; return_to: string | null }[]>`
       select d.market_code, d.account_id, d.ops_owner_id, o.full_name as ops_owner, d.ops_next_step, d.ops_next_step_due::text, d.training_status, d.training_on::text,
-             a.merchant_ref, s.is_ops, p.has_items, p.multi_open, d.ops_entered_at,
+             a.merchant_ref, s.is_ops, p.has_items, p.multi_open, p.ops_checklist as checklist, d.ops_entered_at,
              (select b.id from crm.stages b where b.pipeline_id = d.pipeline_id and b.kind = 'open' and not b.is_ops and b.position < s.position order by b.position desc limit 1) as return_to
         from crm.deals d join crm.stages s on s.id = d.stage_id join crm.pipelines p on p.id = d.pipeline_id join crm.accounts a on a.id = d.account_id
         left join crm.users o on o.id = d.ops_owner_id where d.id = ${dealId}`
@@ -102,6 +105,7 @@ export async function getDealOps(ctx: Ctx, dealId: string) {
       select c.id as catalog_id, c.kind, c.label_es, c.label_en, k.status, k.on_date::text, k.link
         from crm.ops_catalog c left join crm.deal_ops_checks k on k.catalog_id = c.id and k.deal_id = ${dealId}
        where c.kind in ('provider', 'document') and (c.is_active or k.id is not null) and (c.market_code is null or c.market_code = ${d.market_code})
+         and (${d.checklist} or k.id is not null)
        order by c.kind desc, c.position, c.label_es`
     const reasons = await tx<{ code: string; label_es: string; label_en: string }[]>`
       select distinct on (code) code, label_es, label_en from crm.ops_catalog
@@ -172,14 +176,25 @@ export async function getOpsConfig(ctx: Ctx) {
   })
 }
 
-export type GateInfo = { missing: string[]; stageName: { es: string; en: string }; amount: string | null; nextStep: string | null; nextStepDue: string | null; decisionMakerId: string | null; decisionMakerMet: boolean; contacts: { id: string; full_name: string }[]; accountId: string }
+export type GateField = { token: string; key: string; label_es: string; label_en: string; data_type: string; options: string[] }
+export type GateInfo = { /** Campos adicionales que la etapa pide y faltan: se llenan en la misma hoja. */ fields?: GateField[]; missing: string[]; stageName: { es: string; en: string }; amount: string | null; nextStep: string | null; nextStepDue: string | null; decisionMakerId: string | null; decisionMakerMet: boolean; contacts: { id: string; full_name: string }[]; accountId: string }
+
+/** Definición de los campos adicionales que faltan ('field:<clave>'), para pedirlos en la hoja del candado. */
+export async function gateFields(tx: Tx, market: string, missing: string[]): Promise<GateField[]> {
+  const keys = missing.map(fieldKey).filter((k): k is string => Boolean(k))
+  if (keys.length === 0) return []
+  const rows = await tx<{ key: string; label_es: string; label_en: string; data_type: string; options: string[] | null }[]>`
+    select distinct on (key) key, label_es, label_en, data_type, options from crm.field_definitions
+     where object = 'deal' and is_active and key = any(${keys}::text[]) and (market_code is null or market_code = ${market}) order by key, market_code nulls last`
+  return rows.map((r) => ({ token: `field:${r.key}`, key: r.key, label_es: r.label_es, label_en: r.label_en, data_type: r.data_type, options: Array.isArray(r.options) ? r.options.map(String) : [] }))
+}
 
 /** Qué le falta a un negocio para entrar a una etapa, con lo necesario para resolverlo ahí mismo (candado de etapa). */
 export async function gateInfo(ctx: Ctx, dealId: string, toStageId: string): Promise<GateInfo | null> {
   if (!isUuid(dealId) || !isUuid(toStageId)) return null
   return withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ account_id: string; pipeline_id: string; stage_id: string; amount_minor: string | null; next_step: string | null; next_step_due: string | null; decision_maker_id: string | null; decision_maker_met: boolean; items: number }[]>`
-      select d.account_id, d.pipeline_id, d.stage_id, d.amount_minor::text, d.next_step, d.next_step_due::text, d.decision_maker_id, d.decision_maker_met,
+    const rows = await tx<{ account_id: string; pipeline_id: string; stage_id: string; amount_minor: string | null; next_step: string | null; next_step_due: string | null; decision_maker_id: string | null; decision_maker_met: boolean; items: number; custom: Record<string, unknown>; market_code: string }[]>`
+      select d.account_id, d.pipeline_id, d.stage_id, d.amount_minor::text, d.next_step, d.next_step_due::text, d.decision_maker_id, d.decision_maker_met, d.custom, d.market_code,
              (select count(*)::int from crm.deal_items i where i.deal_id = d.id) as items
         from crm.deals d where d.id = ${dealId} and d.status = 'open'`
     const d = rows[0]
@@ -189,11 +204,12 @@ export async function gateInfo(ctx: Ctx, dealId: string, toStageId: string): Pro
     const to = stages.find((s) => s.id === toStageId)
     const from = stages.find((s) => s.id === d.stage_id)
     if (!to || !from) return null
-    const need = [...new Set(stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn') && s.position > from.position && s.position <= to.position).flatMap((s) => s.required_fields))]
+    const need = [...new Set(stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn' || s.id === to.id) && s.position > from.position && s.position <= to.position).flatMap((s) => s.required_fields))]
     const missing = missingForStage({ ...d, items_count: d.items }, { kind: to.kind, required_fields: need })
     const contacts = await tx<{ id: string; full_name: string }[]>`
       select c.id, c.full_name from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id where ac.account_id = ${d.account_id} and ac.valid_to is null order by c.full_name`
-    return { missing, stageName: { es: to.name_es, en: to.name_en }, amount: d.amount_minor ? String(Number(d.amount_minor) / 100) : null, nextStep: d.next_step, nextStepDue: d.next_step_due,
+    const fields = await gateFields(tx, d.market_code, missing)
+    return { fields, missing, stageName: { es: to.name_es, en: to.name_en }, amount: d.amount_minor ? String(Number(d.amount_minor) / 100) : null, nextStep: d.next_step, nextStepDue: d.next_step_due,
       decisionMakerId: d.decision_maker_id, decisionMakerMet: d.decision_maker_met, contacts: [...contacts], accountId: d.account_id }
   })
 }

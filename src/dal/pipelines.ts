@@ -4,6 +4,7 @@ import type { Ctx } from '@/server/context'
 import { missingForStage, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
 import { teamFilter } from '@/dal/reports'
+import { gateFields } from '@/dal/ops'
 
 export type PipelineInfo = { id: string; market_code: string; motor: string; name: string; open_deals: number }
 
@@ -136,6 +137,8 @@ export async function getDeal(ctx: Ctx, id: string) {
     // Lo que falta para ganarlo a mano: lo que piden las etapas que quedan por delante (la hoja de ganar lo deja completar ahí mismo).
     const ahead = current ? stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn' || s.kind === 'won') && s.position > current.position) : []
     const missingWin = missingForStage({ ...deal, items_count: items.length }, { kind: 'won', required_fields: [...new Set(ahead.flatMap((s) => s.required_fields))] })
-    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext, missingWin }
+    // Campos adicionales que piden las etapas por delante ('field:<clave>'), con su nombre, para pedirlos en la misma hoja.
+    const gateDefs = await gateFields(tx, deal.market_code, [...missingNext, ...missingWin])
+    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext, missingWin, gateDefs }
   })
 }

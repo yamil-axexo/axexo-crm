@@ -17,7 +17,14 @@ export type GateDeal = {
   decision_maker_met: boolean
   /** Cuántas líneas de producto lleva. Solo se revisa cuando la etapa pide 'items'. */
   items_count?: number
+  /** Campos adicionales del negocio. Solo se revisan cuando la etapa pide uno ('field:<clave>'). */
+  custom?: Record<string, unknown> | null
 }
+
+/** Una etapa también puede pedir un campo adicional del negocio (por ejemplo "Cuenta ACH o prepago"): 'field:<clave>'. */
+export const FIELD_TOKEN = 'field:'
+export const fieldKey = (token: string): string | null => (token.startsWith(FIELD_TOKEN) ? token.slice(FIELD_TOKEN.length) : null)
+const filled = (v: unknown): boolean => !(v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0))
 
 export const FIELD_LABEL: Record<string, { es: string; en: string }> = {
   amount: { es: 'monto esperado', en: 'expected amount' },
@@ -35,10 +42,20 @@ export const PLAIN_MISSING: Record<string, { es: string; en: string }> = {
 }
 const joinList = (parts: string[], and: string) => (parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} ${and} ${parts[parts.length - 1]}`)
 /** "Para ganarlo falta decir quién decide y marcar que ya hablaste con esa persona." */
-export const winMissingText = (missing: string[]): [es: string, en: string] => [
-  `Para ganarlo falta ${joinList(missing.map((m) => PLAIN_MISSING[m]?.es ?? m), 'y')}.`,
-  `To win it you still need to ${joinList(missing.map((m) => PLAIN_MISSING[m]?.en ?? m), 'and')}.`,
+export const winMissingText = (missing: string[], names: Record<string, { es: string; en: string }> = {}): [es: string, en: string] => [
+  `Para ganarlo falta ${joinList(missing.map((m) => (names[m] ? `llenar "${names[m].es}"` : PLAIN_MISSING[m]?.es ?? m)), 'y')}.`,
+  `To win it you still need to ${joinList(missing.map((m) => (names[m] ? `fill in "${names[m].en}"` : PLAIN_MISSING[m]?.en ?? m)), 'and')}.`,
 ]
+
+/** Nombre, en los dos idiomas, de los campos adicionales que una etapa pide ('field:<clave>'). */
+export async function fieldNames(tx: Tx, market: string, tokens: string[]): Promise<Record<string, { es: string; en: string }>> {
+  const keys = tokens.map(fieldKey).filter((k): k is string => Boolean(k))
+  if (keys.length === 0) return {}
+  const rows = await tx<{ key: string; label_es: string; label_en: string }[]>`
+    select distinct on (key) key, label_es, label_en from crm.field_definitions
+     where object = 'deal' and is_active and key = any(${keys}::text[]) and (market_code is null or market_code = ${market}) order by key, market_code nulls last`
+  return Object.fromEntries(rows.map((r) => [`${FIELD_TOKEN}${r.key}`, { es: r.label_es, en: r.label_en }]))
+}
 
 /**
  * PIPE-01 / ACT-02: qué le falta a un deal para entrar a una etapa. Función pura: la usan la UI,
@@ -52,6 +69,10 @@ export function missingForStage(deal: GateDeal, stage: { kind: StageKind; requir
   if (need.has('next_step') && !(deal.next_step && deal.next_step.trim() && deal.next_step_due)) missing.push('next_step')
   if (need.has('decision_maker') && !(deal.decision_maker_id && deal.decision_maker_met)) missing.push('decision_maker')
   if (need.has('items') && !((deal.items_count ?? 0) > 0)) missing.push('items')
+  for (const token of need) {
+    const key = fieldKey(token)
+    if (key && !filled(deal.custom?.[key])) missing.push(token)
+  }
   return missing
 }
 
@@ -102,7 +123,7 @@ const OPS_ONLY = () => new DomainError('ops_only',
 
 async function loadDeal(tx: Tx, id: string): Promise<DealRow> {
   const rows = await tx<DealRow[]>`select id, market_code, pipeline_id, stage_id, account_id, owner_id, status, title, amount_minor, next_step,
-    next_step_due, decision_maker_id, decision_maker_met, revisit_needed, ops_owner_id from crm.deals where id = ${id} for update`
+    next_step_due, decision_maker_id, decision_maker_met, revisit_needed, ops_owner_id, custom from crm.deals where id = ${id} for update`
   if (!rows[0]) throw notFound('No encontramos ese negocio.', 'We could not find that deal.')
   return rows[0]
 }
@@ -266,10 +287,11 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     } else {
       const missing = missingForStage(d, gate)
       if (missing.length) {
-        const es = missing.map((m) => FIELD_LABEL[m]?.es ?? m).join(', ')
-        const en = missing.map((m) => FIELD_LABEL[m]?.en ?? m).join(', ')
+        const names = await fieldNames(tx, d.market_code, missing)
+        const es = missing.map((m) => names[m]?.es ?? FIELD_LABEL[m]?.es ?? m).join(', ')
+        const en = missing.map((m) => names[m]?.en ?? FIELD_LABEL[m]?.en ?? m).join(', ')
         // Ganar a mano dice qué falta en lenguaje llano, y la hoja lo deja completar ahí mismo.
-        if (stage.kind === 'won') throw new DomainError('stage_gate', ...winMissingText(missing))
+        if (stage.kind === 'won') throw new DomainError('stage_gate', ...winMissingText(missing, names))
         // Cuando lo único que falta es el próximo paso, la pantalla lo puede pedir ahí mismo.
         throw new DomainError(missing.length === 1 && missing[0] === 'next_step' ? 'next_step_required' : 'stage_gate',
           `Para pasar a "${stage.name_es}" falta: ${es}.`, `To move to "${stage.name_en}" you still need: ${en}.`)
