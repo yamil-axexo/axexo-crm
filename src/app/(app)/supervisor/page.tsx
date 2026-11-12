@@ -23,7 +23,7 @@ import { flat } from '@/server/params'
 /** Columnas de la tabla del equipo. En pantallas angostas cada persona se lee como tarjeta, con el nombre arriba y cada cifra con su etiqueta. */
 const COLS: [es: string, en: string][] = [
   ['Persona', 'Person'], ['Leads abiertos', 'Open leads'], ['Primer intento a tiempo', 'First attempt on time'], ['Contacto logrado', 'Reached'], ['Negocios abiertos', 'Open deals'],
-  ['Sin próximo paso', 'No next step'], ['Revisitas', 'Revisits'], ['Esperando venta', 'Awaiting sale'], ['Visitas / con venta', 'Visits / with sale'], ['Ventas S5, 30 días', 'S5 sales, 30 days'], ['Cartera', 'Book'],
+  ['Sin próximo paso', 'No next step'], ['Revisitas', 'Revisits'], ['Esperando venta', 'Awaiting sale'], ['Visitas / con venta', 'Visits / with sale'], ['Ventas, 30 días', 'Sales, 30 days'], ['Cartera', 'Book'],
 ]
 const ROW = '@5xl:grid @5xl:grid-cols-[minmax(0,1.7fr)_repeat(10,minmax(0,1fr))] @5xl:items-center @5xl:gap-3'
 const WEEK = '@2xl:grid @2xl:grid-cols-[minmax(0,1.6fr)_repeat(5,minmax(0,1fr))] @2xl:items-center @2xl:gap-4'
@@ -63,8 +63,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const tot = (rows: RepRow[], k: 'leads_open' | 'sla_met' | 'sla_judged' | 'reached' | 'deals_open' | 'no_next_step' | 'revisits' | 'awaiting' | 'visits_7d' | 'sales_7d' | 'accounts') => rows.reduce((n, r) => n + r[k], 0)
   const asOf = board.metricsAsOf
   const salesHint: [string, string] = asOf
-    ? [`Ventas S5: transacciones de su cartera en los últimos 30 días al ${day(asOf, locale)}, según el archivo de S5; la variación compara con los 30 días anteriores solo cuando S5 trajo ese dato.`, `S5 sales: transactions across their book in the last 30 days to ${day(asOf, locale)}, per the S5 file; the change compares with the previous 30 days only when S5 delivered that data.`]
-    : ['Ventas S5: todavía no llega ningún archivo de S5.', 'S5 sales: no S5 file has arrived yet.']
+    ? [`Ventas, 30 días: transacciones de su cartera en los últimos 30 días al ${day(asOf, locale)}, según el archivo diario de ventas; la variación compara con los 30 días anteriores solo cuando ese dato existe.`, `Sales, 30 days: transactions across their book in the last 30 days to ${day(asOf, locale)}, per the daily sales file; the change compares with the previous 30 days only when that data exists.`]
+    : ['Ventas, 30 días: todavía no llega ningún archivo diario de ventas.', 'Sales, 30 days: no daily sales file has arrived yet.']
   const sales = (r: RepRow) => {
     if (r.txn_30d === null) return '—'
     const delta = r.txn_prev_30d && r.txn_cmp_30d !== null ? Math.round(((r.txn_cmp_30d - r.txn_prev_30d) / r.txn_prev_30d) * 100) : null

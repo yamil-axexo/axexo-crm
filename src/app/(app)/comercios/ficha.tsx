@@ -405,7 +405,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                   {metrics && (
                     <KeyVal k={t('30 días anteriores', 'Previous 30 days')}><span data-testid="fact-sales-prev">{metrics.prev_as_of && metrics.prev_txn_count_30d !== null
                       ? `${t(`${num(metrics.prev_txn_count_30d, locale)} ${metrics.prev_txn_count_30d === 1 ? 'transacción' : 'transacciones'}`, `${num(metrics.prev_txn_count_30d, locale)} ${metrics.prev_txn_count_30d === 1 ? 'transaction' : 'transactions'}`)} · ${money(Number(metrics.prev_volume_minor_30d), metrics.currency, locale, true)}${salesDelta(metrics.txn_count_30d, metrics.prev_txn_count_30d)} · ${t(`al ${day(metrics.prev_as_of, locale)}`, `to ${day(metrics.prev_as_of, locale)}`)}`
-                      : t('S5 no trae ese dato', 'S5 has no data for it')}</span></KeyVal>
+                      : t('No hay dato de ese periodo', 'No data for that period')}</span></KeyVal>
                   )}
                   <KeyVal k={t('Primera venta', 'First sale')}>{metrics?.first_txn_at ? day(metrics.first_txn_at, locale, tz) : '—'}</KeyVal>
                   <KeyVal k={t('Última venta', 'Last sale')}>{metrics?.last_txn_at ? ago(metrics.last_txn_at, locale, now) : '—'}</KeyVal>

@@ -13,8 +13,8 @@ const CONTIGO: Pair = ['CONTIGO', 'CONTIGO']
 export const METRICS = {
   won: {
     label: ['Negocios ganados', 'Deals won'],
-    what: ['Negocios que se ganaron con fecha de cierre dentro del periodo. Un negocio se gana cuando S5 reporta la primera transacción del comercio, o a mano si el embudo está configurado así.', 'Deals won with a close date inside the period. A deal is won when S5 reports the merchant’s first transaction, or by hand if the pipeline is set up that way.'],
-    window: PERIOD, source: ['CONTIGO (la primera transacción llega de S5)', 'CONTIGO (the first transaction comes from S5)'],
+    what: ['Negocios que se ganaron con fecha de cierre dentro del periodo. Un negocio se gana cuando llega la primera transacción del comercio en el archivo diario de ventas, o a mano si el embudo está configurado así.', 'Deals won with a close date inside the period. A deal is won when the merchant’s first transaction arrives in the daily sales file, or by hand if the pipeline is set up that way.'],
+    window: PERIOD, source: ['CONTIGO (la primera transacción llega en el archivo diario de ventas)', 'CONTIGO (the first transaction comes in the daily sales file)'],
   },
   lost: {
     label: ['Negocios perdidos', 'Deals lost'],
@@ -48,7 +48,7 @@ export const METRICS = {
   days: {
     label: ['Días a la primera venta', 'Days to first sale'],
     what: ['Promedio de días entre que se creó el negocio y que se ganó por primera transacción, para los negocios ganados en el periodo. Si ninguno se ganó así, no hay dato.', 'Average days from creating the deal to winning it by first transaction, for deals won in the period. If none was won that way, there is no figure.'],
-    window: PERIOD, source: ['CONTIGO (la primera transacción llega de S5)', 'CONTIGO (the first transaction comes from S5)'],
+    window: PERIOD, source: ['CONTIGO (la primera transacción llega en el archivo diario de ventas)', 'CONTIGO (the first transaction comes in the daily sales file)'],
   },
   open: {
     label: ['Negocios abiertos', 'Open deals'],
@@ -67,25 +67,25 @@ export const METRICS = {
   },
   active: {
     label: ['Comercios activos', 'Active merchants'],
-    what: ['Comercios sin archivar cuyo estado hoy es "Activo". El estado lo mueve el archivo diario de S5: pasa a activo con la primera transacción.', 'Unarchived merchants whose status today is "Active". The S5 daily file moves the status: a merchant becomes active with its first transaction.'],
-    window: TODAY, source: ['Estado en CONTIGO, calculado con el archivo diario de S5', 'Status in CONTIGO, computed from the S5 daily file'],
+    what: ['Comercios sin archivar cuyo estado hoy es "Activo". El estado lo mueve el archivo diario de ventas: pasa a activo con la primera transacción.', 'Unarchived merchants whose status today is "Active". The daily sales file moves the status: a merchant becomes active with its first transaction.'],
+    window: TODAY, source: ['Estado en CONTIGO, calculado con el archivo diario de ventas', 'Status in CONTIGO, computed from the daily sales file'],
   },
   risk: {
     label: ['En riesgo / inactivos', 'At risk / inactive'],
     what: ['Comercios sin archivar cuyo estado hoy es "En riesgo" (vendieron pocos días en los últimos 30) o "Inactivo" (sin ventas en los últimos 30 días).', 'Unarchived merchants whose status today is "At risk" (sold on few days in the last 30) or "Inactive" (no sales in the last 30 days).'],
-    window: TODAY, source: ['Estado en CONTIGO, calculado con el archivo diario de S5', 'Status in CONTIGO, computed from the S5 daily file'],
+    window: TODAY, source: ['Estado en CONTIGO, calculado con el archivo diario de ventas', 'Status in CONTIGO, computed from the daily sales file'],
   },
   volume: {
     label: ['Volumen, 30 días', 'Volume, 30 days'],
-    what: ['Suma del volumen de ventas de los últimos 30 días de cada comercio, tal como viene en su archivo más reciente de S5. CONTIGO no recalcula ventas.', 'Sum of each merchant’s sales volume for the last 30 days, as it comes in its most recent S5 file. CONTIGO does not recompute sales.'],
-    window: ['Los 30 días que terminan en la fecha de corte de S5. No cambia con el periodo.', 'The 30 days ending on the S5 cutoff date. It does not change with the period.'],
-    source: ['Archivo diario de S5', 'S5 daily file'],
+    what: ['Suma del volumen de ventas de los últimos 30 días de cada comercio, tal como viene en su archivo diario de ventas más reciente. CONTIGO no recalcula ventas.', 'Sum of each merchant’s sales volume for the last 30 days, as it comes in its most recent daily sales file. CONTIGO does not recompute sales.'],
+    window: ['Los 30 días que terminan en la fecha de corte del archivo diario de ventas. No cambia con el periodo.', 'The 30 days ending on the daily sales file’s cutoff date. It does not change with the period.'],
+    source: ['Archivo diario de ventas', 'Daily sales file'],
   },
   volumeUsd: {
     label: ['Volumen consolidado (USD)', 'Consolidated volume (USD)'],
     what: ['El volumen de 30 días de cada mercado, convertido a USD con la tasa cargada por administración y sumado. Si a una moneda le falta tasa, no se consolida.', 'Each market’s 30-day volume, converted to USD at the rate loaded by administration, then added up. If a currency has no rate, nothing is consolidated.'],
-    window: ['Los 30 días que terminan en la fecha de corte de S5. La tasa es la de fecha más reciente.', 'The 30 days ending on the S5 cutoff date. The rate is the most recently dated one.'],
-    source: ['Archivo diario de S5 y tasa de cambio de Administración', 'S5 daily file and the exchange rate in Administration'],
+    window: ['Los 30 días que terminan en la fecha de corte del archivo diario de ventas. La tasa es la de fecha más reciente.', 'The 30 days ending on the daily sales file’s cutoff date. The rate is the most recently dated one.'],
+    source: ['Archivo diario de ventas y tasa de cambio de Administración', 'Daily sales file and the exchange rate in Administration'],
   },
   lossReasons: {
     label: ['Por qué se pierden los negocios', 'Why deals are lost'],

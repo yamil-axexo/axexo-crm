@@ -6,6 +6,12 @@ import { resolvePeriod, csvCell, weekStart } from '@/lib/periods'
 import { METRICS } from '@/lib/metric-defs'
 import { can, type Membership, type Role } from '@/domain/policy'
 import { withUser } from '@/server/db'
+import { reassignAccounts } from '@/domain/reparto'
+import { getAccount } from '@/dal/accounts'
+import { getSupervisorBoard } from '@/dal/boards'
+import { getBoard } from '@/dal/pipelines'
+import { listAccounts } from '@/dal/accounts'
+import { homePath } from '@/domain/policy'
 
 const year = (ctx: Awaited<ReturnType<typeof ctxFor>>) => marketPeriods(ctx, 'rango', '2026-01-01', '2026-12-31')
 const lastExport = async () => {
@@ -345,5 +351,92 @@ describe('resultados por semana y reporte de campo', () => {
     expect(stores.csv).toContain('Plaza')
     expect((await lastExport())!.after).toMatchObject({ report: 'field_stores', filters: { by: 'plaza' } })
     await expect(exportFieldReport(await ctxFor('marco.pena'), {}, 'visitas')).rejects.toMatchObject({ code: 'forbidden' })
+  })
+})
+
+describe('el hilo del comercio y Mi equipo', () => {
+  it('un cambio de dueño dice a quién pasó, de quién venía y quién lo reasignó', async () => {
+    const db = owner()
+    const ana = await ctxFor('ana.robles')
+    const marco = await personaId('marco.pena')
+    const lucia = await personaId('lucia.vega')
+    try {
+      const [a] = await db<{ id: string }[]>`
+        select a.id from crm.accounts a where a.owner_id = ${marco} and a.kind = 'store' and a.archived_at is null
+           and not exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open') order by a.id limit 1`
+      await reassignAccounts(ana, [a!.id], lucia)
+      const acc = await getAccount(ana, a!.id)
+      const change = acc!.timeline.find((x) => x.kind === 'attribution')!
+      expect(change.title).toBe('Lucía Vega')
+      expect(change.actor).toBe('Ana Robles')
+      expect((change.meta as { from?: string }).from).toBe('Marco Peña')
+      await reassignAccounts(ana, [a!.id], marco) // queda como estaba
+      const back = (await getAccount(ana, a!.id))!.timeline.filter((x) => x.kind === 'attribution')
+      expect(back[0]!.title).toBe('Marco Peña')
+      expect((back[0]!.meta as { from?: string }).from).toBe('Lucía Vega')
+    } finally {
+      await db.end()
+    }
+  })
+  it('Mi equipo trae a todos los que venden, con equipo, y a quien no tiene equipo en su propio grupo', async () => {
+    const ana = await ctxFor('ana.robles')
+    const board = await getSupervisorBoard(ana, {})
+    expect(board.reps.map((r) => r.full_name).sort()).toEqual(['Diana Cruz', 'Iván Ríos', 'Lucía Vega', 'Marco Peña'])
+    expect(new Set(board.reps.map((r) => r.team))).toEqual(new Set(['D2D Centro', 'B2B México']))
+    expect(board.metricsAsOf).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    const marco = board.reps.find((r) => r.full_name === 'Marco Peña')!
+    expect(marco.txn_30d).toBeGreaterThan(0)
+    expect(marco.txn_prev_30d).toBeGreaterThan(0) // el seed trae el archivo de 30 días antes para una parte de su cartera
+    expect(marco.txn_cmp_30d).toBeLessThanOrEqual(marco.txn_30d!)
+    const d2d = (await getReportOptions(ana)).teams.find((t) => t.name === 'D2D Centro')!
+    expect((await getSupervisorBoard(ana, { team: d2d.id })).reps.map((r) => r.full_name).sort()).toEqual(['Lucía Vega', 'Marco Peña'])
+    expect((await getSupervisorBoard(ana, { team: 'none' })).reps).toEqual([])
+    // Una supervisora que lleva comercios propios y una persona de ventas sin equipo también aparecen.
+    const db = owner()
+    const paula = await personaId('paula.mendez')
+    const ivan = await personaId('ivan.rios')
+    const [acc] = await db<{ id: string }[]>`select id from crm.accounts where owner_id = ${ivan} order by id limit 1`
+    try {
+      await db`update crm.accounts set owner_id = ${paula} where id = ${acc!.id}`
+      await db`update crm.memberships set team_id = null where user_id = ${ivan}`
+      const b = await getSupervisorBoard(ana, {})
+      expect(b.reps.find((r) => r.full_name === 'Paula Méndez')).toMatchObject({ role: 'supervisor', team: 'B2B México', accounts: 1 })
+      expect(b.reps.find((r) => r.full_name === 'Iván Ríos')).toMatchObject({ team: null, team_id: null })
+      expect((await getSupervisorBoard(ana, { team: 'none' })).reps.map((r) => r.full_name)).toEqual(['Iván Ríos'])
+    } finally {
+      await db`update crm.accounts set owner_id = ${ivan} where id = ${acc!.id}`
+      await db`update crm.memberships set team_id = (select id from crm.teams where name = 'B2B México') where user_id = ${ivan}`
+      await db.end()
+    }
+  })
+  it('el tablero y Comercios filtran por equipo y por embudo', async () => {
+    const ana = await ctxFor('ana.robles')
+    const o = await getReportOptions(ana)
+    const d2dPipe = o.pipelines.find((p) => p.motor === 'd2d')!
+    const d2d = o.teams.find((t) => t.name === 'D2D Centro')!
+    const b2b = o.teams.find((t) => t.name === 'B2B México')!
+    const open = (b: NonNullable<Awaited<ReturnType<typeof getBoard>>>) => b.totals.reduce((n, x) => n + x.n, 0)
+    const all = open((await getBoard(ana, d2dPipe.id, {}))!)
+    const byD2d = open((await getBoard(ana, d2dPipe.id, { team: d2d.id }))!)
+    const byB2b = open((await getBoard(ana, d2dPipe.id, { team: b2b.id }))!)
+    const none = open((await getBoard(ana, d2dPipe.id, { team: 'none' }))!)
+    expect(byD2d).toBeGreaterThan(0)
+    expect(byD2d + byB2b + none).toBe(all)
+    const noOwner = open((await getBoard(ana, d2dPipe.id, { owner: 'none' }))!)
+    expect(noOwner).toBeLessThanOrEqual(none)
+    const accounts = await listAccounts(ana, { team: b2b.id })
+    expect(accounts.total).toBe(6)
+    const b2bPipe = o.pipelines.find((p) => p.motor === 'b2b')!
+    const inPipe = await listAccounts(ana, { pipeline: b2bPipe.id })
+    expect(inPipe.total).toBeGreaterThan(0)
+    expect(inPipe.total).toBeLessThanOrEqual(6)
+  })
+  it('cada rol tiene su pantalla de entrada', () => {
+    const m = (role: Role, market: string | null = 'MX'): Membership[] => [{ role, market, teamId: null }]
+    expect(homePath(m('admin', null))).toBe('/admin')
+    expect(homePath(m('lt', null))).toBe('/panel-lt')
+    expect(homePath(m('market_lead'))).toBe('/supervisor')
+    for (const role of ['supervisor', 'rep', 'ops'] as Role[]) expect(homePath(m(role)), role).toBe('/hoy')
+    expect(homePath([...m('lt', null), ...m('admin', null)])).toBe('/admin')
   })
 })

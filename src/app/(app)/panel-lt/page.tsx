@@ -67,7 +67,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader
-        eyebrow={asOf ? t(`Ventas con corte al ${day(asOf, locale)} · fuente S5`, `Sales as of ${day(asOf, locale)} · source S5`) : undefined}
+        eyebrow={asOf ? t(`Ventas con corte al ${day(asOf, locale)} · archivo diario de ventas`, `Sales as of ${day(asOf, locale)} · daily sales file`) : undefined}
         title={t('Panel del LT', 'Leadership panel')}
         desc={t('Del lead a la primera venta, por mercado, por embudo y por equipo. Un comercio cuenta como ganado cuando transacciona, no cuando firma.', 'From lead to first sale, by market, by pipeline and by team. A merchant counts as won when it transacts, not when it signs.')}
         actions={<>
@@ -80,8 +80,8 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
         selects={[{ name: 'mercado', label: t('Mercado', 'Market'), all: t('Todos los mercados', 'All markets'), options: scope.length > 1 ? scope.map((m) => ({ value: m.code, label: m.name })) : [] }]} />
 
       <p className="mb-5 rounded-[14px] bg-surface-3 px-4 py-3 text-[13.5px] text-strong" data-testid="lt-windows">
-        {t(`Este panel usa tres ventanas y cada bloque dice la suya: el periodo elegido (${when}), la foto de hoy, y los 30 días del archivo de S5${asOf ? ` con corte al ${day(asOf, locale)}` : ''}. Por eso un ganado del periodo y un comercio activo de hoy no se restan entre sí.`,
-          `This panel uses three windows and each block names its own: the chosen period (${when}), today’s snapshot, and the 30 days in the S5 file${asOf ? ` as of ${day(asOf, locale)}` : ''}. That is why a win in the period and a merchant active today do not subtract from each other.`)}
+        {t(`Este panel usa tres ventanas y cada bloque dice la suya: el periodo elegido (${when}), la foto de hoy, y los 30 días del archivo diario de ventas${asOf ? ` con corte al ${day(asOf, locale)}` : ''}. Por eso un ganado del periodo y un comercio activo de hoy no se restan entre sí.`,
+          `This panel uses three windows and each block names its own: the chosen period (${when}), today’s snapshot, and the 30 days in the daily sales file${asOf ? ` as of ${day(asOf, locale)}` : ''}. That is why a win in the period and a merchant active today do not subtract from each other.`)}
       </p>
 
       <h2 className="mb-3 text-[15px] font-semibold text-strong">{t(`En el periodo: ${when}`, `In the period: ${when}`)}</h2>
@@ -100,7 +100,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
         <Metric t={t} k="risk" testId="lt-risk" value={`${num(sum('accounts_at_risk'), locale)} / ${num(sum('accounts_inactive'), locale)}`} href={qs('/comercios', { market, ver: 'riesgo' })} />
       </div>
 
-      <h2 className="mt-8 mb-3 text-[15px] font-semibold text-strong">{asOf ? t(`Ventas según S5: 30 días al ${day(asOf, locale)}`, `Sales per S5: 30 days to ${day(asOf, locale)}`) : t('Ventas según S5', 'Sales per S5')}</h2>
+      <h2 className="mt-8 mb-3 text-[15px] font-semibold text-strong">{asOf ? t(`Ventas del archivo diario: 30 días al ${day(asOf, locale)}`, `Sales from the daily file: 30 days to ${day(asOf, locale)}`) : t('Ventas del archivo diario', 'Sales from the daily file')}</h2>
       <Card data-testid="lt-volume">
         <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
           <div>

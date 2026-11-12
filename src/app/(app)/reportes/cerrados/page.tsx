@@ -10,7 +10,7 @@ import { qs } from '@/lib/labels'
 import { flat } from '@/server/params'
 import { reportFilters, reportSelects, type ReportParams } from '../params'
 
-const LIMIT = 200
+const LIMIT = 100
 const GRID = '@4xl:grid @4xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_104px_112px_minmax(0,1.1fr)] @4xl:items-center @4xl:gap-4'
 
 export default async function ClosedDealsPage({ searchParams }: { searchParams: Promise<ReportParams> }) {
