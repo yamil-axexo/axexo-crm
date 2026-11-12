@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ctxFor, owner, personaId, systemContext } from './helpers'
 import { assignLead, convertLead, createLead, intakeFromForm, qualifyLead } from '@/domain/leads'
-import { createDeal, moveDeal } from '@/domain/deals'
+import { createDeal } from '@/domain/deals'
 import { pauseDeal, resumeDeal } from '@/domain/b2b'
 import { grantAccess } from '@/domain/admin'
 import { exportClosedDeals } from '@/domain/reports'
@@ -65,7 +65,6 @@ describe('el lead nuevo avisa dentro de CONTIGO', () => {
     // Con un intento ya no está en la guardia.
     await admin`update crm.leads set first_touch_at = now() where id = ${id}`
     expect((await getLeadWatch(ana, { market: 'MX' })).some((l) => l.id === id)).toBe(false)
-    // Quien vende no hace guardia de otros: solo ve lo que su rol le deja ver.
     await admin`update crm.market_hours set days = '{1,2,3,4,5}', opens = '09:00', closes = '18:00' where market_code = 'MX'`
   })
 
@@ -198,7 +197,7 @@ describe('leadership y administración', () => {
     const deal = await createDeal(diana, { accountId: account, pipelineId: pipe.id, title, nextStep: 'Firmar', nextStepDue: day(1) })
     // Se gana a mano saltando los requisitos de etapa en la base: aquí importa el reporte, no el paso por cada etapa.
     await admin`update crm.deals set status = 'won', stage_id = ${pipe.won}, won_at = now(), closed_by = 'manual' where id = ${deal}`
-    await admin`insert into crm.deal_stage_events (deal_id, market_code, to_stage_id, actor_id, cause) select ${deal}, 'MX', ${pipe.won}, ${diana.user.id}, cause from crm.deal_stage_events limit 1`
+    await admin`insert into crm.deal_stage_events (deal_id, market_code, to_stage_id, actor_id, cause) values (${deal}, 'MX', ${pipe.won}, ${diana.user.id}, 'user')`
     const period = marketPeriods(ana, 'mes')
     const row = (await getClosedDeals(ana, period, { market: 'MX', result: 'won' })).rows.find((r) => r.id === deal)!
     expect(row).toMatchObject({ closed_by: 'manual', closed_by_name: diana.user.name })
@@ -209,7 +208,6 @@ describe('leadership y administración', () => {
     const line = lines.find((l) => l.includes(title))!
     expect(line).toContain('A mano')
     expect(line).toContain(diana.user.name)
-    void moveDeal
   })
 
   it('el texto de cómo se gana sale de la configuración de cada embudo', async () => {

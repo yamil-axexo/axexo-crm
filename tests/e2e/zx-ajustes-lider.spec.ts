@@ -198,7 +198,7 @@ test.describe('leadership y administración', () => {
     await expect(dialog.getByTestId('form-error')).toContainText('ve y cambia todo, en todos los mercados')
     await dialog.getByTestId('grant-admin-check').check()
     await dialog.getByTestId('grant-save').click()
-    await expect(page.locator('dialog[open]')).toHaveCount(0)
+    await expect(page.getByTestId('admin-notice')).toContainText('Acceso otorgado. Vence el')
     const sql = testDb()
     const audit = (await sql<{ after: Record<string, unknown> }[]>`select after from crm.audit_events where action = 'membership.granted' order by at desc, id desc limit 1`)[0]!
     await sql.end()
