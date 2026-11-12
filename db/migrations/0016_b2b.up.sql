@@ -81,7 +81,7 @@ insert into crm.field_definitions (object, key, label_es, label_en, data_type, o
 select v.object, v.key, v.label_es, v.label_en, v.data_type, v.options::jsonb, 'MX', 'internal', 'b2b', v.section, v.applies_when::jsonb, v.in_intake, v.position
   from (values
     ('account', 'b2b_points_of_sale',   'Puntos de venta',                 'Points of sale',                'number', '[]', 'qualify', null, true, 100),
-    ('account', 'b2b_size',             'Tamaño de la cuenta',             'Account size',                  'select', '["Hasta 10 puntos de venta","De 11 a 50","De 51 a 200","Más de 200"]', 'qualify', null, false, 101),
+    ('account', 'b2b_size',             'Tamaño de la cuenta',             'Account size',                  'select', '["Chica","Mediana","Grande"]', 'qualify', null, false, 101),
     ('account', 'b2b_monthly_volume',   'Volumen mensual estimado (MXN)',  'Estimated monthly volume (MXN)', 'number', '[]', 'qualify', null, true, 102),
     ('account', 'b2b_integration',      'Modelo de integración',           'Integration model',             'select', '["API","Portal","Por definir"]', 'qualify', null, true, 103),
     ('account', 'b2b_chain_category',   'Subcategoría de cadena',          'Chain subcategory',             'select', '["Autoservicio","Tiendas de Conveniencia","Departamentales","Especializadas"]', 'qualify', null, false, 104),
