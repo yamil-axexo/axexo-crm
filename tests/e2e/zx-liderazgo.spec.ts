@@ -450,7 +450,7 @@ test.describe('ventas por tienda', () => {
     await expect(page.locator('main')).toContainText(/Ventas, últimos 30 días al \d+ \w+ 2026/)
     await expect(page.getByTestId('fact-sales')).toContainText(/\d+ transacci(ón|ones) · MXN/)
     await expect(page.getByTestId('fact-sales')).toContainText('días con venta')
-    await expect(page.getByTestId('fact-sales-prev')).toContainText(/\d+ transacci(ón|ones) · MXN .* · ahora [+-]?\d+% · al \d+ \w+ 2026/)
+    await expect(page.getByTestId('fact-sales-prev')).toContainText(/\d+ transacci(ón|ones) · MXN.* · ahora [+-]?\d+% · al \d+ \w+ 2026/)
     await page.goto(`/comercios/${noPrev!.id}?tab=datos`)
     await expect(page.getByTestId('fact-sales-prev')).toHaveText('No hay dato de ese periodo')
   })

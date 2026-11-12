@@ -28,6 +28,8 @@ const COLS: [es: string, en: string][] = [
 // La columna de negocios abiertos es más ancha: lleva la marca de estancados junto a la cifra.
 const ROW = '@5xl:grid @5xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))_minmax(0,1.5fr)_repeat(3,minmax(0,1fr))_minmax(0,1.15fr)_minmax(0,1.1fr)_minmax(0,0.75fr)] @5xl:items-center @5xl:gap-3'
 const WEEK = '@2xl:grid @2xl:grid-cols-[minmax(0,1.6fr)_repeat(5,minmax(0,1fr))] @2xl:items-center @2xl:gap-4'
+// Marca compacta dentro de una celda angosta de la tabla (más chica que un Badge, para que quepa en su columna).
+const CHIP = 'inline-flex items-center rounded-full px-1.5 py-0.5 text-[12px] leading-4 font-medium whitespace-nowrap'
 const CARD = 'grid grid-cols-2 gap-x-6 gap-y-1.5 @md:grid-cols-3'
 
 export default async function SupervisorPage({ searchParams }: { searchParams: Promise<{ market?: string; kind?: string; owner?: string; equipo?: string }> }) {
@@ -120,10 +122,10 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                   {g.rows.map((r) => (
                     <li key={`${r.id}-${r.market_code}`} className={`row-hover px-5 py-3.5 @5xl:px-7 ${CARD} ${ROW}`} data-testid="rep-row">
                       <span className="col-span-2 mb-1 block min-w-0 @5xl:col-span-1 @5xl:mb-0"><span className="block text-[15px] font-semibold text-strong [overflow-wrap:anywhere]" data-testid="rep-name">{r.full_name}</span><span className="text-[12.5px] text-muted-2">{[r.role === 'rep' ? null : t(ROLE_LABEL[r.role].es, ROLE_LABEL[r.role].en), r.team, r.market_code].filter(Boolean).join(' · ')}</span></span>
-                      {cell(0, <>{r.leads_open}{r.leads_overdue > 0 && <Badge tone="bad">{t(`${r.leads_overdue} tarde`, `${r.leads_overdue} late`)}</Badge>}</>)}
+                      {cell(0, <>{r.leads_open}{r.leads_overdue > 0 && <span className={`${CHIP} bg-risk-bg text-red-text`}>{t(`${r.leads_overdue} tarde`, `${r.leads_overdue} late`)}</span>}</>)}
                       {cell(1, <span data-testid="rep-attempt">{pct(r.sla_met, r.sla_judged)}</span>)}
                       {cell(2, <span data-testid="rep-reached">{pct(r.reached, r.sla_judged)}</span>)}
-                      {cell(3, <>{r.deals_open}{r.stalled > 0 && <Badge tone="warn">{t(`${r.stalled} estancados`, `${r.stalled} stalled`)}</Badge>}</>)}
+                      {cell(3, <>{r.deals_open}{r.stalled > 0 && <span className={`${CHIP} bg-warn-bg text-amber-text`}>{t(`${r.stalled} estancados`, `${r.stalled} stalled`)}</span>}</>)}
                       {cell(4, r.no_next_step > 0 ? <Badge tone="bad">{r.no_next_step}</Badge> : 0)}
                       {cell(5, r.revisits > 0 ? <Badge tone="warn">{r.revisits}</Badge> : 0)}
                       {cell(6, r.awaiting)}
