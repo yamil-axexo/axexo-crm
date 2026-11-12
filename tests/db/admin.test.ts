@@ -326,6 +326,8 @@ describe('bitácora que se puede leer', () => {
     expect(utc.total).toBe(0)
     expect((await getAudit(nora, { tz: 'UTC', id, from: '2026-03-10', to: '2026-03-10' })).total).toBe(1)
     expect((await getAudit(nora, { tz: 'America/Puerto_Rico', id, from: '2026-03-10' })).total).toBe(0)
+    // Una zona que la base no conoce no rompe el filtro: cae en UTC.
+    expect((await getAudit(nora, { tz: 'Marte/Olympus', id, from: '2026-03-10', to: '2026-03-10' })).total).toBe(1)
   })
 
   it('pagina hacia atrás y hacia adelante sin repetir ni saltar eventos', async () => {

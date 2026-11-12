@@ -339,7 +339,9 @@ test.describe('integraciones', () => {
     expect(bad.status()).toBe(422)
 
     await page.reload()
+    // Revocar pide confirmación: la llave deja de servir en ese instante y no se reactiva.
     await page.getByTestId('api-revoke').first().click()
+    await page.locator('dialog[open]').getByTestId('api-revoke-confirm').click()
     await expect(page.getByTestId('api-row').first()).toContainText('revocada')
     expect((await request.post('/api/v1/events/sales-app', { data: event, headers: { authorization: `Bearer ${key}` } })).status()).toBe(401)
   })

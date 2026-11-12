@@ -485,3 +485,24 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
     })
   })
 }
+
+test.describe('tableta (1024 px)', () => {
+  test.use({ viewport: { width: 1024, height: 768 }, timezoneId: TZ })
+  test('las pantallas nuevas caben y pasan accesibilidad también en tableta', async ({ page }) => {
+    await loginAs(page, 'luis.tovar')
+    await page.goto('/estado')
+    await expect(page.getByTestId('read-only')).toBeVisible()
+    await clean(page, 'tableta estado')
+    await page.goto('/admin?tab=auditoria&tipo=all')
+    await expect(page.getByTestId('audit-zone')).toContainText('hora de Puerto Rico')
+    await clean(page, 'tableta bitácora')
+    await loginAs(page, 'nora.salas')
+    await page.goto('/admin?tab=personas')
+    await page.getByTestId('membership-open').first().click()
+    await expect(page.locator('dialog[open]').getByTestId('end-impact')).toBeVisible()
+    await clean(page, 'tableta personas y acceso')
+    await page.goto('/admin?tab=embudos')
+    await page.getByTestId('stage-edit').first().click()
+    await clean(page, 'tableta editar etapa')
+  })
+})

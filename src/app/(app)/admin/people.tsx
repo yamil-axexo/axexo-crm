@@ -169,7 +169,7 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
                   </td>
                   <td className="num">{u.active_days}</td>
                   <td className="num">{u.actions}</td>
-                  <td className="text-[13px] text-muted-2">{u.last_seen ? ago(u.last_seen, locale) : '—'}</td>
+                  <td className="text-[13px] text-muted-2">{u.last_seen ? ago(u.last_seen, locale) : t('Nunca', 'Never')}</td>
                 </tr>
               )
             })}

@@ -195,6 +195,10 @@ const cursorOf = (e: { at_us: string; id: string } | undefined) => (e ? `${e.at_
 export async function getAudit(ctx: Ctx, f: AuditFilters) {
   return withUser(ctx.user.id, async (tx) => {
     const group = AUDIT_GROUPS[isAuditGroup(f.group) ? f.group : '']
+    // La zona llega del navegador. Si la base no la conoce (su catálogo de zonas puede ir atrás del navegador), el filtro
+    // de fechas usa UTC en vez de fallar.
+    const dated = (f.from && DAY.test(f.from)) || (f.to && DAY.test(f.to))
+    const tz = dated && (await tx`select 1 from pg_timezone_names where name = ${f.tz}`).length > 0 ? f.tz : 'UTC'
     const where = tx`
       ${isUuid(f.actor) ? tx`and e.actor_id = ${f.actor}` : tx``}
       ${group.like ? tx`and e.action like any(${[...group.like]}::text[])` : tx``}
@@ -202,8 +206,8 @@ export async function getAudit(ctx: Ctx, f: AuditFilters) {
       ${f.object && f.object in AUDIT_OBJECT ? tx`and e.object = ${f.object}` : tx``}
       ${isUuid(f.id) ? tx`and e.object_id = ${f.id}` : tx``}
       ${f.market && /^[A-Z]{2}$/.test(f.market) ? tx`and e.market_code = ${f.market}` : tx``}
-      ${f.from && DAY.test(f.from) ? tx`and e.at >= (${f.from}::date::timestamp at time zone ${f.tz})` : tx``}
-      ${f.to && DAY.test(f.to) ? tx`and e.at < ((${f.to}::date + 1)::timestamp at time zone ${f.tz})` : tx``}`
+      ${f.from && DAY.test(f.from) ? tx`and e.at >= (${f.from}::date::timestamp at time zone ${tz})` : tx``}
+      ${f.to && DAY.test(f.to) ? tx`and e.at < ((${f.to}::date + 1)::timestamp at time zone ${tz})` : tx``}`
     const after = parseCursor(f.after)
     const before = after ? null : parseCursor(f.before)
     const cols = tx`e.id, e.at, to_char(e.at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as at_us,
