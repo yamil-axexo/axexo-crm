@@ -31,10 +31,10 @@ export async function addStreetSellerAction(_: R | null, fd: FormData): Promise<
 }
 
 /** Catálogo de vendedores de calle: cambiar a quién responde, o baja. */
-export async function updateStreetSellerAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction(async (ctx) => {
+export async function updateStreetSellerAction(_: ActionResult<{ toast: string }> | null, fd: FormData): Promise<ActionResult<{ toast: string }>> {
+  return runAction<{ toast: string }>(async (ctx) => {
     const end = str(fd, 'end') === '1'
     await updateStreetSeller(ctx, str(fd, 'id'), end ? { end: true } : { reportsTo: str(fd, 'reports_to') || null })
-    return { message: end ? ['Dado de baja. Sus visitas anteriores se conservan.', 'Removed. Their earlier visits are kept.'] : ['Listo: quedó a cargo de esa persona.', 'Done: they now report to that person.'] }
+    return { data: { toast: end ? ctx.t('Dado de baja. Sus visitas anteriores se conservan.', 'Removed. Their earlier visits are kept.') : ctx.t('Listo: quedó a cargo de esa persona.', 'Done: they now report to that person.') } }
   })
 }

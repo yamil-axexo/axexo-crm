@@ -277,9 +277,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               </ActionForm>
               <ActionForm action={simulateVisitAction} className="card-2 p-5" testId="sim-visit">
                 <p className="text-[14.5px] font-semibold text-strong">{t('Sales App: visita', 'Sales App: visit')}</p>
-                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Una visita sin decisor deja el negocio marcado con revisita.', 'A visit with no decision-maker flags the deal for a revisit.')}</p>
+                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Una visita sin quien decide deja el negocio marcado con revisita.', 'A visit with no decision-maker flags the deal for a revisit.')}</p>
                 <Field label={t('Comercio', 'Merchant')}><select name="customer_id" className="input" data-testid="sim-visit-ref">{d.visitable.map((a) => <option key={a.alias} value={a.alias}>{a.name} · {a.alias}</option>)}<option value="SC-XX-000000">{t('ID que no existe', 'An ID that does not exist')}</option></select></Field>
-                <Field label={t('Resultado', 'Outcome')} className="mt-3"><select name="outcome" className="input" data-testid="sim-visit-outcome"><option value="revisit">{t('Sin venta: no estaba el decisor', 'No sale: decision-maker absent')}</option><option value="sale">{t('Con venta', 'With a sale')}</option><option value="no_sale">{t('Sin venta: tiene inventario', 'No sale: has stock')}</option></select></Field>
+                <Field label={t('Resultado', 'Outcome')} className="mt-3"><select name="outcome" className="input" data-testid="sim-visit-outcome"><option value="revisit">{t('Sin venta: no estaba quien decide', 'No sale: decision-maker absent')}</option><option value="sale">{t('Con venta', 'With a sale')}</option><option value="no_sale">{t('Sin venta: tiene inventario', 'No sale: has stock')}</option></select></Field>
                 <div className="mt-4"><Submit variant="ghost" size="sm" testId="sim-visit-send">{t('Enviar evento', 'Send event')}</Submit></div>
               </ActionForm>
               <ActionForm action={simulateStoreAction} onOk="reset" className="card-2 p-5" testId="sim-store">

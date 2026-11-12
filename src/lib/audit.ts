@@ -259,7 +259,7 @@ const FIELD: Record<string, Pair> = {
 
 const VALUE: Record<string, Pair> = {
   amount: ['monto esperado', 'expected amount'],
-  decision_maker: ['decisor identificado y contactado', 'decision-maker identified and reached'],
+  decision_maker: ['quien decide, identificado y contactado', 'decision-maker identified and reached'],
   next_step: ['próximo paso con fecha', 'next step with a date'],
   access_removed: ['Se le quitó el acceso', 'Their access was removed'],
   open: ['Abierto', 'Open'],

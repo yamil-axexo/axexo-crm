@@ -10,7 +10,7 @@ import { fieldDefs } from '@/dal/fields'
 import { CustomFields } from '@/ui/fields'
 import { lossReasonsFor } from '@/dal/b2b'
 import { pauseDealAction, resumeDealAction } from '@/app/(app)/b2b-actions'
-import { FIELD_LABEL } from '@/domain/deals'
+import { FIELD_LABEL, winMissingText } from '@/domain/deals'
 import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, buttonClass, cx, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { addDays, day, dayTime, daysSince, isoDay, money } from '@/lib/format'
@@ -29,7 +29,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getDeal(ctx, id)
   if (!data) notFound()
-  const { deal, stages, contacts, events, activities, items, current, next, missingNext } = data
+  const { deal, stages, contacts, events, activities, items, current, next, missingNext, missingWin } = data
   const defs = await fieldDefs(ctx, 'deal', deal.market_code, deal.motor)
   const ops = (await getDealOps(ctx, id))!
   const canEditFields = ctx.can('deal.edit', deal.market_code)
@@ -51,7 +51,18 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const opsAhead = Boolean(current && stages.some((s) => s.is_ops && s.position >= current.position))
   const opsMoves = ctx.can('deal.ops', deal.market_code) && deal.owner_id !== ctx.user.id
   const canAdvance = canEdit && (!current?.is_ops || opsMoves)
-  const canWin = canEdit && (!opsAhead || opsMoves)
+  // Quien solo opera gana lo que Ventas ya le entregó: en una etapa de Ventas no ve el botón.
+  const opsOnly = ctx.can('deal.ops', deal.market_code) && !ctx.can('deal.create', deal.market_code)
+  const canWin = canEdit && (!opsAhead || opsMoves) && !(opsOnly && !current?.is_ops)
+  const gateLabels = {
+    title: '', body: '', save: t('Guardar y mover', 'Save and move'),
+    amount: t(`Monto esperado (${market.currency})`, `Expected amount (${market.currency})`), nextStep: t('Próximo paso', 'Next step'), nextDue: t('Fecha del próximo paso', 'Next step date'),
+    decisionMaker: t('Quien decide', 'Decision-maker'), pick: t('Elige quién decide', 'Pick the decision-maker'), met: t('Ya hablé con quien decide', 'I have spoken with the decision-maker'),
+    noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
+    items: t('Falta al menos una línea de producto: agrégala abajo, en Líneas del pedido.', 'It needs at least one product line: add it below, under Order lines.'), openDeal: '',
+  }
+  const gateInfoBase = { amount: deal.amount_minor ? String(Number(deal.amount_minor) / 100) : null, nextStep: deal.next_step, nextStepDue: deal.next_step_due,
+    decisionMakerId: deal.decision_maker_id, decisionMakerMet: deal.decision_maker_met, contacts: contacts.map((c) => ({ id: c.id, full_name: c.full_name })), accountId: deal.account_id }
   const people = canLog ? await notifyOptions(ctx, { dealId: deal.id }) : []
   const pilotRule = t('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.', 'During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own.')
   const call = <><Phone size={18} strokeWidth={1.75} aria-hidden />{ctx.m('action.call')}</>
@@ -87,7 +98,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         <div className="space-y-8 xl:col-span-2">
           {deal.revisit_needed && deal.status === 'open' && (
             <div className="rounded-[16px] bg-warn-bg px-6 py-5" data-testid="revisit-banner">
-              <p className="text-[15px] font-semibold text-amber-text">{t('Hay que volver con el decisor', 'Go back to the decision-maker')}</p>
+              <p className="text-[15px] font-semibold text-amber-text">{t('Hay que volver con quien decide', 'Go back to the decision-maker')}</p>
               <p className="mt-1 text-[13.5px] text-muted-2">
                 {t('La última visita no encontró a quien decide.', 'The last visit did not find the person who decides.')}
                 {deal.revisit_due ? ` ${t('Fecha sugerida:', 'Suggested date:')} ${day(deal.revisit_due, locale)}.` : ''}
@@ -119,7 +130,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                     : current.kind === 'awaiting_txn'
                     ? t(`Lleva ${daysSince(deal.stage_entered_at)} días aquí. Se gana cuando los datos de ventas traen la primera venta de este comercio; nadie lo marca a mano.`, `It has been here ${daysSince(deal.stage_entered_at)} days. It is won when the sales data shows this merchant’s first sale; nobody marks it by hand.`)
                     : current.exit_es
-                      ? t(`Criterio de salida: ${current.exit_es}.`, `Exit criteria: ${current.exit_en}.`)
+                      ? t(`Para avanzar: ${current.exit_es}.`, `To move on: ${current.exit_en}.`)
                       : lastOpen && deal.close_by_transaction
                         ? t('Última etapa del embudo. El negocio se gana cuando los datos de ventas traen la primera transacción del comercio; nadie lo marca a mano.', 'Last stage of the pipeline. The deal is won when the sales data shows the merchant’s first transaction; nobody marks it by hand.')
                         : undefined
@@ -142,7 +153,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                         labels={{
                           title: '', body: '', save: t('Guardar y mover', 'Save and move'),
                           amount: t(`Monto esperado (${market.currency})`, `Expected amount (${market.currency})`), nextStep: t('Próximo paso', 'Next step'), nextDue: t('Fecha del próximo paso', 'Next step date'),
-                          decisionMaker: t('Decisor', 'Decision-maker'), pick: t('Elige al decisor', 'Pick the decision-maker'), met: t('Ya hablé con el decisor', 'I have spoken with the decision-maker'),
+                          decisionMaker: t('Quien decide', 'Decision-maker'), pick: t('Elige quién decide', 'Pick the decision-maker'), met: t('Ya hablé con quien decide', 'I have spoken with the decision-maker'),
                           noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
                           items: t('Falta al menos una línea de producto: agrégala abajo, en Líneas del pedido.', 'It needs at least one product line: add it below, under Order lines.'), openDeal: '',
                         }} />
@@ -172,6 +183,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                         <Field label={t('Fecha real de cierre', 'Actual close date')} hint={t('Hoy o un día anterior, nunca futura.', 'Today or an earlier day, never in the future.')}>
                           <input name="won_on" type="date" className="input" required max={today} defaultValue={today} data-testid="win-date" />
                         </Field>
+                        {won && missingWin.length > 0 && (
+                          <div className="mt-4 border-t border-line pt-1" data-testid="win-gate">
+                            <p className="mt-4 text-[14px] font-medium text-strong" data-testid="win-needs">{t(...winMissingText(missingWin))}</p>
+                            <GateFields minDate={today} dealHref={`/deals/${deal.id}`} info={{ ...gateInfoBase, missing: missingWin, stageName: { es: won.name_es, en: won.name_en } }} labels={gateLabels} />
+                          </div>
+                        )}
                         <div className="mt-5 flex justify-end"><Submit testId="deal-win-confirm">{t('Marcar como ganado', 'Mark as won')}</Submit></div>
                       </ActionForm>
                     </Dialog>
@@ -225,7 +242,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                 <Field label={t('Próximo paso', 'Next step')} className="col-span-2"><input name="next_step" className="input" defaultValue={deal.next_step ?? ''} data-testid="next-step" /></Field>
                 <Field label={t('Fecha del próximo paso', 'Next step date')}><input name="next_step_due" type="date" className="input" defaultValue={deal.next_step_due ?? ''} data-testid="next-step-due" /></Field>
  {!ops.has_items && <Field label={t(`Monto esperado al mes (${market.currency})`, `Expected monthly amount (${market.currency})`)}><input name="amount" className="input" inputMode="decimal" defaultValue={deal.amount_minor ? String(Number(deal.amount_minor) / 100) : ''} data-testid="amount" /></Field>}
-                <Field label={t('Decisor', 'Decision-maker')}>
+                <Field label={t('Quien decide', 'Decision-maker')}>
                   <select name="decision_maker_id" className="input" defaultValue={deal.decision_maker_id ?? ''} data-testid="decision-maker">
                     <option value="">{t('Sin identificar', 'Not identified')}</option>
                     {contacts.map((c) => <option key={c.id} value={c.id}>{c.full_name} · {lab(t, CONTACT_ROLE[c.role])}</option>)}
@@ -233,7 +250,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                 </Field>
                 <label className="flex items-center gap-3 self-end pb-3 text-[14px]">
                   <input type="checkbox" name="decision_maker_met" defaultChecked={deal.decision_maker_met} className="h-5 w-5" data-testid="decision-maker-met" />
-                  {t('Ya hablé con el decisor', 'I have spoken with the decision-maker')}
+                  {t('Ya hablé con quien decide', 'I have spoken with the decision-maker')}
                 </label>
                 <div className="col-span-2 flex justify-end"><Submit variant="ghost" testId="deal-save">{t('Guardar', 'Save')}</Submit></div>
               </ActionForm>
@@ -287,7 +304,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               ))}
               {events.map((e, i) => (
                 <li key={`e${i}`} className="border-l-2 border-brand/50 pl-4">
-                  <p className="text-[14px] font-semibold text-strong">{e.from_es ? `${t(e.from_es, e.from_en ?? '')} → ` : ''}{t(e.to_es, e.to_en)}</p>
+                  <p className="text-[14px] font-semibold text-strong">{e.to_kind === 'won' && deal.won_at
+                    ? <span data-testid="timeline-won">{t(`Negocio ganado, con cierre el ${day(deal.won_at, locale, market.timezone)}`, `Deal won, with close date ${day(deal.won_at, locale, market.timezone)}`)}</span>
+                    : <>{e.from_es ? `${t(e.from_es, e.from_en ?? '')} → ` : ''}{t(e.to_es, e.to_en)}</>}</p>
                   <p className="text-[12.5px] text-muted">{e.cause === 'transaction' ? t('Primera transacción', 'First transaction') : (e.actor ?? <NoData locale={locale} />)} · {dayTime(e.at, locale, market.timezone)}</p>
                 </li>
               ))}
@@ -304,7 +323,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
               <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>
-              <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : <NoData locale={locale} />}</KeyVal>
+              {deal.status === 'open' && <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : <NoData locale={locale} />}</KeyVal>}
               <KeyVal k={t('En esta etapa', 'In this stage')}>{t(`${daysSince(deal.stage_entered_at)} días`, `${daysSince(deal.stage_entered_at)} days`)}</KeyVal>
               <KeyVal k={t('Creado', 'Created')}>{day(deal.created_at, locale, market.timezone)}</KeyVal>
               {deal.won_at && <KeyVal k={deal.closed_by === 'transaction' ? t('Primera transacción', 'First transaction') : t('Ganado', 'Won')}>{day(deal.won_at, locale, market.timezone)}</KeyVal>}

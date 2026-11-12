@@ -4,6 +4,7 @@ import { runAction, str } from '@/server/action'
 import { moveDeal, updateDeal } from '@/domain/deals'
 import { addDealItem, bulkCloseLost, markNoticeSeen, removeDealItem, saveOpsCatalog, saveProduct, setMerchantRef, setOpsCheck, setOpsStep, setPipelineFlags, setTraining, takeDeal } from '@/domain/ops'
 import type { ActionResult } from '@/lib/errors'
+import { day } from '@/lib/format'
 
 import { gateInfo, type GateInfo } from '@/dal/ops'
 
@@ -68,11 +69,31 @@ export async function returnDealAction(_: R | null, fd: FormData): Promise<R> {
   })
 }
 
-/** Ganar a mano, con la fecha real de cierre (hoy o anterior). */
+/** Lo que la hoja del candado manda para completar el negocio ahí mismo (monto, próximo paso, quien decide). */
+const gatePatch = (fd: FormData) => {
+  const amount = str(fd, 'amount').trim()
+  return {
+    amount: fd.has('amount') && amount !== '' ? number(amount) : undefined,
+    nextStep: fd.has('next_step') ? str(fd, 'next_step') : undefined,
+    nextStepDue: fd.has('next_step_due') ? str(fd, 'next_step_due') : undefined,
+    decisionMakerId: fd.has('decision_maker_id') ? str(fd, 'decision_maker_id') : undefined,
+    decisionMakerMet: fd.has('decision_maker_id') ? fd.get('decision_maker_met') === 'on' : undefined,
+  }
+}
+
+/**
+ * Ganar a mano, con la fecha real de cierre (hoy o anterior). Si la hoja trae lo que faltaba (quien decide, monto),
+ * se guarda antes de ganar: no hay que salir a otra pantalla y volver.
+ */
 export async function winDealAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, undefined, { wonOn: str(fd, 'won_on') })
-    return { message: ['Negocio ganado.', 'Deal won.'] }
+    const id = str(fd, 'deal_id')
+    const patch = gatePatch(fd)
+    if (Object.values(patch).some((v) => v !== undefined)) await updateDeal(ctx, id, patch)
+    const on = str(fd, 'won_on')
+    await moveDeal(ctx, id, str(fd, 'stage_id'), undefined, undefined, { wonOn: on })
+    const when = (locale: 'es' | 'en') => (/^\d{4}-\d{2}-\d{2}$/.test(on) ? day(on, locale) : locale === 'en' ? 'today' : 'hoy')
+    return { message: [`Negocio ganado, con cierre el ${when('es')}.`, `Deal won, with close date ${when('en')}.`] }
   })
 }
 
@@ -80,14 +101,7 @@ export async function winDealAction(_: R | null, fd: FormData): Promise<R> {
 export async function gateMoveAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const id = str(fd, 'deal_id')
-    const amount = str(fd, 'amount').trim()
-    const patch = {
-      amount: fd.has('amount') && amount !== '' ? number(amount) : undefined,
-      nextStep: fd.has('next_step') ? str(fd, 'next_step') : undefined,
-      nextStepDue: fd.has('next_step_due') ? str(fd, 'next_step_due') : undefined,
-      decisionMakerId: fd.has('decision_maker_id') ? str(fd, 'decision_maker_id') : undefined,
-      decisionMakerMet: fd.has('decision_maker_id') ? fd.get('decision_maker_met') === 'on' : undefined,
-    }
+    const patch = gatePatch(fd)
     if (Object.values(patch).some((v) => v !== undefined)) await updateDeal(ctx, id, patch)
     await moveDeal(ctx, id, str(fd, 'stage_id'))
     return { message: ['Etapa actualizada.', 'Stage updated.'] }

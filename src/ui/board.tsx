@@ -24,7 +24,7 @@ export type BoardCard = {
   /** Etapa "ganado" a la que esta persona puede llevarlo a mano; nulo si no le toca o el embudo cierra por transacción. */
   winTo?: string | null
 }
-export type BoardLabels = { stages: string; stage: string; moveTo: string; moved: string; empty: string; nextTitle: string; nextBody: string; nextStep: string; nextDue: string; nextSave: string; cancel: string; gate: GateLabels; win: { button: string; title: string; rule: string; date: string; hint: string; confirm: string } }
+export type BoardLabels = { stages: string; stage: string; moveTo: string; moved: string; empty: string; nextTitle: string; nextBody: string; nextStep: string; nextDue: string; nextSave: string; cancel: string; gate: GateLabels; win: { button: string; title: string; rule: string; date: string; hint: string; confirm: string; needs: string; and: string; plain: Record<string, string> } }
 type MoveAction = (prev: ActionResult<unknown> | null, data: FormData) => Promise<ActionResult<unknown>>
 export type BoardOps = { gateInfo: (dealId: string, stageId: string) => Promise<GateInfo | null>; gateMove: MoveAction; win: MoveAction }
 
@@ -61,6 +61,19 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
   const winDialog = useRef<HTMLDialogElement>(null)
   const [gate, setGate] = useState<{ card: BoardCard; to: string; info: GateInfo } | null>(null)
   const [win, setWin] = useState<BoardCard | null>(null)
+  // Lo que falta para ganar (quien decide, monto): la hoja lo pide ahí mismo, igual que el cambio de etapa.
+  const [winInfo, setWinInfo] = useState<GateInfo | null>(null)
+  const openWin = (card: BoardCard) => {
+    setError(null)
+    setWinInfo(null)
+    setWin(card)
+    winDialog.current?.showModal()
+    if (card.winTo) void ops.gateInfo(card.id, card.winTo).then((info) => setWinInfo(info && info.missing.length > 0 ? info : null), () => {})
+  }
+  const winNeeds = (info: GateInfo) => {
+    const parts = info.missing.map((k) => labels.win.plain[k] ?? k)
+    return labels.win.needs.replace('%s', parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} ${labels.win.and} ${parts[parts.length - 1]}`)
+  }
   const stageName = (id: string) => cols.find((c) => c.id === id)?.name ?? ''
 
   const move = (card: BoardCard, to: string, next?: { step: string; due: string }) => {
@@ -110,9 +123,14 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
       const res = await run(null, data)
       if (res.ok) {
         ref.current?.close()
-        showToast(labels.moved.replace('%n', card.name).replace('%s', stageName(to) || labels.win.confirm))
+        // Ganar dice su propio aviso ("Negocio ganado, con cierre el ..."), no "pasó a ...".
+        showToast(run === ops.win && res.message ? `${card.name}: ${res.message}` : labels.moved.replace('%n', card.name).replace('%s', stageName(to)))
         router.refresh()
-      } else setError(res.error)
+      } else {
+        setError(res.error)
+        // Si al ganar todavía falta algo, la hoja lo muestra para completarlo sin salir.
+        if (run === ops.win && res.code === 'stage_gate') void ops.gateInfo(card.id, to).then((info) => setWinInfo(info && info.missing.length > 0 ? info : null), () => {})
+      }
     })
   }
 
@@ -193,7 +211,7 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
                       </label>
                     )}
                     {card.winTo && (
-                      <button type="button" disabled={pending} onClick={() => { setError(null); setWin(card); winDialog.current?.showModal() }} className="press relative z-10 mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[10px] border border-line-2 bg-surface px-3 text-[14px] font-semibold text-brand-text hover:bg-green-50" data-testid="deal-card-win">{labels.win.button}</button>
+                      <button type="button" disabled={pending} onClick={() => openWin(card)} className="press relative z-10 mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[10px] border border-line-2 bg-surface px-3 text-[14px] font-semibold text-brand-text hover:bg-green-50" data-testid="deal-card-win">{labels.win.button}</button>
                     )}
                   </li>
                 ))}
@@ -240,7 +258,7 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
         )}
       </dialog>
 
-      <dialog ref={winDialog} aria-labelledby="win-title" onClose={() => setWin(null)} onClick={(e) => { if (e.target === winDialog.current) winDialog.current?.close() }} className="m-auto w-[min(480px,92vw)] rounded-[16px] border border-line bg-surface p-0 text-fg shadow-[var(--cg-shadow-float)] backdrop:bg-black/40" data-testid="win-dialog">
+      <dialog ref={winDialog} aria-labelledby="win-title" onClose={() => { setWin(null); setWinInfo(null) }} onClick={(e) => { if (e.target === winDialog.current) winDialog.current?.close() }} className="m-auto w-[min(480px,92vw)] rounded-[16px] border border-line bg-surface p-0 text-fg shadow-[var(--cg-shadow-float)] backdrop:bg-black/40" data-testid="win-dialog">
         {win && win.winTo && (
           <form onSubmit={(e) => submitExtra(e, ops.win, winDialog, win, win.winTo!)} className="p-6 md:p-8">
             <h2 id="win-title" className="text-[18px] leading-[26px] font-semibold">{labels.win.title.replace('%s', win.title ?? win.name)}</h2>
@@ -249,7 +267,13 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
               <input name="won_on" type="date" required max={minDate} defaultValue={minDate} className="input mt-1.5" data-testid="win-date" />
               <span className="mt-1 block text-[13px] font-normal text-muted">{labels.win.hint}</span>
             </label>
-            {error && <p role="alert" className="mt-4 rounded-[10px] bg-risk-bg px-4 py-3 text-[14px] font-medium text-red-text">{error}</p>}
+            {winInfo && (
+              <div className="mt-5 border-t border-line pt-1" data-testid="win-gate">
+                <p className="mt-4 text-[14px] font-medium text-strong" data-testid="win-needs">{winNeeds(winInfo)}</p>
+                <GateFields info={winInfo} labels={labels.gate} minDate={minDate} dealHref={win.href} />
+              </div>
+            )}
+            {error && !winInfo && <p role="alert" className="mt-4 rounded-[10px] bg-risk-bg px-4 py-3 text-[14px] font-medium text-red-text" data-testid="win-error">{error}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={() => winDialog.current?.close()} className="press inline-flex h-11 items-center rounded-[10px] px-4 text-[15px] font-medium text-strong hover:bg-green-50">{labels.cancel}</button>
               <button type="submit" disabled={pending} aria-busy={pending} className="press grad-bg inline-flex h-11 items-center rounded-[10px] px-5 text-[15px] font-semibold text-on-sun disabled:opacity-60" data-testid="win-confirm">{labels.win.confirm}</button>

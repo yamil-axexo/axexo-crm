@@ -103,7 +103,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const h3 = 'text-[15px] leading-6 font-semibold'
 
   type Item = (typeof timeline)[number]
-  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null }
+  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null }
   const meta = (it: Item) => it.meta as Meta
   // Una visita dice de dónde viene: la que alguien registró en CONTIGO o la que llegó de la Sales App.
   const manualVisit = (it: Item) => it.kind === 'visit' && meta(it).origin === 'manual'
@@ -122,7 +122,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
     return from ? t(`Pasó a ${it.title}; venía de ${from}`, `Moved to ${it.title}; it came from ${from}`) : t(`Lo lleva ${it.title}`, `Owner: ${it.title}`)
   }
   const threadTitle = (it: Item) =>
-    it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"` : it.kind === 'attribution' ? ownerChange(it) : it.title
+    it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? (meta(it).won_on ? t(`Negocio ganado, con cierre el ${day(meta(it).won_on, locale)}`, `Deal won, with close date ${day(meta(it).won_on, locale)}`) : `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"`) : it.kind === 'attribution' ? ownerChange(it) : it.title
   /** Variación contra los 30 días anteriores, en transacciones. Sin base (cero ventas antes) no hay porcentaje que mostrar. */
   const salesDelta = (now: number, before: number) => {
     if (before <= 0) return ''

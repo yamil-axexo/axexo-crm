@@ -202,7 +202,7 @@ test.describe('embudo', () => {
     // justo después de avanzar, el botón ignora otro envío por un momento (un doble clic no avanza dos etapas)
     await page.waitForTimeout(800)
     await page.getByTestId('deal-advance').click()
-    await expect(page.getByTestId('deal-move').getByTestId('form-error')).toContainText('decisor')
+    await expect(page.getByTestId('deal-move').getByTestId('form-error')).toContainText('quien decide')
     await page.getByTestId('deal-account').click()
     await fichaTab(page, 'datos')
     await page.getByTestId('add-contact').click()
@@ -244,10 +244,10 @@ test.describe('embudo', () => {
   test('el tablero muestra la revisita al decisor y cuenta por etapa', async ({ page }) => {
     await loginAs(page, 'fernando.ibarra')
     await page.goto('/pipelines')
-    await expect(page.getByTestId('board-summary')).toContainText('con revisita al decisor')
+    await expect(page.getByTestId('board-summary')).toContainText('con revisita a quien decide')
     const count = Number(await page.getByTestId('stage-count-espera').innerText())
     expect(count).toBeGreaterThan(0)
-    await expect(page.getByTestId('board').getByText('Revisita al decisor').first()).toBeVisible()
+    await expect(page.getByTestId('board').getByText('Revisita a quien decide').first()).toBeVisible()
   })
 })
 

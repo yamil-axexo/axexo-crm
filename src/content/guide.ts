@@ -813,7 +813,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'lead-contact-role', topic: 'leads', tracks: SELL,
     q: { es: '¿Qué rol le pongo al contacto al convertir?', en: 'Which role do I give the contact when converting?' },
-    a: { es: 'El que tiene en el negocio; por ejemplo dueño del comercio, encargado, decisor, personal, compras o finanzas. Lo eliges en "Qué hace" la persona en el negocio, al crear el lead o al convertirlo. Si no lo sabes, deja "Todavía no sé" y corrígelo después en la ficha, en Contactos.', en: 'The one they hold in the business; for example owner, manager, decision-maker, staff, purchasing or finance. You choose it under the person\'s "role in the business", when creating the lead or converting it. If you do not know, leave "Not sure yet" and fix it later on the record, under Contacts.' },
+    a: { es: 'El que tiene en el negocio; por ejemplo dueño del comercio, encargado, quien decide, personal, compras o finanzas. Lo eliges en "Qué hace" la persona en el negocio, al crear el lead o al convertirlo. Si no lo sabes, deja "Todavía no sé" y corrígelo después en la ficha, en Contactos.', en: 'The one they hold in the business; for example owner, manager, decision-maker, staff, purchasing or finance. You choose it under the person\'s "role in the business", when creating the lead or converting it. If you do not know, leave "Not sure yet" and fix it later on the record, under Contacts.' },
   },
   {
     id: 'lead-twice', topic: 'leads', tracks: [...SELL, 'admin'],
@@ -835,7 +835,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'deal-decision', topic: 'deals', tracks: WORK,
     q: { es: '¿Por qué me pide haber hablado con quien decide?', en: 'Why does it ask whether I spoke with the decision-maker?' },
-    a: { es: 'Hay etapas que no dejan entrar sin un decisor identificado y contactado. Agrega a la persona en la ficha del comercio (Datos, Contactos, "Agregar"). Luego, en el negocio, elígela en "Decisor" y marca "Ya hablé con el decisor" solo cuando sea cierto.', en: 'Some stages cannot be entered without a decision-maker identified and reached. Add the person on the merchant record (Details, Contacts, "Add"). Then, on the deal, pick them under "Decision-maker" and tick "I have spoken with the decision-maker" only when it is true.' },
+    a: { es: 'Hay etapas que no dejan entrar sin saber quién decide y haber hablado con esa persona. Agrega a la persona en la ficha del comercio (Datos, Contactos, "Agregar"). Luego, en el negocio, elígela en "Decisor" y marca "Ya hablé con quien decide" solo cuando sea cierto.', en: 'Some stages cannot be entered without a decision-maker identified and reached. Add the person on the merchant record (Details, Contacts, "Add"). Then, on the deal, pick them under "Decision-maker" and tick "I have spoken with the decision-maker" only when it is true.' },
   },
   {
     id: 'deal-won', topic: 'deals', tracks: 'all',
@@ -929,7 +929,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'merchant-contacts', topic: 'merchants', tracks: WORK,
     q: { es: 'Quien me atendió no es el dueño del comercio, o la cuenta tiene varios directivos. ¿Cómo los registro?', en: 'The person I spoke with is not the owner, or the account has several executives. How do I record them?' },
-    a: { es: 'En la ficha, Datos, Contactos, "Agregar". Cada persona va con su rol: dueño del comercio, encargado, decisor, y en cuentas grandes dirección, compras, finanzas, tecnología e integración, legal u operación. Una cuenta puede tener varios contactos; "Hacer principal" marca al principal.', en: 'On the record, Details, Contacts, "Add". Each person carries a role: owner, manager, decision-maker, and on large accounts executive, purchasing, finance, technology and integration, legal or operations. An account can have several contacts; "Make primary" marks the main one.' },
+    a: { es: 'En la ficha, Datos, Contactos, "Agregar". Cada persona va con su rol: dueño del comercio, encargado, quien decide, y en cuentas grandes dirección, compras, finanzas, tecnología e integración, legal u operación. Una cuenta puede tener varios contactos; "Hacer principal" marca al principal.', en: 'On the record, Details, Contacts, "Add". Each person carries a role: owner, manager, decision-maker, and on large accounts executive, purchasing, finance, technology and integration, legal or operations. An account can have several contacts; "Make primary" marks the main one.' },
   },
   {
     id: 'merchant-health', topic: 'merchants', tracks: 'all',

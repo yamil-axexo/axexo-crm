@@ -62,7 +62,7 @@ export const METRICS = {
   },
   revisits: {
     label: ['Revisitas pendientes', 'Pending revisits'],
-    what: ['Negocios abiertos marcados hoy con revisita al decisor pendiente.', 'Open deals flagged today with a pending revisit to the decision-maker.'],
+    what: ['Negocios abiertos marcados hoy con revisita pendiente a quien decide.', 'Open deals flagged today with a pending revisit to the decision-maker.'],
     window: TODAY, source: ['CONTIGO y Sales App', 'CONTIGO and Sales App'],
   },
   active: {

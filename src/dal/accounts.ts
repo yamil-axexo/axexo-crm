@@ -182,7 +182,7 @@ export async function getAccount(ctx: Ctx, id: string) {
                                   'revisit', v.revisit, 'minutes', v.duration_seconds / 60, 'decision_maker', v.decision_maker_seen)
           from crm.visits v left join crm.users u on u.id = v.user_id left join crm.loss_reasons r on r.code = v.rejection_code where v.account_id = ${id}
         union all
-        select e.at, 'stage', t.name_es, t.name_en, u.full_name, jsonb_build_object('cause', e.cause, 'kind', t.kind)
+        select e.at, 'stage', t.name_es, t.name_en, u.full_name, jsonb_build_object('cause', e.cause, 'kind', t.kind, 'won_on', case when t.kind = 'won' and d.status = 'won' then (d.won_at at time zone (select mk.timezone from crm.markets mk where mk.code = d.market_code))::date::text end)
           from crm.deal_stage_events e join crm.deals d on d.id = e.deal_id join crm.stages t on t.id = e.to_stage_id left join crm.users u on u.id = e.actor_id
          where d.account_id = ${id}
         union all
