@@ -269,10 +269,12 @@ test('la hoja de completar le habla a Operaciones de documentos y proveedores, n
 for (const w of WIDTHS) {
   test(`${w.name}: cola de Operaciones, negocio con sus secciones y catálogos sin desbordes ni fallas de accesibilidad`, async ({ page }) => {
     await page.setViewportSize({ width: w.width, height: w.height })
-    const acc = await jadeMerchant(`Zx Ancho ${w.name} ${tag()}`)
+    // Los nombres de prueba se quedan en la base y salen en pantalla: llevan el ancho en píxeles, no una palabra que el
+    // recorrido de vocabulario (zx-vocabulario) no deja pasar en un texto en español.
+    const acc = await jadeMerchant(`Zx Ancho ${w.width} ${tag()}`)
     const jade = await uid('jade.kim')
     const d = await sql<{ id: string }[]>`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, created_by, ops_entered_at, next_step, next_step_due)
-      values ('US', ${await uid('p-us-dealer')}, ${await uid('s-us-dealer-carrier')}, ${acc}, ${jade}, ${`Alta con nombre largo para probar el ancho ${w.name}`}, 'USD', ${jade}, now(), 'Esperar a Operaciones', current_date) returning id`
+      values ('US', ${await uid('p-us-dealer')}, ${await uid('s-us-dealer-carrier')}, ${acc}, ${jade}, ${`Alta con nombre largo para probar el ancho de ${w.width}`}, 'USD', ${jade}, now(), 'Esperar a Operaciones', current_date) returning id`
     await loginAs(page, 'tom.reyes')
     await spanish(page)
     await page.goto('/operaciones?ver=todos')
