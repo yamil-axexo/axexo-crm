@@ -29,6 +29,7 @@ export default async function FieldReportPage({ searchParams }: { searchParams: 
   const multi = options.markets.length > 1 && !f.market
   const places = data.places.filter((x) => x.week === week)
   const visits = data.visits.filter((x) => x.week === week)
+  const visitors = data.visitors.filter((x) => x.week === week && x.visited_by)
   const total = (w: string | undefined, k: 'stores' | 'won') => (w ? data.places.filter((x) => x.week === w).reduce((n, x) => n + x[k], 0) : 0)
   const visitTotal = (w: string | undefined, k: 'visits' | 'sales') => (w ? data.visits.filter((x) => x.week === w).reduce((n, x) => n + x[k], 0) : 0)
   const canExport = ctx.can('report.export', f.market)
@@ -107,6 +108,24 @@ export default async function FieldReportPage({ searchParams }: { searchParams: 
           )}
         </Card>
       </div>
+      <Card pad={false} className="mt-6 @container" data-testid="field-visitors">
+        <div className="px-5 pt-5 @2xl:px-7 @2xl:pt-6"><CardTitle title={t('Visitas por quien visitó', 'Visits by who visited')} hint={t(`${weekName(week)}. Según "¿Quién visitó?" en cada visita registrada en CONTIGO; las que no dicen quién fue no salen aquí.`, `${weekName(week)}. From "Who visited?" on each visit logged in CONTIGO; visits that do not say who went are not listed here.`)} /></div>
+        {visitors.length === 0 ? <div className="p-7 pt-0"><Empty title={t('Ninguna visita de esa semana dice quién visitó', 'No visit that week says who visited')} /></div> : (
+          <>
+            <div aria-hidden className={`hidden border-y border-line px-7 py-2.5 text-[13px] font-medium text-muted ${VISIT}`}><span>{t('Quién visitó', 'Who visited')}</span><span>{t('Lleva el comercio', 'Owns the merchant')}</span><span>{t('Visitas', 'Visits')}</span><span>{t('Con venta', 'With a sale')}</span></div>
+            <ul className="divide-y divide-line">
+              {visitors.map((r) => (
+                <li key={`${r.market_code}${r.visited_by}${r.owner_name}`} className={`px-5 py-3 @2xl:px-7 ${VISIT}`} data-testid="field-visitor-row">
+                  <span className="block text-[14.5px] font-semibold text-strong [overflow-wrap:anywhere]">{r.visited_by}{multi ? ` · ${r.market_code}` : ''}</span>
+                  <span className="block text-[13.5px] text-muted-2">{r.owner_name ?? t('Sin asignar', 'No owner')}</span>
+                  <span className="num block text-[14px] text-strong"><span className={lbl}>{t('Visitas: ', 'Visits: ')}</span>{num(r.visits, locale)}</span>
+                  <span className="num block text-[14px] text-strong"><span className={lbl}>{t('Con venta: ', 'With a sale: ')}</span>{num(r.sales, locale)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Card>
       {canExport && <p className="mt-4 text-[13px] text-muted">{t('Los archivos traen las 8 semanas con los filtros de arriba. Cada exportación queda en la bitácora con tu nombre, los filtros y el número de filas.', 'The files hold the 8 weeks with the filters above. Each export is logged with your name, the filters and the number of rows.')}</p>}
     </>
   )

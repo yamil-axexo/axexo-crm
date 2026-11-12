@@ -14,7 +14,8 @@ import { NavSelect } from '@/ui/board'
 import { ago, day, num, pct } from '@/lib/format'
 import { holderName, holdsText } from '@/lib/reparto-text'
 import { EXCEPTION, lab, qs } from '@/lib/labels'
-import { runRulesAction } from './actions'
+import { addStreetSellerAction, runRulesAction, updateStreetSellerAction } from './actions'
+import { streetSellers, streetSummary } from '@/dal/street'
 import { dismissExceptionAction } from '@/app/(app)/actividades/log-actions'
 import { ConfirmButton } from '@/ui/confirm'
 import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
@@ -47,6 +48,16 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const canReport = teamView && ctx.can('report.view')
   const weeks = canReport ? await getWeeklyResults(ctx, { market: sp.market, team }) : []
   const live = ctx.markets.filter((m) => m.status === 'live')
+  // Vendedores de calle: catálogo y resumen por la persona que lleva la cartera.
+  const [street, streetRows] = teamView ? await Promise.all([streetSellers(ctx, sp.market), streetSummary(ctx)]) : [[], []]
+  const streetMarkets = live.filter((m) => ctx.can('street.manage', m.code) && (!sp.market || m.code === sp.market))
+  const streetByOwner: { key: string; owner: string | null; rows: typeof streetRows }[] = []
+  for (const r of streetRows.filter((x) => !sp.market || x.market_code === sp.market)) {
+    const key = `${r.market_code}:${r.owner_id ?? 'none'}`
+    let g = streetByOwner.find((x) => x.key === key)
+    if (!g) streetByOwner.push((g = { key, owner: r.owner_name, rows: [] }))
+    g.rows.push(r)
+  }
   const canReassign = ctx.can('account.reassign', sp.market)
   const sources = canReassign ? await getRepartoSources(ctx) : null
   // Lo que nadie atiende: sin dueño, o a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en ese mercado.
@@ -84,7 +95,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
     <>
       <PageHeader
         title={teamView ? t('Mi equipo', 'My team') : t('Avisos del mercado', 'Market alerts')}
-        desc={teamView ? t('El equipo de un vistazo y lo que quedó pendiente de atender. Nadie captura nada extra para alimentar esta pantalla.', 'The team at a glance and what still needs attention. Nobody enters anything extra to feed this screen.') : t('Lo que quedó pendiente de atender en tus mercados.', 'What still needs attention in your markets.')}
+        desc={teamView ? t('El equipo de un vistazo y lo que quedó pendiente de atender. Sale de lo que cada quien ya registra: las visitas se capturan en CONTIGO hasta que se conecte la Sales App.', 'The team at a glance and what still needs attention. It comes from what each person already logs: visits are entered in CONTIGO until the Sales App is connected.') : t('Lo que quedó pendiente de atender en tus mercados.', 'What still needs attention in your markets.')}
         actions={<>
           {canReport && <LinkButton href={qs('/reportes/cerrados', { mercado: sp.market, equipo: team })} testId="team-closed-link">{t('Negocios cerrados', 'Closed deals')}</LinkButton>}
           {canReport && <LinkButton href={qs('/reportes/campo', { mercado: sp.market, equipo: team })} variant="quiet" testId="team-field-link">{t('Reporte de campo', 'Field report')}</LinkButton>}
@@ -184,6 +195,57 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         </Card>
       )}
 
+      {teamView && (
+        <Card className="mt-8" data-testid="street-block">
+          <CardTitle
+            title={t('Vendedores de calle', 'Street sellers')}
+            hint={t('Quienes visitan tiendas sin ser usuarios de CONTIGO, bajo la persona que lleva la cartera. Visitas de los últimos 7 días y tiendas distintas visitadas en 30 días, según "¿Quién visitó?" en cada visita.', 'The people who visit stores without being CONTIGO users, under the person who owns the book. Visits in the last 7 days and distinct stores visited in 30 days, from "Who visited?" on each visit.')}
+            right={streetMarkets.length > 0 ? (
+              <Dialog trigger={t('Agregar vendedor de calle', 'Add street seller')} title={t('Agregar vendedor de calle', 'Add street seller')} testId="street-add">
+                <ActionForm action={addStreetSellerAction} onOk="close">
+                  {streetMarkets.length > 1
+                    ? <label className="block text-[14px] font-medium">{t('Mercado', 'Market')}<select name="market" className="input mt-1.5" defaultValue={streetMarkets[0]!.code}>{streetMarkets.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></label>
+                    : <input type="hidden" name="market" value={streetMarkets[0]!.code} />}
+                  <label className="mt-4 block text-[14px] font-medium">{t('Nombre', 'Name')}<input name="name" required minLength={2} maxLength={80} className="input mt-1.5" data-testid="street-name" /></label>
+                  <label className="mt-4 block text-[14px] font-medium">{t('Responde a', 'Reports to')}
+                    <select name="reports_to" className="input mt-1.5" defaultValue="" data-testid="street-reports">
+                      <option value="">{t('Sin definir', 'Not set')}</option>
+                      {board.reps.filter((r) => streetMarkets.some((m) => m.code === r.market_code)).map((r) => <option key={`${r.id}${r.market_code}`} value={r.id}>{r.full_name}{streetMarkets.length > 1 ? ` · ${r.market_code}` : ''}</option>)}
+                    </select>
+                  </label>
+                  <div className="mt-5 flex justify-end"><Submit testId="street-save">{t('Agregar', 'Add')}</Submit></div>
+                </ActionForm>
+              </Dialog>
+            ) : undefined}
+          />
+          {streetByOwner.length === 0 ? <Empty title={t('Todavía no hay vendedores de calle', 'No street sellers yet')} hint={t('Agrégalos aquí, o aparecerán solos cuando alguien escriba su nombre al registrar una visita.', 'Add them here, or they will show up on their own when someone writes their name while logging a visit.')} /> : (
+            <ul>
+              {streetByOwner.map((g) => (
+                <li key={g.key} className="border-t border-line py-3.5 first:border-t-0" data-testid="street-owner">
+                  <p className="text-[14.5px] font-semibold text-strong">{g.owner ?? t('Sin persona de ventas', 'No salesperson')}</p>
+                  <ul className="mt-1.5 space-y-1.5">
+                    {g.rows.map((r) => {
+                      const entry = street.find((x) => x.market_code === r.market_code && x.name.toLowerCase() === r.name.toLowerCase())
+                      return (
+                        <li key={r.name} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[14px]" data-testid="street-row">
+                          <span className="min-w-0 flex-1 basis-[200px] text-strong [overflow-wrap:anywhere]"><Link href={qs('/comercios', { visito: r.name, market: r.market_code })} className="underline-offset-2 hover:underline" data-testid="street-link">{r.name}</Link>{!r.listed && <span className="ml-2 text-[12.5px] text-muted">{t('fuera del catálogo', 'not in the list')}</span>}</span>
+                          <span className="num text-muted-2" data-testid="street-numbers">{t(`${r.visits_7d} ${r.visits_7d === 1 ? 'visita' : 'visitas'}, ${r.sales_7d} con venta · ${r.stores_30d} ${r.stores_30d === 1 ? 'tienda' : 'tiendas'} en 30 días`, `${r.visits_7d} ${r.visits_7d === 1 ? 'visit' : 'visits'}, ${r.sales_7d} with a sale · ${r.stores_30d} ${r.stores_30d === 1 ? 'store' : 'stores'} in 30 days`)}</span>
+                          {entry && ctx.can('street.manage', r.market_code) && (
+                            <ConfirmButton action={updateStreetSellerAction} fields={{ id: entry.id, end: '1' }} label={t('Dar de baja', 'Remove')} title={t(`¿Dar de baja a ${r.name}?`, `Remove ${r.name}?`)}
+                              body={t('Deja de sugerirse en "¿Quién visitó?". Sus visitas anteriores se conservan.', 'They stop being suggested under "Who visited?". Their earlier visits are kept.')}
+                              confirm={t('Sí, dar de baja', 'Yes, remove')} cancel={t('Cancelar', 'Cancel')} variant="quiet" testId="street-end" />
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+
       {vacant.length > 0 && (
         <Card className="mt-8" data-testid="vacant-block">
           <CardTitle
@@ -213,7 +275,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         <CardTitle
           title={t('Pendientes del equipo', 'Team alerts')}
           hint={board.rulesAt ? t(`Actualizado ${ago(board.rulesAt, locale)}. Un pendiente se cierra solo cuando se corrige.`, `Updated ${ago(board.rulesAt, locale)}. An alert clears itself once it is fixed.`) : undefined}
-          right={<Badge tone={totalOpen ? 'warn' : 'good'}>{t(`${totalOpen} abiertos`, `${totalOpen} open`)}</Badge>}
+          right={<Badge tone={totalOpen ? 'warn' : 'good'}><span data-testid="exception-total">{t(`${totalOpen} ${totalOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}`, `${totalOpen} open ${totalOpen === 1 ? 'alert' : 'alerts'}`)}</span></Badge>}
         />
         <Pills
           label={t('Tipo', 'Type')}

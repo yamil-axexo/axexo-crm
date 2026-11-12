@@ -56,11 +56,12 @@ export async function exportFieldReport(ctx: Ctx, f: FieldFilters, what: 'comerc
     const data = await fieldReportForExport(tx, ctx, f)
     const none = t('Sin dato', 'Not set')
     const csv = what === 'visitas'
-      ? toCsv([t('Semana (lunes)', 'Week (Monday)'), t('Mercado', 'Market'), t('Equipo', 'Team'), t('Persona', 'Person'), t('Visitas', 'Visits'), t('Visitas con venta', 'Visits with a sale')],
-          data.visits.map((r) => [r.week, r.market_code, r.team_name ?? '', r.owner_name ?? t('Sin asignar', 'No owner'), r.visits, r.sales]))
+      // Una fila por semana, persona que lleva el comercio y quien visitó: sumar por persona da el total de siempre.
+      ? toCsv([t('Semana (lunes)', 'Week (Monday)'), t('Mercado', 'Market'), t('Equipo', 'Team'), t('Persona', 'Person'), t('Quién visitó', 'Who visited'), t('Visitas', 'Visits'), t('Visitas con venta', 'Visits with a sale')],
+          data.visitors.map((r) => [r.week, r.market_code, r.team_name ?? '', r.owner_name ?? t('Sin asignar', 'No owner'), r.visited_by ?? t('Sin nombre', 'No name'), r.visits, r.sales]))
       : toCsv([t('Semana (lunes)', 'Week (Monday)'), t('Mercado', 'Market'), f.by === 'plaza' ? t('Plaza', 'City') : t('Territorio', 'Territory'), t('Puntos de venta dados de alta', 'Stores enrolled'), t('Negocios ganados', 'Deals won')],
           data.places.map((r) => [r.week, r.market_code, r.place ?? none, r.stores, r.won]))
-    const rows = what === 'visitas' ? data.visits.length : data.places.length
+    const rows = what === 'visitas' ? data.visitors.length : data.places.length
     await audit(tx, ctx, 'report.exported', 'report', null, f.market ?? (markets.length === 1 ? markets[0]! : null), null, {
       report: what === 'visitas' ? 'field_visits' : 'field_stores', rows, truncated: false,
       filters: { weeks: data.weeks.length, from: data.weeks[data.weeks.length - 1]!, market: f.market ?? null, team: f.team ?? null, owner: f.owner ?? null, by: f.by === 'plaza' ? 'plaza' : 'territorio' },

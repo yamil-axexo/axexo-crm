@@ -20,6 +20,7 @@ import { accountTypeOptions, intakeFields } from '@/dal/b2b'
 import { IntakeFields } from '@/ui/intake'
 import { Ficha, fichaTab, type FichaTab } from './ficha'
 import { flat } from '@/server/params'
+import { visitorNames } from '@/dal/field'
 
 type Params = AccountFilters & { vista?: string; ficha?: string; tab?: string; repartir?: string }
 
@@ -49,11 +50,13 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
     lead ? getReportOptions(ctx) : Promise.resolve(null),
   ])
   const nodes = treeData.nodes
+  // "Visitado por": sugiere el catálogo de vendedores de calle y los nombres ya usados en los mercados de la persona.
+  const visitors = tree ? [] : [...new Set((await Promise.all((sp.market ? [sp.market] : live.map((x) => x.code)).map((code) => visitorNames(ctx, code)))).flat())]
   const [typeOptions, intake] = ctx.can('account.create') ? await Promise.all([accountTypeOptions(ctx), intakeFields(ctx)]) : [[], []]
   await track(ctx, 'view.comercios')
   const multi = ctx.markets.length > 1
   // El estado de la lista vive en la URL: abrir o cerrar la ficha no pierde filtros, búsqueda ni página.
-  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, repartir: repartir ? '1' : undefined }
+  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito, repartir: repartir ? '1' : undefined }
   const link = (patch: Record<string, string | undefined>) => qs('/comercios', { ...base, ...patch })
   const fichaHref = (id: string, tab?: FichaTab) => link({ ficha: id, tab: tab && tab !== 'hilo' ? tab : undefined })
   const closeHref = link({})
@@ -63,7 +66,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const owners = inMarket(holders).filter((h) => h.owner_id && h.accounts > 0).sort((a, b) => Number(a.current) - Number(b.current) || b.accounts - a.accounts)
   const regions = inMarket(place.regions)
   const territories = inMarket(place.territories)
-  const placeOn = !!(sp.region || sp.city || sp.territory || sp.team || sp.pipeline || (sp.owner && sp.owner !== 'me'))
+  const placeOn = !!(sp.region || sp.city || sp.territory || sp.team || sp.pipeline || sp.visito || (sp.owner && sp.owner !== 'me'))
   const teams = options ? inMarket(options.teams) : []
   const pipes = options ? inMarket(options.pipelines) : []
   const ownerTag = (h: { is_active: boolean | null; current: boolean }) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (no vende ni opera en este mercado)', ' (does not sell or run operations in this market)') : '')
@@ -137,7 +140,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 {live.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}
               </select>
             )}
-            {(['ver', 'owner', 'vista', 'lifecycle', 'kind', 'region', 'city', 'territory'] as const).map((k) => (sp[k] ? <input key={k} type="hidden" name={k} value={sp[k]} /> : null))}
+            {(['ver', 'owner', 'vista', 'lifecycle', 'kind', 'region', 'city', 'territory', 'visito'] as const).map((k) => (sp[k] ? <input key={k} type="hidden" name={k} value={sp[k]} /> : null))}
             {repartir && <input type="hidden" name="repartir" value="1" />}
             <button className="press inline-flex h-11 shrink-0 items-center rounded-[10px] border border-line-2 bg-surface px-4 text-[14px] font-semibold hover:bg-green-50">{m('top.searchLabel')}</button>
           </form>
@@ -208,9 +211,13 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                   {territories.map((x) => <option key={x.id} value={x.id}>{withMarket(x.name, x.market_code)}</option>)}
                 </select>
               </Field>
+              <Field label={t('Visitado por', 'Visited by')}>
+                <input name="visito" defaultValue={sp.visito ?? ''} className="input" maxLength={80} list="visited-by-names" placeholder={t('Nombre de quien visitó', 'Name of who visited')} data-testid="filter-visited-by" />
+                <datalist id="visited-by-names">{visitors.map((n) => <option key={n} value={n} />)}</datalist>
+              </Field>
               <div className="flex flex-wrap items-center gap-3 sm:col-span-2 xl:col-span-4">
                 <button className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-5 text-[15px] font-semibold hover:bg-green-50" data-testid="place-apply">{t('Aplicar', 'Apply')}</button>
-                {placeOn && <Link href={link({ owner: undefined, region: undefined, city: undefined, territory: undefined, team: undefined, pipeline: undefined, after: undefined, ficha: undefined })} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid="place-clear">{t('Quitar estos filtros', 'Clear these filters')}</Link>}
+                {placeOn && <Link href={link({ owner: undefined, region: undefined, city: undefined, territory: undefined, team: undefined, pipeline: undefined, visito: undefined, after: undefined, ficha: undefined })} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid="place-clear">{t('Quitar estos filtros', 'Clear these filters')}</Link>}
               </div>
             </form>
           </details>
@@ -253,7 +260,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 key={qs('', { ...base, ficha: undefined })}
                 locale={locale}
                 market={repartoMarket}
-                filter={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline }}
+                filter={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito }}
                 narrowed={narrows(sp)}
                 total={data.total}
                 people={targets}

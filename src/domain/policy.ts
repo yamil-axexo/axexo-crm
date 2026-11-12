@@ -24,6 +24,8 @@ export const CAPABILITIES = {
   // Supervisión reparte dentro de su equipo; el líder de mercado, en todo su mercado (ver domain/reparto.ts).
   'deal.reassign': MANAGERS,
   'account.territory': MANAGERS,
+  // Catálogo de vendedores de calle (no son usuarios): alta, baja y a quién responden. Supervisión, en su equipo.
+  'street.manage': MANAGERS,
   'deal.create': SELLERS,
   // Operaciones recibe el negocio después del alta y lo lleva hasta el final: lo edita y lo mueve en su mercado.
   // No crea negocios. Cada cambio queda en la bitácora con su nombre, igual que el de quien vende.
