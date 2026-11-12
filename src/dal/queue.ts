@@ -130,7 +130,7 @@ export async function getTeamQueue(ctx: Ctx): Promise<TeamRow[]> {
              + (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()) as late,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null) as leads_waiting,
              (select count(*)::int from crm.deals d join crm.stages s on s.id = d.stage_id
-               where d.owner_id = u.id and d.status = 'open' and s.kind = 'open' and d.created_at < now() - make_interval(days => ${COLD_DAYS})
+               where d.owner_id = u.id and d.status = 'open' and d.paused_at is null and s.kind = 'open' and d.created_at < now() - make_interval(days => ${COLD_DAYS})
                  and not exists (select 1 from crm.activities a where a.deal_id = d.id and coalesce(a.done_at, a.created_at) > now() - make_interval(days => ${COLD_DAYS}))) as cold
         from crm.users u join crm.memberships m on m.user_id = u.id and m.role = 'rep' and (m.valid_to is null or m.valid_to > now())
        where u.is_active and u.id <> ${ctx.user.id} and (m.market_code = any(app.full_markets()) or u.id = any(app.supervised_user_ids()))

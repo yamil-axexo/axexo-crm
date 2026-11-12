@@ -87,7 +87,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               <div className="flex flex-wrap gap-3">
                 {lead.status === 'new' && (
                   <CompleteButton
-                    item={{ type: 'lead', id: lead.id, title: ctx.m('action.callOf', { name: lead.business_name }), name: lead.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: 'reached' }}
+                    item={{ type: 'lead', id: lead.id, title: ctx.m('action.callOf', { name: lead.business_name }), name: lead.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: 'reached', motor: lead.motor }}
                     config={sheetConfig(ctx)}
                     action={completeItemAction}
                     label={t('Registrar contacto', 'Log contact')}
