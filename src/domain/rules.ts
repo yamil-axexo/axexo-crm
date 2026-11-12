@@ -91,9 +91,16 @@ export async function ensureRulesFresh(sys: Ctx, maxAgeMinutes = 15): Promise<vo
   })
 }
 
+/**
+ * "Evaluar reglas ahora" abre y cierra excepciones para todo el mercado: cuenta como cambio de datos.
+ * La corre quien dirige un equipo o administra, nunca un rol de solo lectura, y deja en la bitácora quién la corrió
+ * y qué movió. Las reglas corren con identidad de sistema (ven todos los mercados); el evento va a nombre de la persona.
+ */
 export async function runRulesNow(ctx: Ctx, sys: Ctx): Promise<{ opened: number; closed: number }> {
-  ctx.assert('board.supervisor')
-  return withUser(sys.user.id, (tx) => evaluateRules(tx))
+  ctx.assert('rules.run')
+  const out = await withUser(sys.user.id, (tx) => evaluateRules(tx))
+  await withUser(ctx.user.id, (tx) => audit(tx, ctx, 'rules.evaluated', 'rules', null, null, null, { opened: out.opened, closed: out.closed }))
+  return out
 }
 
 /** Descartar una excepción no la borra: queda cerrada, con quién y por qué, y no reaparece por 7 días. */

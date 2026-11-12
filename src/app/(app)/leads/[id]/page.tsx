@@ -29,6 +29,16 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const open = ['new', 'contacted', 'qualified'].includes(lead.status)
   const waiting = lead.status === 'new' && !lead.first_touch_at
   const late = waiting && !!lead.sla_due_at && new Date(lead.sla_due_at) < new Date()
+  // Origen del lead web: solo se muestran los datos que llegaron.
+  const origin = ([
+    ['utm_source', t('Fuente (utm_source)', 'Source (utm_source)'), lead.utm_source],
+    ['utm_medium', t('Medio (utm_medium)', 'Medium (utm_medium)'), lead.utm_medium],
+    ['utm_campaign', t('Campaña (utm_campaign)', 'Campaign (utm_campaign)'), lead.utm_campaign],
+    ['utm_content', t('Anuncio (utm_content)', 'Ad (utm_content)'), lead.utm_content],
+    ['utm_term', t('Término (utm_term)', 'Term (utm_term)'), lead.utm_term],
+    ['gclid', t('Clic de Google (gclid)', 'Google click (gclid)'), lead.gclid],
+    ['fbclid', t('Clic de Meta (fbclid)', 'Meta click (fbclid)'), lead.fbclid],
+  ] as const).filter((row): row is readonly [typeof row[0], string, string] => !!row[2])
 
   return (
     <>
@@ -167,9 +177,31 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             </dl>
             {lead.message && <p className="mt-4 rounded-2xl bg-surface-2 p-4 text-[13.5px] text-muted-2">“{lead.message}”</p>}
           </Card>
+          {lead.source === 'web_form' && (
+            <Card data-testid="lead-origin">
+              <CardTitle title={t('De dónde vino', 'Where it came from')} hint={t('Lo que traía la dirección de la página cuando la persona llenó el formulario.', 'What the page address carried when the person filled in the form.')} />
+              {origin.length === 0 ? (
+                <p className="text-[14px] text-muted-2" data-testid="lead-origin-empty">{t('Llegó sin datos de campaña: la dirección de la página no traía ninguno.', 'It arrived with no campaign data: the page address carried none.')}</p>
+              ) : (
+                <dl>{origin.map(([k, label, v]) => <KeyVal key={k} k={label}><span data-testid={`origin-${k}`}>{v}</span></KeyVal>)}</dl>
+              )}
+              <div className="mt-4 border-t border-line pt-4" data-testid="lead-consent">
+                <p className="text-[13px] text-muted">{t('Consentimiento para recibir correos', 'Consent to receive emails')}</p>
+                {lead.consent_at ? (
+                  <>
+                    <p className="mt-1 text-[14px] font-medium text-strong">{t(`Sí, el ${dayTime(lead.consent_at, locale, market.timezone)} (hora de ${market.name})`, `Yes, on ${dayTime(lead.consent_at, locale, market.timezone)} (${market.name} time)`)}</p>
+                    {lead.consent_text && <p className="mt-1 text-[13px] text-muted-2">{t('Aceptó: ', 'Accepted: ')}“{lead.consent_text}”</p>}
+                  </>
+                ) : (
+                  <p className="mt-1 text-[14px] font-medium text-strong">{t('No lo dio. No le escribas correos de promoción.', 'Not given. Do not send them promotional emails.')}</p>
+                )}
+              </div>
+            </Card>
+          )}
           <Card data-testid="lead-owner">
             <CardTitle title={t('Dueño', 'Owner')} />
             <p className="text-[15px] font-semibold text-strong">{lead.owner_name ?? t('Sin dueño', 'No owner')}</p>
+            {lead.owner_id && !lead.owner_active && open && <p className="mt-2 rounded-[10px] bg-warn-bg px-3 py-2 text-[13px] font-medium text-amber-text" data-testid="lead-owner-gone">{t('Esta persona ya no tiene acceso en este mercado. Pide que reasignen el lead.', 'This person no longer has access in this market. Ask for the lead to be reassigned.')}</p>}
             {lead.assigned_at && <p className="mt-1 text-[13px] text-muted">{t('Asignado', 'Assigned')} {ago(lead.assigned_at, locale)}</p>}
             {canAssign && open && (
               <ActionForm action={leadStepAction} className="mt-5">

@@ -32,7 +32,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
       <PageHeader
         title={t('Supervisión', 'Supervision')}
         desc={t('El equipo de un vistazo y la cola de lo que se salió de la regla. Nadie captura nada extra para alimentar esta pantalla.', 'The team at a glance and the queue of what broke a rule. Nobody enters anything extra to feed this screen.')}
-        actions={<ActionForm action={runRulesAction}><Submit variant="ghost" testId="run-rules">{t('Evaluar reglas ahora', 'Evaluate rules now')}</Submit></ActionForm>}
+        actions={ctx.can('rules.run') ? <ActionForm action={runRulesAction}><Submit variant="ghost" testId="run-rules">{t('Evaluar reglas ahora', 'Evaluate rules now')}</Submit></ActionForm> : undefined}
       />
       {live.length > 1 && (
         <div className="mb-6">

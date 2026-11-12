@@ -1,12 +1,12 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { CircleHelp, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, CircleHelp, Eye, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
-import { ROLE_LABEL } from '@/domain/policy'
+import { ROLE_LABEL, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
 const initials = (name: string) =>
@@ -22,6 +22,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { t, m } = ctx
   const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
   const showAdmin = ctx.can('config.manage') || ctx.can('audit.read')
+  // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
+  const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
 
   // Nunca más de 4 destinos: lo nuevo entra como vista dentro de uno de ellos (handoff, sección 4).
@@ -45,6 +47,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </Link>
         <SearchBox placeholder={m('top.search')} label={m('top.searchLabel')} />
         <div className="ml-auto flex items-center gap-2 md:gap-3">
+          {readOnly && (
+            <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-surface-3 px-2.5 text-[12px] font-semibold whitespace-nowrap text-strong md:px-3 md:text-[12.5px]" title={t('Tu rol ve todo y no cambia nada.', 'Your role sees everything and changes nothing.')} data-testid="read-only">
+              <Eye size={15} strokeWidth={1.75} aria-hidden className="hidden md:block" />
+              {t('Solo lectura', 'Read-only')}
+            </span>
+          )}
           <Link href="/buscar" aria-label={m('top.searchLabel')} className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-strong md:hidden" data-testid="search-link">
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
@@ -58,11 +66,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <div className="border-b border-line px-3 pt-2 pb-3">
               <p className="text-[15px] font-semibold text-strong" data-testid="me-name">{ctx.user.name}</p>
               <p className="text-[13px] text-muted" data-testid="me-roles">{roles}</p>
+              {readOnly && <p className="mt-1 text-[12.5px] text-muted-2" data-testid="me-read-only">{t('Solo lectura: ves todo y no cambias nada.', 'Read-only: you see everything and change nothing.')}</p>}
             </div>
             <div className="py-1">
               {ctx.can('board.supervisor') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>}
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}
+              {ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>
               <Link href="/ayuda" role="menuitem" className={menuLink} data-testid="nav-help"><CircleHelp size={20} strokeWidth={1.75} aria-hidden />{m('top.help')}</Link>
             </div>

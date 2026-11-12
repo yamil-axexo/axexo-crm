@@ -42,6 +42,12 @@ const schema = z
     // Migración desde Pipedrive: el token solo vive en el servidor (SEC-03) y solo sale hacia la API de Pipedrive.
     PIPEDRIVE_API_TOKEN: z.string().optional().or(z.literal('').transform(() => undefined)),
     PIPEDRIVE_API_BASE: z.string().url().default('https://api.pipedrive.com'),
+    // Versión desplegada, para la página de estado. Las llena la plataforma de despliegue (Vercel las trae solas);
+    // en otra plataforma se definen APP_COMMIT_SHA y APP_COMMIT_REF en el pipeline. Si no existen, la página lo dice.
+    VERCEL_GIT_COMMIT_SHA: z.string().max(80).optional(),
+    VERCEL_GIT_COMMIT_REF: z.string().max(200).optional(),
+    APP_COMMIT_SHA: z.string().max(80).optional(),
+    APP_COMMIT_REF: z.string().max(200).optional(),
   })
   .superRefine((v, ctx) => {
     if (v.APP_ENV === 'production' && v.DEMO_PERSONAS === '1') {
@@ -71,6 +77,16 @@ export function env(): Env {
   }
   cached = parsed.data
   return cached
+}
+
+/** Commit y rama de lo que está corriendo, si el despliegue los dejó en el ambiente. Solo letras, números y separadores: van a pantalla. */
+export function deployedVersion(): { commit: string | null; ref: string | null } {
+  const safe = (v: string | undefined, re: RegExp) => (v && re.test(v) ? v : null)
+  const e = env()
+  return {
+    commit: safe(e.APP_COMMIT_SHA || e.VERCEL_GIT_COMMIT_SHA, /^[0-9a-f]{7,64}$/i),
+    ref: safe(e.APP_COMMIT_REF || e.VERCEL_GIT_COMMIT_REF, /^[\w./-]{1,200}$/),
+  }
 }
 
 export const ssoEnabled = () => Boolean(env().SUPABASE_URL && env().SUPABASE_PUBLISHABLE_KEY)

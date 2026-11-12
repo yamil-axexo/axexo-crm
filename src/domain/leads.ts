@@ -54,11 +54,22 @@ export function assertOwned(ctx: Ctx, lead: { owner_id: string | null; market_co
   if (!lead.owner_id && !ctx.can('lead.assign', lead.market_code)) throw invalid('Este lead no tiene dueño: tómalo antes de trabajarlo.', 'This lead has no owner: take it before working it.')
 }
 
+/** De dónde vino un lead web (E3.F6): los parámetros de campaña y los identificadores de clic de la dirección de la página. */
+export const ATTRIBUTION_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid', 'fbclid'] as const
+export type AttributionKey = (typeof ATTRIBUTION_KEYS)[number]
+export type Origin = Partial<Record<AttributionKey, string | null>> & { consentAt?: Date | null; consentText?: string | null }
+
+/** Un valor de atribución llega de una URL que cualquiera puede escribir: sin caracteres de control, sin datos prohibidos y con tope. */
+export function cleanAttribution(raw: string | null | undefined): string | null {
+  const v = scrub((raw ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim()).slice(0, 200)
+  return v ? v : null
+}
+
 async function insertLead(
   tx: Tx,
   ctx: Ctx,
   v: z.output<typeof leadInput>,
-  opts: { source: 'manual' | 'web_form'; formId: string | null; ownerId: string | null; slaMinutes: number },
+  opts: { source: 'manual' | 'web_form'; formId: string | null; ownerId: string | null; slaMinutes: number; origin?: Origin },
 ): Promise<string> {
   // SEC-08: lo que captura una persona se rechaza con explicación; lo que llega del formulario público se guarda sin el dato
   // prohibido, para no perder el lead por un texto que escribió el comercio.
@@ -71,12 +82,21 @@ async function insertLead(
   if (!phone && !v.email) throw invalid('Deja un teléfono o un correo para poder contactar.', 'Add a phone or an email so we can reach them.')
   const dup = await tx<{ id: string }[]>`select id from app.duplicate_candidates(${v.market}, ${v.businessName}, ${phone})`
   const id = await newId(tx)
+  const o = opts.origin ?? {}
   await tx`insert into crm.leads (id, market_code, source, form_id, motor, business_name, contact_name, phone, email, locality, message,
-                                  status, owner_id, assigned_at, sla_due_at, duplicate_of)
+                                  status, owner_id, assigned_at, sla_due_at, duplicate_of,
+                                  utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, consent_at, consent_text)
            values (${id}, ${v.market}, ${opts.source}, ${opts.formId}, ${v.motor}, ${v.businessName}, ${v.contactName}, ${phone},
                    ${clean(v.email)}, ${clean(v.locality)}, ${clean(v.message)}, 'new', ${opts.ownerId},
-                   ${opts.ownerId ? tx`now()` : null}, now() + make_interval(mins => ${opts.slaMinutes}), ${dup[0]?.id ?? null})`
-  await audit(tx, ctx, 'lead.created', 'lead', id, v.market, null, { source: opts.source, motor: v.motor, owner_id: opts.ownerId })
+                   ${opts.ownerId ? tx`now()` : null}, now() + make_interval(mins => ${opts.slaMinutes}), ${dup[0]?.id ?? null},
+                   ${o.utm_source ?? null}, ${o.utm_medium ?? null}, ${o.utm_campaign ?? null}, ${o.utm_content ?? null}, ${o.utm_term ?? null},
+                   ${o.gclid ?? null}, ${o.fbclid ?? null}, ${o.consentAt ?? null}, ${o.consentAt ? (o.consentText ?? null) : null})`
+  // La bitácora guarda la fuente y la campaña, y si hubo consentimiento. Los identificadores de clic se quedan en el lead.
+  await audit(tx, ctx, 'lead.created', 'lead', id, v.market, null, {
+    source: opts.source, motor: v.motor, owner_id: opts.ownerId,
+    ...(o.utm_source ? { utm_source: o.utm_source } : {}), ...(o.utm_campaign ? { utm_campaign: o.utm_campaign } : {}),
+    ...(opts.source === 'web_form' ? { consent: Boolean(o.consentAt) } : {}),
+  })
   await emit(tx, 'lead.created', 'lead', id, v.market, { source: opts.source, motor: v.motor })
   return id
 }
@@ -87,6 +107,9 @@ export async function createLead(ctx: Ctx, input: LeadInput): Promise<string> {
   return withUser(ctx.user.id, (tx) => insertLead(tx, ctx, v, { source: 'manual', formId: null, ownerId: ctx.user.id, slaMinutes: 60 }))
 }
 
+// Un valor de origen que no es texto se ignora; uno larguísimo se recorta al guardar. Ninguno rechaza el formulario.
+const attributionValue = z.preprocess((v) => (typeof v === 'string' ? v.slice(0, 2000) : ''), z.string())
+
 const formPayload = z.object({
   business_name: z.string().trim().min(2).max(120),
   contact_name: z.string().trim().min(2).max(120),
@@ -95,7 +118,20 @@ const formPayload = z.object({
   locality: z.string().trim().max(120).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
   website: z.string().max(0).optional().default(''), // trampa para bots: debe llegar vacío
+  // Origen (E3.F6). Son opcionales y nunca tumban el lead: un valor demasiado largo se recorta.
+  ...(Object.fromEntries(ATTRIBUTION_KEYS.map((k) => [k, attributionValue])) as Record<AttributionKey, typeof attributionValue>),
+  // Consentimiento para recibir correos (E3.F7). La página manda la casilla ("on"); la API manda true y, si lo tiene,
+  // el texto que la persona aceptó y el momento en que lo aceptó en el sitio.
+  consent: z.union([z.boolean(), z.enum(['on', 'true', 'false', ''])]).optional().default(false),
+  consent_text: z.string().trim().max(400).optional().default(''),
+  consent_at: z.string().datetime({ offset: true }).optional(),
 })
+
+/** El texto que acepta quien marca la casilla en la página del formulario. Se guarda con el lead, tal como se mostró. */
+export const CONSENT_TEXT = {
+  es: 'Acepto que axexo me escriba por correo sobre sus productos y novedades.',
+  en: 'I agree to receive emails from axexo about its products and news.',
+} as const
 
 /**
  * LEAD-03: entrada de un formulario web. Corre como usuario de sistema, es idempotente (REL-07)
@@ -106,8 +142,8 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
   if (!parsed.success) throw invalid('Revisa los datos del formulario.', 'Check the form fields.')
   const p = parsed.data
   return withUser(sys.user.id, async (tx) => {
-    const forms = await tx<{ id: string; market_code: string; motor: (typeof MOTORS)[number]; routing_rule_id: string | null }[]>`
-      select id, market_code, motor, routing_rule_id from crm.web_forms where slug = ${slug} and is_active`
+    const forms = await tx<{ id: string; market_code: string; motor: (typeof MOTORS)[number]; routing_rule_id: string | null; locale: string }[]>`
+      select id, market_code, motor, routing_rule_id, locale from crm.web_forms where slug = ${slug} and is_active`
     const form = forms[0]
     if (!form) throw notFound('Ese formulario no existe o está apagado.', 'That form does not exist or is turned off.')
     const seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
@@ -118,6 +154,14 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       const prev = await tx<{ payload: { lead_id?: string } }[]>`
         select payload from crm.inbound_events where source = 'web_form' and idempotency_key = ${idempotencyKey}`
       return { leadId: prev[0]?.payload.lead_id ?? '', duplicate: true }
+    }
+    const consented = p.consent === true || p.consent === 'on' || p.consent === 'true'
+    // El momento del consentimiento es el que reporta el sitio, si es creíble (no en el futuro); si no, el de llegada.
+    const given = p.consent_at ? new Date(p.consent_at) : null
+    const origin: Origin = {
+      ...Object.fromEntries(ATTRIBUTION_KEYS.map((k) => [k, cleanAttribution(p[k])])),
+      consentAt: consented ? (given && given.getTime() <= Date.now() ? given : new Date()) : null,
+      consentText: consented ? cleanAttribution(p.consent_text) ?? CONSENT_TEXT[form.locale === 'en' ? 'en' : 'es'] : null,
     }
     let ownerId: string | null = null
     let sla = 60
@@ -131,7 +175,7 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       tx,
       sys,
       { market: form.market_code, motor: form.motor, businessName: p.business_name, contactName: p.contact_name, phone: p.phone, email: p.email, locality: p.locality, message: p.message },
-      { source: 'web_form', formId: form.id, ownerId, slaMinutes: sla },
+      { source: 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin },
     )
     await tx`update crm.inbound_events set status = 'processed', processed_at = now(), payload = ${tx.json({ form: slug, lead_id: leadId })}
              where id = ${seen[0].id}`
