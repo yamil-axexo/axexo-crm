@@ -6,7 +6,7 @@ drop index if exists crm.leads_market_created_idx;
 drop index if exists crm.leads_phone_idx;
 
 alter table crm.account_contacts disable trigger user;
-update crm.account_contacts set role = 'staff' where role in ('purchasing','technical');
+update crm.account_contacts set role = 'staff' where role in ('purchasing','finance','technology');
 alter table crm.account_contacts enable trigger user;
 alter table crm.account_contacts drop constraint if exists account_contacts_role_check;
 alter table crm.account_contacts add constraint account_contacts_role_check

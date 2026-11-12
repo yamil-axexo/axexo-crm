@@ -21,13 +21,16 @@ export function LeadBulk({ action, reasons, labels }: { action: FormAction; reas
   const boxes = () => Array.from(document.querySelectorAll<HTMLInputElement>(`input[type=checkbox][form=${BULK_FORM}]`))
 
   useEffect(() => {
-    const sync = () => {
+    // Un solo oyente para todo: la casilla "seleccionar todos" marca las de la página, y cualquier cambio vuelve a contar.
+    const sync = (e?: Event) => {
       const list = boxes()
+      const master = all.current
+      if (master && (e ? e.target === master : master.checked)) for (const b of list) b.checked = master.checked
       const n = list.filter((b) => b.checked).length
       setCount(n)
-      if (all.current) {
-        all.current.checked = n > 0 && n === list.length
-        all.current.indeterminate = n > 0 && n < list.length
+      if (master) {
+        master.checked = n > 0 && n === list.length
+        master.indeterminate = n > 0 && n < list.length
       }
     }
     document.addEventListener('change', sync)
@@ -59,10 +62,6 @@ export function LeadBulk({ action, reasons, labels }: { action: FormAction; reas
             type="checkbox"
             className="h-5 w-5 shrink-0"
             data-testid="lead-select-all"
-            onChange={(e) => {
-              for (const b of boxes()) b.checked = e.target.checked
-              setCount(e.target.checked ? boxes().length : 0)
-            }}
           />
           {count > 0 ? (count === 1 ? labels.one : labels.many.replace('{n}', String(count))) : labels.selectAll}
         </label>

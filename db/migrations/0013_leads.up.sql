@@ -5,7 +5,7 @@
 -- la misma empresa no crea otro lead: la persona queda en extra_contacts del lead existente.
 alter table crm.leads
   add column account_kind   text check (account_kind is null or account_kind in ('organization','distributor','chain','store')),
-  add column contact_role   text check (contact_role is null or contact_role in ('owner','decision_maker','manager','staff','billing','purchasing','technical')),
+  add column contact_role   text check (contact_role is null or contact_role in ('owner','decision_maker','manager','staff','billing','purchasing','finance','technology')),
   add column extra_contacts jsonb not null default '[]'::jsonb check (jsonb_typeof(extra_contacts) = 'array');
 alter table crm.web_forms
   add column account_kind text check (account_kind is null or account_kind in ('organization','distributor','chain','store'));
@@ -15,10 +15,11 @@ alter table crm.leads drop constraint if exists leads_source_check;
 alter table crm.leads add constraint leads_source_check
   check (source in ('web_form','manual','import','referral','sales_app','walk_in','phone_in','event'));
 
--- Rol del contacto: se suman compras y técnico al catálogo (dueño, quien decide, encargado, personal, facturación).
+-- Rol del contacto: se suman compras, finanzas y tecnología al catálogo (dueño, quien decide, encargado, personal, facturación).
+-- Son los mismos códigos que usa el paquete b2b (0016), que amplía esta lista.
 alter table crm.account_contacts drop constraint if exists account_contacts_role_check;
 alter table crm.account_contacts add constraint account_contacts_role_check
-  check (role in ('owner','decision_maker','manager','staff','billing','purchasing','technical'));
+  check (role in ('owner','decision_maker','manager','staff','billing','purchasing','finance','technology'));
 
 -- Búsqueda dentro de la lista de leads por teléfono y por orden de llegada.
 create index leads_phone_idx on crm.leads (phone) where phone is not null;

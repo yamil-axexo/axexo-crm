@@ -182,6 +182,8 @@ test('lista de Leads: buscar, filtrar por reloj y origen, ordenar y cerrar vario
   await page.getByTestId('lead-q').fill(tag)
   await page.getByTestId('lead-f-clock').selectOption('without')
   await page.getByTestId('lead-apply').click()
+  await expect(page).toHaveURL(/clock=without/)
+  await expect(page.getByTestId('lead-row')).toHaveCount(3)
   // seleccionar todos los de la página y cerrarlos con un motivo
   await page.getByTestId('lead-select-all').check()
   await expect(page.getByTestId('lead-bulk')).toContainText('3 leads selected')

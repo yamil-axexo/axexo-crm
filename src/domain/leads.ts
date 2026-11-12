@@ -14,7 +14,7 @@ export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
 export const ACCOUNT_KINDS = ['store', 'chain', 'distributor', 'organization'] as const
 export type AccountKind = (typeof ACCOUNT_KINDS)[number]
 /** Rol de la persona de contacto dentro del comercio. */
-export const CONTACT_ROLES = ['owner', 'manager', 'decision_maker', 'purchasing', 'billing', 'technical', 'staff'] as const
+export const CONTACT_ROLES = ['owner', 'manager', 'decision_maker', 'purchasing', 'finance', 'technology', 'staff'] as const
 export type ContactRole = (typeof CONTACT_ROLES)[number]
 /** De dónde sale un lead que alguien captura a mano. */
 export const MANUAL_SOURCES = ['walk_in', 'referral', 'phone_in', 'event', 'manual'] as const

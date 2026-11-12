@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getLead, lossReasons, marketPipelines, sellers } from '@/dal/leads'
-import { ACCOUNT_KINDS, CONTACT_ROLES, MOTORS, kindForMotor } from '@/domain/leads'
+import { ACCOUNT_KINDS, CONTACT_ROLES, kindForMotor } from '@/domain/leads'
 import { LeadCall } from '@/ui/lead-call'
 import { Badge, Card, CardTitle, Field, KeyVal, PageHeader } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
@@ -35,7 +35,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   // Embudos que existen en el mercado del lead: de ahí se elige al convertir. El del tipo de venta del lead va primero.
   const pipes = open ? await marketPipelines(ctx, lead.market_code) : []
   const pipe = pipes.find((p) => p.motor === lead.motor) ?? pipes[0]
-  const motors = [...new Set([...pipes.map((p) => p.motor), lead.motor, ...((MOTORS as readonly string[]).includes(lead.motor) ? [] : [])])]
+  const motors = [...new Set([...pipes.map((p) => p.motor), lead.motor])]
   const kind = lead.account_kind ?? kindForMotor(pipe?.motor ?? lead.motor)
   const canEdit = open && canWork && (!!lead.owner_id || canAssign)
   const canCallNow = ['new', 'contacted'].includes(lead.status) && canWork && !!lead.phone && (mine || !lead.owner_id)
