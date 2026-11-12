@@ -1387,7 +1387,7 @@ export const SHOT_ALT: Record<Shot, L> = {
   admin: { es: 'Administración: sus pestañas y la lista de personas con acceso.', en: 'Admin: its tabs and the list of people with access.' },
 }
 
-/** Fotos de archivo con licencia (Adobe Stock, cuenta de axexo, 11-nov-2026). Ilustran; no retratan a personas del equipo ni a comercios de axexo. */
+/** Fotos de archivo con licencia (Adobe Stock, cuenta de axexo, 11 y 12-nov-2026). Ilustran; no retratan a personas del equipo ni a comercios de axexo. */
 export type Photo = 'llamada' | 'asesor' | 'equipo' | 'mostrador' | 'retrato' | 'seguimiento' | 'calle'
 export const PHOTOS: Record<Photo, { w: number; h: number; alt: L }> = {
   llamada: { w: 1400, h: 788, alt: { es: 'Una persona atiende una llamada detrás del mostrador de una panadería.', en: 'A person takes a phone call behind a bakery counter.' } },

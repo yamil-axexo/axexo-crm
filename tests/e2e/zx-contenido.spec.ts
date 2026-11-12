@@ -336,7 +336,7 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     await expect(training.getByTestId('training-day1')).toContainText('Dar acceso')
     await training.getByTestId('training-role-rep').click()
     await expect(training.getByTestId('training-week1')).toContainText('Marcar como perdido')
-    for (const w of [1440, 390]) {
+    for (const w of [1440, 1024, 390]) {
       await page.setViewportSize({ width: w, height: 900 })
       await clean(page, `ayuda ${w}`)
     }
