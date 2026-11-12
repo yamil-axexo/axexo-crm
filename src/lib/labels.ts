@@ -42,6 +42,9 @@ export const SOURCE: Record<string, Pair> = {
   import: ['Importación', 'Import'],
   referral: ['Referido', 'Referral'],
   sales_app: ['Sales App', 'Sales App'],
+  walk_in: ['Visita en tienda', 'In-store visit'],
+  phone_in: ['Llamada entrante', 'Inbound call'],
+  event: ['Evento', 'Event'],
 }
 
 export const EXCEPTION: Record<string, { label: Pair; action: Pair }> = {
@@ -75,6 +78,8 @@ export const CONTACT_ROLE: Record<string, Pair> = {
   manager: ['Encargado', 'Manager'],
   staff: ['Personal', 'Staff'],
   billing: ['Facturación', 'Billing'],
+  purchasing: ['Compras', 'Purchasing'],
+  technical: ['Técnico', 'Technical'],
 }
 
 export const ATTRIBUTION_LAYER: Record<string, Pair> = {

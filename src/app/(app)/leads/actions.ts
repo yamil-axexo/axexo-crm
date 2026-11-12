@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
-import { assignLead, convertLead, createLead, disqualifyLead, markContacted, qualifyLead, takeLead, MOTORS } from '@/domain/leads'
+import { assignLead, bulkDisqualify, convertLead, createLead, disqualifyLead, markContacted, passLead, qualifyLead, releaseLead, takeLead, updateLeadDetails, type LeadInput } from '@/domain/leads'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -12,7 +12,10 @@ export async function createLeadAction(_: R | null, fd: FormData): Promise<R> {
   const res = await runAction(async (ctx) => {
     id = await createLead(ctx, {
       market: str(fd, 'market'),
-      motor: str(fd, 'motor') as (typeof MOTORS)[number],
+      motor: str(fd, 'motor'),
+      source: (str(fd, 'source') || 'manual') as LeadInput['source'],
+      contactRole: (str(fd, 'contact_role') || undefined) as LeadInput['contactRole'],
+      alreadyContacted: str(fd, 'already_contacted') === 'on',
       businessName: str(fd, 'business_name'),
       contactName: str(fd, 'contact_name'),
       phone: str(fd, 'phone'),
@@ -52,11 +55,38 @@ export async function leadStepAction(_: R | null, fd: FormData): Promise<R> {
       await assignLead(ctx, id, str(fd, 'owner_id'))
       return { message: ['Lead reasignado.', 'Lead reassigned.'] }
     }
+    if (step === 'details') {
+      await updateLeadDetails(ctx, id, { motor: str(fd, 'motor'), accountKind: str(fd, 'account_kind'), contactRole: str(fd, 'contact_role') })
+      return { message: ['Listo, quedó actualizado.', 'Done, it is updated.'] }
+    }
+    if (step === 'pass') {
+      await passLead(ctx, id, str(fd, 'to_id'), str(fd, 'note'))
+      goto = '/leads'
+      return
+    }
+    if (step === 'release') {
+      await releaseLead(ctx, id, str(fd, 'reason_text'))
+      return { message: ['El lead quedó sin dueño.', 'The lead now has no owner.'] }
+    }
     if (step === 'convert') {
-      const out = await convertLead(ctx, id, { linkAccountId: str(fd, 'link_account_id') || null })
+      const out = await convertLead(ctx, id, {
+        linkAccountId: str(fd, 'link_account_id') || null,
+        pipelineId: str(fd, 'pipeline_id') || null,
+        accountKind: str(fd, 'account_kind') || null,
+        contactRole: str(fd, 'contact_role') || null,
+      })
       goto = `/deals/${out.dealId}`
     }
   })
   if (res.ok && goto) redirect(goto)
   return res
+}
+
+/** Cerrar varios leads como no calificados, con un motivo para todos (lista de Leads). */
+export async function bulkDisqualifyAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const ids = fd.getAll('ids').filter((v): v is string => typeof v === 'string')
+    const n = await bulkDisqualify(ctx, ids, str(fd, 'reason'))
+    return { message: [n === 1 ? 'Se cerró 1 lead con su motivo.' : `Se cerraron ${n} leads con su motivo.`, n === 1 ? '1 lead closed with its reason.' : `${n} leads closed with their reason.`] }
+  })
 }

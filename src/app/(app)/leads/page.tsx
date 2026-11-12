@@ -1,14 +1,16 @@
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { requireCtx } from '@/server/context'
-import { listLeads, type LeadListItem } from '@/dal/leads'
+import { leadSources, listLeads, lossReasons, marketPipelines, sellers, type LeadListItem } from '@/dal/leads'
+import { MANUAL_SOURCES, CONTACT_ROLES } from '@/domain/leads'
+import { BULK_FORM, LeadBulk } from '@/ui/lead-bulk'
 import { track } from '@/dal/boards'
 import { resultOptions, sheetConfig } from '@/server/sheet'
 import { Empty, Field, Pills, LinkButton, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { LeadCall } from '@/ui/lead-call'
-import { LEAD_STATUS, MOTOR, SOURCE, lab, qs } from '@/lib/labels'
-import { createLeadAction, takeLeadAction } from './actions'
+import { CONTACT_ROLE, LEAD_STATUS, MOTOR, SOURCE, lab, qs } from '@/lib/labels'
+import { bulkDisqualifyAction, createLeadAction, takeLeadAction } from './actions'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { flat } from '@/server/params'
 
@@ -28,15 +30,24 @@ function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'o
   )
 }
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string }> }) {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
   const sp = flat(await searchParams)
   const status = sp.status ?? 'open'
   const data = await listLeads(ctx, { ...sp, status: status === 'all' ? undefined : status })
   await track(ctx, 'view.leads')
-  const live = ctx.markets.filter((x) => x.status === 'live')
-  const link = (patch: Record<string, string | undefined>) => qs('/leads', { market: sp.market, status, owner: sp.owner, q: sp.q, ...patch, before: undefined })
+  // El alta ofrece solo los mercados donde la persona puede crear leads y los tipos de venta que tienen embudo ahí.
+  const live = ctx.markets.filter((x) => x.status === 'live' && ctx.can('lead.create', x.code))
+  const manages = ctx.can('lead.assign')
+  const [pipes, sources, reasons, people] = await Promise.all([
+    marketPipelines(ctx), leadSources(ctx), ctx.can('lead.work') ? lossReasons(ctx) : Promise.resolve([]), manages ? sellers(ctx) : Promise.resolve([]),
+  ])
+  const motors = [...new Set(pipes.filter((x) => live.some((mk) => mk.code === x.market_code)).map((x) => x.motor))]
+  const owners = [...new Map(people.map((x) => [x.id, x.full_name])).entries()]
+  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort }
+  const link = (patch: Record<string, string | undefined>) => qs('/leads', { ...keep, ...patch, before: undefined })
+  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || (sp.owner && sp.owner !== 'me'))
   const now = new Date()
   const config = sheetConfig(ctx, now)
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
@@ -60,10 +71,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     }
     const onTime = l.first_touch_at && due !== null ? new Date(l.first_touch_at).getTime() <= due : null
     const note = onTime === null ? '' : onTime ? m('leads.clock.onTime') : m('leads.clock.lateTouch')
-    if (l.status === 'new') return { waiting: false, late: false, ring: 'idle' as const, fraction: 1, chip: m('leads.state.attempted', { name: who }), chipClass: 'bg-surface-3 text-strong', note }
+    // Un intento sin respuesta no es un contacto: se dice "intento", no "contacto a tiempo".
+    if (l.status === 'new') return { waiting: false, late: false, ring: 'idle' as const, fraction: 1, chip: m('leads.state.attempted', { name: who }), chipClass: 'bg-surface-3 text-strong', note: onTime === null ? '' : onTime ? t('Primer intento a tiempo', 'First attempt on time') : t('Primer intento fuera de la meta', 'First attempt past the goal') }
     if (l.status === 'contacted') return { waiting: false, late: false, ring: 'ok' as const, fraction: 1, chip: m('leads.state.contacted', { name: who }), chipClass: 'bg-green-100 text-brand-text', note }
     return { waiting: false, late: false, ring: l.status === 'disqualified' ? ('idle' as const) : ('ok' as const), fraction: 1, chip: lab(t, LEAD_STATUS[l.status]?.label), chipClass: l.status === 'disqualified' ? 'bg-surface-3 text-strong' : 'bg-green-100 text-brand-text', note }
   }
+  // Cierre en bloque: quien vende, solo sus leads abiertos; supervisión y quien lidera, los de su alcance.
+  const canBulk = (l: LeadListItem) => ['new', 'contacted', 'qualified'].includes(l.status) && ctx.can('lead.work', l.market_code) && (ctx.can('lead.assign', l.market_code) || l.owner_id === ctx.user.id)
+  const selectable = data.items.some(canBulk)
   const cols = '@3xl:grid @3xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.5fr)_minmax(0,0.8fr)_170px] @3xl:items-center @3xl:gap-4'
 
   return (
@@ -83,14 +98,30 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               </Field>
               <Field label={t('Tipo de negocio', 'Business type')}>
                 <select name="motor" className="input">
-                  {Object.entries(MOTOR).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}
+                  {(motors.length ? motors : ['d2d']).map((k) => <option key={k} value={k}>{lab(t, MOTOR[k]) || k}</option>)}
                 </select>
               </Field>
               <Field label={t('Nombre del negocio', 'Business name')} className="col-span-2"><input name="business_name" className="input" required minLength={2} /></Field>
               <Field label={t('Persona de contacto', 'Contact person')}><input name="contact_name" className="input" required minLength={2} /></Field>
+              <Field label={t('Qué hace en el negocio', 'Their role in the business')}>
+                <select name="contact_role" className="input" defaultValue="" data-testid="lead-role">
+                  <option value="">{t('Todavía no sé', 'Not sure yet')}</option>
+                  {CONTACT_ROLES.map((r) => <option key={r} value={r}>{lab(t, CONTACT_ROLE[r])}</option>)}
+                </select>
+              </Field>
               <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" /></Field>
               <Field label={t('Correo', 'Email')}><input name="email" type="email" className="input" /></Field>
               <Field label={t('Ciudad', 'City')}><input name="locality" className="input" /></Field>
+              <Field label={t('De dónde salió', 'Where it came from')}>
+                <select name="source" className="input" required defaultValue="" data-testid="lead-source">
+                  <option value="" disabled>{t('Elige el origen', 'Pick the source')}</option>
+                  {MANUAL_SOURCES.map((k) => <option key={k} value={k}>{k === 'manual' ? t('Otro', 'Other') : lab(t, SOURCE[k])}</option>)}
+                </select>
+              </Field>
+              <label className="col-span-2 flex min-h-11 cursor-pointer items-center gap-3 rounded-[10px] bg-surface-2 px-3 text-[14px] text-strong">
+                <input type="checkbox" name="already_contacted" className="h-5 w-5 shrink-0" data-testid="lead-spoke" />
+                <span>{t('Ya hablé con esta persona', 'I already spoke with this person')}<span className="block text-[13px] text-muted">{t('Queda como contactado y no empieza el reloj de primer contacto.', 'It is saved as contacted and the first-contact clock does not start.')}</span></span>
+              </label>
               <div className="col-span-2 mt-2 flex justify-end"><Submit testId="save-lead">{t('Guardar lead', 'Save lead')}</Submit></div>
             </ActionForm>
           </Dialog>
@@ -113,14 +144,73 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         <nav aria-label={m('merchants.scope')} className="inline-flex rounded-full border border-line bg-surface p-1">
           <Link href={link({ owner: undefined })} aria-current={sp.owner !== 'me' ? 'page' : undefined} className={seg(sp.owner !== 'me')}>{m('merchants.scope.all')}</Link>
           <Link href={link({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
+          <Link href={link({ owner: 'none' })} aria-current={sp.owner === 'none' ? 'page' : undefined} className={seg(sp.owner === 'none')} data-testid="pill-unowned">{m('leads.noOwner')}</Link>
         </nav>
       </div>
+
+      <form action="/leads" method="get" role="search" className="mt-4 grid grid-cols-2 items-end gap-3 @3xl:flex @3xl:flex-wrap" data-testid="lead-filters">
+        <input type="hidden" name="status" value={status} />
+        {sp.market && <input type="hidden" name="market" value={sp.market} />}
+        {!manages && sp.owner && <input type="hidden" name="owner" value={sp.owner} />}
+        <Field label={t('Buscar en la lista', 'Search this list')} className="col-span-2 @3xl:min-w-[240px] @3xl:flex-1">
+          <input name="q" type="search" defaultValue={sp.q ?? ''} className="input" placeholder={t('Nombre, persona o teléfono', 'Name, person or phone')} data-testid="lead-q" />
+        </Field>
+        <Field label={t('Reloj', 'Clock')}>
+          <select name="clock" className="input" defaultValue={sp.clock ?? ''} data-testid="lead-f-clock">
+            <option value="">{t('Todos', 'All')}</option>
+            <option value="with">{t('Con reloj corriendo', 'Clock running')}</option>
+            <option value="without">{t('Sin reloj (importados)', 'No clock (imported)')}</option>
+          </select>
+        </Field>
+        <Field label={t('Origen', 'Source')}>
+          <select name="source" className="input" defaultValue={sp.source ?? ''} data-testid="lead-f-source">
+            <option value="">{t('Todos', 'All')}</option>
+            {sources.map((k) => <option key={k} value={k}>{k === 'manual' ? t('Captura manual', 'Manual entry') : lab(t, SOURCE[k]) || k}</option>)}
+          </select>
+        </Field>
+        {manages && (
+          <Field label={t('De quién', 'Whose')}>
+            <select name="owner" className="input" defaultValue={sp.owner ?? ''} data-testid="lead-f-owner">
+              <option value="">{t('De todos', 'Everyone')}</option>
+              <option value="me">{t('Míos', 'Mine')}</option>
+              <option value="none">{m('leads.noOwner')}</option>
+              {owners.filter(([id]) => id !== ctx.user.id).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </Field>
+        )}
+        <Field label={t('Orden', 'Order')}>
+          <select name="sort" className="input" defaultValue={sp.sort ?? ''} data-testid="lead-f-sort">
+            <option value="">{t('Más recientes', 'Newest first')}</option>
+            <option value="oldest">{t('Más antiguos', 'Oldest first')}</option>
+            <option value="due">{t('Vence primero', 'Due first')}</option>
+          </select>
+        </Field>
+        <div className="col-span-2 flex gap-3 @3xl:col-span-1">
+          <button type="submit" className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-5 text-[15px] font-semibold text-strong hover:bg-green-50" data-testid="lead-apply">{t('Aplicar', 'Apply')}</button>
+          {filtered && <Link href={qs('/leads', { status, market: sp.market })} className="press inline-flex h-11 items-center rounded-[10px] px-3 text-[14px] font-medium text-muted-2 hover:bg-surface-3" data-testid="lead-clear">{t('Quitar filtros', 'Clear filters')}</Link>}
+        </div>
+      </form>
 
       <div className="card mt-4 overflow-hidden">
         {data.items.length === 0 ? (
           <div className="p-6"><Empty title={m('leads.empty.title')} hint={m('leads.empty.body')} /></div>
         ) : (
           <>
+            {selectable && (
+              <LeadBulk
+                action={bulkDisqualifyAction}
+                reasons={reasons.map((r) => ({ code: r.code, label: t(r.label_es, r.label_en) }))}
+                labels={{
+                  selectAll: t('Seleccionar los de esta página', 'Select the ones on this page'),
+                  one: t('1 lead seleccionado', '1 lead selected'),
+                  many: t('{n} leads seleccionados', '{n} leads selected'),
+                  reason: t('Motivo', 'Reason'),
+                  pick: t('Elige un motivo', 'Pick a reason'),
+                  close: t('Cerrar como no calificado', 'Close as not qualified'),
+                  hint: t('Se cierran con el mismo motivo y cada uno queda en la bitácora. No cuenta como contacto.', 'They close with the same reason and each one is logged. It does not count as a contact.'),
+                }}
+              />
+            )}
             <div aria-hidden className={cx('hidden border-b border-line px-5 py-3 text-[13px] font-medium text-muted', cols)}>
               <span className="pl-12">{m('leads.col.lead')}</span><span>{m('leads.col.state')}</span><span>{m('leads.col.owner')}</span><span />
             </div>
@@ -128,14 +218,22 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               {data.items.map((l) => {
                 const s = state(l)
                 const mine = l.owner_id === ctx.user.id
-                const canCall = s.waiting && !!l.phone && ctx.can('lead.work', l.market_code) && (mine || !l.owner_id)
+                // Llamar no desaparece después de un intento: sigue mientras el lead esté nuevo o contactado.
+                const canCall = ['new', 'contacted'].includes(l.status) && !!l.phone && ctx.can('lead.work', l.market_code) && (mine || !l.owner_id)
+                const canPick = canBulk(l)
                 return (
                   <li key={l.id} className={cx('row-hover relative px-4 py-3.5 @3xl:px-5', cols)} data-testid="lead-row" data-state={s.waiting ? (s.late ? 'late' : 'waiting') : l.status}>
                     <div className="flex min-w-0 items-center gap-3">
+                      {selectable && (
+                        <label className={cx('relative z-10 -my-1 -ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center', canPick ? 'cursor-pointer' : 'invisible')}>
+                          <input type="checkbox" name="ids" value={l.id} form={canPick ? BULK_FORM : undefined} disabled={!canPick} className="h-5 w-5" aria-label={t(`Seleccionar ${l.business_name}`, `Select ${l.business_name}`)} data-testid="lead-check" />
+                        </label>
+                      )}
                       <Ring fraction={s.fraction} tone={s.ring} />
                       <span className="min-w-0">
                         <Link href={`/leads/${l.id}`} className="block truncate text-[15px] leading-6 font-medium text-strong after:absolute after:inset-0">{l.business_name}</Link>
                         <span className="block truncate text-[13px] text-muted">{[l.contact_name, l.locality, ctx.markets.length > 1 ? l.market_code : null, lab(t, SOURCE[l.source])].filter(Boolean).join(' · ')}</span>
+                        <span className={cx('block truncate text-[13px] @3xl:hidden', l.owner_name ? 'text-muted' : 'font-medium text-amber-text')} data-testid="lead-owner-small">{l.owner_name ?? m('leads.noOwner')}</span>
                       </span>
                     </div>
                     <div className="mt-2 min-w-0 pl-12 @3xl:mt-0 @3xl:pl-0">
@@ -151,6 +249,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                           tel={`tel:${l.phone}`}
                           take={!l.owner_id}
                           label={l.owner_id ? m('action.call') : m('leads.takeAndCall')}
+                          key={`${l.id}:${l.status}:${l.first_touch_at ? 1 : 0}`}
                           takeAction={takeLeadAction}
                           config={config}
                           completeAction={completeItemAction}
@@ -164,7 +263,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </>
         )}
       </div>
-      {data.next && <div className="mt-5 flex justify-center"><LinkButton href={qs('/leads', { market: sp.market, status, owner: sp.owner, q: sp.q, before: data.next })} testId="more">{m('merchants.more')}</LinkButton></div>}
+      {data.next && <div className="mt-5 flex justify-center"><LinkButton href={qs('/leads', { ...keep, before: data.next })} testId="more">{m('merchants.more')}</LinkButton></div>}
     </div>
   )
 }
