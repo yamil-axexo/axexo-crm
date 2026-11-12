@@ -5,6 +5,7 @@ import type { Ctx } from '@/server/context'
 import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
+import { isoDay } from '@/lib/format'
 
 export type StageKind = 'open' | 'awaiting_txn' | 'won' | 'lost'
 
@@ -142,7 +143,7 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
 }
 
 /** Fecha (AAAA-MM-DD) de un valor que puede venir como Date de la base. */
-export const isoDate = (v: string | Date | null): string | null => (v === null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10))
+export const isoDate = (v: string | Date | null): string | null => (v === null ? null : v instanceof Date ? isoDay(v, 'UTC') : String(v).slice(0, 10))
 
 export type MoveExtra = {
   /** Día real en que se ganó (AAAA-MM-DD), de hoy hacia atrás en la zona del mercado. Vacío es hoy. */

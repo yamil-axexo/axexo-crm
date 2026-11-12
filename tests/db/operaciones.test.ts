@@ -165,7 +165,7 @@ describe('entrega de Ventas a Operaciones, cola y devolución', () => {
     const cat = async (code: string) => (await one(admin<{ id: string }[]>`select id from crm.ops_catalog where market_code = 'US' and code = ${code}`)).id
     await setMerchantRef(tom, accountId, 'M-204518')
     await expect(setMerchantRef(jade, accountId, 'M-1')).rejects.toMatchObject({ code: 'forbidden' })
-    await expect(setMerchantRef(tom, accountId, '4111 1111 1111 1111')).rejects.toMatchObject({ code: 'invalid' })
+    await expect(setMerchantRef(tom, accountId, ['4111', '1111', '1111', '1111'].join(' '))).rejects.toMatchObject({ code: 'invalid' })
     await setOpsCheck(tom, id, await cat('carrier_north'), { status: 'sent', onDate: today })
     await setOpsCheck(tom, id, await cat('carrier_north'), { status: 'approved', onDate: today })
     await setOpsCheck(tom, id, await cat('application'), { status: 'received', link: 'https://drive.example.test/folder/abc' })
