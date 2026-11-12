@@ -20,6 +20,8 @@ export type QueueRow = {
   dealId: string | null
   leadId: string | null
   stage: string | null
+  /** Tipo de venta del registro (del embudo del negocio, del comercio o del lead): decide qué próximos pasos se ofrecen. */
+  motor: string | null
   detail: Record<string, unknown>
 }
 export type Queue = { rows: QueueRow[]; counts: Record<QueueGroup, number>; backlog: number; tz: string }
@@ -48,15 +50,16 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
              (date_trunc('day', now() at time zone ${tz}) + interval '1 day') at time zone ${tz} as "end"`
     const { start, end } = day[0]!
 
-    const leads = await tx<{ id: string; business_name: string; phone: string | null; market_code: string; sla_due_at: Date | null; created_at: Date; source: string }[]>`
-      select l.id, l.business_name, l.phone, l.market_code, l.sla_due_at, l.created_at, l.source from crm.leads l
+    const leads = await tx<{ id: string; business_name: string; phone: string | null; market_code: string; sla_due_at: Date | null; created_at: Date; source: string; motor: string | null }[]>`
+      select l.id, l.business_name, l.phone, l.market_code, l.sla_due_at, l.created_at, l.source, l.motor from crm.leads l
        where l.owner_id = ${me} and l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null
        order by l.sla_due_at limit ${QUEUE_PAGE}`
-    const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; created_at: Date; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; name: string | null; phone: string | null; stage: string | null }[]>`
+    const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; created_at: Date; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; name: string | null; phone: string | null; stage: string | null; motor: string | null }[]>`
       select a.id, a.kind, a.subject, a.due_at, a.created_at, a.market_code, a.account_id, a.deal_id, a.lead_id,
              coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, (select c.phone from crm.account_contacts x join crm.contacts c on c.id = x.contact_id
                                  where x.account_id = ac.id and x.valid_to is null and c.phone is not null
-                                 order by (x.role = 'decision_maker') desc, (x.role = 'owner') desc, x.valid_from limit 1), l.phone) as phone, ${ctx.locale === 'en' ? tx`s.name_en` : tx`s.name_es`} as stage
+                                 order by (x.role = 'decision_maker') desc, (x.role = 'owner') desc, x.valid_from limit 1), l.phone) as phone, ${ctx.locale === 'en' ? tx`s.name_en` : tx`s.name_es`} as stage,
+             coalesce((select p.motor from crm.pipelines p where p.id = d.pipeline_id), ac.segment, l.motor) as motor
         from crm.activities a
         left join crm.accounts ac on ac.id = a.account_id
         left join crm.leads l on l.id = a.lead_id
@@ -67,13 +70,14 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
        order by a.due_at nulls last, a.created_at limit ${QUEUE_PAGE * 2}`
     // Una sugerencia por registro (si un negocio no tiene próximo paso y además está estancado, gana "sin próximo paso"),
     // primero las de mayor severidad y, entre iguales, los negocios de mayor monto y los más recientes.
-    const suggestions = await tx<{ id: string; kind: string; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; detail: Record<string, unknown>; opened_at: Date; name: string | null; phone: string | null }[]>`
+    const suggestions = await tx<{ id: string; kind: string; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; detail: Record<string, unknown>; opened_at: Date; name: string | null; phone: string | null; motor: string | null }[]>`
       select * from (
         select distinct on (coalesce(e.deal_id, e.account_id, e.lead_id, e.id))
                e.id, e.kind, e.severity, e.market_code, e.account_id, e.deal_id, e.lead_id, e.detail, e.opened_at,
                coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, (select c.phone from crm.account_contacts x join crm.contacts c on c.id = x.contact_id
                                  where x.account_id = ac.id and x.valid_to is null and c.phone is not null
-                                 order by (x.role = 'decision_maker') desc, (x.role = 'owner') desc, x.valid_from limit 1), l.phone) as phone, d.amount_minor, d.created_at as deal_created
+                                 order by (x.role = 'decision_maker') desc, (x.role = 'owner') desc, x.valid_from limit 1), l.phone) as phone, d.amount_minor, d.created_at as deal_created,
+               coalesce((select p.motor from crm.pipelines p where p.id = d.pipeline_id), ac.segment, l.motor) as motor
           from crm.exceptions e
           left join crm.accounts ac on ac.id = e.account_id
           left join crm.leads l on l.id = e.lead_id
@@ -94,15 +98,15 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
     const rows: QueueRow[] = [
       ...leads.map((l): QueueRow => ({
         type: 'lead', id: l.id, group: l.sla_due_at && l.sla_due_at < now ? 'late' : 'today', subject: l.business_name, kind: l.source, name: l.business_name, phone: l.phone,
-        market: l.market_code, due: l.sla_due_at, created: l.created_at, accountId: null, dealId: null, leadId: l.id, stage: null, detail: {},
+        market: l.market_code, due: l.sla_due_at, created: l.created_at, accountId: null, dealId: null, leadId: l.id, stage: null, motor: l.motor, detail: {},
       })),
       ...tasks.map((a): QueueRow => ({
         type: 'task', id: a.id, group: a.due_at && a.due_at < start ? 'late' : 'today', subject: a.subject, kind: a.kind, name: a.name, phone: a.phone,
-        market: a.market_code, due: a.due_at, created: a.created_at, accountId: a.account_id, dealId: a.deal_id, leadId: a.lead_id, stage: a.stage, detail: {},
+        market: a.market_code, due: a.due_at, created: a.created_at, accountId: a.account_id, dealId: a.deal_id, leadId: a.lead_id, stage: a.stage, motor: a.motor, detail: {},
       })),
       ...suggestions.map((e): QueueRow => ({
         type: 'suggestion', id: e.id, group: 'suggested', subject: e.kind, kind: e.kind, name: e.name ?? (String(e.detail.name ?? e.detail.title ?? '') || null), phone: e.phone,
-        market: e.market_code, due: null, created: e.opened_at, accountId: e.account_id, dealId: e.deal_id, leadId: e.lead_id, stage: null, detail: e.detail,
+        market: e.market_code, due: null, created: e.opened_at, accountId: e.account_id, dealId: e.deal_id, leadId: e.lead_id, stage: null, motor: e.motor, detail: e.detail,
       })),
     ]
     const shown = Math.min(c.suggested, SUGGESTED_PER_DAY)

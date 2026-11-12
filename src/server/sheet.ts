@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Ctx } from '@/server/context'
 import { NEXTS, VISIT_RESULTS, type Result, type VisitResult } from '@/domain/queue'
+import { NEXT_SETS } from '@/domain/followup'
 import { BACKDATE_DAYS } from '@/domain/activities'
 import { addDays, isoDay, weekday } from '@/lib/format'
 import type { MessageKey } from '@/lib/messages'
@@ -19,10 +20,11 @@ export function sheetConfig(ctx: Ctx, now = new Date()): SheetConfig {
       complete: m('complete.title'), result: m('complete.result'), next: m('complete.next'), when: m('complete.when'), save: m('complete.save'),
       saveClose: m('complete.saveClose'), cancel: m('action.cancel'), missingNext: m('complete.missingNext'), other: m('complete.when.other'), markDone: m('action.markDone'),
       completeOf: m('action.completeOf', { title: '%s' }), afterCall: m('complete.afterCall', { name: '%s' }),
-      note: ctx.t('Nota (opcional)', 'Note (optional)'), nextText: ctx.t('¿Qué hay que hacer?', 'What needs to be done?'),
+      note: ctx.t('Nota (opcional)', 'Note (optional)'), nextText: ctx.t('¿Qué sigue? Escríbelo', 'What comes next? Write it'),
       visitedBy: ctx.t('¿Quién visitó? (opcional)', 'Who visited? (optional)'), visitedByHint: ctx.t('Si no fuiste tú, escribe su nombre', 'If it was not you, write their name'),
     },
     nextOptions: NEXTS.map((n) => ({ value: n, label: m(`complete.next.${n}` as MessageKey) })),
+    nextSets: { default: [...NEXT_SETS.default], b2b: [...NEXT_SETS.b2b] },
     whenOptions: [
       { value: today, label: m('complete.when.today') },
       { value: tomorrow, label: m('complete.when.tomorrow') },
@@ -47,8 +49,8 @@ export const taskResults = (ctx: Ctx, kind: string): Pick<SheetItem, 'results' |
     : { results: resultOptions(ctx, ['done', 'reached', 'no_answer', 'later']), defaultResult: 'done' }
 
 /** Una tarea abierta como registro que la hoja puede completar. */
-export const taskItem = (ctx: Ctx, task: { id: string; subject: string; kind?: string }, name: string): SheetItem => ({
-  type: 'task', id: task.id, title: task.subject, name, ...taskResults(ctx, task.kind ?? 'task'),
+export const taskItem = (ctx: Ctx, task: { id: string; subject: string; kind?: string }, name: string, motor?: string | null): SheetItem => ({
+  type: 'task', id: task.id, title: task.subject, name, motor, ...taskResults(ctx, task.kind ?? 'task'),
 })
 
 /** Textos y opciones de la hoja "Registrar actividad" (dock, ficha y al volver de una llamada). */

@@ -26,6 +26,7 @@ export type QueueItem = {
   defaultResult: string | null
   closable?: boolean
   visit?: boolean
+  motor?: string | null
 }
 export type QueueLabels = {
   now: string

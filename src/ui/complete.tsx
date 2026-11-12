@@ -17,7 +17,16 @@ export type SheetItem = {
   closable?: boolean
   /** Es una visita por hacer: se completa con el resultado de la visita y, opcional, quién visitó. */
   visit?: boolean
+  /** Tipo de venta del registro: decide qué próximos pasos se ofrecen (los de B2B no son los de tienda). */
+  motor?: string | null
 }
+
+/** Los próximos pasos que tocan según el tipo de venta. */
+export const nextFor = (config: Pick<SheetConfig, 'nextOptions' | 'nextSets'>, motor: string | null | undefined) => {
+  const set = config.nextSets[motor === 'b2b' ? 'b2b' : 'default']
+  return config.nextOptions.filter((o) => set.includes(o.value))
+}
+
 export type SheetConfig = {
   labels: {
     complete: string
@@ -40,6 +49,7 @@ export type SheetConfig = {
     visitedByHint: string
   }
   nextOptions: { value: string; label: string }[]
+  nextSets: { default: string[]; b2b: string[] }
   whenOptions: { value: string; label: string }[]
   defaultWhen: string
   minDate: string
@@ -102,7 +112,8 @@ export function CompleteSheet({
 }
 
 function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { item: SheetItem; afterCall: boolean; config: SheetConfig; action: CompleteAction; onCancel: () => void; onSaved: (toast: string | null) => void }) {
-  const { labels, nextOptions, whenOptions, defaultWhen, minDate } = config
+  const { labels, whenOptions, defaultWhen, minDate } = config
+  const nextOptions = nextFor(config, item.motor)
   const [error, setError] = useState<string | null>(null)
   const [next, setNext] = useState('')
   const [when, setWhen] = useState(defaultWhen)
@@ -219,7 +230,7 @@ export function NextStep({
   return (
     <>
       <Choices name="next" legend={labels.next} options={options} value={next} onChange={onNext} />
-      {next === 'task' && <SheetText name="next_text" label={labels.nextText} maxLength={120} testId="sheet-next-text" />}
+      {next === 'task' && <SheetText name="next_text" label={labels.nextText} maxLength={120} required testId="sheet-next-text" />}
       {next !== 'none' && (
         <>
           <Choices name="when_choice" legend={labels.when} options={[...whenOptions, { value: 'other', label: labels.other }]} value={preset ? when : 'other'} onChange={(v) => onWhen(v === 'other' ? '' : v)} />

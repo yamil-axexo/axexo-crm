@@ -71,7 +71,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const place = [a.locality, a.region].filter(Boolean).join(', ')
   const address = [a.address_line, place, a.postal_code].filter(Boolean).join(', ')
   const directions = a.address_line ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${address}, ${a.market_code}`)}` : null
-  const logAccount = { id: a.id, name: a.name, market: a.market_code }
+  const logAccount = { id: a.id, name: a.name, market: a.market_code, motor: a.segment }
   // Lo que se va con el comercio al reasignarlo: sus negocios abiertos y sus tareas y visitas por hacer.
   const openDeals = deals.filter((d) => d.status === 'open').length
   const openTasks = tasks.filter((x) => x.kind === 'task' || x.kind === 'visit').length
@@ -295,7 +295,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                             <p className="text-[15px] leading-6 font-medium text-strong">{task.subject}</p>
                             {task.owner_name && task.owner_name !== ctx.user.name && <p className="text-[13px] text-muted">{task.owner_name}</p>}
                           </div>
-                          {config && <CompleteButton item={taskItem(ctx, task, a.name)} config={config} action={completeItemAction} />}
+                          {config && <CompleteButton item={taskItem(ctx, task, a.name, a.segment)} config={config} action={completeItemAction} />}
                         </div>
                       </li>
                     )

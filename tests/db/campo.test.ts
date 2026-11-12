@@ -276,7 +276,8 @@ describe('la hoja de completar, pensada para la calle', () => {
     expect(await one(admin`select next_step from crm.deals where id = ${store.deal_id}`)).toMatchObject({ next_step: 'Capacitar al encargado en recargas' })
     // sin texto, "Otra tarea" conserva el título de siempre
     const other = await addActivity(marco, { accountId: store.id, kind: 'task', subject: `Otra ${tag()}`, dueAt: today })
-    expect((await completeItem(marco, { type: 'task', id: other, result: 'done', next: 'task', when: tomorrow })).next).toBe(`Dar seguimiento a ${store.name}`)
+    // "Otra tarea" sin texto ya no guarda un seguimiento genérico: pide decir cuál (paquete b2b, 12-nov-2026).
+    await expect(completeItem(marco, { type: 'task', id: other, result: 'done', next: 'task', when: tomorrow })).rejects.toMatchObject({ code: 'invalid' })
     // el texto solo aplica a "Otra tarea"
     const third = await addActivity(marco, { accountId: store.id, kind: 'task', subject: `Tercera ${tag()}`, dueAt: today })
     expect((await completeItem(marco, { type: 'task', id: third, result: 'done', next: 'call', when: tomorrow, nextText: 'No aplica' })).next).toBe(`Llamar a ${store.name}`)

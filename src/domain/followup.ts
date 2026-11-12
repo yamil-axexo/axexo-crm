@@ -11,7 +11,15 @@ export const RESULTS = ['reached', 'no_answer', 'later', 'done'] as const
 /** Cómo terminó una visita: hubo venta o alta, no hubo, o hay que volver con quien decide. */
 export const VISIT_RESULTS = ['sale', 'no_sale', 'revisit'] as const
 /** Qué sigue. "visit" deja una visita por hacer; "task" acepta un texto libre. */
-export const NEXTS = ['call', 'visit', 'proposal', 'meeting', 'task', 'none'] as const
+export const NEXTS = ['call', 'visit', 'proposal', 'meeting', 'contract', 'kickoff', 'testing', 'certification', 'task', 'none'] as const
+/**
+ * Qué próximos pasos se ofrecen según el tipo de venta. La venta a cadenas, distribuidores e ISO (B2B) no visita tiendas:
+ * ofrece reunión, propuesta, envío de contrato, arranque de integración, pruebas y certificación. Lo demás conserva las de tienda.
+ */
+export const NEXT_SETS: Record<'default' | 'b2b', readonly (typeof NEXTS)[number][]> = {
+  default: ['call', 'visit', 'proposal', 'meeting', 'task', 'none'],
+  b2b: ['call', 'meeting', 'proposal', 'contract', 'kickoff', 'testing', 'certification', 'task', 'none'],
+}
 export type Result = (typeof RESULTS)[number]
 export type VisitResult = (typeof VISIT_RESULTS)[number]
 export type Next = (typeof NEXTS)[number]
@@ -27,10 +35,10 @@ export function shortNote(raw: string | null | undefined): string | null {
   return v
 }
 
-/** Texto de "Otra tarea": lo que la persona escribe queda como el próximo paso, tal cual. */
-export function nextText(raw: string | null | undefined): string | null {
+/** Texto de "Otra tarea": es obligatorio, y lo que la persona escribe queda como el próximo paso, tal cual. */
+export function nextText(raw: string | null | undefined): string {
   const v = (raw ?? '').trim()
-  if (!v) return null
+  if (!v) throw invalid('Escribe qué sigue: con "Otra tarea" hay que decir cuál.', 'Write what comes next: "Other task" needs you to say which.')
   if (v.length < 2 || v.length > 120) throw invalid('Escribe la tarea en 120 caracteres o menos.', 'Write the task in 120 characters or fewer.')
   assertNoProhibited(v)
   return v

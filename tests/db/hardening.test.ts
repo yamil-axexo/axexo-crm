@@ -207,7 +207,7 @@ describe('hallazgos de QA', () => {
     const lead = (await one(admin<{ id: string }[]>`
       insert into crm.leads (market_code, source, motor, business_name, contact_name, phone, status, owner_id, sla_due_at)
       values ('MX', 'manual', 'd2d', ${`Lead Métrica ${tag()}`}, 'Persona', ${'+52555' + Math.floor(1000000 + Math.random() * 8999999)}, 'new', ${marco.user.id}, now() + interval '30 minutes') returning id`)).id
-    await completeItem(marco, { type: 'lead', id: lead, result: 'no_answer', next: 'task', when: tomorrow })
+    await completeItem(marco, { type: 'lead', id: lead, result: 'no_answer', next: 'task', when: tomorrow, nextText: 'Mandar la información por correo' })
     expect(await row()).toEqual({ met: before.met + 1, judged: before.judged + 1, reached: before.reached })
     await completeItem(marco, { type: 'lead', id: lead, result: 'reached', next: 'none', when: '' })
     expect(await row()).toEqual({ met: before.met + 1, judged: before.judged + 1, reached: before.reached + 1 })
@@ -297,7 +297,7 @@ describe('hallazgos de QA', () => {
     const q0 = await getQueue(lucia)
     const s = q0.rows.find((r) => r.type === 'suggestion' && r.dealId === d.id)
     expect(s?.kind).toBe('no_next_step')
-    await completeItem(lucia, { type: 'suggestion', id: s!.id, result: 'done', next: 'task', when: tomorrow })
+    await completeItem(lucia, { type: 'suggestion', id: s!.id, result: 'done', next: 'task', when: tomorrow, nextText: 'Pasar a dejar material' })
     expect(await open()).toEqual([])
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     expect(await open()).toEqual([])
