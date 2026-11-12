@@ -346,3 +346,6 @@ insert into crm.saved_views (user_id, object, name, filters, is_shared) values
   (pg_temp.uid('nora.salas'), 'account', 'En riesgo', '{"lifecycle":"at_risk"}', true),
   (pg_temp.uid('nora.salas'), 'account', 'Sin dueño', '{"owner":"none"}', true),
   (pg_temp.uid('nora.salas'), 'account', 'Esperando primera venta', '{"lifecycle":"onboarding"}', true);
+
+-- Las personas de prueba ya pasaron por la bienvenida: entran directo a Hoy. La prueba del primer ingreso borra su fila antes de entrar.
+insert into crm.user_onboarding (user_id) select id from crm.users where is_synthetic on conflict do nothing;

@@ -10,6 +10,8 @@ import { listLeads } from '@/dal/leads'
 import { getSupervisorBoard } from '@/dal/boards'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
 import { grantMembership } from '@/domain/admin'
+import { getOnboarding, setOnboardingHidden, toggleStep } from '@/domain/onboarding'
+import { firstStop } from '@/server/first-stop'
 import { evaluateRules } from '@/domain/rules'
 import { assertNoProhibited } from '@/domain/guard'
 import { withoutUser, withUser } from '@/server/db'
@@ -241,6 +243,30 @@ describe('hallazgos de QA', () => {
     for (const email of [`${who}@gmail.com`, `${who}@empowerretailers.com`, `${who}@axexo.com.otro.com`]) {
       await expect(grantMembership(nora, { email, fullName: 'Persona Fuera', role: 'rep', market: 'US' }, org)).rejects.toMatchObject({ code: 'invalid' })
     }
+  })
+
+  it('primeros pasos: la lista es de cada persona, se marca, se esconde y la primera entrada va a la bienvenida', async () => {
+    const jade = await ctxFor('jade.kim')
+    const sam = await ctxFor('sam.ortiz')
+    await admin`delete from crm.user_onboarding where user_id in (${jade.user.id}, ${sam.user.id})`
+    expect(await firstStop(jade.user.id)).toBe('/bienvenida')
+    expect(await firstStop(jade.user.id)).toBe('/hoy')
+    const start = await getOnboarding(jade)
+    expect(start).toMatchObject({ done: [], hidden: false, pending: start.total })
+    await toggleStep(jade, 'today')
+    await toggleStep(jade, 'leads')
+    await toggleStep(jade, 'today') // desmarcar
+    expect((await getOnboarding(jade)).done).toEqual(['leads'])
+    await expect(toggleStep(jade, 'access')).rejects.toMatchObject({ code: 'invalid' }) // paso de administración
+    await setOnboardingHidden(jade, true)
+    expect(await getOnboarding(jade)).toMatchObject({ hidden: true, done: ['leads'] })
+    await setOnboardingHidden(jade, false)
+    expect((await getOnboarding(jade)).hidden).toBe(false)
+    // otra persona no ve ni cambia esa lista
+    expect((await getOnboarding(sam)).done).toEqual([])
+    expect((await asPersona('sam.ortiz', (tx) => tx`select 1 from crm.user_onboarding where user_id = ${jade.user.id}`)).length).toBe(0)
+    expect((await asPersona('sam.ortiz', (tx) => tx`update crm.user_onboarding set done = '{}' where user_id = ${jade.user.id}`)).count).toBe(0)
+    await expect(asPersona('sam.ortiz', (tx) => tx`insert into crm.user_onboarding (user_id) values (${jade.user.id})`)).rejects.toThrow()
   })
 
   it('QA-12: atender una sugerencia cierra los demás avisos abiertos del mismo negocio', async () => {

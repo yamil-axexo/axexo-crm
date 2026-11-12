@@ -9,6 +9,8 @@ import type { MessageKey } from '@/lib/messages'
 import { cx } from '@/ui/kit'
 import { CountUp, Queue, type QueueItem, type QueueLabels } from '@/ui/queue'
 import { completeItemAction } from './actions'
+import { getOnboarding } from '@/domain/onboarding'
+import { hideOnboardingAction } from '@/app/(app)/bienvenida/actions'
 import { flat } from '@/server/params'
 
 /** Las tareas con fecha pero sin hora se guardan a esta hora UTC: no se muestran como una hora real. */
@@ -16,7 +18,7 @@ const DATE_ONLY = 'T15:00:00.000Z'
 
 export default async function HoyPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
   const ctx = await requireCtx()
-  const { m, locale } = ctx
+  const { m, t, locale } = ctx
   const leads = ctx.can('board.supervisor')
   const team = leads && flat(await searchParams).ver === 'equipo'
   await ensureRulesFresh(await systemCtx())
@@ -102,7 +104,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     )
   }
 
-  const q = await getQueue(ctx)
+  const [q, ob] = await Promise.all([getQueue(ctx), getOnboarding(ctx)])
   const href = (r: QueueRow) => (r.type === 'lead' ? `/leads/${r.id}` : r.dealId ? `/deals/${r.dealId}` : r.accountId ? `/comercios/${r.accountId}` : r.leadId ? `/leads/${r.leadId}` : r.type === 'suggestion' ? '/supervisor' : '/actividades')
 
   const view = (r: QueueRow): QueueItem => {
@@ -181,6 +183,18 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
   return (
     <>
       {header(m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
+      {!ob.hidden && ob.pending > 0 && (
+        <aside className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-3 border-l-4 !border-l-primary p-4" data-testid="hoy-onboarding">
+          <p className="min-w-[200px] flex-1 text-[14.5px] text-strong">
+            <span className="font-semibold">{t('Tus primeros pasos', 'Your first steps')}</span>
+            <span className="text-muted-2"> · {t(`${ob.total - ob.pending} de ${ob.total} hechos`, `${ob.total - ob.pending} of ${ob.total} done`)}</span>
+          </p>
+          <Link href="/bienvenida" className="inline-flex min-h-11 items-center text-[14.5px] font-semibold text-blue-text underline" data-testid="hoy-onboarding-open">{t('Continuar', 'Continue')}</Link>
+          <form action={hideOnboardingAction}>
+            <button className="inline-flex min-h-11 items-center text-[14.5px] font-medium text-muted-2 underline" data-testid="hoy-onboarding-hide">{t('Esconder', 'Hide')}</button>
+          </form>
+        </aside>
+      )}
       <Queue items={items} counts={q.counts} labels={labels} sheet={sheetConfig(ctx, now)} now={now.toISOString()} action={completeItemAction} />
       <p className="mt-8 text-[14px]"><Link href="/actividades" className="font-medium text-blue-text underline" data-testid="all-activities">{m('today.all')}</Link></p>
     </>

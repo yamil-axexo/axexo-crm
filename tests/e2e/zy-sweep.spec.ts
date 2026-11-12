@@ -50,6 +50,8 @@ for (const w of WIDTHS) {
         [`/comercios/${ids.account}/campos`, 'campos'],
         ['/actividades', 'actividades'],
         ['/buscar', 'buscar'],
+        ['/bienvenida', 'bienvenida'],
+        ['/ayuda', 'ayuda'],
       ] as const) await check(page, path, `${w.name} ${name}`)
     })
 
