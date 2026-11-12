@@ -367,7 +367,7 @@ const S = {
     cta: { es: 'Ir a Problemas reportados', en: 'Go to Reported problems' },
   },
   pipedriveTab: {
-    key: 'pipedriveTab',
+    key: 'pipedrive-tab',
     title: { es: 'Revisa la pestaña Pipedrive y las llaves de API', en: 'Review the Pipedrive tab and the API keys' },
     why: {
       es: 'En Administración, "Pipedrive" dice si la conexión está configurada, si la importación ya corrió, qué se copió y qué no se cargó. Las llaves de API están en "Integraciones": cada una con sus permisos, y se muestra una sola vez.',
@@ -1533,7 +1533,7 @@ export const LANDING = {
       { label: { es: 'Aviso de lead nuevo con CONTIGO abierto: contador, título de la pestaña y aviso del navegador', en: 'New lead alert while CONTIGO is open: counter, tab title and browser alert' }, state: 'on' as const },
       { label: { es: 'Visitas automáticas desde la Sales App', en: 'Automatic visits from the Sales App' }, state: 'soon' as const },
       { label: { es: 'Primera venta y ventas de cada comercio desde los datos de ventas', en: 'Each merchant\'s first sale and sales from the sales data' }, state: 'soon' as const },
-      { label: { es: 'Trabajo sin conexión, fotos o archivos adjuntos, mapa, app instalable y avisos por correo, Slack o con CONTIGO cerrado', en: 'Offline work, photo or file attachments, map, installable app and notices by email, Slack or while CONTIGO is closed' }, state: 'soon' as const },
+      { label: { es: 'Trabajo sin conexión, fotos o archivos adjuntos, mapa, app instalable y avisos por correo o Slack', en: 'Offline work, photo or file attachments, map, installable app and email or Slack notices' }, state: 'soon' as const },
     ],
     on: { es: 'Funcionando', en: 'Working' },
     soon: { es: 'Todavía no', en: 'Not yet' },

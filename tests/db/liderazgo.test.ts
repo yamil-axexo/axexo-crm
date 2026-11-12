@@ -151,7 +151,7 @@ describe('exportar negocios cerrados', () => {
     const p = marketPeriods(ana, 'rango', '2026-10-01', '2026-11-30')
     const out = await exportClosedDeals(ana, p, { result: 'lost' })
     const lines = out.csv.replace(/^﻿/, '').trimEnd().split('\r\n')
-    expect(lines[0]).toBe('Comercio,Negocio,Mercado,Embudo,Equipo,Quién,Resultado,Fecha de cierre,Monto,Moneda,Motivo de pérdida')
+    expect(lines[0]).toBe('Comercio,Negocio,Mercado,Embudo,Equipo,Quién,Resultado,Fecha de cierre,Monto,Moneda,Motivo de pérdida,Cómo se ganó,Quién lo marcó')
     expect(lines.length - 1).toBe(out.rows)
     expect(out.rows).toBeGreaterThan(0)
     expect(out.csv).not.toMatch(/@|\+52|\+1\d{10}/) // ni correos ni teléfonos

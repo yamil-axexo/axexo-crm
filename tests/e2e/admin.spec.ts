@@ -303,12 +303,12 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
         await expect(page).toHaveURL(/\/estado$/)
         await expect(page.locator('h1')).toHaveText('Estado de CONTIGO')
         await expect(page.getByTestId('status-env')).toContainText('Pruebas automáticas')
-        await expect(page.getByTestId('status-version')).toContainText('Sin dato')
+        await expect(page.getByTestId('status-version')).toContainText('Entorno local, sin versión')
         // La última migración cambia con cada paquete: se comprueba que la nombra, no cuál es.
         await expect(page.getByTestId('status-db')).toContainText(/Última: \d{4}_[a-z0-9_]+/)
         await expect(page.getByTestId('status-zone')).toContainText('hora de Puerto Rico (GMT-4)')
         // Frescura e integraciones, con "sin conectar" donde nada está conectado.
-        await expect(page.getByTestId('status-row-pipedrive').getByTestId('status-last')).toHaveText('Nunca se ha importado')
+        await expect(page.getByTestId('status-row-pipedrive').getByTestId('status-last')).toHaveText('Importación sin correr: todavía no se ha copiado nada de Pipedrive')
         await expect(page.getByTestId('status-row-s5').getByTestId('status-last')).toContainText('Último archivo: corte del')
         await expect(page.getByTestId('status-row-s5').getByTestId('status-state')).toHaveText('Sin conectar')
         await expect(page.getByTestId('status-row-sales_app').getByTestId('status-state')).toHaveText('Sin conectar')

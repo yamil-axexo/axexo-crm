@@ -283,8 +283,8 @@ describe('contenido que coincide con la pantalla', () => {
     expect(rep).toContain('el mensaje que la persona escribió en el formulario')
     expect(STEPS.supervisor.map((s) => text(s.why)).join(' ')).toContain('se reparte por quién lo lleva o por región')
     const adminSteps = STEPS.admin.map((s) => s.key)
-    expect(adminSteps).toContain('pipedriveTab')
-    expect(STEPS.admin.find((s) => s.key === 'pipedriveTab')).toMatchObject({ href: '/admin?tab=pipedrive' })
+    expect(adminSteps).toContain('pipedrive-tab')
+    expect(STEPS.admin.find((s) => s.key === 'pipedrive-tab')).toMatchObject({ href: '/admin?tab=pipedrive' })
   })
 
   it('la Ayuda dice qué avisa y qué no, y dónde ve cada rol el equipo sin supervisión', () => {
