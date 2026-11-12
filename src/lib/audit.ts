@@ -138,7 +138,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   exception: ['Aviso', 'Alert'],
   team: ['Equipo', 'Team'],
   territory: ['Territorio', 'Territory'],
-  problem_report: ['Reporte', 'Report'],
+  problem_report: ['Reporte de un problema', 'Problem report'],
   street_seller: ['Vendedor de calle', 'Street seller'],
   pipeline: ['Embudo', 'Pipeline'],
   stage: ['Etapa', 'Stage'],
@@ -153,7 +153,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   integration: ['Integración', 'Integration'],
   rules: ['Reglas', 'Rules'],
   market: ['Mercado', 'Market'],
-  report: ['Reporte', 'Report'],
+  report: ['Reporte exportado', 'Exported report'],
   fx_rate: ['Tasa de cambio', 'Exchange rate'],
   session: ['Sesión', 'Session'],
   notice: ['Aviso de una nota', 'Notice from a note'],
@@ -255,9 +255,18 @@ const FIELD: Record<string, Pair> = {
   revisit_needed: ['Pide revisita', 'Needs a revisit'],
   by: ['Por', 'Because of'],
   contact_id: ['Contacto', 'Contact'],
+  link: ['Enlace', 'Link'],
+  task_for: ['Tarea para', 'Task for'],
+  person_added: ['Se agregó la persona', 'Person added'],
+  scope: ['Alcance', 'Scope'],
+  external: ['Persona externa', 'External person'],
+  confirmed: ['Confirmación explícita', 'Explicit confirmation'],
 }
 
 const VALUE: Record<string, Pair> = {
+  provider: ['Proveedor', 'Provider'],
+  sent: ['Enviado', 'Sent'],
+  all_markets: ['Ve y cambia todo, en todos los mercados', 'Sees and changes everything, in every market'],
   amount: ['monto esperado', 'expected amount'],
   decision_maker: ['quien decide, identificado y contactado', 'decision-maker identified and reached'],
   next_step: ['próximo paso con fecha', 'next step with a date'],
@@ -351,9 +360,11 @@ export function diffRows(t: T, locale: Locale, before: Record<string, Json> | nu
     .filter((k) => JSON.stringify(before?.[k] ?? null) !== JSON.stringify(after?.[k] ?? null))
     // Una lista vacía que antes no existía no dice nada ("salió de los turnos: nadie"): no se muestra.
     .filter((k) => !(empty(before?.[k]) && empty(after?.[k])))
+    // Una clave interna sin nombre legible no se muestra: el detalle es para personas, no para leer la base.
+    .filter((k) => Boolean(FIELD[k]))
     .map((k) => ({
       key: k,
-      label: FIELD[k] ? t(...FIELD[k]) : k,
+      label: t(...FIELD[k]!),
       before: before && k in before ? word(t, locale, k, before[k], names, action) : null,
       after: after && k in after ? word(t, locale, k, after[k], names, action) : null,
     }))

@@ -68,6 +68,8 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
                   markets={live.map((m) => ({ code: m.code, name: m.name }))}
                   teams={d.teams.map((x) => ({ id: x.id, name: x.name, market: x.market_code }))}
                   today={today}
+                  locale={locale}
+                  ownDomain={ctx.user.email.slice(ctx.user.email.lastIndexOf('@') + 1).toLowerCase()}
                   labels={{
                     email: t('Correo', 'Email'),
                     emailHint: t(`Tiene que ser una cuenta de ${domainList(domains, 'o')}.`, `It has to be a ${domainList(domains, 'or')} account.`),
@@ -80,7 +82,13 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
                     expires: t('Vence el (opcional)', 'Expires on (optional)'),
                     expiresHint: t('El acceso vale hasta el final de ese día y deja de valer solo. Úsalo para personas externas o temporales.', 'Access works until the end of that day and stops on its own. Use it for external or temporary people.'),
                     adminHint: t('Administración puede dar y quitar accesos, crear llaves de API, cambiar embudos y turnos, e importar de Pipedrive. Si la persona es externa o temporal, ponle fecha de vencimiento.', 'Administration can grant and remove access, create API keys, change pipelines and rotations, and import from Pipedrive. If the person is external or temporary, set an expiry date.'),
-                    adminConfirm: t('Sí, quiero darle Administración', 'Yes, I want to grant Administration'),
+                    adminConfirm: t('Sí, darle Administración: ve y cambia todo, en todos los mercados', 'Yes, grant Administration: sees and changes everything, in every market'),
+                    adminScope: t('Administración ve y cambia todo, en todos los mercados.', 'Administration sees and changes everything, in every market.'),
+                    adminFor: t('Se la das a: {email}', 'You are granting it to: {email}'),
+                    adminNoEmail: t('Falta escribir el correo de la persona.', 'The person’s email is still missing.'),
+                    adminOtherDomain: t('Su correo es de {domain}, un dominio distinto al tuyo. Si es una persona externa, ponle fecha de fin.', 'Their email is from {domain}, a different domain from yours. If they are an external person, set an end date.'),
+                    adminExpires: t('Fin del acceso: vence el {date}.', 'End of access: it expires on {date}.'),
+                    adminNoExpiry: t('Sin fecha de fin: vale hasta que alguien se la quite.', 'No end date: it stays until someone removes it.'),
                     supervisorWarn: t('Sin equipo, esta supervisión no va a ver los registros de nadie más. Puedes guardar así y asignar el equipo después.', 'With no team, this supervisor will not see anyone else’s records. You can save it like this and assign the team later.'),
                     globalHint: t('Este rol vale en todos los mercados: no lleva mercado ni equipo.', 'This role works in every market: it has no market or team.'),
                   }}

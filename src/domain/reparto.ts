@@ -218,6 +218,8 @@ export async function reassignLeads(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
     await tx`update crm.exceptions set owner_id = ${s.to} where resolved_at is null and lead_id = any(${ids}::uuid[])`
     await audit(tx, ctx, 'lead.reassigned', 'lead', null, market, { count: ids.length, from: s.from }, { to_user_id: s.to, to_name: toName, lead_ids: ids.slice(0, 50) })
     await emit(tx, 'lead.reassigned', 'user', s.to, market, { count: ids.length })
+    // Uno por lead, con el mismo nombre que la asignación individual: quien conecte un canal de avisos escucha un solo evento.
+    for (const id of ids) await emit(tx, 'lead.assigned', 'lead', id, market, { owner_id: s.to, by: 'reassignment' })
     const left = await tx<{ n: number }[]>`select count(*)::int as n from crm.leads l where ${pending}`
     return { moved: ids.length, left: left[0]?.n ?? 0 }
   })

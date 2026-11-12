@@ -69,12 +69,14 @@ type LeadRow = {
   account_type: string | null
   contact_role: string | null
   extra_contacts: ExtraContact[]
+  message: string | null
+  created_at: Date
 }
 export type ExtraContact = { name: string; phone: string | null; email: string | null; at: string }
 
 async function loadLead(tx: Tx, id: string): Promise<LeadRow> {
   const rows = await tx<LeadRow[]>`select id, market_code, status, owner_id, motor, business_name, contact_name, phone, email::text, locality,
-    account_id, first_touch_at, source, form_id, sla_due_at, account_type, contact_role, extra_contacts
+    account_id, first_touch_at, source, form_id, sla_due_at, account_type, contact_role, extra_contacts, message, created_at
       from crm.leads where id = ${id} for update`
   if (!rows[0]) throw notFound('No encontramos ese lead.', 'We could not find that lead.')
   return rows[0]
@@ -155,6 +157,8 @@ async function insertLead(
     await audit(tx, ctx, 'lead.contacted', 'lead', id, v.market, { status: 'new' }, { status: 'contacted', outcome: 'reached', at: 'creation' })
   }
   await emit(tx, 'lead.created', 'lead', id, v.market, { source: opts.source, motor: v.motor })
+  // Aviso para otros sistemas: a quién se le asignó. Cuando se conecte un canal (correo, Slack), sale de aquí sin tocar el producto.
+  if (opts.ownerId) await emit(tx, 'lead.assigned', 'lead', id, v.market, { owner_id: opts.ownerId, by: opts.source === 'web_form' ? 'routing' : 'creation', motor: v.motor, sla_due: !spoke })
   return id
 }
 
@@ -263,8 +267,8 @@ async function repeatRequest(
   const phone = p.phone ? toE164(p.phone, sys.market(form.market_code).phoneCc) : null
   const email = p.email && z.string().email().safeParse(p.email).success ? p.email.trim() : null
   if (!phone && !email) return null
-  const prev = await tx<{ id: string; account_id: string | null; owner_id: string | null; contact_name: string; phone: string | null; email: string | null; extra_contacts: ExtraContact[] }[]>`
-    select id, account_id, owner_id, contact_name, phone, email::text, extra_contacts from crm.leads
+  const prev = await tx<{ id: string; account_id: string | null; owner_id: string | null; business_name: string; contact_name: string; phone: string | null; email: string | null; extra_contacts: ExtraContact[] }[]>`
+    select id, account_id, owner_id, business_name, contact_name, phone, email::text, extra_contacts from crm.leads
      where market_code = ${form.market_code} and status <> 'disqualified'
        and ((${phone}::text is not null and phone = ${phone}) or (${email}::text is not null and email = ${email}::citext))
      order by created_at desc limit 1 for update`
@@ -288,7 +292,17 @@ async function repeatRequest(
   await tx`insert into crm.activities (market_code, lead_id, account_id, deal_id, kind, subject, body, done_at, owner_id, created_by, source)
            values (${form.market_code}, ${lead.id}, ${lead.account_id}, ${deals[0]?.id ?? null}, 'note',
                    ${en ? 'Second web request from the same business' : 'Segunda solicitud web de la misma empresa'}, ${body}, now(), ${lead.owner_id}, ${sys.user.id}, 'rule')`
-  await audit(tx, sys, 'lead.repeat_request', 'lead', lead.id, form.market_code, null, { form_id: form.id, person_added: !known })
+  // Quien lleva la cuenta (si el lead ya es comercio) o el lead se entera en Hoy: una tarea para hoy con el pedido. Sin correo ni Slack.
+  const holder = lead.account_id
+    ? ((await tx<{ owner_id: string | null }[]>`select owner_id from crm.accounts where id = ${lead.account_id}`)[0]?.owner_id ?? lead.owner_id)
+    : lead.owner_id
+  if (holder) {
+    await tx`insert into crm.activities (market_code, lead_id, account_id, deal_id, kind, subject, body, due_at, owner_id, created_by, source)
+             values (${form.market_code}, ${lead.id}, ${lead.account_id}, ${deals[0]?.id ?? null}, 'task',
+                     ${en ? `Answer the second web request: ${lead.business_name}` : `Responder segunda solicitud web: ${lead.business_name}`}, ${body},
+                     ((${marketToday(tx, form.market_code)} + time '15:00') at time zone 'UTC'), ${holder}, ${sys.user.id}, 'rule')`
+  }
+  await audit(tx, sys, 'lead.repeat_request', 'lead', lead.id, form.market_code, null, { form_id: form.id, person_added: !known, task_for: holder })
   return lead.id
 }
 
@@ -336,9 +350,10 @@ export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
     ctx.assert('lead.work', lead.market_code)
     if (!['new', 'contacted'].includes(lead.status)) throw invalid('Este lead ya se trabajó.', 'This lead was already worked.')
     if (lead.owner_id === ctx.user.id) return
-    if (lead.owner_id) throw invalid('Alguien ya lleva este lead. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
+    if (lead.owner_id) throw invalid('Alguien ya lleva este lead. Pide a tu supervisión o a quien lidera tu mercado que lo reasigne.', 'This lead already has an owner. Ask your supervisor or whoever leads your market to reassign it.')
     await tx`update crm.leads set owner_id = ${ctx.user.id}, assigned_at = now() where id = ${leadId} and owner_id is null`
     await audit(tx, ctx, 'lead.taken', 'lead', leadId, lead.market_code, { owner_id: null }, { owner_id: ctx.user.id })
+    await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ctx.user.id, by: 'taken', motor: lead.motor })
   })
 }
 
@@ -351,6 +366,7 @@ export async function assignLead(ctx: Ctx, leadId: string, ownerId: string): Pro
     if (!ok[0]) throw invalid('Esa persona no vende en este mercado.', 'That person does not sell in this market.')
     await tx`update crm.leads set owner_id = ${ownerId}, assigned_at = now() where id = ${leadId}`
     await audit(tx, ctx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: ownerId })
+    await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ownerId, previous_owner_id: lead.owner_id, by: 'assignment', motor: lead.motor })
   })
 }
 
@@ -412,6 +428,7 @@ export async function passLead(ctx: Ctx, leadId: string, toUserId: string, note:
     }
     await audit(tx, ctx, 'lead.passed', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: toUserId, note: text.slice(0, 200), clock_restarted: clock })
     await tx`select app.hand_lead(${leadId}, ${toUserId}::uuid)`
+    await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: toUserId, previous_owner_id: lead.owner_id, by: 'passed', motor: lead.motor })
   })
 }
 
@@ -565,6 +582,13 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     } else {
       await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, deal_step)
                values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, ((${marketToday(tx, lead.market_code)} + 2 + time '15:00') at time zone 'UTC'), ${ownerId}, ${ctx.user.id}, 'sales')`
+    }
+    // Lo que la persona escribió al pedir contacto no se queda en el lead: pasa al hilo del comercio y del negocio como primera nota, con su fecha.
+    if (lead.message && lead.message.trim()) {
+      await tx`insert into crm.activities (market_code, lead_id, account_id, deal_id, kind, subject, body, done_at, owner_id, created_by, source)
+               values (${lead.market_code}, ${leadId}, ${accountId}, ${dealId}, 'note',
+                       ${lead.source === 'web_form' ? ctx.t('Mensaje del formulario', 'Message from the form') : ctx.t('Mensaje del lead', 'Message on the lead')},
+                       ${lead.message.trim().slice(0, 1000)}, ${lead.created_at}, ${ownerId}, ${ctx.user.id}, 'rule')`
     }
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`
     await audit(tx, ctx, 'lead.converted', 'lead', leadId, lead.market_code, { status: 'qualified' },

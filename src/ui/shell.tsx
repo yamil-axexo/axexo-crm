@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Inbox, Kanban, ListTodo, Plus, Search, Store, Sun } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Bell, BellOff, Inbox, Kanban, ListTodo, Plus, Search, Store, Sun } from 'lucide-react'
 import { cx } from '@/ui/kit'
 import { showToast } from '@/ui/complete'
 import { openLog } from '@/ui/log'
@@ -216,5 +216,125 @@ export function OfflineBanner({ text, tag, blocked }: { text: string; tag: strin
     <p role="status" className="border-b border-[#f0d9a8] bg-warn-bg px-4 py-2.5 text-center text-[14px] font-medium text-amber-text" data-testid="offline-banner">
       {text}
     </p>
+  )
+}
+
+const ALERT_KEY = 'contigo.leadAlert'
+const alertOn = () => {
+  try {
+    return window.localStorage.getItem(ALERT_KEY) === '1' && 'Notification' in window && Notification.permission === 'granted'
+  } catch {
+    return false
+  }
+}
+const onAlertChange = (cb: () => void) => {
+  window.addEventListener('contigo:lead-alert', cb)
+  window.addEventListener('storage', cb)
+  return () => {
+    window.removeEventListener('contigo:lead-alert', cb)
+    window.removeEventListener('storage', cb)
+  }
+}
+
+export type LeadWatchLabels = { one: string; many: string; toast: string; notifyTitle: string; notifyBody: string }
+
+/**
+ * Con CONTIGO abierto, pregunta cada minuto si llegó un lead. Si llegó uno nuevo: actualiza el contador del dock y la pantalla,
+ * lo pone en el título de la pestaña ("(1) Lead nuevo") y, si la persona lo activó en su menú, lanza el aviso del navegador.
+ * No hay servidor de push: con la pestaña cerrada no avisa. Sin correo ni Slack.
+ */
+export function LeadWatch({ initial, labels, everyMs = 60_000 }: { initial: { leadsWaiting: number; latest: string | null }; labels: LeadWatchLabels; everyMs?: number }) {
+  const router = useRouter()
+  const path = usePathname()
+  const seen = useRef(initial)
+  const fresh = useRef(0)
+  const baseTitle = useRef<string | null>(null)
+
+  // Al cambiar de pantalla el aviso del título ya cumplió: se quita.
+  useEffect(() => {
+    if (fresh.current > 0 && baseTitle.current !== null) document.title = baseTitle.current
+    fresh.current = 0
+    baseTitle.current = null
+  }, [path])
+
+  useEffect(() => {
+    let stop = false
+    const check = async () => {
+      if (stop || !navigator.onLine) return
+      try {
+        const res = await fetch('/api/me/counts', { cache: 'no-store', credentials: 'same-origin' })
+        if (!res.ok) return
+        const now = (await res.json()) as { leadsWaiting: number; latest: string | null; latestName: string | null }
+        const before = seen.current
+        const arrived = !!now.latest && (!before.latest || now.latest > before.latest)
+        const changed = arrived || now.leadsWaiting !== before.leadsWaiting
+        seen.current = { leadsWaiting: now.leadsWaiting, latest: now.latest ?? before.latest }
+        if (arrived) {
+          fresh.current += Math.max(1, now.leadsWaiting - before.leadsWaiting)
+          const n = fresh.current
+          if (baseTitle.current === null) baseTitle.current = document.title
+          document.title = `(${n}) ${n === 1 ? labels.one : labels.many} · ${baseTitle.current}`
+          showToast(labels.toast.replace('{name}', now.latestName ?? ''))
+          if (alertOn()) {
+            try {
+              const note = new Notification(labels.notifyTitle, { body: labels.notifyBody.replace('{name}', now.latestName ?? ''), tag: 'contigo-lead', icon: '/contigo-mark-on-light.png' })
+              note.onclick = () => {
+                window.focus()
+                router.push('/leads')
+                note.close()
+              }
+            } catch {
+              // Algunos navegadores móviles no dejan crear el aviso desde la página: queda el título y el contador.
+            }
+          }
+        }
+        if (changed) router.refresh()
+      } catch {
+        // Sin red o con la sesión vencida: se intenta de nuevo en la siguiente vuelta.
+      }
+    }
+    const id = window.setInterval(check, everyMs)
+    const onVisible = () => document.visibilityState === 'visible' && void check()
+    const onAsk = () => void check()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('contigo:poll', onAsk)
+    return () => {
+      stop = true
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('contigo:poll', onAsk)
+    }
+  }, [everyMs, labels, router])
+  return <span hidden data-testid="lead-watch" data-every={everyMs} />
+}
+
+/** "Avisarme cuando llegue un lead": aviso del navegador, por persona y por equipo (queda guardado en este navegador). */
+export function LeadAlertToggle({ labels }: { labels: { on: string; off: string; hint: string; blocked: string; unsupported: string; enabled: string; disabled: string } }) {
+  const on = useSyncExternalStore(onAlertChange, alertOn, () => false)
+  const set = async () => {
+    if (on) {
+      window.localStorage.setItem(ALERT_KEY, '0')
+      window.dispatchEvent(new Event('contigo:lead-alert'))
+      showToast(labels.disabled)
+      return
+    }
+    if (!('Notification' in window)) return showToast(labels.unsupported)
+    const permission = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission
+    if (permission !== 'granted') return showToast(labels.blocked)
+    window.localStorage.setItem(ALERT_KEY, '1')
+    window.dispatchEvent(new Event('contigo:lead-alert'))
+    showToast(labels.enabled)
+  }
+  const Icon = on ? Bell : BellOff
+  return (
+    <div className="border-t border-line py-1">
+      <button type="button" role="menuitemcheckbox" aria-checked={on} onClick={set} className="flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[15px] font-medium text-strong hover:bg-green-50" data-testid="lead-alert-toggle" data-on={on ? '1' : '0'}>
+        <Icon size={20} strokeWidth={1.75} aria-hidden className="shrink-0" />
+        <span className="min-w-0">
+          {on ? labels.on : labels.off}
+          <span className="block text-[12.5px] font-normal text-muted">{labels.hint}</span>
+        </span>
+      </button>
+    </div>
   )
 }

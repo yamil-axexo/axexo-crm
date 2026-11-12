@@ -88,7 +88,7 @@ export default async function BuscarPage({ searchParams }: { searchParams: Promi
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-[13px] text-muted">{t('No puedes abrirlo porque no es tuyo. Si te toca atenderlo, pide a tu supervisión que te lo pase.', 'You cannot open it because it is not yours. If you should be working it, ask your supervisor to pass it to you.')}</p>
+              <p className="mt-2 text-[13px] text-muted">{t('No puedes abrirlo porque no es tuyo. Si te toca atenderlo, pide a tu supervisión o a quien lidera tu mercado que te lo pase.', 'You cannot open it because it is not yours. If you should be working it, ask your supervisor or whoever leads your market to pass it to you.')}</p>
             </section>
           )}
           {r.deals.length > 0 && (

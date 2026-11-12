@@ -13,7 +13,7 @@ type Pipe = { id: string; market_code: string; motor: string; name: string }
 type Stage = { id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string }
 
 const OBJECT: Record<string, [string, string]> = { account: ['Comercio', 'Merchant'], deal: ['Negocio', 'Deal'], lead: ['Lead', 'Lead'] }
-const TYPE: Record<string, [string, string]> = { text: ['Texto', 'Text'], number: ['Número', 'Number'], select: ['Lista', 'List'], date: ['Fecha', 'Date'], boolean: ['Sí o no', 'Yes or no'] }
+const TYPE: Record<string, [string, string]> = { text: ['Texto', 'Text'], number: ['Número', 'Number'], select: ['Lista', 'List'], date: ['Fecha', 'Date'], boolean: ['Sí o no', 'Yes or no'], multiselect: ['Lista de varias opciones', 'Multiple-choice list'], long_text: ['Texto largo', 'Long text'], money: ['Monto', 'Amount'], user: ['Persona', 'Person'], phone: ['Teléfono', 'Phone'] }
 
 /**
  * Lo que administración crea y ordena desde la pantalla (hallazgo del comité: "casi todo es solo lectura"):
@@ -23,6 +23,8 @@ export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipeline
   const { t } = ctx
   const d = await getB2bConfig(ctx)
   const live = ctx.markets.filter((m) => m.status === 'live')
+  // Dos campos con el mismo nombre (uno por tipo de persona, por ejemplo) se distinguen por cuándo aparece cada uno: no se leen como repetidos.
+  const sameName = (f: (typeof d.fields)[number]) => d.fields.filter((x) => x.object === f.object && x.label_es === f.label_es).length > 1
   const marketSelect = (testId: string, all = true) => (
     <select name="market" className="input" defaultValue={all ? '' : live[0]?.code} data-testid={testId}>
       {all && <option value="">{t('Todos los mercados', 'All markets')}</option>}
@@ -219,10 +221,10 @@ export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipeline
         <ul>
           {d.fields.map((f) => (
             <li key={f.id} className={row} data-testid="field-row">
-              <span className={f.is_active ? 'font-medium text-strong' : 'text-muted line-through'}>{t(f.label_es, f.label_en)}</span>
+              <span className={f.is_active ? 'font-medium text-strong' : 'text-muted line-through'} data-testid="field-name">{t(f.label_es, f.label_en)}{sameName(f) && f.only_when ? <span className="font-normal text-muted">{t(` (solo si es ${f.only_when})`, ` (only when it is ${f.only_when})`)}</span> : null}</span>
               <span className="flex flex-wrap items-center gap-2">
                 <Badge>{t(...OBJECT[f.object]!)}</Badge><Badge>{f.market_code ?? t('todos', 'all')}</Badge>{f.motor && <Badge>{lab(t, MOTOR[f.motor])}</Badge>}
-                <span className="text-[13px] text-muted">{TYPE[f.data_type] ? t(...TYPE[f.data_type]!) : f.data_type}</span>
+                <span className="text-[13px] text-muted" data-testid="field-type">{TYPE[f.data_type] ? t(...TYPE[f.data_type]!) : t('Otro tipo', 'Other type')}</span>
                 <ActionForm action={toggleFieldAction}><input type="hidden" name="id" value={f.id} /><input type="hidden" name="active" value={f.is_active ? 'false' : 'true'} />
                   <Submit variant="quiet" size="sm" testId="field-toggle">{f.is_active ? t('Retirar', 'Retire') : t('Activar', 'Activate')}</Submit></ActionForm>
               </span>

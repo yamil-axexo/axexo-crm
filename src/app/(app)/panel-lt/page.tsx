@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx, systemCtx } from '@/server/context'
-import { getFxRates, getLeadershipPanel, marketPeriods, type PanelSlice } from '@/dal/reports'
+import { getFxRates, getLeadershipPanel, marketPeriods, type PanelSlice, closeRules } from '@/dal/reports'
 import { track } from '@/dal/boards'
 import { ensureRulesFresh } from '@/domain/rules'
 import { Bar, Card, CardTitle, Empty, LinkButton, PageHeader, NoData, shown } from '@/ui/kit'
@@ -21,6 +21,13 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
   const market = scope.some((m) => m.code === sp.mercado) ? sp.mercado : undefined
   const [data, fx] = await Promise.all([getLeadershipPanel(ctx, period, market), getFxRates(ctx)])
   await track(ctx, 'view.panel-lt')
+  // Cómo cuenta un ganado depende de cómo está configurado cada embudo: a mano, o con la primera venta.
+  const rules = await closeRules(ctx, market ? [market] : scope.map((m) => m.code))
+  const wonRule = rules.byTransaction === 0
+    ? t('Hoy todos los embudos se ganan a mano: un negocio cuenta como ganado cuando alguien lo marca, con su fecha de cierre.', 'Today every pipeline is won by hand: a deal counts as won when someone marks it, with its close date.')
+    : rules.byHand === 0
+      ? t('Un comercio cuenta como ganado cuando hace su primera venta, no cuando firma.', 'A merchant counts as won when it makes its first sale, not when it signs.')
+      : t(`${rules.byTransaction} de ${rules.byTransaction + rules.byHand} embudos se ganan con la primera venta del comercio; los demás se ganan a mano.`, `${rules.byTransaction} of ${rules.byTransaction + rules.byHand} pipelines are won by the merchant’s first sale; the rest are won by hand.`)
   const params = { periodo: period.key, desde: period.key === 'rango' ? period.first.from : undefined, hasta: period.key === 'rango' ? period.first.to : undefined, mercado: market }
   const closed = (patch: Record<string, string | undefined>) => qs('/reportes/cerrados', { ...params, ...patch })
 
@@ -69,7 +76,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
       <PageHeader
         eyebrow={asOf ? t(`Ventas con corte al ${day(asOf, locale)} · archivo diario de ventas`, `Sales as of ${day(asOf, locale)} · daily sales file`) : undefined}
         title={t('Panel del LT', 'Leadership panel')}
-        desc={t('Del lead a la primera venta, por mercado, por embudo y por equipo. Un comercio cuenta como ganado cuando transacciona, no cuando firma.', 'From lead to first sale, by market, by pipeline and by team. A merchant counts as won when it transacts, not when it signs.')}
+        desc={<span data-testid="lt-won-rule">{t('Del lead a la primera venta, por mercado, por embudo y por equipo.', 'From lead to first sale, by market, by pipeline and by team.')} {wonRule}</span>}
         actions={<>
           <LinkButton href={closed({})} testId="lt-closed-link">{t('Negocios cerrados', 'Closed deals')}</LinkButton>
           <LinkButton href="/reportes/campo" variant="quiet" testId="lt-field-link">{t('Reporte de campo', 'Field report')}</LinkButton>

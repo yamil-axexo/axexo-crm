@@ -2,8 +2,9 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import { requireCtx, systemCtx } from '@/server/context'
-import { getSupervisorBoard, type RepRow } from '@/dal/boards'
-import { ROLE_LABEL } from '@/domain/policy'
+import { getLeadWatch, getSupervisorBoard, teamPeople, type RepRow } from '@/dal/boards'
+import { teamsWithoutSupervisor } from '@/dal/b2b'
+import { ROLE_LABEL, rolesIn } from '@/domain/policy'
 import { getRepartoSources } from '@/dal/reparto'
 import { getReportOptions, getWeeklyResults } from '@/dal/reports'
 import { ensureRulesFresh, EXCEPTION_KINDS } from '@/domain/rules'
@@ -13,7 +14,7 @@ import { RepartoForm } from '@/ui/reparto'
 import { NavSelect } from '@/ui/board'
 import { ago, day, num, pct } from '@/lib/format'
 import { holderName, holdsText } from '@/lib/reparto-text'
-import { EXCEPTION, lab, qs } from '@/lib/labels'
+import { EXCEPTION, MOTOR, lab, qs } from '@/lib/labels'
 import { addStreetSellerAction, runRulesAction, updateStreetSellerAction } from './actions'
 import { streetSellers, streetSummary } from '@/dal/street'
 import { dismissExceptionAction } from '@/app/(app)/actividades/log-actions'
@@ -61,7 +62,17 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const canReassign = ctx.can('account.reassign', sp.market)
   const sources = canReassign ? await getRepartoSources(ctx) : null
   // Lo que nadie atiende: sin dueño, o a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en ese mercado.
-  const vacant = (sources?.holders ?? []).filter((h) => !h.current && (!sp.market || h.market_code === sp.market) && h.accounts + h.deals + h.leads > 0)
+  const vacantAll = (sources?.holders ?? []).filter((h) => !h.current && (!sp.market || h.market_code === sp.market) && h.accounts + h.deals + h.leads > 0)
+  // Con un equipo elegido, "Por repartir" trae solo lo que quedó a nombre de alguien que estuvo en ese equipo. Lo que no tiene dueño no es de ningún equipo.
+  const inTeam = team && vacantAll.length > 0 ? await teamPeople(ctx, team) : null
+  const vacant = inTeam ? vacantAll.filter((h) => h.owner_id && inTeam.has(h.owner_id)) : vacantAll
+  const vacantHidden = vacantAll.length - vacant.length
+  // La guardia de leads: meta corriendo y sin intento, con los minutos hábiles que quedan.
+  const watch = teamView ? await getLeadWatch(ctx, { market: sp.market, team }) : []
+  // Un equipo sin supervisión lo cubre quien lidera el mercado: se le dice aquí, que es la pantalla que sí ve.
+  const leads = (code: string) => rolesIn(ctx.memberships, code).some((r) => r === 'market_lead' || r === 'admin')
+  const uncovered = teamView ? (await teamsWithoutSupervisor(ctx)).filter((x) => leads(x.market_code) && (!sp.market || x.market_code === sp.market) && live.some((m) => m.code === x.market_code)) : []
+  const left = (mins: number) => (mins < 90 ? t(`Quedan ${mins} min hábiles`, `${mins} business min left`) : t(`Quedan ${Math.round(mins / 60)} h hábiles`, `${Math.round(mins / 60)} business h left`))
   const totalOpen = Object.values(board.byKind).reduce((a, b) => a + b, 0)
   const link = (patch: Record<string, string | undefined>) => qs('/supervisor', { market: sp.market, kind: sp.kind, owner: sp.owner, equipo: team, ...patch })
   const href = (e: (typeof board.queue)[number]) => (e.deal_id ? `/deals/${e.deal_id}` : e.lead_id ? `/leads/${e.lead_id}` : e.account_id ? `/comercios/${e.account_id}` : '/admin?tab=integraciones')
@@ -112,6 +123,45 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           <NavSelect label={t('Equipo', 'Team')} value={link({})} testId="team-select"
             options={[{ href: link({ equipo: undefined }), label: t('Todos los equipos', 'All teams') }, ...teamOptions.map((x) => ({ href: link({ equipo: x.id }), label: `${live.length > 1 && !sp.market ? `${x.market_code} · ` : ''}${x.name}` })), { href: link({ equipo: 'none' }), label: t('Sin equipo', 'No team') }]} />
         </div>
+      )}
+
+      {uncovered.length > 0 && (
+        <div className="mb-6 rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] text-strong" role="status" data-testid="team-uncovered">
+          <ul className="space-y-1">
+            {uncovered.map((x) => (
+              <li key={x.id} data-testid="team-uncovered-row">
+                <strong>{live.length > 1 ? `${x.market_code} · ` : ''}{x.name}</strong>{': '}
+                {t('Sin supervisión: lo cubre quien lidera el mercado', 'No supervisor: whoever leads the market covers it')}
+                {x.lead ? ` (${x.lead})` : ''}{'. '}
+                {t('Sus pendientes y su guardia de leads se revisan en esta pantalla, con el equipo elegido.', 'Its alerts and its lead watch are reviewed on this screen, with the team selected.')}{' '}
+                <Link href={link({ equipo: x.id, market: sp.market })} className="font-medium text-blue-text underline" data-testid="team-uncovered-link">{t('Ver este equipo', 'See this team')}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {teamView && (
+        <Card className="mb-8" data-testid="lead-watch-card">
+          <CardTitle
+            title={t('Guardia de leads', 'Lead watch')}
+            hint={t('Leads con la meta de primer contacto corriendo, o ya vencida, y sin ningún intento. Los minutos se cuentan en el horario hábil del mercado. CONTIGO no avisa por correo ni por Slack: esta lista es para hacer la guardia.', 'Leads with the first-contact goal running, or already past, and no attempt yet. Minutes are counted in the market’s business hours. CONTIGO does not alert by email or Slack: this list is for keeping watch.')}
+            right={<Badge tone={watch.length ? 'warn' : 'good'}>{t(`${watch.length}${watch.length === 25 ? '+' : ''} sin intento`, `${watch.length}${watch.length === 25 ? '+' : ''} with no attempt`)}</Badge>}
+          />
+          {watch.length === 0 ? <Empty title={t('Ningún lead esperando el primer intento', 'No lead waiting for a first attempt')} /> : (
+            <ul>
+              {watch.map((l) => (
+                <li key={l.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-line py-3 first:border-t-0" data-testid="watch-row" data-late={l.late ? '1' : '0'}>
+                  <Link href={`/leads/${l.id}`} className="min-w-0 flex-1 basis-[240px]">
+                    <span className="block text-[14.5px] font-semibold text-strong [overflow-wrap:anywhere]">{l.business_name}</span>
+                    <span className="mt-0.5 block text-[13px] text-muted-2">{[l.owner_name ?? t('Sin asignar: lo puede tomar cualquiera que venda', 'No owner: anyone who sells can take it'), lab(t, MOTOR[l.motor]) || null, live.length > 1 ? l.market_code : null, t(`llegó ${ago(l.created_at, locale)}`, `arrived ${ago(l.created_at, locale)}`)].filter(Boolean).join(' · ')}</span>
+                  </Link>
+                  <span className={`${CHIP} ${l.late ? 'bg-risk-bg text-red-text' : 'bg-warn-bg text-amber-text'}`} data-testid="watch-left">{l.late ? t('Pasó la meta', 'Past the goal') : left(l.minutes_left)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       )}
 
       {teamView && <Card pad={false} data-testid="team-board">
@@ -248,7 +298,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         </Card>
       )}
 
-      {vacant.length > 0 && (
+      {(vacant.length > 0 || vacantHidden > 0) && (
         <Card className="mt-8" data-testid="vacant-block">
           <CardTitle
             title={t('Por repartir', 'No current owner')}
@@ -268,6 +318,12 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
               </li>
             ))}
           </ul>
+          {vacantHidden > 0 && (
+            <p className="mt-3 text-[13px] text-muted" data-testid="vacant-team-note">
+              {t(`Con un equipo elegido sale solo lo que quedó a nombre de su gente. Hay ${vacantHidden} más que no son de este equipo.`, `With a team selected, only what was left under its people shows. There are ${vacantHidden} more that do not belong to this team.`)}{' '}
+              <Link href={link({ equipo: undefined })} className="font-medium text-blue-text underline">{t('Ver todos los equipos', 'See all teams')}</Link>
+            </p>
+          )}
           {vacant.length > 20 && <p className="mt-3 text-[13px] text-muted">{t(`Y ${vacant.length - 20} más. Usa "Reasignar cartera" para verlos todos.`, `And ${vacant.length - 20} more. Use "Reassign book" to see them all.`)}</p>}
           <p className="mt-4 border-t border-line pt-4 text-[13px] text-muted">{t('Los leads y los negocios que no se van con un comercio se pasan desde "Reasignar cartera", arriba.', 'Leads and deals that do not move with a merchant are passed from "Reassign book", above.')}</p>
         </Card>
@@ -277,7 +333,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         <CardTitle
           title={t('Pendientes del equipo', 'Team alerts')}
           hint={board.rulesAt ? t(`Actualizado ${ago(board.rulesAt, locale)}. Un pendiente se cierra solo cuando se corrige.`, `Updated ${ago(board.rulesAt, locale)}. An alert clears itself once it is fixed.`) : undefined}
-          right={<Badge tone={totalOpen ? 'warn' : 'good'}><span data-testid="exception-total">{t(`${totalOpen} ${totalOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}`, `${totalOpen} open ${totalOpen === 1 ? 'alert' : 'alerts'}`)}</span></Badge>}
+          right={<span data-testid="exception-open"><Badge tone={totalOpen ? 'warn' : 'good'}><span data-testid="exception-total">{t(`${totalOpen} ${totalOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}`, `${totalOpen} open ${totalOpen === 1 ? 'alert' : 'alerts'}`)}</span></Badge></span>}
         />
         <Pills
           label={t('Tipo', 'Type')}

@@ -304,3 +304,13 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
 }
+
+/* Tablero de más de cinco etapas (B2B): en escritorio sale del ancho de lectura y ocupa la ventana, con columnas más angostas. */
+@media (min-width: 1200px) {
+  .board-wide {
+    width: min(calc(100vw - 96px), 1760px);
+    margin-inline: calc((100% - min(calc(100vw - 96px), 1760px)) / 2);
+    padding-inline: 0;
+  }
+  .board-wide > .board-col { min-width: 156px; }
+}

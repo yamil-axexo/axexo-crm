@@ -19,7 +19,7 @@ import { ActionForm, Submit } from '@/ui/client'
 import { day } from '@/lib/format'
 import { flat } from '@/server/params'
 
-export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string; quietos?: string; equipo?: string }> }) {
+export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string; quietos?: string; equipo?: string; orden?: string }> }) {
   const ctx = await requireCtx()
   const { t, m, locale } = ctx
   const { id } = await params
@@ -46,7 +46,8 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const noStep = board.totals.reduce((n, x) => n + x.no_step, 0)
   const revisits = board.totals.reduce((n, x) => n + x.revisits, 0)
   const paused = board.totals.reduce((n, x) => n + x.paused, 0)
-  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, equipo: team, quietos: undefined, ...patch })
+  const order = sp.orden === 'monto' || sp.orden === 'dias' ? sp.orden : undefined
+  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, equipo: team, orden: order, quietos: undefined, ...patch })
   const teams = (options?.teams ?? []).filter((x) => x.market_code === board.pipeline.market_code)
   const people = [...new Map((options?.people ?? []).filter((x) => x.market_code === board.pipeline.market_code && (!team || (team === 'none' ? !x.team_id : x.team_id === team))).map((x) => [x.id, x.full_name])).entries()]
   // Un solo control para "de quién": con el selector de persona, "Míos" es una de sus opciones; sin él, quedan las dos pastillas.
@@ -57,7 +58,8 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
-    const tot = total(s.id)
+    // Con "Sin próximo paso" o "En pausa" la columna cuenta y suma solo lo que muestra.
+    const tot = board.shown ? (board.shown.find((x) => x.stage_id === s.id) ?? { n: 0, amount: null }) : total(s.id)
     return {
       id: s.id, code: s.code, name: t(s.name_es, s.name_en),
       // La franja va del menta al teal a lo largo del embudo, tenga 3 etapas o 9.
@@ -193,13 +195,22 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
           )}
         </div>
       ) : listView ? (
+        <>
+        <nav aria-label={t('Orden de la lista', 'List order')} className="mb-3 inline-flex flex-wrap items-center gap-1 rounded-full border border-line bg-surface p-1" data-testid="list-order">
+          <Link href={here({ orden: undefined })} aria-current={!order ? 'page' : undefined} className={seg(!order)} data-testid="order-stage">{t('Por etapa', 'By stage')}</Link>
+          <Link href={here({ orden: 'monto' })} aria-current={order === 'monto' ? 'page' : undefined} className={seg(order === 'monto')} data-testid="order-amount">{t('Mayor monto', 'Largest amount')}</Link>
+          <Link href={here({ orden: 'dias' })} aria-current={order === 'dias' ? 'page' : undefined} className={seg(order === 'dias')} data-testid="order-days">{t('Más días en la etapa', 'Most days in stage')}</Link>
+        </nav>
         <div className="card @container overflow-hidden" data-testid="deal-list">
           <div aria-hidden className="hidden border-b border-line px-5 py-3 text-[13px] font-medium text-muted @2xl:grid @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_140px_minmax(0,1.4fr)] @2xl:gap-4">
             <span>{m('deals.col.deal')}</span><span>{m('deals.stage')}</span><span>{m('deals.col.amount')}</span><span>{m('deals.col.next')}</span>
           </div>
           <ul className="divide-y divide-line">
             {board.deals.length === 0 && <li className="px-5 py-10 text-center text-[15px] text-muted">{m('deals.empty')}</li>}
-            {[...board.deals].sort((a, b) => (stages.findIndex((s) => s.id === a.stage_id) - stages.findIndex((s) => s.id === b.stage_id))).map((d) => {
+            {[...board.deals].sort((a, b) =>
+              order === 'monto' ? Number(b.amount_minor ?? -1) - Number(a.amount_minor ?? -1)
+              : order === 'dias' ? new Date(a.stage_entered_at).getTime() - new Date(b.stage_entered_at).getTime()
+              : stages.findIndex((s) => s.id === a.stage_id) - stages.findIndex((s) => s.id === b.stage_id)).map((d) => {
               const c = chip(d)
               const st = stages.find((s) => s.id === d.stage_id)
               return (
@@ -220,6 +231,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
             })}
           </ul>
         </div>
+        </>
       ) : (
         <>
           <Board

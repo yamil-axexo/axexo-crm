@@ -55,7 +55,10 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const isParent = a.kind !== 'store'
   const openDeal = deals.find((d) => d.status === 'open')
   // Con un negocio abierto solo se ofrecen los embudos que admiten varios por comercio (pedidos, recompra).
-  const offered = pipelines.filter((p) => p.stages.length > 0 && (!openDeal || p.multi_open))
+  // El embudo que se propone es el del tipo de venta de la cuenta (una cuenta B2B o ISO no empieza en el embudo de tiendas); los demás quedan en la lista.
+  const offered = pipelines.filter((p) => p.stages.length > 0 && (!openDeal || p.multi_open)).sort((x, y) => Number(y.motor === a.segment) - Number(x.motor === a.segment))
+  // En el árbol cada cuenta lleva su tipo real (ISO, Agente de ISO, Distribuidor), no el nivel.
+  const typeOf = (x: { kind: string; type_es: string | null; type_en: string | null }) => (x.type_es ? t(x.type_es, x.type_en ?? x.type_es) : lab(t, KIND[x.kind]))
   const lastDeal = deals[0]
   const health = healthOf(a.lifecycle, !!openDeal)
   const today = isoDay(now, tz)
@@ -339,7 +342,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
         <div data-testid="account-children">
           {isParent && (
             <div className="mb-5 rounded-[12px] bg-surface-3 px-4 py-3" data-testid="rollup-stores">
-              <p className="text-[15px] font-medium text-strong">{m('record.tree.network', { stores: rollup.stores })}</p>
+              <p className="text-[15px] font-medium text-strong" data-testid="tree-network">{rollup.stores > 0 || rollup.accounts === 0 ? m('record.tree.network', { stores: rollup.stores }) : t(`${rollup.accounts} ${rollup.accounts === 1 ? 'cuenta' : 'cuentas'} en su red, todavía sin puntos de venta`, `${rollup.accounts} ${rollup.accounts === 1 ? 'account' : 'accounts'} in its network, no stores yet`)}</p>
               <p className="text-[13px] text-muted-2">
                 {t(`${rollup.active} activos · ${rollup.onboarding} en alta · ${rollup.at_risk} en riesgo`, `${rollup.active} active · ${rollup.onboarding} onboarding · ${rollup.at_risk} at risk`)}
                 {` · ${t(`${num(rollup.txn_30d, locale)} ventas en 30 días`, `${num(rollup.txn_30d, locale)} sales in 30 days`)}`}
@@ -357,8 +360,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                     {ancestors.map((p, i) => (
                       <li key={p.id} style={{ paddingLeft: i * 24 }}>
                         <Link href={href(p.id, 'arbol')} className="row-hover flex items-center gap-3 rounded-[10px] px-2 py-2">
-                          <span className={cx('rounded-full px-2.5 py-0.5 text-[13px] font-medium', LEVEL[p.kind] ?? LEVEL.store)}>{lab(t, KIND[p.kind])}</span>
-                          <span className="min-w-0 truncate text-[15px] font-medium text-strong">{p.name}</span>
+                          <span className={cx('shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-medium', LEVEL[p.kind] ?? LEVEL.store)} data-testid="tree-type">{typeOf(p)}</span>
+                          <span className="min-w-0 text-[15px] font-medium text-strong [overflow-wrap:anywhere]">{p.name}</span>
                         </Link>
                       </li>
                     ))}
@@ -367,17 +370,17 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </li>
               <li style={{ paddingLeft: ancestors.length * 24 }} aria-current="true">
                 <div className="flex items-center gap-3 rounded-[10px] bg-green-50 px-2 py-2">
-                  <span className={cx('rounded-full px-2.5 py-0.5 text-[13px] font-medium', LEVEL[a.kind] ?? LEVEL.store)}>{lab(t, KIND[a.kind])}</span>
-                  <span className="min-w-0 truncate text-[15px] font-semibold text-strong">{a.name}</span>
+                  <span className={cx('shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-medium', LEVEL[a.kind] ?? LEVEL.store)} data-testid="tree-type">{typeOf(a)}</span>
+                  <span className="min-w-0 text-[15px] font-semibold text-strong [overflow-wrap:anywhere]">{a.name}</span>
                   <span className="ml-auto shrink-0 text-[13px] text-muted">{m('record.tree.here')}</span>
                 </div>
               </li>
               {children.map((c) => (
                 <li key={c.id} style={{ paddingLeft: (ancestors.length + 1) * 24 }}>
                   <Link href={href(c.id, 'arbol')} className="row-hover flex items-center gap-3 rounded-[10px] px-2 py-2" data-testid="child-row">
-                    <span className={cx('rounded-full px-2.5 py-0.5 text-[13px] font-medium', LEVEL[c.kind] ?? LEVEL.store)}>{lab(t, KIND[c.kind])}</span>
+                    <span className={cx('shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-medium', LEVEL[c.kind] ?? LEVEL.store)} data-testid="tree-type">{typeOf(c)}</span>
                     <span className="min-w-0">
-                      <span className="block truncate text-[15px] font-medium text-strong">{c.name}</span>
+                      <span className="block text-[15px] font-medium text-strong [overflow-wrap:anywhere]">{c.name}</span>
                       <span className="flex items-center gap-1.5 text-[13px] text-muted">
                         <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: HEALTH_DOT[healthOf(c.lifecycle, c.has_deal)] }} />
                         {m(`health.${healthOf(c.lifecycle, c.has_deal)}` as MessageKey)}

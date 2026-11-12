@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Activity, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
-import { AccountMenu, Dock, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
+import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
 import { ReportLink } from '@/ui/problem-report'
 import { LogHost } from '@/ui/log'
@@ -29,6 +29,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
   const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
+  // Quien trabaja o reparte leads: con la app abierta, el contador se actualiza solo y la pestaña avisa cuando llega uno.
+  const watchLeads = !ctx.user.isSystem && (ctx.can('lead.work') || ctx.can('lead.assign'))
 
   // Operaciones no trabaja leads: en su lugar tiene su cola, con el conteo de lo que nadie ha tomado.
   const ops = opsVoice(ctx)
@@ -92,6 +94,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               <Link href="/ayuda" role="menuitem" className={menuLink} data-testid="nav-help"><CircleHelp size={20} strokeWidth={1.75} aria-hidden />{m('top.help')}</Link>
               <ReportLink className={menuLink} testId="nav-report"><LifeBuoy size={20} strokeWidth={1.75} aria-hidden />{t('Reportar un problema', 'Report a problem')}</ReportLink>
             </div>
+            {watchLeads && (
+              <LeadAlertToggle labels={{
+                off: t('Avisarme cuando llegue un lead', 'Tell me when a lead arrives'),
+                on: t('Avisos de lead nuevo: activados', 'New lead alerts: on'),
+                hint: t('Aviso de este navegador, solo con CONTIGO abierto en una pestaña. No llega por correo ni por Slack.', 'An alert from this browser, only while CONTIGO is open in a tab. It does not arrive by email or Slack.'),
+                blocked: t('El navegador tiene bloqueados los avisos de CONTIGO. Permítelos en la configuración del sitio y vuelve a intentarlo.', 'The browser is blocking alerts from CONTIGO. Allow them in the site settings and try again.'),
+                unsupported: t('Este navegador no puede mostrar avisos. El contador de Leads y el título de la pestaña sí se actualizan solos.', 'This browser cannot show alerts. The Leads counter and the tab title still update on their own.'),
+                enabled: t('Listo. Mientras CONTIGO esté abierto en una pestaña, este navegador te avisa cuando llegue un lead.', 'Done. While CONTIGO is open in a tab, this browser tells you when a lead arrives.'),
+                disabled: t('Avisos de lead nuevo desactivados en este navegador.', 'New lead alerts turned off in this browser.'),
+              }} />
+            )}
             <form action={setLocale} className="border-t border-line pt-1 md:hidden">
               <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />
               <button role="menuitem" className={`${menuLink} w-full`}>{m('top.language')}</button>
@@ -105,6 +118,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} logLabel={canLog ? t('Registrar actividad', 'Log activity') : undefined} />
+      {watchLeads && (
+        <LeadWatch
+          initial={{ leadsWaiting: counts.leadsWaiting, latest: counts.latest }}
+          labels={{
+            one: t('Lead nuevo', 'New lead'), many: t('Leads nuevos', 'New leads'),
+            toast: t('Llegó un lead: {name}. Está en Leads y en Hoy.', 'A lead arrived: {name}. It is in Leads and in Today.'),
+            notifyTitle: t('Lead nuevo en axexo CONTIGO', 'New lead in axexo CONTIGO'),
+            notifyBody: t('{name}. La meta de primer contacto ya está corriendo.', '{name}. The first-contact goal is already running.'),
+          }}
+        />
+      )}
       {canLog && <LogHost config={logConfig(ctx)} />}
       <ToastHost />
     </div>

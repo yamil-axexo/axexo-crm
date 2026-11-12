@@ -95,7 +95,7 @@ test.describe('negocios cerrados', () => {
     expect(res.status()).toBe(200)
     expect(res.headers()['content-type']).toContain('text/csv')
     const lines = (await res.text()).replace(/^﻿/, '').trimEnd().split('\r\n')
-    expect(lines[0]).toBe('Comercio,Negocio,Mercado,Embudo,Equipo,Quién,Resultado,Fecha de cierre,Monto,Moneda,Motivo de pérdida')
+    expect(lines[0]).toBe('Comercio,Negocio,Mercado,Embudo,Equipo,Quién,Resultado,Fecha de cierre,Monto,Moneda,Motivo de pérdida,Cómo se ganó,Quién lo marcó')
     expect(lines.length - 1).toBe(marcoTotal)
     expect(lines.slice(1).every((l) => l.includes('Marco Peña') && l.includes('D2D Centro'))).toBe(true)
     expect(lines.join('\n')).not.toMatch(/@|\+52/)
