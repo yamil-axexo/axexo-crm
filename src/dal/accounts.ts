@@ -1,7 +1,8 @@
 import 'server-only'
-import { marketToday, withUser } from '@/server/db'
+import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { isUuid } from '@/lib/ids'
+import { accountFilter, type AccountFilters } from '@/server/account-filter'
 
 export type AccountListItem = {
   id: string
@@ -14,6 +15,9 @@ export type AccountListItem = {
   region: string | null
   owner_id: string | null
   owner_name: string | null
+  /** El dueño tiene hoy un rol de ventas en el mercado del comercio. Falso para cuentas de servicio y personas que salieron. */
+  owner_current: boolean
+  territory: string | null
   parent_name: string | null
   children: number
   last_txn_at: Date | null
@@ -22,42 +26,25 @@ export type AccountListItem = {
   phone: string | null
 }
 
-export type AccountFilters = { q?: string; market?: string; lifecycle?: string; owner?: string; kind?: string; after?: string; ver?: string }
+export type { AccountFilters }
 export type AccountCounts = { all: number; risk: number; idle: number; nostep: number }
 export const ACCOUNT_PAGE = 40
 
-/** PERF-02 / PERF-05 / UX-02: lista por llave (nombre, id) y búsqueda por nombre, teléfono o cualquier alias. */
+/** PERF-02 / PERF-05 / UX-02: lista por llave (nombre, id) y búsqueda por nombre, ciudad, estado, teléfono o cualquier alias. */
 export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items: AccountListItem[]; next: string | null; total: number; counts: AccountCounts }> {
   return withUser(ctx.user.id, async (tx) => {
-    const q = (f.q ?? '').trim()
-    const digits = q.replace(/[^\d]/g, '')
-    const scope = ctx.markets.map((m) => m.code) // AUTHZ-07: filtro explícito por mercado, además de RLS
-    // Salud (src/lib/health.ts) y "sin próximo paso", en SQL: los filtros de la lista cuentan con la misma regla que pinta cada fila.
-    const openDeal = tx`exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open')`
-    const risk = tx`a.lifecycle in ('at_risk', 'inactive', 'churned')`
-    const idle = tx`(a.lifecycle = 'onboarding' or (a.lifecycle = 'prospect' and ${openDeal}))`
-    const nostep = tx`(a.lifecycle <> 'churned'
-      and not exists (select 1 from crm.activities x where x.account_id = a.id and x.done_at is null and x.kind in ('task', 'handoff', 'call', 'meeting', 'email'))
-      and not exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open' and d.next_step is not null and d.next_step_due >= ${marketToday(tx, tx`a.market_code`)}))`
-    const base = tx`
-      a.archived_at is null and a.market_code = any(${scope}::text[])
-      ${f.market ? tx`and a.market_code = ${f.market}` : tx``}
-      ${f.lifecycle ? tx`and a.lifecycle = ${f.lifecycle}` : tx``}
-      ${f.kind === 'parents' ? tx`and a.kind <> 'store'` : f.kind ? tx`and a.kind = ${f.kind}` : tx``}
-      ${f.owner === 'me' ? tx`and a.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and a.owner_id is null` : isUuid(f.owner) ? tx`and a.owner_id = ${f.owner}` : tx``}
-      ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'}
-                    ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
-                    or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) like ${'%' + q.toUpperCase() + '%'}))` : tx``}`
-    const where = tx`${base} ${f.ver === 'riesgo' ? tx`and ${risk}` : f.ver === 'sin-transaccionar' ? tx`and ${idle}` : f.ver === 'sin-paso' ? tx`and ${nostep}` : tx``}`
+    const { base, where, risk, idle, nostep, openDeal, keys } = accountFilter(tx, ctx, f)
     const [aName, aId] = (f.after ?? '').split('|')
     const cursor = aName !== undefined && isUuid(aId) ? tx`and (a.name_norm, a.id) > (${aName}, ${aId}::uuid)` : tx``
     const rows = await tx<(AccountListItem & { name_norm: string })[]>`
       select a.id, a.market_code, a.name, a.name_norm, a.kind, a.segment, a.lifecycle, a.locality, a.region, a.owner_id, u.full_name as owner_name,
-             p.name as parent_name,
+             (a.owner_id is not null and (a.market_code || ':' || a.owner_id::text) = any(${keys})) as owner_current,
+             t.name as territory, p.name as parent_name,
              (select count(*)::int from crm.accounts c where c.parent_id = a.id and c.archived_at is null) as children,
              mm.last_txn_at, mm.txn_count_30d, ${openDeal} as has_deal, a.phone
         from crm.accounts a
         left join crm.users u on u.id = a.owner_id
+        left join crm.territories t on t.id = a.territory_id
         left join crm.accounts p on p.id = a.parent_id
         left join lateral (select m.last_txn_at, m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = a.id order by m.as_of desc limit 1) mm on true
        where ${where} ${cursor}

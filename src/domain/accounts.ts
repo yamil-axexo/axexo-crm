@@ -17,6 +17,7 @@ const createInput = z.object({
   phone: z.string().trim().max(30).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
   region: z.string().trim().max(120).optional().default(''),
+  territoryId: z.guid().or(z.literal('')).optional(),
   force: z.boolean().optional().default(false),
 })
 
@@ -38,9 +39,14 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
       const p = await tx`select 1 from crm.accounts where id = ${v.parentId} and market_code = ${v.market} and kind <> 'store'`
       if (!p[0]) throw invalid('El padre tiene que ser una cadena o distribuidor de este mercado.', 'The parent must be a chain or distributor in this market.')
     }
+    if (v.territoryId) {
+      const ter = await tx`select 1 from crm.territories where id = ${v.territoryId} and market_code = ${v.market} and archived_at is null`
+      if (!ter[0]) throw invalid('Ese territorio no es de este mercado.', 'That territory does not belong to this market.')
+    }
     const id = await newId(tx)
-    await tx`insert into crm.accounts (id, market_code, kind, name, segment, parent_id, owner_id, phone, locality, region, country, created_by)
-             values (${id}, ${v.market}, ${v.kind}, ${v.name}, ${v.segment}, ${v.parentId || null}, ${ctx.user.id}, ${phone},
+    // Sin territorio elegido, la base pone el de quien lo crea cuando tiene uno solo en este mercado (0011_distribution).
+    await tx`insert into crm.accounts (id, market_code, kind, name, segment, parent_id, owner_id, territory_id, phone, locality, region, country, created_by)
+             values (${id}, ${v.market}, ${v.kind}, ${v.name}, ${v.segment}, ${v.parentId || null}, ${ctx.user.id}, ${v.territoryId || null}, ${phone},
                      ${clean(v.locality)}, ${clean(v.region)}, ${v.market}, ${ctx.user.id})`
     if (v.parentId) await tx`insert into crm.account_links (child_id, parent_id, created_by) values (${id}, ${v.parentId}, ${ctx.user.id})`
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
@@ -103,38 +109,8 @@ export async function setParent(ctx: Ctx, id: string, parentId: string | null): 
   })
 }
 
-/**
- * CAMPO-03 / CANAL-03: reasignar cartera mueve la cuenta, sus deals abiertos y sus tareas abiertas,
- * y deja la atribución de dueño con fecha efectiva (la anterior se cierra, no se borra).
- */
-export async function reassignAccounts(ctx: Ctx, accountIds: string[], toUserId: string): Promise<number> {
-  const ids = z.array(z.guid()).min(1).max(500).parse(accountIds)
-  return withUser(ctx.user.id, async (tx) => {
-    const accs = await tx<{ id: string; market_code: string; owner_id: string | null }[]>`
-      select id, market_code, owner_id from crm.accounts where id = any(${ids}::uuid[]) and archived_at is null for update`
-    if (accs.length === 0) throw notFound('No encontramos esos comercios.', 'We could not find those merchants.')
-    const markets = [...new Set(accs.map((a) => a.market_code))]
-    if (markets.length > 1) throw invalid('Reasigna un mercado a la vez.', 'Reassign one market at a time.')
-    const market = markets[0]!
-    ctx.assert('account.reassign', market)
-    const target = await tx<{ full_name: string }[]>`
-      select u.full_name from crm.users u join crm.memberships m on m.user_id = u.id
-       where u.id = ${toUserId} and u.is_active and m.market_code = ${market} and m.role in ('rep','supervisor','market_lead')
-         and (m.valid_to is null or m.valid_to > now()) limit 1`
-    if (!target[0]) throw invalid('Esa persona no vende en este mercado.', 'That person does not sell in this market.')
-    const moved = accs.filter((a) => a.owner_id !== toUserId).map((a) => a.id)
-    if (moved.length === 0) return 0
-    await tx`update crm.account_attributions set effective_to = now() where account_id = any(${moved}::uuid[]) and layer = 'owner' and effective_to is null`
-    await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
-             select a.id, a.market_code, 'owner', 'user', ${toUserId}, ${target[0].full_name}, ${ctx.user.id} from crm.accounts a where a.id = any(${moved}::uuid[])`
-    await tx`update crm.deals set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and status = 'open'`
-    await tx`update crm.activities set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and kind = 'task' and done_at is null`
-    await tx`update crm.accounts set owner_id = ${toUserId} where id = any(${moved}::uuid[])`
-    await audit(tx, ctx, 'account.reassigned', 'account', null, market, { count: moved.length }, { to_user_id: toUserId, account_ids: moved.slice(0, 50) })
-    await emit(tx, 'account.reassigned', 'user', toUserId, market, { count: moved.length })
-    return moved.length
-  })
-}
+// Reasignar comercios (uno, una selección o todo un filtro) vive en domain/reparto.ts, con el resto del reparto de cartera.
+export { reassignAccounts } from '@/domain/reparto'
 
 /** DAT-04: fusionar no borra. La cuenta duplicada queda archivada y apunta a la que sobrevive. */
 export async function mergeAccounts(ctx: Ctx, sourceId: string, targetId: string): Promise<void> {

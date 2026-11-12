@@ -28,8 +28,17 @@ export async function createTeamAction(_: R | null, fd: FormData): Promise<R> {
 
 export async function endMembershipAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await endMembership(ctx, str(fd, 'id'))
-    return { message: ['Acceso cerrado con fecha de hoy.', 'Access ended as of today.'] }
+    const left = await endMembership(ctx, str(fd, 'id'))
+    if (!left) return { message: ['Acceso cerrado con fecha de hoy.', 'Access ended as of today.'] }
+    // Lo que tenía a su nombre queda sin dueño vigente: se dice aquí mismo, con dónde repartirlo.
+    const es = [left.accounts ? `${left.accounts} ${left.accounts === 1 ? 'comercio' : 'comercios'}` : '', left.deals ? `${left.deals} ${left.deals === 1 ? 'negocio abierto' : 'negocios abiertos'}` : '', left.leads ? `${left.leads} ${left.leads === 1 ? 'lead abierto' : 'leads abiertos'}` : ''].filter(Boolean)
+    const en = [left.accounts ? `${left.accounts} ${left.accounts === 1 ? 'merchant' : 'merchants'}` : '', left.deals ? `${left.deals} open ${left.deals === 1 ? 'deal' : 'deals'}` : '', left.leads ? `${left.leads} open ${left.leads === 1 ? 'lead' : 'leads'}` : ''].filter(Boolean)
+    return {
+      message: [
+        `Acceso cerrado con fecha de hoy. ${left.name} tiene ${es.join(', ')} sin dueño vigente en ${left.market}. Repártelos desde Mi equipo.`,
+        `Access ended as of today. ${left.name} holds ${en.join(', ')} with no current owner in ${left.market}. Distribute them from My team.`,
+      ],
+    }
   })
 }
 

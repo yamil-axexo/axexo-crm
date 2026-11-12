@@ -142,7 +142,7 @@
   "merchants.total": "{count, plural, one {# comercio en esta vista} other {# comercios en esta vista}}",
   "merchants.empty.title": "Nada con esos filtros",
   "merchants.empty.body": "Busca por otro nombre, por teléfono o por el ID que tiene en la Sales App.",
-  "merchants.search": "Nombre, teléfono o ID",
+  "merchants.search": "Nombre, ciudad, teléfono o ID",
   "merchants.searchLabel": "Buscar comercios",
   "merchants.more": "Ver más",
   "merchants.size.children": "{count, plural, one {# punto de venta} other {# puntos de venta}}",

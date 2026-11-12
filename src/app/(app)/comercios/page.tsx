@@ -2,10 +2,15 @@ import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { getAccount, listAccounts, listTree, savedViews, type AccountFilters } from '@/dal/accounts'
 import { track } from '@/dal/boards'
+import { getHolders, getPlaceOptions, getTargets } from '@/dal/reparto'
+import { narrows } from '@/server/account-filter'
+import { RepartoBar } from '@/ui/reparto'
+import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
+import { isUuid } from '@/lib/ids'
 import { Empty, Field, LinkButton, Pills, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { FichaPanel } from '@/ui/panel'
-import { ago } from '@/lib/format'
+import { ago, num } from '@/lib/format'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { KIND, MOTOR, lab, qs } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
@@ -13,7 +18,7 @@ import { createAccountAction } from './actions'
 import { Ficha, fichaTab, type FichaTab } from './ficha'
 import { flat } from '@/server/params'
 
-type Params = AccountFilters & { vista?: string; ficha?: string; tab?: string }
+type Params = AccountFilters & { vista?: string; ficha?: string; tab?: string; repartir?: string }
 
 export default async function ComerciosPage({ searchParams }: { searchParams: Promise<Params> }) {
   const ctx = await requireCtx()
@@ -21,22 +26,39 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const sp = flat(await searchParams)
   const tree = sp.vista === 'arbol'
   const fichaId = sp.ficha && /^[0-9a-f-]{36}$/.test(sp.ficha) ? sp.ficha : null
-  const [data, views, treeData, open] = await Promise.all([
+  const live = ctx.markets.filter((x) => x.status === 'live')
+  // Quien no solo vende ve comercios de más de una persona: a esos roles se les ofrece filtrar por dueño.
+  const wide = ctx.memberships.some((x) => x.role !== 'rep')
+  // Repartir: se reparte un mercado a la vez. Si la persona reparte en uno solo, es ese; si no, el del filtro.
+  const repartoMarkets = live.filter((x) => ctx.can('account.reassign', x.code)).map((x) => x.code)
+  const repartoMarket = sp.market && repartoMarkets.includes(sp.market) ? sp.market : repartoMarkets.length === 1 && !sp.market ? repartoMarkets[0]! : null
+  const repartir = !tree && sp.repartir === '1' && repartoMarkets.length > 0
+  const [data, views, treeData, open, place, holders, targets] = await Promise.all([
     listAccounts(ctx, sp),
     savedViews(ctx, 'account'),
     tree ? listTree(ctx, { market: sp.market, owner: sp.owner, q: sp.q }) : Promise.resolve({ nodes: [], cut: false }),
     fichaId ? getAccount(ctx, fichaId) : Promise.resolve(null),
+    tree ? Promise.resolve({ regions: [], territories: [] }) : getPlaceOptions(ctx),
+    wide && !tree ? getHolders(ctx, sp.market ? [sp.market] : ctx.markets.map((x) => x.code)) : Promise.resolve([]),
+    repartir && repartoMarket ? getTargets(ctx, [repartoMarket]) : Promise.resolve([]),
   ])
   const nodes = treeData.nodes
   await track(ctx, 'view.comercios')
-  const live = ctx.markets.filter((x) => x.status === 'live')
   const multi = ctx.markets.length > 1
   // El estado de la lista vive en la URL: abrir o cerrar la ficha no pierde filtros, búsqueda ni página.
-  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after }
+  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, repartir: repartir ? '1' : undefined }
   const link = (patch: Record<string, string | undefined>) => qs('/comercios', { ...base, ...patch })
   const fichaHref = (id: string, tab?: FichaTab) => link({ ficha: id, tab: tab && tab !== 'hilo' ? tab : undefined })
   const closeHref = link({})
-  const filter = (ver?: string) => qs('/comercios', { q: sp.q, market: sp.market, owner: sp.owner, vista: sp.vista, ver })
+  const filter = (ver?: string) => qs('/comercios', { ...base, lifecycle: undefined, kind: undefined, after: undefined, ver })
+  // Filtros por dueño y por plaza. Las opciones salen de lo que la persona alcanza a ver.
+  const inMarket = <X extends { market_code: string }>(rows: X[]) => (sp.market ? rows.filter((r) => r.market_code === sp.market) : rows)
+  const owners = inMarket(holders).filter((h) => h.owner_id && h.accounts > 0).sort((a, b) => Number(a.current) - Number(b.current) || b.accounts - a.accounts)
+  const regions = inMarket(place.regions)
+  const territories = inMarket(place.territories)
+  const placeOn = !!(sp.region || sp.city || sp.territory || (sp.owner && sp.owner !== 'me'))
+  const ownerTag = (h: { is_active: boolean | null; current: boolean }) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (sin rol de ventas)', ' (no sales role)') : '')
+  const withMarket = (label: string, code: string) => (multi && !sp.market ? `${label} · ${code}` : label)
   const current = sp.ver ?? (sp.lifecycle ? `lc:${sp.lifecycle}` : sp.kind ? `k:${sp.kind}` : '')
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
   const healthCell = (lifecycle: string, hasDeal: boolean) => {
@@ -68,6 +90,11 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="account-phone" /></Field>
                 <Field label={t('Ciudad', 'City')}><input name="locality" className="input" /></Field>
                 <Field label={t('Estado o región', 'State or region')}><input name="region" className="input" /></Field>
+                {place.territories.length > 0 && (
+                  <Field label={t('Territorio', 'Territory')} className="col-span-2" hint={t('Si lo dejas así y tienes un solo territorio, el comercio nace con el tuyo.', 'If you leave it like this and you have a single territory, the merchant starts with yours.')}>
+                    <select name="territory_id" className="input" data-testid="account-territory"><option value="">{t('Según quien lo crea', 'Based on who creates it')}</option>{place.territories.map((x) => <option key={x.id} value={x.id}>{multi ? `${x.market_code} · ${x.name}` : x.name}</option>)}</select>
+                  </Field>
+                )}
                 <label className="col-span-2 flex items-center gap-3 text-[14px] text-muted-2"><input type="checkbox" name="force" className="h-4 w-4" data-testid="account-force" />{t('Crear de todos modos si se parece a uno que ya existe', 'Create anyway if it looks like an existing one')}</label>
                 <div className="col-span-2 flex justify-end"><Submit testId="save-account">{t('Guardar comercio', 'Save merchant')}</Submit></div>
               </ActionForm>
@@ -100,7 +127,8 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 {live.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}
               </select>
             )}
-            {(['ver', 'owner', 'vista', 'lifecycle', 'kind'] as const).map((k) => (sp[k] ? <input key={k} type="hidden" name={k} value={sp[k]} /> : null))}
+            {(['ver', 'owner', 'vista', 'lifecycle', 'kind', 'region', 'city', 'territory'] as const).map((k) => (sp[k] ? <input key={k} type="hidden" name={k} value={sp[k]} /> : null))}
+            {repartir && <input type="hidden" name="repartir" value="1" />}
             <button className="press inline-flex h-11 shrink-0 items-center rounded-[10px] border border-line-2 bg-surface px-4 text-[14px] font-semibold hover:bg-green-50">{m('top.searchLabel')}</button>
           </form>
           <nav aria-label={m('merchants.scope')} className="inline-flex rounded-full border border-line bg-surface p-1" data-testid="scope">
@@ -116,6 +144,50 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
             </span>
           </nav>
         </div>
+
+        {!tree && (
+          <details className="mt-3" open={placeOn || repartir} data-testid="place-filters">
+            <summary className="press inline-flex min-h-11 cursor-pointer items-center rounded-[10px] px-3 text-[14px] font-semibold text-strong hover:bg-green-50" data-testid="place-filters-toggle">
+              {wide ? t('Filtrar por dueño, plaza o territorio', 'Filter by owner, place or territory') : t('Filtrar por plaza o territorio', 'Filter by place or territory')}
+            </summary>
+            <form action="/comercios" method="get" className="card mt-2 grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="place-form">
+              {(['q', 'market', 'ver', 'vista', 'lifecycle', 'kind'] as const).map((k) => (sp[k] ? <input key={k} type="hidden" name={k} value={sp[k]} /> : null))}
+              {repartir && <input type="hidden" name="repartir" value="1" />}
+              {wide ? (
+                <Field label={t('Dueño', 'Owner')}>
+                  <select name="owner" defaultValue={sp.owner ?? ''} className="input" data-testid="filter-owner">
+                    <option value="">{t('Todos', 'All')}</option>
+                    <option value="vacant">{t(`Sin dueño vigente (${num(inMarket(holders).filter((h) => !h.current).reduce((n, h) => n + h.accounts, 0), locale)})`, `No current owner (${num(inMarket(holders).filter((h) => !h.current).reduce((n, h) => n + h.accounts, 0), locale)})`)}</option>
+                    <option value="none">{t(`Sin dueño (${num(inMarket(holders).filter((h) => !h.owner_id).reduce((n, h) => n + h.accounts, 0), locale)})`, `No owner (${num(inMarket(holders).filter((h) => !h.owner_id).reduce((n, h) => n + h.accounts, 0), locale)})`)}</option>
+                    {owners.map((h) => <option key={`${h.owner_id}${h.market_code}`} value={h.owner_id!}>{withMarket(`${h.full_name}${ownerTag(h)} (${num(h.accounts, locale)})`, h.market_code)}</option>)}
+                    {isUuid(sp.owner) && !owners.some((h) => h.owner_id === sp.owner) && <option value={sp.owner}>{t('La persona elegida', 'The chosen person')}</option>}
+                  </select>
+                </Field>
+              ) : sp.owner ? <input type="hidden" name="owner" value={sp.owner} /> : null}
+              <Field label={t('Región o estado', 'Region or state')}>
+                <select name="region" defaultValue={sp.region ?? ''} className="input" data-testid="filter-region">
+                  <option value="">{t('Todas', 'All')}</option>
+                  {regions.map((r) => <option key={`${r.market_code}${r.region}`} value={r.region}>{withMarket(`${r.region} (${num(r.accounts, locale)})`, r.market_code)}</option>)}
+                  {sp.region && !regions.some((r) => r.region === sp.region) && <option value={sp.region}>{sp.region}</option>}
+                </select>
+              </Field>
+              <Field label={t('Ciudad o localidad', 'City or town')}>
+                <input name="city" defaultValue={sp.city ?? ''} className="input" maxLength={80} placeholder={t('Escribe una ciudad', 'Type a city')} data-testid="filter-city" />
+              </Field>
+              <Field label={t('Territorio', 'Territory')}>
+                <select name="territory" defaultValue={sp.territory ?? ''} className="input" data-testid="filter-territory">
+                  <option value="">{t('Todos', 'All')}</option>
+                  <option value="none">{t('Sin territorio', 'No territory')}</option>
+                  {territories.map((x) => <option key={x.id} value={x.id}>{withMarket(x.name, x.market_code)}</option>)}
+                </select>
+              </Field>
+              <div className="flex flex-wrap items-center gap-3 sm:col-span-2 xl:col-span-4">
+                <button className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-5 text-[15px] font-semibold hover:bg-green-50" data-testid="place-apply">{t('Aplicar', 'Apply')}</button>
+                {placeOn && <Link href={link({ owner: undefined, region: undefined, city: undefined, territory: undefined, after: undefined, ficha: undefined })} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid="place-clear">{t('Quitar estos filtros', 'Clear these filters')}</Link>}
+              </div>
+            </form>
+          </details>
+        )}
 
         {tree ? (
           <div className="card mt-4 overflow-hidden" data-testid="account-tree">
@@ -141,27 +213,58 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
           </div>
         ) : (
           <>
-            <p className="mt-4 text-[13px] text-muted" data-testid="account-total">{m('merchants.total', { count: data.total })}</p>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <p className="text-[13px] text-muted" data-testid="account-total">{m('merchants.total', { count: data.total })}</p>
+              {repartoMarkets.length > 0 && (
+                <Link href={link({ repartir: repartir ? undefined : '1', after: undefined, ficha: undefined, tab: undefined })} className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-4 text-[14px] font-semibold text-strong hover:bg-green-50" data-testid="reparto-toggle">
+                  {repartir ? t('Terminar de repartir', 'Finish distributing') : t('Repartir', 'Distribute')}
+                </Link>
+              )}
+            </div>
+            {repartir && (
+              <RepartoBar
+                key={qs('', { ...base, ficha: undefined })}
+                locale={locale}
+                market={repartoMarket}
+                filter={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory }}
+                narrowed={narrows(sp)}
+                total={data.total}
+                people={targets}
+                territories={repartoMarket ? place.territories.filter((x) => x.market_code === repartoMarket) : []}
+                actions={{ preview: repartoPreviewAction, step: repartoStepAction }}
+              />
+            )}
             <div className="card mt-2 overflow-hidden">
               {data.items.length === 0 ? (
                 <div className="p-6"><Empty title={m('merchants.empty.title')} hint={m('merchants.empty.body')} /></div>
               ) : (
                 <>
-                  <div aria-hidden className={cx('hidden border-b border-line px-5 py-3 text-[13px] font-medium text-muted', cols)}>
+                  <div aria-hidden className={cx('hidden border-b border-line px-5 py-3 text-[13px] font-medium text-muted', cols, repartir && 'ml-11')}>
                     <span>{m('merchants.col.merchant')}</span><span>{m('merchants.col.health')}</span><span>{m('merchants.col.owner')}</span><span>{m('merchants.col.lastTxn')}</span>
                   </div>
                   <ul className="divide-y divide-line" data-testid="account-table">
                     {data.items.map((a) => (
-                      <li key={a.id} data-testid="account-row">
-                        <Link href={fichaHref(a.id)} scroll={false} aria-current={a.id === fichaId ? 'true' : undefined} className={cx('row-hover block px-4 py-3.5 @2xl:px-5', cols, a.id === fichaId && 'bg-green-50')}>
+                      <li key={a.id} data-testid="account-row" className={repartir ? 'flex items-stretch' : undefined}>
+                        {repartir && (
+                          <label className="flex w-11 shrink-0 cursor-pointer items-center justify-center hover:bg-green-50">
+                            <input type="checkbox" data-reparto-row value={a.id} className="h-[18px] w-[18px]" data-testid="reparto-row" />
+                            <span className="sr-only">{t(`Marcar ${a.name}`, `Tick ${a.name}`)}</span>
+                          </label>
+                        )}
+                        <Link href={fichaHref(a.id)} scroll={false} aria-current={a.id === fichaId ? 'true' : undefined} className={cx('row-hover block min-w-0 flex-1 px-4 py-3.5 @2xl:px-5', cols, a.id === fichaId && 'bg-green-50', repartir && 'pl-1 @2xl:pl-1')}>
                           <span className="block min-w-0">
                             <span className="block truncate text-[15px] leading-6 font-medium text-strong">{a.name}</span>
                             <span className="block truncate text-[13px] text-muted">
-                              {[lab(t, KIND[a.kind]), a.kind !== 'store' ? m('merchants.size.children', { count: a.children }) : a.parent_name ? m('merchants.size.under', { name: a.parent_name }) : m('merchants.size.independent'), a.locality, multi ? a.market_code : null].filter(Boolean).join(' · ')}
+                              {[lab(t, KIND[a.kind]), a.kind !== 'store' ? m('merchants.size.children', { count: a.children }) : a.parent_name ? m('merchants.size.under', { name: a.parent_name }) : m('merchants.size.independent'), a.locality, a.territory, multi ? a.market_code : null].filter(Boolean).join(' · ')}
                             </span>
+                            {/* En teléfono la columna de dueño no cabe: quien ve comercios de varias personas lo lee aquí. */}
+                            {wide && <span className="block truncate text-[13px] text-muted @2xl:hidden" data-testid="row-owner">{a.owner_name ? `${a.owner_name}${a.owner_current ? '' : t(' · sin dueño vigente', ' · no current owner')}` : a.parent_name ? m('merchants.viaChain') : m('merchants.noOwner')}</span>}
                           </span>
                           <span className="mt-1.5 block @2xl:mt-0">{healthCell(a.lifecycle, a.has_deal)}</span>
-                          <span className={cx('hidden truncate text-[15px] @2xl:block', a.owner_name ? 'text-strong' : a.parent_name ? 'text-muted' : 'text-amber-text')}>{a.owner_name ?? (a.parent_name ? m('merchants.viaChain') : m('merchants.noOwner'))}</span>
+                          <span className={cx('hidden min-w-0 text-[15px] @2xl:block', a.owner_name ? 'text-strong' : a.parent_name ? 'text-muted' : 'text-amber-text')}>
+                            <span className="block truncate">{a.owner_name ?? (a.parent_name ? m('merchants.viaChain') : m('merchants.noOwner'))}</span>
+                            {a.owner_name && !a.owner_current && <span className="block truncate text-[13px] text-amber-text" data-testid="owner-vacant">{t('Sin dueño vigente', 'No current owner')}</span>}
+                          </span>
                           <span className="hidden text-[15px] text-muted-2 @2xl:block">{a.last_txn_at ? ago(a.last_txn_at, locale) : m('merchants.never')}</span>
                         </Link>
                       </li>

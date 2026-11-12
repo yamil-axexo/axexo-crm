@@ -95,9 +95,16 @@ export async function createTeam(ctx: Ctx, input: z.input<typeof teamInput>): Pr
   })
 }
 
-export async function endMembership(ctx: Ctx, membershipId: string): Promise<void> {
+/** Lo que una persona deja sin dueño vigente en un mercado cuando pierde su rol de ventas ahí. */
+export type Orphaned = { name: string; market: string; accounts: number; deals: number; leads: number }
+
+/**
+ * Quitar un acceso cierra la membresía con fecha. Si era su último rol de ventas en ese mercado, lo que tenía a su nombre
+ * queda sin dueño vigente: se devuelve el conteo para decirlo en pantalla y mandarlo a repartir (Mi equipo).
+ */
+export async function endMembership(ctx: Ctx, membershipId: string): Promise<Orphaned | null> {
   ctx.assert('config.manage')
-  await withUser(ctx.user.id, async (tx) => {
+  return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ user_id: string; role: string; market_code: string | null }[]>`
       select user_id, role, market_code from crm.memberships where id = ${membershipId} and valid_to is null for update`
     const m = rows[0]
@@ -109,6 +116,18 @@ export async function endMembership(ctx: Ctx, membershipId: string): Promise<voi
     }
     await tx`update crm.memberships set valid_to = now() where id = ${membershipId}`
     await audit(tx, ctx, 'membership.ended', 'user', m.user_id, m.market_code, { role: m.role }, null)
+    if (!m.market_code || !['rep', 'supervisor', 'market_lead'].includes(m.role)) return null
+    const left = await tx<Orphaned[]>`
+      select u.full_name as name, ${m.market_code}::text as market,
+             (select count(*)::int from crm.accounts a where a.owner_id = u.id and a.market_code = ${m.market_code} and a.archived_at is null) as accounts,
+             (select count(*)::int from crm.deals d where d.owner_id = u.id and d.market_code = ${m.market_code} and d.status = 'open') as deals,
+             (select count(*)::int from crm.leads l where l.owner_id = u.id and l.market_code = ${m.market_code} and l.status in ('new','contacted','qualified')) as leads
+        from crm.users u
+       where u.id = ${m.user_id}
+         and not exists (select 1 from crm.memberships x where x.user_id = u.id and x.market_code = ${m.market_code}
+                          and x.role in ('rep','supervisor','market_lead') and x.valid_from <= now() and (x.valid_to is null or x.valid_to > now()))`
+    const o = left[0]
+    return o && o.accounts + o.deals + o.leads > 0 ? o : null
   })
 }
 

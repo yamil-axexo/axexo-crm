@@ -13,6 +13,7 @@ import { ago, day, dayTime, num } from '@/lib/format'
 import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
 import { configurePipelineAction, createApiClientAction, createTeamAction, endMembershipAction, grantMembershipAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction } from './actions'
 import { PipedriveTab } from './pipedrive'
+import { TerritoriosTab } from './territorios'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { domainList } from '@/lib/domains'
@@ -20,7 +21,7 @@ import { domainList } from '@/lib/domains'
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
 
-const TABS = ['personas', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'auditoria'] as const
+const TABS = ['personas', 'territorios', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'auditoria'] as const
 type Tab = (typeof TABS)[number]
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; before?: string }> }) {
@@ -33,6 +34,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const tab: Tab = allowed.includes(sp.tab as Tab) ? (sp.tab as Tab) : allowed[0]!
   const labels: Record<Tab, string> = {
     personas: t('Personas y acceso', 'People and access'),
+    territorios: t('Territorios', 'Territories'),
     embudos: t('Embudos y campos', 'Pipelines and fields'),
     entrada: t('Formularios y turnos', 'Forms and rotation'),
     integraciones: t('Integraciones', 'Integrations'),
@@ -48,6 +50,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <PageHeader title={t('Administración', 'Administration')} desc={t('La configuración se hace aquí y queda en la bitácora. Ventas opera; administración configura.', 'Configuration happens here and is logged. Sales operates; administration configures.')} />
       <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={tab} items={allowed.map((k) => ({ key: k, href: qs('/admin', { tab: k }), label: labels[k] }))} /></div>
       {tab === 'personas' && <People />}
+      {tab === 'territorios' && <TerritoriosTab ctx={ctx} />}
       {tab === 'embudos' && <Config />}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}
