@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
 import { addContact, createAccount, mergeAccounts, reassignAccounts, setParent, updateAccount } from '@/domain/accounts'
-import { invalid } from '@/lib/errors'
+import { DomainError, invalid } from '@/lib/errors'
 import { updateCustom, type CustomInput } from '@/domain/custom'
 
 import type { ActionResult } from '@/lib/errors'
@@ -27,7 +27,7 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
     })
     if (out.duplicates) {
       const names = out.duplicates.map((d) => `${d.name}${d.owner_name ? ` (${d.owner_name})` : ''}`).join('; ')
-      throw new (await import('@/lib/errors')).DomainError(
+      throw new DomainError(
         'duplicate',
         `Parece que ya existe: ${names}. Si es otro comercio, marca "Crear de todos modos".`,
         `It looks like this already exists: ${names}. If it is a different merchant, tick "Create anyway".`,
@@ -37,7 +37,14 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
     // Lo mínimo para calificar que se pidió en el alta (campos marcados "pedir al dar de alta"): se guarda como campos de la cuenta.
     const intake: CustomInput = {}
     for (const [k, v] of fd.entries()) if (k.startsWith('f_') && typeof v === 'string' && v.trim()) intake[k.slice(2)] = v
-    if (Object.keys(intake).length > 0) await updateCustom(ctx, 'account', id, intake)
+    if (Object.keys(intake).length > 0) {
+      // El alta nunca se pierde por un dato de calificación que no cuadra: el comercio ya existe y eso se completa en la ficha.
+      try {
+        await updateCustom(ctx, 'account', id, intake)
+      } catch (e) {
+        if (!(e instanceof DomainError)) throw e
+      }
+    }
   })
   if (res.ok && id) redirect(`/comercios/${id}`)
   return res
