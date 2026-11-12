@@ -82,7 +82,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             </div>
             <div className="py-1">
               {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
-              {ctx.can('config.manage') && <Link href="/admin/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-config"><Settings size={20} strokeWidth={1.75} aria-hidden />{t('Catálogos de Operaciones', 'Operations catalogs')}</Link>}
               {ctx.can('board.supervisor') ? <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>
                 : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}
               {ctx.can('report.view') && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
