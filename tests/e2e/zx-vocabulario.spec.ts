@@ -78,31 +78,46 @@ const ROLES: { persona: string; role: string; paths: string[] }[] = [
   { persona: 'tom.reyes', role: 'operaciones US', paths: ['/operaciones', '/pipelines'] },
 ]
 
+/** Recorre las pantallas de un rol en un idioma y devuelve lo que no cumple. También revisa html[lang] en cada una. */
+async function sweep(page: Page, r: (typeof ROLES)[number], locale: Locale): Promise<string[]> {
+  await enter(page, r.persona, locale)
+  const bad: string[] = []
+  const look = async (path: string) => {
+    const res = await page.goto(path)
+    if ((res?.status() ?? 200) >= 400) return
+    await expect(page.locator('html'), path).toHaveAttribute('lang', locale)
+    for (const f of findings(await visible(page), locale)) bad.push(`${path} → ${f}`)
+  }
+  for (const path of r.paths) await look(path)
+  // La ficha de un comercio (con sus datos) y el detalle de un negocio, los que esta persona alcanza a ver.
+  await page.goto('/comercios')
+  const ficha = await page.locator('a[href*="ficha="]').first().getAttribute('href', { timeout: 3000 }).catch(() => null)
+  if (ficha) {
+    await look(ficha)
+    await look(`${ficha}&tab=datos`)
+  }
+  await page.goto('/pipelines?vista=lista')
+  const deal = await page.locator('a[href^="/deals/"]').first().getAttribute('href', { timeout: 3000 }).catch(() => null)
+  if (deal) await look(deal)
+  return [...new Set(bad)]
+}
+
 for (const locale of ['es', 'en'] as const) {
-  test.describe(`vocabulario en ${locale === 'es' ? 'español' : 'inglés'}`, () => {
+  test.describe(`vocabulario en ${locale === 'es' ? 'español' : 'inglés'} (1440 px)`, () => {
     for (const r of ROLES) {
       test(`${r.role} (${r.persona}): pantallas principales, ficha y negocio`, async ({ page }) => {
         test.setTimeout(120_000)
-        await enter(page, r.persona, locale)
-        const bad: string[] = []
-        const look = async (path: string) => {
-          const res = await page.goto(path)
-          if ((res?.status() ?? 200) >= 400) return
-          await expect(page.locator('html'), path).toHaveAttribute('lang', locale)
-          for (const f of findings(await visible(page), locale)) bad.push(`${path} → ${f}`)
-        }
-        for (const path of r.paths) await look(path)
-        // La ficha de un comercio (con sus datos) y el detalle de un negocio, los que esta persona alcanza a ver.
-        await page.goto('/comercios')
-        const ficha = await page.locator('a[href*="ficha="], a[href^="/comercios/"]').first().getAttribute('href').catch(() => null)
-        if (ficha) {
-          await look(ficha)
-          await look(`${ficha}${ficha.includes('?') ? '&' : '?'}tab=datos`)
-        }
-        await page.goto('/pipelines?vista=lista')
-        const deal = await page.locator('a[href^="/deals/"]').first().getAttribute('href').catch(() => null)
-        if (deal) await look(deal)
-        expect([...new Set(bad)]).toEqual([])
+        expect(await sweep(page, r, locale)).toEqual([])
+      })
+    }
+  })
+
+  test.describe(`vocabulario en ${locale === 'es' ? 'español' : 'inglés'} (390 px)`, () => {
+    test.use({ viewport: { width: 390, height: 844 } })
+    for (const r of ROLES.filter((x) => ['marco.pena', 'fernando.ibarra', 'jade.kim'].includes(x.persona))) {
+      test(`${r.role} (${r.persona}) en el teléfono`, async ({ page }) => {
+        test.setTimeout(120_000)
+        expect(await sweep(page, r, locale)).toEqual([])
       })
     }
   })
