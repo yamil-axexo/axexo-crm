@@ -262,6 +262,9 @@ test.describe('pantalla de inicio por rol', () => {
       await expect(page.getByTestId('home-link')).toHaveAttribute('href', home)
       await page.goto('/')
       await expect(page).toHaveURL(new RegExp(`${home}$`))
+      // con la sesión abierta, la entrada también regresa a la pantalla del rol
+      await page.goto('/login')
+      await expect(page).toHaveURL(new RegExp(`${home}$`))
       await expect(page.getByTestId('dock')).toContainText(/Hoy|Today/)
     })
   }
