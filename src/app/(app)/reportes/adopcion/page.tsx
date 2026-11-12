@@ -11,6 +11,7 @@ import { zoneLabel } from '@/lib/audit'
 import { qs } from '@/lib/labels'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
+import { TimezoneSync } from '@/ui/admin'
 
 const GRID = '@3xl:grid @3xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,1.2fr)_110px_110px] @3xl:items-center @3xl:gap-4'
 
@@ -41,6 +42,8 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
         title={t('Adopción', 'Adoption')}
         desc={t('Quién entra a CONTIGO y cuánto lo usa. Solo conteos: cuándo entró y cuántas actividades registró, nunca lo que escribió. La ven leadership, quien lidera el mercado y administración.', 'Who signs in to CONTIGO and how much they use it. Counts only: when they signed in and how many activities they logged, never what they wrote. Leadership, market leads and administration see it.')}
       />
+      {/* Igual que Estado y la bitácora: la zona del navegador queda guardada y las horas salen en la zona de quien mira, no en UTC. */}
+      <TimezoneSync current={tz} />
       <ReportFilters t={t} locale={locale} base="/reportes/adopcion" params={params} period={period} selects={[]} zone={zoneLabel(tz, locale)} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="adoption-totals">
         {stat(t('Personas con acceso', 'People with access'), all.length, 'adoption-people')}
