@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import { CalendarPlus, MapPinCheck, MessageCircle, MessageSquareText, Navigation, Phone, StickyNote, X } from 'lucide-react'
 import type { Ctx } from '@/server/context'
-import { getAccount, parentOptions } from '@/dal/accounts'
+import { getAccount } from '@/dal/accounts'
 import { sellers } from '@/dal/leads'
-import { fieldDefs } from '@/dal/fields'
+import { fieldDefs, fieldApplies } from '@/dal/fields'
+import { accountTypes, parentChoices } from '@/dal/b2b'
+import { setAccountTypeAction, setPrimaryContactAction } from '@/app/(app)/b2b-actions'
 import { sheetConfig, taskItem } from '@/server/sheet'
 import { CustomFields } from '@/ui/fields'
 import { Badge, Field, KeyVal, LinkButton, cx } from '@/ui/kit'
@@ -55,7 +57,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const health = healthOf(a.lifecycle, !!openDeal)
   const today = isoDay(now, tz)
   const parent = ancestors[ancestors.length - 1]
-  const size = isParent ? m('merchants.size.children', { count: rollup.stores }) : parent ? m('merchants.size.under', { name: parent.name }) : m('merchants.size.independent')
+  // El tipo de cuenta ya dice si es independiente: "Independiente" solo acompaña a un tipo que no lo dice.
+  const size = isParent ? m('merchants.size.children', { count: rollup.stores }) : parent ? m('merchants.size.under', { name: parent.name }) : a.account_type === 'store' ? null : m('merchants.size.independent')
   // Para llamar: el teléfono del comercio y, si no tiene, el de su contacto (primero quien decide).
   const callee = a.phone
     ? { phone: a.phone, who: null as string | null }
@@ -119,8 +122,14 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const threadDetail = (it: Item) =>
     [manualVisit(it) && meta(it).visited_by ? t(`Visitó: ${meta(it).visited_by}`, `Visited by: ${meta(it).visited_by}`) : null, it.kind !== 'stage' ? it.body : null].filter(Boolean)
 
-  const [people, parents] = tab === 'datos' && canReassign ? await Promise.all([sellers(ctx, a.market_code), parentOptions(ctx, a.market_code)]) : [[], []]
-  const defs = tab === 'datos' ? await fieldDefs(ctx, 'account', a.market_code) : []
+  // Armar el árbol: quien dirige mueve cualquier cuenta; quien vende, las suyas (y solo bajo una matriz suya).
+  const canTree = !a.archived_at && ctx.can('account.tree', a.market_code) && (canReassign || a.owner_id === ctx.user.id)
+  const people = tab === 'datos' && canReassign ? await sellers(ctx, a.market_code) : []
+  const parents = tab === 'datos' && canTree ? await parentChoices(ctx, a.market_code, !canReassign) : []
+  const types = tab === 'datos' && canEdit ? await accountTypes(ctx, a.market_code) : []
+  // Los campos de un tipo de venta (los de B2B) solo salen en cuentas de ese tipo de venta, y los condicionados, cuando aplican.
+  const defs = tab === 'datos' ? (await fieldDefs(ctx, 'account', a.market_code, a.segment)).filter((d) => fieldApplies(d, a.custom)) : []
+  const typeName = a.type_es ? t(a.type_es, a.type_en ?? a.type_es) : lab(t, KIND[a.kind])
   const config = tab === 'hilo' && canWrite && tasks.length ? sheetConfig(ctx, now) : null
 
   return (
@@ -128,7 +137,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
       <div data-testid="account-facts">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="eyebrow">{[lab(t, KIND[a.kind]), size, ctx.markets.length > 1 ? market.name : null].filter(Boolean).join(' · ')}</p>
+            <p className="eyebrow" data-testid="ficha-type">{[typeName, size, ctx.markets.length > 1 ? market.name : null].filter(Boolean).join(' · ')}</p>
             <Title id="ficha-title" className="mt-0.5 text-[22px] leading-[30px] font-semibold break-words">{a.name}</Title>
           </div>
           <Link href={closeHref} aria-label={m('record.close')} title={m('record.close')} className="press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-line bg-surface text-strong hover:bg-green-50" data-testid="ficha-close">
@@ -162,6 +171,19 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </Link>
           ) : null}
         </p>
+
+        {(parent || children.length > 0) && (
+          <p className="mt-1 flex flex-wrap items-center gap-x-4 text-[14px] text-muted-2" data-testid="ficha-hierarchy">
+            {parent && (
+              <span>{t('Pertenece a', 'Belongs to')}{' '}<Link href={href(parent.id, 'arbol')} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="ficha-parent">{parent.name}</Link></span>
+            )}
+            {children.length > 0 && (
+              <Link href={href(a.id, 'arbol')} scroll={false} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="ficha-children">
+                {t(`Sus cuentas (${num(rollup.stores > children.length ? rollup.stores : children.length, locale)})`, `Its accounts (${num(rollup.stores > children.length ? rollup.stores : children.length, locale)})`)}
+              </Link>
+            )}
+          </p>
+        )}
 
         <div className={cx('mt-4 rounded-[12px] px-4 py-3.5', step ? 'bg-green-100' : 'bg-warn-bg')} data-testid="ficha-next" data-state={step ? (stepLate ? 'late' : 'set') : 'none'}>
           <p className={cx('text-[13px]', step ? 'text-brand-text' : 'text-amber-text')}>{m('record.next')}</p>
@@ -424,8 +446,15 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                     <input type="hidden" name="account_id" value={a.id} />
                     <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="full_name" className="input" required minLength={2} data-testid="contact-name" /></Field>
                     <Field label={t('Rol', 'Role')}><select name="role" className="input" data-testid="contact-role">{Object.entries(CONTACT_ROLE).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
-                    <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" /></Field>
+                    <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="contact-phone" /></Field>
                     <Field label={t('Correo', 'Email')} className="col-span-2"><input name="email" type="email" className="input" /></Field>
+                    <Field label={t('Idioma preferido', 'Preferred language')} className="col-span-2 sm:col-span-1">
+                      <select name="locale" className="input" defaultValue="" data-testid="contact-locale"><option value="">{t('Sin dato', 'Not set')}</option><option value="es">{t('Español', 'Spanish')}</option><option value="en">{t('Inglés', 'English')}</option></select>
+                    </Field>
+                    <div className="col-span-2 space-y-1">
+                      <label className="flex min-h-11 cursor-pointer items-center gap-3 text-[14px]"><input type="checkbox" name="sms" className="h-5 w-5 shrink-0" data-testid="contact-sms" />{t('Su teléfono es un móvil que recibe SMS', 'Their phone is a mobile that gets SMS')}</label>
+                      <label className="flex min-h-11 cursor-pointer items-center gap-3 text-[14px]"><input type="checkbox" name="primary" className="h-5 w-5 shrink-0" data-testid="contact-primary" />{t('Es el contacto principal de la cuenta', 'This is the account’s primary contact')}</label>
+                    </div>
                     <div className="col-span-2 flex justify-end"><Submit testId="save-contact">{t('Guardar', 'Save')}</Submit></div>
                   </ActionForm>
                 </Dialog>
@@ -434,12 +463,22 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             <ul className="mt-2 space-y-3">
               {contacts.map((c) => (
                 <li key={c.id} data-testid="contact-row">
-                  <p className="text-[15px] font-medium text-strong">{c.full_name} <span className="ml-1 text-[13px] font-normal text-muted">{lab(t, CONTACT_ROLE[c.role])}</span></p>
+                  <p className="flex flex-wrap items-center gap-x-2 text-[15px] font-medium text-strong">{c.full_name} <span className="text-[13px] font-normal text-muted">{lab(t, CONTACT_ROLE[c.role])}</span>
+                    {c.is_primary && <Badge tone="good">{t('Principal', 'Primary')}</Badge>}
+                    {c.sms_capable && <Badge>{t('Recibe SMS', 'Gets SMS')}</Badge>}
+                    {c.preferred_locale && <Badge>{c.preferred_locale === 'en' ? t('Prefiere inglés', 'Prefers English') : t('Prefiere español', 'Prefers Spanish')}</Badge>}
+                  </p>
                   <p className="text-[13px] text-muted-2">
                     {c.phone ? <a href={`tel:${c.phone}`} className="font-medium text-blue-text underline" data-testid="contact-call">{phoneText(c.phone)}</a> : null}
                     {c.phone ? <> · <a href={`https://wa.me/${c.phone.slice(1)}`} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-text underline">WhatsApp</a></> : null}
                     {c.phone && c.email ? ' · ' : ''}{c.email ?? (c.phone ? '' : '—')}
                   </p>
+                  {canEdit && !c.is_primary && contacts.length > 1 && (
+                    <ActionForm action={setPrimaryContactAction}>
+                      <input type="hidden" name="account_id" value={a.id} /><input type="hidden" name="contact_id" value={c.id} />
+                      <Submit variant="quiet" size="sm" testId="contact-make-primary">{t('Hacer principal', 'Make primary')}</Submit>
+                    </ActionForm>
+                  )}
                 </li>
               ))}
               {contacts.length === 0 && <li className="text-[15px] text-muted">{t('Sin contactos todavía.', 'No contacts yet.')}</li>}
@@ -499,12 +538,23 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <input type="hidden" name="postal_code" value={a.postal_code ?? ''} />
                 <div className="flex justify-end"><Submit variant="ghost" testId="edit-save">{t('Guardar', 'Save')}</Submit></div>
               </ActionForm>
-              {canReassign && (
+              <ActionForm action={setAccountTypeAction} className="mt-6 border-t border-line pt-5" testId="type-form">
+                <input type="hidden" name="id" value={a.id} />
+                <Field label={t('Tipo de cuenta', 'Account type')} hint={t('Dice qué es esta cuenta: tienda, sucursal, cadena, corporativo, distribuidor, ISO o agregador.', 'Says what this account is: store, branch, chain, corporate account, distributor, ISO or aggregator.')}>
+                  <select name="account_type" className="input" defaultValue={a.account_type} data-testid="type-select">
+                    {!types.some((x) => x.code === a.account_type) && <option value={a.account_type}>{typeName}</option>}
+                    {types.map((x) => <option key={x.code} value={x.code}>{t(x.label_es, x.label_en)}</option>)}
+                  </select>
+                </Field>
+                <div className="mt-3 flex justify-end"><Submit variant="ghost" size="sm" testId="type-save">{t('Guardar tipo', 'Save type')}</Submit></div>
+              </ActionForm>
+              {canTree && (
                 <ActionForm action={setParentAction} className="mt-6 border-t border-line pt-5">
                   <input type="hidden" name="id" value={a.id} />
-                  <Field label={t('Pertenece a', 'Belongs to')}>
+                  <Field label={t('Pertenece a', 'Belongs to')} hint={canReassign ? undefined : t('Puedes armar el árbol con cuentas que son tuyas.', 'You can build the tree with accounts that are yours.')}>
                     <select name="parent_id" className="input" defaultValue={a.parent_id ?? ''} data-testid="parent-select">
-                      <option value="">{t('Independiente', 'Independent')}</option>
+                      <option value="">{t('Ninguna (cuenta independiente)', 'None (independent account)')}</option>
+                      {a.parent_id && parent && !parents.some((p) => p.id === a.parent_id) && <option value={a.parent_id}>{parent.name}</option>}
                       {parents.filter((p) => p.id !== a.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </Field>

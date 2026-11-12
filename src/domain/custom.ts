@@ -2,7 +2,7 @@ import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
-import { invalid, notFound } from '@/lib/errors'
+import { DomainError, invalid, notFound } from '@/lib/errors'
 import { scrub } from '@/domain/pipedrive/mapping'
 import type postgres from 'postgres'
 
@@ -55,15 +55,16 @@ function coerce(def: Def, raw: CustomInput[string]): unknown {
 export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: string, input: CustomInput): Promise<number> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = object === 'account'
-      ? await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean }[]>`select market_code, custom, archived_at is not null as locked from crm.accounts where id = ${id} for update`
-      : await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean }[]>`select market_code, custom, false as locked from crm.deals where id = ${id} for update`
+      ? await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`select market_code, custom, archived_at is not null as locked, segment as motor from crm.accounts where id = ${id} for update`
+      : await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`
+          select d.market_code, d.custom, false as locked, (select p.motor from crm.pipelines p where p.id = d.pipeline_id) as motor from crm.deals d where d.id = ${id} for update`
     const row = rows[0]
     if (!row) throw notFound()
     ctx.assert(object === 'account' ? 'account.edit' : 'deal.edit', row.market_code)
     if (row.locked) throw invalid('Un comercio archivado no se edita.', 'An archived merchant cannot be edited.')
     const defs = await tx<(Def & { mapped_to: string | null; data_class: string })[]>`
       select key, label_es, label_en, data_type, options, mapped_to, data_class from crm.field_definitions
-       where object = ${object} and is_active and (market_code is null or market_code = ${row.market_code})`
+       where object = ${object} and is_active and (market_code is null or market_code = ${row.market_code}) and (motor is null or motor = ${row.motor})`
     const before: Record<string, unknown> = {}
     const after: Record<string, unknown> = {}
     const remove: string[] = []
@@ -89,16 +90,25 @@ export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: str
 }
 
 /** Configuración de un embudo: si cierra por primera transacción y qué etapa es la de espera. Solo administración (P11). */
-export async function configurePipeline(ctx: Ctx, pipelineId: string, input: { closeByTransaction: boolean; awaitingStageId: string | null }): Promise<void> {
+export async function configurePipeline(ctx: Ctx, pipelineId: string, input: { closeByTransaction: boolean; awaitingStageId: string | null; confirmed?: boolean }): Promise<void> {
   ctx.assert('config.manage')
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string; close_by_transaction: boolean }[]>`select market_code, close_by_transaction from crm.pipelines where id = ${pipelineId} for update`
     const p = rows[0]
     if (!p) throw notFound()
+    // Cambiar cómo se gana aplica desde ese momento a los negocios abiertos: la pantalla dice a cuántos y pide confirmarlo.
+    const open = await tx<{ n: number }[]>`select count(*)::int as n from crm.deals where pipeline_id = ${pipelineId} and status = 'open'`
+    const openDeals = open[0]?.n ?? 0
+    const ruleChanges = p.close_by_transaction !== input.closeByTransaction
+    if (ruleChanges && openDeals > 0 && input.confirmed === false) {
+      throw new DomainError('confirm_required',
+        `Este cambio aplica a ${openDeals === 1 ? '1 negocio abierto' : `${openDeals} negocios abiertos`} de este embudo. Marca la casilla de confirmación y guarda de nuevo.`,
+        `This change applies to ${openDeals === 1 ? '1 open deal' : `${openDeals} open deals`} in this pipeline. Tick the confirmation box and save again.`)
+    }
     const prev = await tx<{ id: string }[]>`select id from crm.stages where pipeline_id = ${pipelineId} and kind = 'awaiting_txn'`
     let awaiting: string | null = null
     if (input.closeByTransaction && input.awaitingStageId) {
-      const ok = await tx`select 1 from crm.stages where id = ${input.awaitingStageId} and pipeline_id = ${pipelineId} and kind in ('open','awaiting_txn')`
+      const ok = await tx`select 1 from crm.stages where id = ${input.awaitingStageId} and pipeline_id = ${pipelineId} and kind in ('open','awaiting_txn') and archived_at is null`
       if (!ok[0]) throw invalid('Esa etapa no es de este embudo.', 'That stage does not belong to this pipeline.')
       awaiting = input.awaitingStageId
     }
@@ -107,6 +117,6 @@ export async function configurePipeline(ctx: Ctx, pipelineId: string, input: { c
     if (awaiting) await tx`update crm.stages set kind = 'awaiting_txn' where id = ${awaiting}`
     await audit(tx, ctx, 'pipeline.configured', 'pipeline', pipelineId, p.market_code,
       { close_by_transaction: p.close_by_transaction, awaiting_stage_id: prev[0]?.id ?? null },
-      { close_by_transaction: input.closeByTransaction, awaiting_stage_id: awaiting })
+      { close_by_transaction: input.closeByTransaction, awaiting_stage_id: awaiting, ...(ruleChanges ? { open_deals: openDeals } : {}) })
   })
 }

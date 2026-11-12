@@ -103,10 +103,14 @@ export async function getAccount(ctx: Ctx, id: string) {
     const rows = await tx<
       { id: string; market_code: string; name: string; kind: string; segment: string | null; lifecycle: string; lifecycle_at: Date; owner_id: string | null; owner_name: string | null;
         parent_id: string | null; ancestor_ids: string[]; phone: string | null; email: string | null; address_line: string | null; locality: string | null; region: string | null;
-        postal_code: string | null; territory: string | null; custom: Record<string, unknown>; created_at: Date; archived_at: Date | null; merged_into: string | null }[]
+        postal_code: string | null; territory: string | null; custom: Record<string, unknown>; created_at: Date; archived_at: Date | null; merged_into: string | null;
+        account_type: string; type_es: string | null; type_en: string | null }[]
     >`select a.id, a.market_code, a.name, a.kind, a.segment, a.lifecycle, a.lifecycle_at, a.owner_id, u.full_name as owner_name, a.parent_id, a.ancestor_ids,
-             a.phone, a.email::text, a.address_line, a.locality, a.region, a.postal_code, t.name as territory, a.custom, a.created_at, a.archived_at, a.merged_into
+             a.phone, a.email::text, a.address_line, a.locality, a.region, a.postal_code, t.name as territory, a.custom, a.created_at, a.archived_at, a.merged_into,
+             a.account_type, ty.label_es as type_es, ty.label_en as type_en
         from crm.accounts a left join crm.users u on u.id = a.owner_id left join crm.territories t on t.id = a.territory_id
+        left join lateral (select x.label_es, x.label_en from crm.account_types x where x.code = a.account_type and (x.market_code is null or x.market_code = a.market_code)
+                            order by x.market_code nulls last limit 1) ty on true
        where a.id = ${id}`
     const account = rows[0]
     if (!account) return null
@@ -131,9 +135,10 @@ export async function getAccount(ctx: Ctx, id: string) {
              (select m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = c.id order by m.as_of desc limit 1) as txn_count_30d
         from crm.accounts c left join crm.users u on u.id = c.owner_id
        where c.parent_id = ${id} and c.archived_at is null order by c.name limit 60`
-    const contacts = await tx<{ id: string; full_name: string; phone: string | null; email: string | null; role: string; valid_from: Date }[]>`
-      select c.id, c.full_name, c.phone, c.email::text, ac.role, ac.valid_from from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
-       where ac.account_id = ${id} and ac.valid_to is null order by ac.role, c.full_name`
+    const contacts = await tx<{ id: string; full_name: string; phone: string | null; email: string | null; role: string; valid_from: Date; is_primary: boolean; preferred_locale: string | null; sms_capable: boolean | null }[]>`
+      select c.id, c.full_name, c.phone, c.email::text, ac.role, ac.valid_from, ac.is_primary, c.preferred_locale, c.sms_capable
+        from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
+       where ac.account_id = ${id} and ac.valid_to is null order by ac.is_primary desc, ac.role, c.full_name`
     const aliases = await tx<{ system: string; external_id: string; valid_from: Date }[]>`
       select system, external_id, valid_from from crm.account_aliases where account_id = ${id} and valid_to is null order by system`
     const attributions = await tx<{ layer: string; party_label: string; party_kind: string; effective_from: Date; effective_to: Date | null }[]>`

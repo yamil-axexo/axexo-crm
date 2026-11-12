@@ -126,7 +126,7 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     if (d.status !== 'open') throw invalid('Este negocio ya está cerrado.', 'This deal is already closed.')
     if (toStageId === d.stage_id) return
     const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string; position: number }[]>`
-      select id, kind, required_fields, name_es, name_en, position from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id}`
+      select id, kind, required_fields, name_es, name_en, position from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id} and archived_at is null`
     const stage = stages[0]
     if (!stage) throw invalid('Esa etapa no es de este pipeline.', 'That stage is not part of this pipeline.')
     // Avanzar saltando etapas no evita lo que piden las de en medio: se exige la suma de todas hasta la de destino.
@@ -146,7 +146,12 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       }
     }
     if (stage.kind === 'lost') {
-      const reason = loss?.reasonCode ? await tx`select 1 from crm.loss_reasons where code = ${loss.reasonCode} and kind = 'lost' and is_active` : []
+      // El motivo tiene que ser de los de este embudo: cada tipo de venta tiene su lista (más los que valen para todos).
+      const reason = loss?.reasonCode
+        ? await tx`select 1 from crm.loss_reasons r where r.code = ${loss.reasonCode} and r.kind = 'lost' and r.is_active
+                    and (r.market_code is null or r.market_code = ${d.market_code})
+                    and (r.motors is null or (select p.motor from crm.pipelines p where p.id = ${d.pipeline_id}) = any(r.motors))`
+        : []
       if (!reason[0]) throw invalid('Elige el motivo de pérdida.', 'Pick the loss reason.')
       assertNoProhibited(loss?.note)
       await tx`update crm.deals set stage_id = ${toStageId}, status = 'lost', loss_reason_code = ${loss!.reasonCode}, loss_note = ${clean(loss!.note)},
@@ -193,7 +198,7 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
     if (!acc) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
     ctx.assert('deal.create', acc.market_code)
     const st = await tx<{ id: string }[]>`select s.id from crm.stages s join crm.pipelines p on p.id = s.pipeline_id
-      where p.id = ${v.pipelineId} and p.market_code = ${acc.market_code} order by s.position limit 1`
+      where p.id = ${v.pipelineId} and p.market_code = ${acc.market_code} and s.archived_at is null order by s.position limit 1`
     if (!st[0]) throw invalid('Ese pipeline no es de este mercado.', 'That pipeline does not belong to this market.')
     const open = await tx`select 1 from crm.deals where account_id = ${v.accountId} and pipeline_id = ${v.pipelineId} and status = 'open'`
     if (open[0]) throw invalid('Este comercio ya tiene un negocio abierto en ese embudo.', 'This merchant already has an open deal in that pipeline.')

@@ -13,6 +13,7 @@ import { ago, day, isoDay, num } from '@/lib/format'
 import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
 import { configurePipelineAction, createApiClientAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction, updateStageAction } from './actions'
 import { PipedriveTab } from './pipedrive'
+import { B2bConfig } from './b2b'
 import { PeopleTab, accessFilter } from './people'
 import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
@@ -76,7 +77,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <div className="space-y-8" data-testid="admin-config">
         {admin && (
           <p className="text-[13.5px] text-muted-2" data-testid="config-scope">
-            {t('Desde aquí cambias el nombre de cada etapa en español y en inglés, a los cuántos días se considera estancada, qué pide para entrar y cómo se gana el embudo. Cada cambio queda en la bitácora. Crear embudos, etapas, campos o motivos todavía no se hace desde la pantalla.', 'From here you change each stage’s name in Spanish and in English, after how many days it counts as stalled, what it requires to enter and how the pipeline is won. Every change is logged. Creating pipelines, stages, fields or reasons is not available from the screen yet.')}
+            {t('Desde aquí cambias el nombre de cada etapa en español y en inglés, a los cuántos días se considera estancada, qué pide para entrar y cómo se gana el embudo. Más abajo agregas, reordenas y archivas etapas, y creas embudos, campos, tipos de cuenta y motivos de pérdida. Cada cambio queda en la bitácora.', 'From here you change each stage’s name in Spanish and in English, after how many days it counts as stalled, what it requires to enter and how the pipeline is won. Further down you add, reorder and archive stages, and create pipelines, fields, account types and loss reasons. Every change is logged.')}
           </p>
         )}
         {d.pipelines.map((p) => (
@@ -143,11 +144,18 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   </select>
                 </Field>
                 <Submit variant="ghost" size="sm" testId="pipeline-config-save">{t('Guardar', 'Save')}</Submit>
+                {p.open_deals > 0 && (
+                  <label className="flex min-h-11 w-full cursor-pointer items-center gap-3 text-[13.5px]" data-testid="pipeline-confirm-label">
+                    <input type="checkbox" name="confirm" className="h-5 w-5 shrink-0" data-testid="pipeline-confirm" />
+                    {t(`Confirmo: si cambio cómo se gana, aplica a ${p.open_deals === 1 ? 'el negocio abierto' : `los ${num(p.open_deals, locale)} negocios abiertos`} de este embudo.`, `I confirm: if I change how it is won, it applies to the ${p.open_deals === 1 ? 'open deal' : `${num(p.open_deals, locale)} open deals`} in this pipeline.`)}
+                  </label>
+                )}
                 {p.open_deals > 0 && <p className="w-full text-[12.5px] text-muted" data-testid="pipeline-impact">{t(`Cambiar cómo se gana aplica desde ese momento a ${p.open_deals === 1 ? 'el negocio abierto' : `los ${num(p.open_deals, locale)} negocios abiertos`} de este embudo.`, `Changing how it is won applies from that moment to the ${p.open_deals === 1 ? 'open deal' : `${num(p.open_deals, locale)} open deals`} in this pipeline.`)}</p>}
               </ActionForm>
             )}
           </Card>
         ))}
+        {admin && <B2bConfig ctx={ctx} pipelines={d.pipelines} stages={d.stages} />}
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
           <Card><CardTitle title={t('Registro de campos', 'Field registry')} hint={t('Los campos por mercado son metadata: se agregan sin tocar el esquema.', 'Per-market fields are metadata: they are added without touching the schema.')} />
             {d.imported.length > 0 && <p className="mb-4 text-[13.5px] text-muted-2" data-testid="imported-fields">{t('Importados de Pipedrive: ', 'Imported from Pipedrive: ')}{d.imported.map((x) => `${x.object} ${x.n}`).join(' · ')}. <Link href="/admin?tab=pipedrive" className="underline">{t('Ver el mapeo', 'See the mapping')}</Link></p>}

@@ -86,7 +86,7 @@ export async function getConfig(ctx: Ctx) {
              (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'open') as open_deals
         from crm.pipelines p where p.is_active order by p.market_code, p.position`
     const stages = await tx<{ id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; probability: number; rot_days: number; required_fields: string[]; exit_es: string; exit_en: string; edited_at: Date | null }[]>`
-      select id, pipeline_id, position, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, edited_at from crm.stages order by pipeline_id, position`
+      select id, pipeline_id, position, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, edited_at from crm.stages where archived_at is null order by pipeline_id, position`
     const reasons = await tx<{ code: string; kind: string; label_es: string; label_en: string }[]>`
       select code, kind, label_es, label_en from crm.loss_reasons where is_active order by kind, label_es`
     const fields = await tx<{ object: string; key: string; label_es: string; label_en: string; data_type: string; market_code: string | null; data_class: string }[]>`

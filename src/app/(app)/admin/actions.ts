@@ -212,7 +212,7 @@ export async function simulateMetricsAction(_: R | null, fd: FormData): Promise<
 
 export async function configurePipelineAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await configurePipeline(ctx, str(fd, 'pipeline_id'), { closeByTransaction: fd.get('close_by_transaction') === 'on', awaitingStageId: str(fd, 'awaiting_stage_id') || null })
+    await configurePipeline(ctx, str(fd, 'pipeline_id'), { closeByTransaction: fd.get('close_by_transaction') === 'on', awaitingStageId: str(fd, 'awaiting_stage_id') || null, confirmed: fd.get('confirm') === 'on' })
     return { message: ['Embudo actualizado.', 'Pipeline updated.'] }
   })
 }

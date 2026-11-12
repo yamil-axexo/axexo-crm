@@ -55,7 +55,8 @@ export async function updateAccountAction(_: R | null, fd: FormData): Promise<R>
 
 export async function addContactAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await addContact(ctx, str(fd, 'account_id'), { fullName: str(fd, 'full_name'), phone: str(fd, 'phone'), email: str(fd, 'email'), role: str(fd, 'role') as 'staff' })
+    await addContact(ctx, str(fd, 'account_id'), { fullName: str(fd, 'full_name'), phone: str(fd, 'phone'), email: str(fd, 'email'), role: str(fd, 'role') as 'staff',
+      locale: str(fd, 'locale') as 'es', sms: fd.get('sms') === 'on', primary: fd.get('primary') === 'on' })
     return { message: ['Contacto agregado.', 'Contact added.'] }
   })
 }

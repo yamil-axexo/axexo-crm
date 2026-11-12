@@ -96,10 +96,17 @@ export async function updateAccount(ctx: Ctx, id: string, input: z.input<typeof 
 export async function setParent(ctx: Ctx, id: string, parentId: string | null): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const a = await loadAccount(tx, id)
-    ctx.assert('account.reassign', a.market_code)
+    ctx.assert('account.tree', a.market_code)
+    // Quien vende arma el árbol de SUS cuentas: la que mueve y la matriz son suyas. Quien dirige mueve cualquiera de su alcance.
+    const manages = ctx.can('account.reassign', a.market_code)
+    if (!manages && a.owner_id !== ctx.user.id) throw invalid('Solo puedes mover en el árbol las cuentas que son tuyas.', 'You can only move accounts that are yours in the tree.')
     if (parentId) {
-      const p = await tx`select 1 from crm.accounts where id = ${parentId} and market_code = ${a.market_code} and kind <> 'store' and archived_at is null`
-      if (!p[0]) throw invalid('El padre tiene que ser una cadena o distribuidor de este mercado.', 'The parent must be a chain or distributor in this market.')
+      const p = await tx<{ owner_id: string | null; ancestor_ids: string[] }[]>`
+        select owner_id, ancestor_ids from crm.accounts where id = ${parentId} and market_code = ${a.market_code} and kind <> 'store' and archived_at is null`
+      if (!p[0]) throw invalid('La cuenta matriz tiene que ser una cadena, un distribuidor, un ISO o un corporativo de este mercado.', 'The parent account must be a chain, a distributor, an ISO or a corporate account in this market.')
+      if (!manages && p[0].owner_id !== ctx.user.id) throw invalid('La cuenta matriz también tiene que ser tuya. Si no lo es, pídeselo a quien supervisa.', 'The parent account must be yours too. If it is not, ask your supervisor.')
+      // La base también lo impide (crm.account_tree_before); aquí se explica antes de llegar.
+      if (parentId === id || p[0].ancestor_ids.includes(id)) throw invalid('Esa cuenta cuelga de esta: no puede ser su matriz.', 'That account sits under this one: it cannot be its parent.')
     }
     if (parentId === a.parent_id) return
     await tx`update crm.account_links set valid_to = now() where child_id = ${id} and valid_to is null`
@@ -138,11 +145,17 @@ export async function mergeAccounts(ctx: Ctx, sourceId: string, targetId: string
   })
 }
 
+/** Roles de un contacto: los de tienda y los de una cuenta corporativa (dirección, compras, finanzas, tecnología, legal, operación). */
+export const CONTACT_ROLES = ['owner', 'decision_maker', 'manager', 'staff', 'billing', 'executive', 'purchasing', 'finance', 'technology', 'legal', 'operations'] as const
+
 const contactInput = z.object({
   fullName: z.string().trim().min(2).max(120),
   phone: z.string().trim().max(30).optional().default(''),
   email: z.string().trim().max(160).optional().default(''),
-  role: z.enum(['owner', 'decision_maker', 'manager', 'staff', 'billing']),
+  role: z.enum(CONTACT_ROLES),
+  locale: z.enum(['es', 'en']).or(z.literal('')).optional().default(''),
+  sms: z.boolean().optional().default(false),
+  primary: z.boolean().optional().default(false),
 })
 
 /** DAT-02: el contacto se liga a la cuenta con rol y vigencia. */
@@ -157,9 +170,15 @@ export async function addContact(ctx: Ctx, accountId: string, input: z.input<typ
     if (v.phone && !phone) throw invalid('El teléfono no parece válido.', 'The phone number does not look valid.')
     if (v.email && !z.string().email().safeParse(v.email).success) throw invalid('El correo no parece válido.', 'The email does not look valid.')
     const id = await newId(tx)
-    await tx`insert into crm.contacts (id, market_code, full_name, phone, email, created_by) values (${id}, ${a.market_code}, ${v.fullName}, ${phone}, ${clean(v.email)}, ${ctx.user.id})`
-    await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${id}, ${a.market_code}, ${v.role})`
-    await audit(tx, ctx, 'contact.added', 'account', accountId, a.market_code, null, { contact_id: id, role: v.role })
+    // "Móvil que recibe SMS" solo tiene sentido con teléfono; sin teléfono queda sin dato.
+    await tx`insert into crm.contacts (id, market_code, full_name, phone, email, preferred_locale, sms_capable, created_by)
+             values (${id}, ${a.market_code}, ${v.fullName}, ${phone}, ${clean(v.email)}, ${v.locale || null}, ${phone ? v.sms : null}, ${ctx.user.id})`
+    // El primer contacto de una cuenta queda como principal; después, solo si se pide.
+    const others = await tx`select 1 from crm.account_contacts where account_id = ${accountId} and valid_to is null limit 1`
+    const primary = v.primary || !others[0]
+    if (primary) await tx`update crm.account_contacts set is_primary = false where account_id = ${accountId} and is_primary and valid_to is null`
+    await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role, is_primary) values (${accountId}, ${id}, ${a.market_code}, ${v.role}, ${primary})`
+    await audit(tx, ctx, 'contact.added', 'account', accountId, a.market_code, null, { contact_id: id, role: v.role, primary })
     return id
   })
 }

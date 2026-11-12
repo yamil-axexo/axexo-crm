@@ -13,7 +13,7 @@ export default async function CustomFieldsPage({ params }: { params: Promise<{ i
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const row = await customValues(ctx, 'deal', id)
   if (!row || row.locked || !ctx.can('deal.edit', row.market_code)) notFound()
-  const defs = (await fieldDefs(ctx, 'deal', row.market_code)).filter(isEditable)
+  const defs = (await fieldDefs(ctx, 'deal', row.market_code, row.motor)).filter(isEditable)
   return (
     <>
       <PageHeader
