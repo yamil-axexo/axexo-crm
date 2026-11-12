@@ -5,7 +5,7 @@ import type { Ctx } from '@/server/context'
 import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
-import { isoDay } from '@/lib/format'
+import { day as dayLabel, isoDay } from '@/lib/format'
 
 export type StageKind = 'open' | 'awaiting_txn' | 'won' | 'lost'
 
@@ -17,13 +17,44 @@ export type GateDeal = {
   decision_maker_met: boolean
   /** Cuántas líneas de producto lleva. Solo se revisa cuando la etapa pide 'items'. */
   items_count?: number
+  /** Campos adicionales del negocio. Solo se revisan cuando la etapa pide uno ('field:<clave>'). */
+  custom?: Record<string, unknown> | null
 }
+
+/** Una etapa también puede pedir un campo adicional del negocio (por ejemplo "Cuenta ACH o prepago"): 'field:<clave>'. */
+export const FIELD_TOKEN = 'field:'
+export const fieldKey = (token: string): string | null => (token.startsWith(FIELD_TOKEN) ? token.slice(FIELD_TOKEN.length) : null)
+const filled = (v: unknown): boolean => !(v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0))
 
 export const FIELD_LABEL: Record<string, { es: string; en: string }> = {
   amount: { es: 'monto esperado', en: 'expected amount' },
   next_step: { es: 'próximo paso con fecha', en: 'next step with a date' },
-  decision_maker: { es: 'decisor identificado y contactado', en: 'decision-maker identified and reached' },
+  decision_maker: { es: 'quien decide, identificado y contactado', en: 'decision-maker identified and reached' },
   items: { es: 'al menos una línea de producto', en: 'at least one product line' },
+}
+
+/** Lo mismo, dicho como lo diría una persona del equipo: es lo que lee quien intenta ganar un negocio y le falta algo. */
+export const PLAIN_MISSING: Record<string, { es: string; en: string }> = {
+  amount: { es: 'poner el monto esperado', en: 'enter the expected amount' },
+  next_step: { es: 'dejar el próximo paso con fecha', en: 'set the next step with a date' },
+  decision_maker: { es: 'decir quién decide y marcar que ya hablaste con esa persona', en: 'say who decides and mark that you have spoken with that person' },
+  items: { es: 'agregar al menos una línea de producto', en: 'add at least one product line' },
+}
+const joinList = (parts: string[], and: string) => (parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} ${and} ${parts[parts.length - 1]}`)
+/** "Para ganarlo falta decir quién decide y marcar que ya hablaste con esa persona." */
+export const winMissingText = (missing: string[], names: Record<string, { es: string; en: string }> = {}): [es: string, en: string] => [
+  `Para ganarlo falta ${joinList(missing.map((m) => (names[m] ? `llenar "${names[m].es}"` : PLAIN_MISSING[m]?.es ?? m)), 'y')}.`,
+  `To win it you still need to ${joinList(missing.map((m) => (names[m] ? `fill in "${names[m].en}"` : PLAIN_MISSING[m]?.en ?? m)), 'and')}.`,
+]
+
+/** Nombre, en los dos idiomas, de los campos adicionales que una etapa pide ('field:<clave>'). */
+export async function fieldNames(tx: Tx, market: string, tokens: string[]): Promise<Record<string, { es: string; en: string }>> {
+  const keys = tokens.map(fieldKey).filter((k): k is string => Boolean(k))
+  if (keys.length === 0) return {}
+  const rows = await tx<{ key: string; label_es: string; label_en: string }[]>`
+    select distinct on (key) key, label_es, label_en from crm.field_definitions
+     where object = 'deal' and is_active and key = any(${keys}::text[]) and (market_code is null or market_code = ${market}) order by key, market_code nulls last`
+  return Object.fromEntries(rows.map((r) => [`${FIELD_TOKEN}${r.key}`, { es: r.label_es, en: r.label_en }]))
 }
 
 /**
@@ -38,6 +69,10 @@ export function missingForStage(deal: GateDeal, stage: { kind: StageKind; requir
   if (need.has('next_step') && !(deal.next_step && deal.next_step.trim() && deal.next_step_due)) missing.push('next_step')
   if (need.has('decision_maker') && !(deal.decision_maker_id && deal.decision_maker_met)) missing.push('decision_maker')
   if (need.has('items') && !((deal.items_count ?? 0) > 0)) missing.push('items')
+  for (const token of need) {
+    const key = fieldKey(token)
+    if (key && !filled(deal.custom?.[key])) missing.push(token)
+  }
   return missing
 }
 
@@ -88,7 +123,7 @@ const OPS_ONLY = () => new DomainError('ops_only',
 
 async function loadDeal(tx: Tx, id: string): Promise<DealRow> {
   const rows = await tx<DealRow[]>`select id, market_code, pipeline_id, stage_id, account_id, owner_id, status, title, amount_minor, next_step,
-    next_step_due, decision_maker_id, decision_maker_met, revisit_needed, ops_owner_id from crm.deals where id = ${id} for update`
+    next_step_due, decision_maker_id, decision_maker_met, revisit_needed, ops_owner_id, custom from crm.deals where id = ${id} for update`
   if (!rows[0]) throw notFound('No encontramos ese negocio.', 'We could not find that deal.')
   return rows[0]
 }
@@ -126,7 +161,7 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
     }
     if (next.decision_maker_id) {
       const ok = await tx`select 1 from crm.account_contacts where account_id = ${d.account_id} and contact_id = ${next.decision_maker_id} and valid_to is null`
-      if (!ok[0]) throw invalid('El decisor tiene que ser un contacto de este comercio.', 'The decision-maker must be a contact of this merchant.')
+      if (!ok[0]) throw invalid('Quien decide tiene que ser un contacto de este comercio.', 'The decision-maker must be a contact of this merchant.')
     } else next.decision_maker_met = false
     const cleared = d.revisit_needed && next.decision_maker_met
     await tx`update crm.deals set title = ${next.title}, amount_minor = ${next.amount_minor}, next_step = ${next.next_step},
@@ -189,6 +224,12 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     if (stage.kind !== 'lost' && (await crossesOps(tx, d.pipeline_id, cur.position, stage.position))) {
       if (!ctx.can('deal.ops', d.market_code) || d.owner_id === ctx.user.id) throw OPS_ONLY()
     }
+    // Operaciones gana lo que ya recibió: un negocio que Ventas no ha entregado (sigue en una etapa de Ventas) no lo gana quien solo opera.
+    if (stage.kind === 'won' && !cur.is_ops && ctx.can('deal.ops', d.market_code) && !ctx.can('deal.create', d.market_code)) {
+      throw new DomainError('not_handed_over',
+        'Ventas todavía no entrega este negocio a Operaciones. Lo puedes marcar como ganado cuando llegue a tu cola.',
+        'Sales has not handed this deal over to Operations yet. You can mark it as won once it reaches your queue.', 403)
+    }
     const entering = stage.is_ops && !cur.is_ops && stage.kind !== 'lost'
     const returning = cur.is_ops && !stage.is_ops && stage.kind === 'open' && stage.position < cur.position
     let reason: { label_es: string; label_en: string } | undefined
@@ -246,8 +287,11 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     } else {
       const missing = missingForStage(d, gate)
       if (missing.length) {
-        const es = missing.map((m) => FIELD_LABEL[m]?.es ?? m).join(', ')
-        const en = missing.map((m) => FIELD_LABEL[m]?.en ?? m).join(', ')
+        const names = await fieldNames(tx, d.market_code, missing)
+        const es = missing.map((m) => names[m]?.es ?? FIELD_LABEL[m]?.es ?? m).join(', ')
+        const en = missing.map((m) => names[m]?.en ?? FIELD_LABEL[m]?.en ?? m).join(', ')
+        // Ganar a mano dice qué falta en lenguaje llano, y la hoja lo deja completar ahí mismo.
+        if (stage.kind === 'won') throw new DomainError('stage_gate', ...winMissingText(missing, names))
         // Cuando lo único que falta es el próximo paso, la pantalla lo puede pedir ahí mismo.
         throw new DomainError(missing.length === 1 && missing[0] === 'next_step' ? 'next_step_required' : 'stage_gate',
           `Para pasar a "${stage.name_es}" falta: ${es}.`, `To move to "${stage.name_en}" you still need: ${en}.`)
@@ -283,8 +327,22 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       await audit(tx, ctx, 'deal.returned_to_sales', 'deal', dealId, d.market_code, { stage_id: d.stage_id }, { stage_id: toStageId, reason: extra!.ret!.reasonCode, note })
     }
     if (stage.kind === 'won' || stage.kind === 'lost') {
-      // Un negocio cerrado ya no tiene próximo paso pendiente en Hoy.
-      await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and deal_step is not null and done_at is null`
+      // Un negocio cerrado no deja nada pendiente: se cierran su próximo paso y las tareas y visitas por hacer que quedaban abiertas.
+      // Una visita por hacer que ya no va a pasar queda como tarea cerrada (una visita hecha siempre lleva resultado, y aquí no hubo visita).
+      await tx`update crm.activities set kind = case when kind = 'visit' then 'task' else kind end, done_at = now(), outcome = 'done'
+                where deal_id = ${dealId} and done_at is null and kind in ('task', 'visit', 'call', 'meeting', 'handoff')`
+      await tx`update crm.deals set next_step = null, next_step_due = null, ops_next_step = null, ops_next_step_due = null, revisit_needed = false where id = ${dealId}`
+    }
+    if (stage.kind === 'won' && d.owner_id && d.owner_id !== ctx.user.id) {
+      // Quien vendió se entera en Hoy cuando otra persona (Operaciones) gana su negocio. El aviso va en su idioma.
+      const row = await tx<{ locale: string | null; on: string }[]>`
+        select (select u.locale from crm.users u where u.id = ${d.owner_id}) as locale,
+               (select (x.won_at at time zone ${ctx.market(d.market_code).timezone})::date::text from crm.deals x where x.id = ${dealId}) as on`
+      const en = row[0]?.locale === 'en'
+      const when = dayLabel(row[0]!.on, en ? 'en' : 'es')
+      const body = en ? `${ctx.user.name} marked ${d.title} as won, with close date ${when}.` : `${ctx.user.name} marcó ${d.title} como ganado, con cierre el ${when}.`
+      await tx`insert into crm.notices (market_code, user_id, from_user_id, kind, account_id, deal_id, body)
+               values (${d.market_code}, ${d.owner_id}, ${ctx.user.id}, 'mention', ${d.account_id}, ${dealId}, ${body.slice(0, 600)})`
     }
   })
 }

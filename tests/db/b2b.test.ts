@@ -305,7 +305,10 @@ describe('en pausa y motivos de pérdida por embudo', () => {
     expect(b2b).not.toContain('store_closed_down')
     expect(d2d).toEqual(expect.arrayContaining(['store_closed_down', 'store_no_interest', 'signup_blocked', 'other_provider', 'no_cash_handling', 'landline_only', 'price']))
     expect(d2d).not.toContain('b2b_integration')
-    expect((await lossReasonsFor(await ctxFor('sam.ortiz'), 'US', 'dealer')).map((r) => r.code)).toEqual(expect.arrayContaining(['no_cash_handling', 'landline_only', 'product_not_offered', 'owner_unavailable']))
+    // Los motivos de calle son de México (0018, ola 4): US conserva los generales hasta que defina los suyos.
+    const usDealer = (await lossReasonsFor(await ctxFor('sam.ortiz'), 'US', 'dealer')).map((r) => r.code)
+    expect(usDealer).toEqual(expect.arrayContaining(['price', 'competitor', 'no_response']))
+    for (const code of ['no_cash_handling', 'landline_only', 'product_not_offered', 'owner_unavailable']) expect(usDealer, code).not.toContain(code)
     const deal = await createDeal(diana, { accountId: await b2bAccount('diana.cruz'), pipelineId: b2bPipe, title: `Motivo ${tag()}`, nextStep: 'Reunión', nextStepDue: day(1) })
     const lost = (await one(admin<{ id: string }[]>`select id from crm.stages where pipeline_id = ${b2bPipe} and kind = 'lost'`)).id
     await expect(moveDeal(diana, deal, lost, { reasonCode: 'store_closed_down' })).rejects.toMatchObject({ code: 'invalid' })

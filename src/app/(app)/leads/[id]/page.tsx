@@ -221,7 +221,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                   <li key={a.id} className="border-l-2 border-line-2 pl-4">
                     <p className="text-[14px] font-semibold text-strong">{a.subject}</p>
                     {a.body && <p className="mt-0.5 text-[13.5px] whitespace-pre-line text-muted-2 [overflow-wrap:anywhere]">{a.body}</p>}
-                    <p className="text-[12.5px] text-muted">{lab(t, ACTIVITY[a.kind])} · {a.author ?? <NoData locale={locale} />} · {dayTime(a.created_at, locale, market.timezone)}</p>
+                    <p className="text-[12.5px] text-muted"><span data-testid="lead-activity-kind">{a.type_label === 'in_person' ? t('En persona', 'In person') : lab(t, ACTIVITY[a.kind])}</span> · {a.author ?? <NoData locale={locale} />} · {dayTime(a.created_at, locale, market.timezone)}</p>
                   </li>
                 ))}
               </ul>

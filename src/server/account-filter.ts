@@ -30,6 +30,8 @@ export type AccountFilters = {
   team?: string
   /** Embudo: comercios que tienen o tuvieron un negocio en ese embudo. */
   pipeline?: string
+  /** Visitado por: nombre de quien visitó (vendedor de calle), tal como quedó en "¿Quién visitó?". */
+  visito?: string
 }
 
 type Frag = postgres.Fragment
@@ -51,6 +53,7 @@ export const heldByNobody = (tx: Tx, row: string, keys: Frag): Frag =>
 export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
   const q = (f.q ?? '').trim()
   const city = (f.city ?? '').trim()
+  const visito = (f.visito ?? '').trim().slice(0, 80)
   const digits = q.replace(/[^\d]/g, '')
   const scope = ctx.markets.map((m) => m.code) // AUTHZ-07: filtro explícito por mercado, además de RLS
   const keys = ownerKeys(tx, scope)
@@ -79,6 +82,7 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
     ${f.territory === 'none' ? tx`and a.territory_id is null` : isUuid(f.territory) ? tx`and a.territory_id = ${f.territory}` : tx``}
     ${teamFilter(tx, 'a', f.team)}
     ${isUuid(f.pipeline) ? tx`and exists (select 1 from crm.deals dp where dp.account_id = a.id and dp.pipeline_id = ${f.pipeline})` : tx``}
+    ${visito ? tx`and exists (select 1 from crm.activities xv where xv.account_id = a.id and xv.market_code = a.market_code and xv.kind = 'visit' and xv.done_at is not null and lower(btrim(xv.visited_by)) = lower(${visito}))` : tx``}
     ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'}
                   or a.place_norm like ${'%'} || app.norm(${q}) || ${'%'}
                   ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
@@ -89,4 +93,4 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
 
 /** ¿El filtro acota algo además del mercado? Sin esto, "todos los de este filtro" sería el mercado completo. */
 export const narrows = (f: AccountFilters): boolean =>
-  !!(f.q?.trim() || f.lifecycle || f.owner || f.kind || f.ver || f.region || f.city?.trim() || f.territory || f.team || f.pipeline)
+  !!(f.q?.trim() || f.lifecycle || f.owner || f.kind || f.ver || f.region || f.city?.trim() || f.territory || f.team || f.pipeline || f.visito?.trim())

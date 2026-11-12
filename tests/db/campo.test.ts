@@ -78,7 +78,7 @@ describe('registrar una visita mientras la Sales App no está conectada (E12.F1,
     const marco = await ctxFor('marco.pena')
     const store = await marcoStore(false)
     const past = addDays(today, -3)
-    const id = await addActivity(marco, { accountId: store.id, kind: 'visit', outcome: 'no_sale', on: past })
+    const id = await addActivity(marco, { accountId: store.id, kind: 'visit', outcome: 'no_sale', noSaleReason: 'not_interested', on: past })
     expect(await activity(id)).toMatchObject({ day: past })
     // el hilo la fecha y la ordena por ese día, no por el momento de la captura
     const data = (await getAccount(marco, store.id))!
@@ -113,7 +113,7 @@ describe('registrar una visita mientras la Sales App no está conectada (E12.F1,
     const marco = await ctxFor('marco.pena')
     const store = await marcoStore(false)
     const who = `Rosa Sugerida ${tag().replace(/\d/g, 'x')}`
-    await recordActivity(marco, { accountId: store.id, kind: 'visit', outcome: 'no_sale', visitedBy: who })
+    await recordActivity(marco, { accountId: store.id, kind: 'visit', outcome: 'no_sale', noSaleReason: 'not_interested', visitedBy: who })
     expect((await visitorNames(marco, 'MX'))[0]).toBe(who)
     // Diana vende B2B en México: no ve ese comercio, pero sí el nombre del vendedor de calle para no escribirlo distinto
     const diana = await ctxFor('diana.cruz')
@@ -239,7 +239,7 @@ describe('volver con quien decide y la visita por hacer', () => {
     await admin`update crm.deals set revisit_due = ${today} where id = ${store.deal_id}`
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     expect(await admin`select 1 from crm.exceptions where deal_id = ${store.deal_id} and kind = 'revisit_due' and resolved_at is null`).toHaveLength(1)
-    await recordActivity(marco, { accountId: store.id, kind: 'visit', outcome: 'no_sale', next: 'none', askNext: true })
+    await recordActivity(marco, { accountId: store.id, kind: 'visit', outcome: 'no_sale', noSaleReason: 'not_interested', next: 'none', askNext: true })
     expect(await one(admin`select revisit_needed from crm.deals where id = ${store.deal_id}`)).toMatchObject({ revisit_needed: false })
     expect(await admin`select 1 from crm.exceptions where deal_id = ${store.deal_id} and kind = 'revisit_due' and resolved_at is null`).toHaveLength(0)
   })

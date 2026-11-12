@@ -33,6 +33,10 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'deal.ops_check': ['Cambió el estado de un proveedor o documento', 'Changed a provider or document status'],
   'deal.training': ['Cambió la capacitación de un negocio', 'Changed a deal’s training'],
   'account.merchant_ref': ['Cambió el Merchant ID de un comercio', 'Changed a merchant’s Merchant ID'],
+  'account.taken': ['Tomó una tienda sin asignar', 'Took a store with no owner'],
+  'street_seller.added': ['Dio de alta a un vendedor de calle', 'Added a street seller'],
+  'street_seller.updated': ['Cambió a quién responde un vendedor de calle', 'Changed who a street seller reports to'],
+  'street_seller.ended': ['Dio de baja a un vendedor de calle', 'Removed a street seller'],
   'activity.notice_sent': ['Avisó a alguien desde una nota', 'Notified someone from a note'],
   'activity.notice_seen': ['Marcó un aviso como visto', 'Marked a notice as seen'],
   'pipeline.ops_configured': ['Cambió las propiedades de pedidos y Operaciones de un embudo', 'Changed a pipeline’s order and Operations settings'],
@@ -111,7 +115,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 /** Tipos de acción para filtrar la bitácora. El valor vacío es la vista de entrada: todo menos inicios y cierres de sesión. */
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
-  access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%'], not: null },
+  access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
   config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported'], not: null },
@@ -135,6 +139,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   team: ['Equipo', 'Team'],
   territory: ['Territorio', 'Territory'],
   problem_report: ['Reporte', 'Report'],
+  street_seller: ['Vendedor de calle', 'Street seller'],
   pipeline: ['Embudo', 'Pipeline'],
   stage: ['Etapa', 'Stage'],
   field: ['Campo', 'Field'],
@@ -254,7 +259,7 @@ const FIELD: Record<string, Pair> = {
 
 const VALUE: Record<string, Pair> = {
   amount: ['monto esperado', 'expected amount'],
-  decision_maker: ['decisor identificado y contactado', 'decision-maker identified and reached'],
+  decision_maker: ['quien decide, identificado y contactado', 'decision-maker identified and reached'],
   next_step: ['próximo paso con fecha', 'next step with a date'],
   access_removed: ['Se le quitó el acceso', 'Their access was removed'],
   open: ['Abierto', 'Open'],

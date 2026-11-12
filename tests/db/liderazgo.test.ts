@@ -346,7 +346,7 @@ describe('resultados por semana y reporte de campo', () => {
   it('exportar el reporte de campo deja evento y respeta el permiso', async () => {
     const fer = await ctxFor('fernando.ibarra')
     const out = await exportFieldReport(fer, {}, 'visitas')
-    expect(out.csv.replace(/^﻿/, '').split('\r\n')[0]).toBe('Semana (lunes),Mercado,Equipo,Persona,Visitas,Visitas con venta')
+    expect(out.csv.replace(/^﻿/, '').split('\r\n')[0]).toBe('Semana (lunes),Mercado,Equipo,Persona,Quién visitó,Visitas,Visitas con venta')
     expect((await lastExport())!.after).toMatchObject({ report: 'field_visits', rows: out.rows, filters: { weeks: 8 } })
     const stores = await exportFieldReport(fer, { by: 'plaza' }, 'comercios')
     expect(stores.csv).toContain('Plaza')

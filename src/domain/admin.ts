@@ -302,7 +302,9 @@ export async function updateStage(ctx: Ctx, stageId: string, input: z.input<type
     // Una etapa de cierre no se estanca ni pide nada para entrar: ganar y perder tienen sus propias reglas.
     const rotDays = closing ? 0 : v.rotDays
     // En una etapa abierta el próximo paso se pide siempre (ACT-02): no depende de esta lista y aquí no se cambia.
-    const required = closing ? [] : STAGE_REQUIREMENTS.filter((f) => (f === 'next_step' && s.kind === 'open' ? s.required_fields.includes(f) : v.requiredFields.includes(f)))
+    // Lo que esta pantalla no ofrece (líneas de producto, un campo adicional del negocio) se conserva: editar el nombre no lo borra.
+    const kept = s.required_fields.filter((f) => !(STAGE_REQUIREMENTS as readonly string[]).includes(f))
+    const required = closing ? [] : [...STAGE_REQUIREMENTS.filter((f) => (f === 'next_step' && s.kind === 'open' ? s.required_fields.includes(f) : v.requiredFields.includes(f))), ...kept]
     const before = { name_es: s.name_es, name_en: s.name_en, rot_days: s.rot_days, required_fields: [...s.required_fields].sort() }
     const after = { name_es: v.nameEs, name_en: v.nameEn, rot_days: rotDays, required_fields: [...required].sort() }
     if (JSON.stringify(before) === JSON.stringify(after)) return

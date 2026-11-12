@@ -11,7 +11,7 @@ import type { ActionResult } from '@/lib/errors'
 // lotes. Lo usan la lista de Comercios (selección o "todos los de este filtro") y Mi equipo ("Reasignar cartera").
 
 type Locale = 'es' | 'en'
-export type RepartoFilter = { q?: string; market?: string; lifecycle?: string; owner?: string; kind?: string; ver?: string; region?: string; city?: string; territory?: string; team?: string; pipeline?: string }
+export type RepartoFilter = { q?: string; market?: string; lifecycle?: string; owner?: string; kind?: string; ver?: string; region?: string; city?: string; territory?: string; team?: string; pipeline?: string; visito?: string }
 export type RepartoPayload = { what: 'accounts' | 'territory' | 'leads' | 'deals'; ids?: string[]; filter?: RepartoFilter; market?: string; from?: string; to: string }
 type Count = { count: number; deals: number; tasks: number }
 type Progress = { moved: number; left: number }

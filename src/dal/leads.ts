@@ -154,8 +154,8 @@ export async function getLead(ctx: Ctx, id: string) {
     if (!lead) return null
     const duplicates = await tx<{ id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: string }[]>`
       select id, name, locality, owner_name, lifecycle, match from app.duplicate_candidates(${lead.market_code}, ${lead.business_name}, ${lead.phone})`
-    const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; created_at: Date; author: string | null; done_at: Date | null; due_at: Date | null }[]>`
-      select a.id, a.kind, a.subject, a.body, a.created_at, u.full_name as author, a.done_at, a.due_at
+    const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; created_at: Date; author: string | null; done_at: Date | null; due_at: Date | null; type_label: string | null }[]>`
+      select a.id, a.kind, a.subject, a.body, a.created_at, u.full_name as author, a.done_at, a.due_at, a.type_label
         from crm.activities a left join crm.users u on u.id = a.created_by where a.lead_id = ${id} order by a.created_at desc limit 30`
     return { lead, duplicates: [...duplicates], activities: [...activities] }
   })

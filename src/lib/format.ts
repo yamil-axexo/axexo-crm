@@ -18,6 +18,8 @@ export function money(minor: number | bigint | null | undefined, currency: strin
     currency,
     currencyDisplay: 'code',
     notation: compact ? 'compact' : 'standard',
+    // En compacto, 750 se lee "750", no "750.0": el decimal solo aparece cuando abrevia (3.8K).
+    minimumFractionDigits: 0,
     maximumFractionDigits: compact ? 1 : 0,
   }).format(value)
 }

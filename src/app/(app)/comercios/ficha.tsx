@@ -103,14 +103,14 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const h3 = 'text-[15px] leading-6 font-semibold'
 
   type Item = (typeof timeline)[number]
-  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null }
+  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null; type_label?: string | null }
   const meta = (it: Item) => it.meta as Meta
   // Una visita dice de dónde viene: la que alguien registró en CONTIGO o la que llegó de la Sales App.
   const manualVisit = (it: Item) => it.kind === 'visit' && meta(it).origin === 'manual'
   const outcomeText = (o: string | null | undefined) => (o && o !== 'done' ? m(`complete.result.${o}` as MessageKey) : null)
   const visitText = (it: Item) => {
     const v = meta(it)
-    if (manualVisit(it)) return [t('Visita', 'Visit'), outcomeText(v.outcome)].filter(Boolean).join(' · ')
+    if (manualVisit(it)) return [t('Visita', 'Visit'), outcomeText(v.outcome), v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null].filter(Boolean).join(' · ')
     const base = it.title === 'sale' ? t('Visita con venta', 'Visit with a sale') : t('Visita sin venta', 'Visit with no sale')
     const why = v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null
     return `${base}${why ? ` · ${why}` : ''}${v.revisit ? ` · ${t('pide revisita', 'needs a revisit')}` : ''}${v.minutes ? ` · ${v.minutes} min` : ''}`
@@ -122,7 +122,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
     return from ? t(`Pasó a ${it.title}; venía de ${from}`, `Moved to ${it.title}; it came from ${from}`) : t(`Lo lleva ${it.title}`, `Owner: ${it.title}`)
   }
   const threadTitle = (it: Item) =>
-    it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"` : it.kind === 'attribution' ? ownerChange(it) : it.title
+    it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? (meta(it).won_on ? t(`Negocio ganado, con cierre el ${day(meta(it).won_on, locale)}`, `Deal won, with close date ${day(meta(it).won_on, locale)}`) : `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"`) : it.kind === 'attribution' ? ownerChange(it) : it.title
   /** Variación contra los 30 días anteriores, en transacciones. Sin base (cero ventas antes) no hay porcentaje que mostrar. */
   const salesDelta = (now: number, before: number) => {
     if (before <= 0) return ''
@@ -136,7 +136,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
   // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.
   const threadKind = (it: Item) =>
-    ['note', 'call', 'meeting', 'task', 'email', 'handoff'].includes(it.kind) ? [lab(t, ACTIVITY[it.kind]), outcomeText(meta(it).outcome)].filter(Boolean).join(' · ') : null
+    ['note', 'call', 'meeting', 'task', 'email', 'handoff'].includes(it.kind) ? [meta(it).type_label === 'in_person' ? t('En persona', 'In person') : lab(t, ACTIVITY[it.kind]), outcomeText(meta(it).outcome)].filter(Boolean).join(' · ') : null
   const threadDetail = (it: Item) =>
     [manualVisit(it) && meta(it).visited_by ? t(`Visitó: ${meta(it).visited_by}`, `Visited by: ${meta(it).visited_by}`) : null, it.kind !== 'stage' ? it.body : null].filter(Boolean)
 
@@ -516,7 +516,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               {attributions.map((at, i) => (
                 <li key={i} className={at.effective_to ? 'text-muted' : ''}>
                   <p className="text-[13px] text-muted">{lab(t, ATTRIBUTION_LAYER[at.layer])}</p>
-                  <p className={cx('text-[15px] font-medium', at.effective_to ? 'text-muted-2' : 'text-strong')}>{at.party_label}</p>
+                  <p className={cx('text-[15px] font-medium', at.effective_to ? 'text-muted-2' : 'text-strong')} data-testid={`attribution-${at.layer}`}>{at.party_kind === 'form' ? t('Formulario web', 'Web form') : at.party_label}</p>
                   <p className="text-[13px] text-muted-2">{t('desde', 'since')} {day(at.effective_from, locale, tz)}{at.effective_to ? ` ${t('hasta', 'until')} ${day(at.effective_to, locale, tz)}` : ''}</p>
                 </li>
               ))}

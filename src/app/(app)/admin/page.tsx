@@ -98,7 +98,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <tr key={s.position} className="table-row" data-testid="stage-row">
                   <td className="num text-muted">{s.position}</td>
                   <td><span className="font-semibold text-strong" data-testid="stage-name">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2"><Badge tone="info">{t('espera la primera venta', 'waits for the first sale')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{p.close_by_transaction ? t('solo por transacción', 'by transaction only') : t('cierre manual', 'closed by hand')}</Badge></span>}</td>
-                  <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f)).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}</td>
+                  <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => { const def = f.startsWith('field:') ? d.fields.find((x) => x.object === 'deal' && x.key === f.slice(6)) : undefined; return def ? t(def.label_es, def.label_en) : f.startsWith('field:') ? t('un campo adicional del negocio', 'an additional deal field') : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}</td>
                   <td className="text-[13.5px] text-muted-2">{t(s.exit_es, s.exit_en) || t('sin criterio escrito', 'no written criteria')}</td>
                   <td className="num text-[13.5px]" data-testid="stage-rot">{s.rot_days ? t(`${s.rot_days} días`, `${s.rot_days} days`) : t('nunca', 'never')}</td>
                   {admin && (
@@ -277,9 +277,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               </ActionForm>
               <ActionForm action={simulateVisitAction} className="card-2 p-5" testId="sim-visit">
                 <p className="text-[14.5px] font-semibold text-strong">{t('Sales App: visita', 'Sales App: visit')}</p>
-                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Una visita sin decisor deja el negocio marcado con revisita.', 'A visit with no decision-maker flags the deal for a revisit.')}</p>
+                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Una visita sin quien decide deja el negocio marcado con revisita.', 'A visit with no decision-maker flags the deal for a revisit.')}</p>
                 <Field label={t('Comercio', 'Merchant')}><select name="customer_id" className="input" data-testid="sim-visit-ref">{d.visitable.map((a) => <option key={a.alias} value={a.alias}>{a.name} · {a.alias}</option>)}<option value="SC-XX-000000">{t('ID que no existe', 'An ID that does not exist')}</option></select></Field>
-                <Field label={t('Resultado', 'Outcome')} className="mt-3"><select name="outcome" className="input" data-testid="sim-visit-outcome"><option value="revisit">{t('Sin venta: no estaba el decisor', 'No sale: decision-maker absent')}</option><option value="sale">{t('Con venta', 'With a sale')}</option><option value="no_sale">{t('Sin venta: tiene inventario', 'No sale: has stock')}</option></select></Field>
+                <Field label={t('Resultado', 'Outcome')} className="mt-3"><select name="outcome" className="input" data-testid="sim-visit-outcome"><option value="revisit">{t('Sin venta: no estaba quien decide', 'No sale: decision-maker absent')}</option><option value="sale">{t('Con venta', 'With a sale')}</option><option value="no_sale">{t('Sin venta: tiene inventario', 'No sale: has stock')}</option></select></Field>
                 <div className="mt-4"><Submit variant="ghost" size="sm" testId="sim-visit-send">{t('Enviar evento', 'Send event')}</Submit></div>
               </ActionForm>
               <ActionForm action={simulateStoreAction} onOk="reset" className="card-2 p-5" testId="sim-store">

@@ -38,6 +38,10 @@ async function newOrder(page: Page, accountId: string, title: string) {
 test.describe.configure({ mode: 'serial' })
 
 test.describe('pedido, entrega a Operaciones, cola, devolución y ganar a mano', () => {
+  // La lista de alta (documentos, proveedores, capacitación) aplica por embudo y de fábrica los pedidos no la llevan (0018, ola 4).
+  // Este recorrido ejercita esa lista sobre un pedido, así que se la enciende a los embudos de pedidos mientras corre y la apaga al final.
+  test.beforeAll(async () => { await sql`update crm.pipelines set ops_checklist = true where market_code = 'US' and multi_open` })
+  test.afterAll(async () => { await sql`update crm.pipelines set ops_checklist = false where market_code = 'US' and multi_open` })
   const name = `Zx Mayorista ${tag()}`
   const first = `Pedido SIM ${tag()}`
   const second = `Pedido recargas ${tag()}`
@@ -244,7 +248,7 @@ test('en teléfono el candado de etapa se resuelve en una hoja, sin salir del ta
   await page.getByTestId('gate-amount').fill('1200')
   await page.getByTestId('gate-save').click()
   await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Envío a carriers')
-  await sql`update crm.stages set required_fields = '{next_step}' where id = ${await uid('s-us-dealer-carrier')}`
+  await sql`update crm.stages set required_fields = '{next_step,amount,field:account_funding}' where id = ${await uid('s-us-dealer-carrier')}`
 })
 
 test('la hoja de completar le habla a Operaciones de documentos y proveedores, no de llamadas y propuestas', async ({ page }) => {

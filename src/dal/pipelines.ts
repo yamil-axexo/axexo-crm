@@ -4,6 +4,7 @@ import type { Ctx } from '@/server/context'
 import { missingForStage, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
 import { teamFilter } from '@/dal/reports'
+import { gateFields } from '@/dal/ops'
 
 export type PipelineInfo = { id: string; market_code: string; motor: string; name: string; open_deals: number }
 
@@ -120,8 +121,8 @@ export async function getDeal(ctx: Ctx, id: string) {
     const contacts = await tx<{ id: string; full_name: string; role: string }[]>`
       select c.id, c.full_name, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
        where ac.account_id = ${deal.account_id} and ac.valid_to is null order by ac.role, c.full_name`
-    const events = await tx<{ at: Date; from_es: string | null; from_en: string | null; to_es: string; to_en: string; actor: string | null; cause: string }[]>`
-      select e.at, f.name_es as from_es, f.name_en as from_en, t.name_es as to_es, t.name_en as to_en, u.full_name as actor, e.cause
+    const events = await tx<{ at: Date; from_es: string | null; from_en: string | null; to_es: string; to_en: string; actor: string | null; cause: string; to_kind: string }[]>`
+      select e.at, f.name_es as from_es, f.name_en as from_en, t.name_es as to_es, t.name_en as to_en, u.full_name as actor, e.cause, t.kind as to_kind
         from crm.deal_stage_events e left join crm.stages f on f.id = e.from_stage_id join crm.stages t on t.id = e.to_stage_id
         left join crm.users u on u.id = e.actor_id where e.deal_id = ${id} order by e.at desc`
     // Lo hecho se ordena y se fecha por el día en que se hizo, no por el día en que se creó la tarea.
@@ -133,6 +134,11 @@ export async function getDeal(ctx: Ctx, id: string) {
     const current = stages.find((s) => s.id === deal.stage_id)
     const next = current ? stages.find((s) => s.position === current.position + 1 && s.kind !== 'lost') : undefined
     const missingNext = next && next.kind !== 'won' ? missingForStage({ ...deal, items_count: items.length }, next) : []
-    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext }
+    // Lo que falta para ganarlo a mano: lo que piden las etapas que quedan por delante (la hoja de ganar lo deja completar ahí mismo).
+    const ahead = current ? stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn' || s.kind === 'won') && s.position > current.position) : []
+    const missingWin = missingForStage({ ...deal, items_count: items.length }, { kind: 'won', required_fields: [...new Set(ahead.flatMap((s) => s.required_fields))] })
+    // Campos adicionales que piden las etapas por delante ('field:<clave>'), con su nombre, para pedirlos en la misma hoja.
+    const gateDefs = await gateFields(tx, deal.market_code, [...missingNext, ...missingWin])
+    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext, missingWin, gateDefs }
   })
 }

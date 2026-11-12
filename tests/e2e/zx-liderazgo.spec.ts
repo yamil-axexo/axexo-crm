@@ -445,7 +445,7 @@ test.describe('reporte semanal de campo', () => {
     const res = await page.request.get(href!)
     expect(res.status()).toBe(200)
     const lines = (await res.text()).replace(/^﻿/, '').trimEnd().split('\r\n')
-    expect(lines[0]).toBe('Semana (lunes),Mercado,Equipo,Persona,Visitas,Visitas con venta')
+    expect(lines[0]).toBe('Semana (lunes),Mercado,Equipo,Persona,Quién visitó,Visitas,Visitas con venta')
     expect(lines.length).toBeGreaterThan(1)
     expect(await lastExport()).toMatchObject({ actor: 'Ana Robles', market_code: 'MX', after: { report: 'field_visits', rows: lines.length - 1, filters: { weeks: 8, by: 'plaza' } } })
     const stores = await page.request.get((await page.getByTestId('export-stores').getAttribute('href'))!)

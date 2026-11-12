@@ -91,7 +91,7 @@ describe('bitácora: el antes y el después en palabras', () => {
     expect(rows.map((r) => `${r.label}: ${r.before} → ${r.after}`)).toEqual([
       'Nombre en español: Proposal → Propuesta',
       'Se estanca a los: 14 días → nunca',
-      'Pide para entrar: monto esperado → monto esperado, decisor identificado y contactado',
+      'Pide para entrar: monto esperado → monto esperado, quien decide, identificado y contactado',
     ])
   })
 

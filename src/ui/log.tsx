@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Choices, NextStep, SheetText, VisitorField, fill, nextFor, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
+import { Choices, NextStep, NoSaleReason, SheetText, VisitorField, fill, nextFor, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
 import { findAccountsAction, logActivityAction, notifyOptionsAction } from '@/app/(app)/actividades/log-actions'
 import type { FoundAccount } from '@/dal/field'
 
@@ -115,6 +115,7 @@ function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; con
   const [kind, setKind] = useState<LogKind>(target.kind)
   const [account, setAccount] = useState<LogAccount | null>(target.account ?? null)
   const [next, setNext] = useState('')
+  const [picked, setPicked] = useState('')
   const [when, setWhen] = useState(sheet.defaultWhen)
   const [on, setOn] = useState(config.today)
   const [error, setError] = useState<string | null>(null)
@@ -148,7 +149,7 @@ function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; con
       </h2>
 
       {!target.afterCall && (
-        <Choices name="kind_choice" legend={labels.kind} options={(['visit', 'call', 'note'] as const).map((k) => ({ value: k, label: labels.kinds[k] }))} value={kind} onChange={(v) => { setKind(v as LogKind); setError(null) }} />
+        <Choices name="kind_choice" legend={labels.kind} options={(['visit', 'call', 'note'] as const).map((k) => ({ value: k, label: labels.kinds[k] }))} value={kind} onChange={(v) => { setKind(v as LogKind); setPicked(''); setError(null) }} />
       )}
 
       {!target.account && <MerchantPicker labels={labels} account={account} onPick={(a) => { setAccount(a); setError(null) }} />}
@@ -159,9 +160,10 @@ function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; con
       {account && kind !== 'note' && (
         <>
           {/* Si hay que volver con quien decide, lo que sigue es visitar: queda elegido y la persona lo puede cambiar. */}
-          <Choices key={kind} name="result" legend={sheet.labels.result} options={kind === 'visit' ? config.visitResults : config.callResults} onPick={(v) => v === 'revisit' && !next && setNext('visit')} />
+          <Choices key={kind} name="result" legend={sheet.labels.result} options={kind === 'visit' ? config.visitResults : config.callResults} onPick={(v) => { setPicked(v); if (v === 'revisit' && !next) setNext('visit') }} />
           {kind === 'visit' && (
             <>
+              {picked === 'no_sale' && <NoSaleReason label={sheet.labels.noSaleReason} pick={sheet.labels.pickReason} market={account.market} />}
               <Choices
                 name="on_choice"
                 legend={labels.on}

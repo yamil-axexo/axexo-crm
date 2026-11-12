@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
-import { getClosedDeals, getReportOptions, marketPeriods } from '@/dal/reports'
+import { getClosedDeals, getReportOptions, marketPeriods, reportScope } from '@/dal/reports'
 import { EXPORT_MAX } from '@/domain/reports'
 import { track } from '@/dal/boards'
 import { Badge, Card, CardTitle, Empty, PageHeader, NoData } from '@/ui/kit'
@@ -16,13 +16,15 @@ const GRID = '@4xl:grid @4xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.5fr)_minmax(0
 
 export default async function ClosedDealsPage({ searchParams }: { searchParams: Promise<ReportParams> }) {
   const ctx = await requireCtx()
-  if (!ctx.can('report.view')) notFound()
+  // Quien vende entra a ver SUS cerrados; el resto de los reportes sigue siendo de supervisión, quien lidera y leadership.
+  const own = !ctx.can('report.view')
+  if (own && !ctx.can('report.own')) notFound()
   const { t, locale } = ctx
   const sp = flat(await searchParams)
   const period = marketPeriods(ctx, sp.periodo, sp.desde, sp.hasta, 'mes')
-  const options = await getReportOptions(ctx)
+  const options = await getReportOptions(ctx, reportScope(ctx, own))
   const f = reportFilters(sp, options)
-  const data = await getClosedDeals(ctx, period, f, LIMIT)
+  const data = await getClosedDeals(ctx, period, f, LIMIT, own)
   await track(ctx, 'view.report.closed')
   const params = { periodo: period.key, desde: period.key === 'rango' ? period.first.from : undefined, hasta: period.key === 'rango' ? period.first.to : undefined, mercado: f.market, embudo: f.pipeline, equipo: f.team, persona: f.owner, resultado: f.result }
   const sel = reportSelects(t, options, f)
@@ -34,7 +36,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
   return (
     <>
       <PageHeader
-        title={t('Negocios cerrados', 'Closed deals')}
+        title={own ? t('Mis negocios cerrados', 'My closed deals') : t('Negocios cerrados', 'Closed deals')}
         desc={t('Ganados y perdidos por persona y periodo. La fecha de cierre es el día en la zona horaria del mercado. Los montos se suman por moneda, sin convertir.', 'Won and lost by person and period. The close date is the day in the market’s time zone. Amounts add up by currency, with no conversion.')}
         actions={canExport ? <ExportLink href={qs('/reportes/cerrados/export', params)}>{t('Exportar CSV', 'Export CSV')}</ExportLink> : undefined}
       />

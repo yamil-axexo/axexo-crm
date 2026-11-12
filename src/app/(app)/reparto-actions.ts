@@ -9,7 +9,7 @@ import { invalid, type ActionResult } from '@/lib/errors'
 // cada llamada mueve un lote y devuelve cuántos quedan (domain/reparto.ts).
 
 const text = z.string().max(200).optional()
-const filter = z.object({ q: text, market: text, lifecycle: text, owner: text, kind: text, ver: text, region: text, city: text, territory: text, team: text, pipeline: text })
+const filter = z.object({ q: text, market: text, lifecycle: text, owner: text, kind: text, ver: text, region: text, city: text, territory: text, team: text, pipeline: text, visito: text })
 const payload = z.object({
   /** accounts: comercios con sus negocios y tareas. territory: poner territorio. leads / deals: lo abierto de una persona. */
   what: z.enum(['accounts', 'territory', 'leads', 'deals']),

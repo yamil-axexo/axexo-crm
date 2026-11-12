@@ -3,7 +3,7 @@ import type { getDealOps } from '@/dal/ops'
 import { OPS_LABEL, DOCUMENT_STATUS, PROVIDER_STATUS, TRAINING_STATUS } from '@/domain/ops'
 import { Badge, Card, CardTitle, Field } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { CopyValue } from '@/ui/ops'
+import { CopyValue, MerchantRefForm } from '@/ui/ops'
 import { day, money, noData } from '@/lib/format'
 import { addItemAction, merchantRefAction, opsCheckAction, opsStepAction, removeItemAction, returnDealAction, takeDealAction, trainingAction } from '@/app/(app)/operaciones/actions'
 
@@ -113,11 +113,8 @@ export function DealOpsCard({ ctx, dealId, open, title, ops, today }: { ctx: Ctx
         <div className="flex flex-wrap items-end gap-3">
           {ops.merchant_ref ? <CopyValue value={ops.merchant_ref} label={t('Copiar', 'Copy')} copied={t('Merchant ID copiado.', 'Merchant ID copied.')} /> : <span className="text-[14.5px] text-muted" data-testid="merchant-ref-empty">{t('Todavía no se ha anotado.', 'Not recorded yet.')}</span>}
           {canOps && (
-            <ActionForm action={merchantRefAction} className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="account_id" value={ops.account_id} />
-              <input name="merchant_ref" aria-label="Merchant ID" className="input !w-44" maxLength={40} defaultValue={ops.merchant_ref ?? ''} data-testid="merchant-ref-input" />
-              <Submit variant="ghost" testId="merchant-ref-save">{t('Guardar', 'Save')}</Submit>
-            </ActionForm>
+            <MerchantRefForm action={merchantRefAction} accountId={ops.account_id} value={ops.merchant_ref ?? ''}
+              labels={{ save: t('Guardar', 'Save'), anyway: t('Sí, guardar de todos modos', 'Yes, save anyway'), cancel: t('Cancelar', 'Cancel') }} />
           )}
         </div>
       </section>
@@ -170,7 +167,7 @@ export function DealOpsCard({ ctx, dealId, open, title, ops, today }: { ctx: Ctx
         </section>
       ))}
 
-      <section className="border-t border-line pt-4" data-testid="ops-training">
+      {ops.checklist && <section className="border-t border-line pt-4" data-testid="ops-training">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[14px] font-semibold text-strong">{t('Capacitación', 'Training')}</h3>
           <span className="flex items-center gap-2 text-[13px] text-muted">{ops.training_on ? day(ops.training_on, locale) : null}<Badge tone={tone(ops.training_status)}>{label(ops.training_status, '')}</Badge></span>
@@ -185,7 +182,7 @@ export function DealOpsCard({ ctx, dealId, open, title, ops, today }: { ctx: Ctx
             <Submit variant="ghost" size="sm" testId="training-save">{t('Guardar', 'Save')}</Submit>
           </ActionForm>
         )}
-      </section>
+      </section>}
     </Card>
   )
 }

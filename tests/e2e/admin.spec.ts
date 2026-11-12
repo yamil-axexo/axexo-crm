@@ -364,7 +364,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
         await expect(page.getByTestId('admin-notice')).toContainText('Etapa actualizada')
         const edited = card.getByTestId('stage-row').filter({ hasText: es })
         await expect(edited.getByTestId('stage-rot')).toHaveText('9 días')
-        await expect(edited.getByTestId('stage-needs')).toHaveText('próximo paso con fecha, decisor identificado y contactado')
+        await expect(edited.getByTestId('stage-needs')).toHaveText('próximo paso con fecha, quien decide, identificado y contactado')
         await english(page)
         await page.reload()
         await expect(page.getByTestId('stage-row').filter({ hasText: en }).getByTestId('stage-rot')).toHaveText('9 days')

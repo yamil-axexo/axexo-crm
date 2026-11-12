@@ -13,6 +13,7 @@ import { boardMoveAction } from '../actions'
 import { bulkCloseAction, gateInfoAction, gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
 import { staleDeals } from '@/dal/ops'
 import { lossReasonsFor } from '@/dal/b2b'
+import { PLAIN_MISSING } from '@/domain/deals'
 import { BulkPick } from '@/ui/ops'
 import { ActionForm, Submit } from '@/ui/client'
 import { day } from '@/lib/format'
@@ -83,10 +84,13 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   // (lo que pasa por una etapa de Operaciones lo cierra Operaciones, nunca quien vendió).
   const wonStage = board.pipeline.close_by_transaction ? undefined : board.stages.find((s) => s.kind === 'won')
   const canOps = ctx.can('deal.ops', board.pipeline.market_code)
+  const opsOnly = canOps && !ctx.can('deal.create', board.pipeline.market_code)
   const winTo = (d: (typeof board.deals)[number]): string | null => {
     if (!wonStage || !canMove) return null
     const pos = board.stages.find((s) => s.id === d.stage_id)?.position ?? 0
     const opsAhead = board.stages.some((s) => s.is_ops && s.position >= pos)
+    // Quien solo opera gana lo que Ventas ya le entregó: en una etapa de Ventas no ve el botón.
+    if (opsOnly && !board.stages.find((s) => s.id === d.stage_id)?.is_ops) return null
     return !opsAhead || (canOps && d.owner_id !== ctx.user.id) ? wonStage.id : null
   }
   const generic = (d: (typeof board.deals)[number]) => d.title.trim().toLowerCase() === d.account_name.trim().toLowerCase()
@@ -230,14 +234,17 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
               gate: {
                 title: t('Para pasar a "%s" falta esto', 'To move to "%s" you still need this'), body: t('Llénalo aquí y %n avanza.', 'Fill it in here and %n moves on.'), save: t('Guardar y mover', 'Save and move'),
                 amount: t(`Monto esperado (${market.currency})`, `Expected amount (${market.currency})`), nextStep: m('deals.next.step'), nextDue: m('deals.next.due'),
-                decisionMaker: t('Decisor', 'Decision-maker'), pick: t('Elige al decisor', 'Pick the decision-maker'), met: t('Ya hablé con el decisor', 'I have spoken with the decision-maker'),
+                decisionMaker: t('Quien decide', 'Decision-maker'), pick: t('Elige quién decide', 'Pick the decision-maker'), met: t('Ya hablé con quien decide', 'I have spoken with the decision-maker'),
                 noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
                 items: t('Falta al menos una línea de producto.', 'It needs at least one product line.'), openDeal: t('Agregar líneas en el negocio', 'Add lines on the deal'),
+                lang: locale, pickOne: t('Elige una opción', 'Pick an option'),
               },
               win: {
                 button: t('Marcar como ganado', 'Mark as won'), title: t('Marcar como ganado: %s', 'Mark as won: %s'),
                 rule: t('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.', 'During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own.'),
                 date: t('Fecha real de cierre', 'Actual close date'), hint: t('Hoy o un día anterior, nunca futura.', 'Today or an earlier day, never in the future.'), confirm: t('Marcar como ganado', 'Mark as won'),
+                needs: t('Para ganarlo falta %s.', 'To win it you still need to %s.'), and: t('y', 'and'),
+                plain: Object.fromEntries(Object.entries(PLAIN_MISSING).map(([k, v]) => [k, t(v.es, v.en)])),
               },
               stages: m('deals.stages'), stage: m('deals.stage'), moveTo: m('deals.moveTo', { name: '%s' }), moved: m('deals.moved', { name: '%n', stage: '%s' }), empty: m('deals.empty'),
               nextTitle: m('deals.next.title', { name: '%s' }), nextBody: m('deals.next.body'), nextStep: m('deals.next.step'), nextDue: m('deals.next.due'), nextSave: m('deals.next.save'), cancel: m('action.cancel'),

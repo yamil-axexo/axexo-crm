@@ -15,11 +15,13 @@ type Frag = postgres.Fragment
  * y mercados donde solo ve a su equipo (supervisión). RLS decide la fila; esto lo repite de forma explícita (AUTHZ-07).
  */
 export type ReportScope = { full: string[]; team: string[] }
-export function reportScope(ctx: Ctx): ReportScope {
+export function reportScope(ctx: Ctx, own = false): ReportScope {
   const live = ctx.markets.filter((m) => m.status === 'live').map((m) => m.code)
   const has = (code: string, roles: Role[]) => ctx.memberships.some((m) => roles.includes(m.role) && (m.market === null || m.market === code))
   const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead']))
-  const team = live.filter((c) => !full.includes(c) && has(c, ['supervisor']))
+  // Supervisión ve a su equipo. Con `own` (solo "Mis negocios cerrados"), quien vende ve lo que lleva: app.supervised_user_ids()
+  // devuelve a la propia persona y a quienes supervisa. Los demás reportes no le dan alcance a quien vende.
+  const team = live.filter((c) => !full.includes(c) && has(c, own ? ['supervisor', 'rep'] : ['supervisor']))
   return { full, team }
 }
 export const scopeMarkets = (s: ReportScope) => [...s.full, ...s.team]
@@ -135,8 +137,8 @@ export type ClosedPerson = { owner_id: string | null; owner_name: string | null;
  * Negocios ganados y perdidos en el periodo, dentro del alcance de quien mira. La fecha de cierre es el día de calendario
  * en la zona del mercado. Los montos se suman por moneda: aquí nunca se convierten.
  */
-export async function getClosedDeals(ctx: Ctx, p: MarketPeriods, f: ClosedFilters, limit = 200) {
-  const scope = reportScope(ctx)
+export async function getClosedDeals(ctx: Ctx, p: MarketPeriods, f: ClosedFilters, limit = 200, own = false) {
+  const scope = reportScope(ctx, own)
   return withUser(ctx.user.id, async (tx) => {
     const base = closedBase(tx, scope, p, f)
     const rows = await tx<ClosedRow[]>`${closedSelect(tx)} ${base} order by closed_on desc, d.id desc limit ${limit}`
@@ -380,6 +382,18 @@ const fieldVisits = async (tx: Tx, scope: ReportScope, f: FieldFilters, since: s
   return [...rows]
 }
 
+export type FieldVisitorRow = { week: string; market_code: string; visited_by: string | null; owner_name: string | null; team_name: string | null; visits: number; sales: number }
+/** Visitas por quien visitó (vendedor de calle), bajo quien lleva el comercio. Las de la Sales App y las que no dicen quién fue van como "sin nombre". */
+const fieldVisitors = async (tx: Tx, scope: ReportScope, f: FieldFilters, since: string): Promise<FieldVisitorRow[]> => {
+  const rows = await tx<FieldVisitorRow[]>`
+    select date_trunc('week', v.business_date)::date::text as week, v.market_code, nullif(btrim(v.visited_by), '') as visited_by, u.full_name as owner_name, tm.name as team_name,
+           count(*)::int as visits, count(*) filter (where v.outcome = 'sale')::int as sales
+      from crm.visit_log v left join crm.users u on u.id = v.owner_id left join lateral ${ownerTeam(tx, 'v')} tm on true
+     where v.business_date >= ${since}::date and ${inScope(tx, scope, 'v')} ${f.market ? tx`and v.market_code = ${f.market}` : tx``} ${ownerFilter(tx, 'v', f.owner)} ${teamFilter(tx, 'v', f.team)}
+     group by 1, v.market_code, 3, u.full_name, tm.name order by week desc, v.market_code, 3 nulls last, u.full_name nulls last`
+  return [...rows]
+}
+
 /**
  * El número de los viernes: puntos de venta dados de alta y negocios ganados por semana y por territorio (o plaza),
  * y visitas por persona. Semana de lunes a domingo en la zona del mercado.
@@ -388,11 +402,11 @@ export async function getFieldReport(ctx: Ctx, f: FieldFilters) {
   const scope = reportScope(ctx)
   const weeks = lastWeeks(ctx, f.weeks ?? 8)
   const since = weeks[weeks.length - 1]!
-  return withUser(ctx.user.id, async (tx) => ({ weeks, places: await fieldPlaces(tx, scope, f, since), visits: await fieldVisits(tx, scope, f, since) }))
+  return withUser(ctx.user.id, async (tx) => ({ weeks, places: await fieldPlaces(tx, scope, f, since), visits: await fieldVisits(tx, scope, f, since), visitors: await fieldVisitors(tx, scope, f, since) }))
 }
 export async function fieldReportForExport(tx: Tx, ctx: Ctx, f: FieldFilters) {
   const scope = reportScope(ctx)
   const weeks = lastWeeks(ctx, f.weeks ?? 8)
   const since = weeks[weeks.length - 1]!
-  return { weeks, places: await fieldPlaces(tx, scope, f, since), visits: await fieldVisits(tx, scope, f, since) }
+  return { weeks, places: await fieldPlaces(tx, scope, f, since), visits: await fieldVisits(tx, scope, f, since), visitors: await fieldVisitors(tx, scope, f, since) }
 }
