@@ -32,7 +32,7 @@ test('la entrada cambia a inglés completa', async ({ page }) => {
   await page.goto('/login')
   await page.getByTestId('locale-toggle').click()
   await expect(page.locator('h1')).toHaveText('Every merchant, with its next step.')
-  await expect(page.getByTestId('landing-roles').locator('h3')).toHaveText(['Sales', 'Supervisor', 'Market lead', 'Operations', 'Leadership', 'Admin'])
+  await expect(page.getByTestId('landing-roles').locator('h3')).toHaveText(['Sales', 'Supervisor', 'Market lead', 'Operations', 'Leadership', 'Administration'])
   await expect(page.getByTestId('landing-status').getByText('Not yet', { exact: true })).toHaveCount(3)
   await page.getByTestId('locale-toggle').click()
   await expect(page.locator('h1')).toHaveText('Cada comercio, con su próximo paso.')

@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
-import { getLead, marketPipelines, sellers } from '@/dal/leads'
+import { getLead, marketPipelines, sellers, territoriesOf } from '@/dal/leads'
+import { territoryFor } from '@/lib/territory'
 import { CONTACT_ROLES, typeForMotor } from '@/domain/leads'
 import { accountTypes, lossReasonsFor } from '@/dal/b2b'
 import { LeadCall } from '@/ui/lead-call'
 import { Badge, Card, CardTitle, Field, KeyVal, NoData, PageHeader } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { ago, dayTime, phoneText } from '@/lib/format'
+import { ago, dayTime, marketTime, phoneText, zoneNote } from '@/lib/format'
+import { OwnTime } from '@/ui/own-time'
 import { ACTIVITY, CONTACT_ROLE, LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
 import { leadStepAction, takeLeadAction } from '../actions'
 import { CompleteButton } from '@/ui/complete'
@@ -38,6 +40,11 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const pipes = open ? await marketPipelines(ctx, lead.market_code) : []
   const pipe = pipes.find((p) => p.motor === lead.motor) ?? pipes[0]
   const motors = [...new Set([...pipes.map((p) => p.motor), lead.motor])]
+  // Territorio del comercio que nace: el único de quien lleva el lead o el de la ciudad del lead. Si lleva dos o más, la hoja
+  // lo muestra para confirmarlo, y lo pide cuando la ciudad no dice cuál.
+  const territories = lead.status === 'qualified' && canWork ? await territoriesOf(ctx, lead.market_code, lead.owner_id ?? ctx.user.id) : []
+  const ownTerritories = territories.filter((x) => x.own)
+  const territory = territoryFor(ownTerritories, territories, lead.locality)
   // Tipo de cuenta: el catálogo del mercado (el mismo de la ficha del comercio). Si el del lead ya no está, vale el del tipo de venta.
   const types = await accountTypes(ctx, lead.market_code)
   const fallbackType = typeForMotor(pipe?.motor ?? lead.motor)
@@ -107,7 +114,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                   lead.status === 'qualified'
                     ? t('Al convertir se crea el comercio como prospecto, su contacto y un negocio con próximo paso.', 'Converting creates the merchant as a prospect, its contact and a deal with a next step.')
                     : late ? t('Este lead ya pasó su tiempo de respuesta.', 'This lead is past its response time.')
-                    : waiting && lead.sla_due_at ? t(`Primer contacto: vence el ${dayTime(lead.sla_due_at, locale, market.timezone)}, hora de ${market.name}. El reloj solo corre en horario hábil.`, `First contact: due ${dayTime(lead.sla_due_at, locale, market.timezone)}, ${market.name} time. The clock only runs during business hours.`)
+                    : waiting && lead.sla_due_at ? <>{t(`Primer contacto: vence el ${marketTime(lead.sla_due_at, locale, market)}`, `First contact: due ${marketTime(lead.sla_due_at, locale, market)}`)}<OwnTime at={new Date(lead.sla_due_at).toISOString()} zone={market.timezone} locale={locale} />{t('. El reloj solo corre en horario hábil.', '. The clock only runs during business hours.')}</>
                     : lead.status === 'new' && lead.first_touch_at ? t('Ya hubo un intento de contacto, sin respuesta.', 'There was a contact attempt, with no answer.')
                     : t('Decide si este lead avanza.', 'Decide whether this lead moves forward.')
                 }
@@ -169,6 +176,14 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                           {CONTACT_ROLES.map((r) => <option key={r} value={r}>{lab(t, CONTACT_ROLE[r])}</option>)}
                         </select>
                       </Field>
+                      {ownTerritories.length > 1 && (
+                        <Field label={t('Territorio del comercio', 'Merchant territory')} hint={territory.id ? undefined : t(`${mine ? 'Llevas' : 'Quien lleva este lead cubre'} más de un territorio y la ciudad del lead no dice cuál.`, `${mine ? 'You cover' : 'The owner of this lead covers'} more than one territory and the lead’s city does not say which.`)}>
+                          <select name="territory_id" className="input" required defaultValue={territory.id ?? ''} data-testid="lead-territory">
+                            {!territory.id && <option value="" disabled>{t('Elige un territorio', 'Pick a territory')}</option>}
+                            {ownTerritories.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                          </select>
+                        </Field>
+                      )}
                       {duplicates.length > 0 && (
                         <Field label={t('Ligar a un comercio existente', 'Link to an existing merchant')}>
                           <select name="link_account_id" className="input" data-testid="lead-link">
@@ -202,7 +217,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           )}
 
           <Card>
-            <CardTitle title={t('Notas del lead', 'Lead notes')} />
+            <CardTitle title={t('Notas del lead', 'Lead notes')} hint={zoneNote(market, locale)} />
             {canWork && open && (
               <ActionForm action={addActivityAction} onOk="reset" className="mb-6">
                 <input type="hidden" name="lead_id" value={lead.id} />
@@ -249,8 +264,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 <KeyVal k={t('También escribió', 'Also wrote in')}><span data-testid="lead-extra">{lead.extra_contacts.map((c) => [c.name, c.phone ? phoneText(c.phone) : c.email].filter(Boolean).join(' · ')).join('; ')}</span></KeyVal>
               )}
               <KeyVal k={t('Origen', 'Source')}>{lead.form_name ?? lab(t, SOURCE[lead.source])}</KeyVal>
-              <KeyVal k={t('Llegó', 'Arrived')}>{dayTime(lead.created_at, locale, market.timezone)}</KeyVal>
-              <KeyVal k={t('Primer contacto', 'First touch')}>{lead.first_touch_at ? dayTime(lead.first_touch_at, locale, market.timezone) : <NoData locale={locale} />}</KeyVal>
+              <KeyVal k={t('Llegó', 'Arrived')}><span data-testid="lead-arrived">{marketTime(lead.created_at, locale, market)}<OwnTime at={new Date(lead.created_at).toISOString()} zone={market.timezone} locale={locale} /></span></KeyVal>
+              <KeyVal k={t('Primer contacto', 'First touch')}>{lead.first_touch_at ? <>{marketTime(lead.first_touch_at, locale, market)}<OwnTime at={new Date(lead.first_touch_at).toISOString()} zone={market.timezone} locale={locale} /></> : <NoData locale={locale} />}</KeyVal>
             </dl>
             {lead.message && <p className="mt-4 rounded-2xl bg-surface-2 p-4 text-[13.5px] text-muted-2">“{lead.message}”</p>}
             {canEdit && (
@@ -292,7 +307,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 <p className="text-[13px] text-muted">{t('Consentimiento para recibir correos', 'Consent to receive emails')}</p>
                 {lead.consent_at ? (
                   <>
-                    <p className="mt-1 text-[14px] font-medium text-strong">{t(`Sí, el ${dayTime(lead.consent_at, locale, market.timezone)} (hora de ${market.name})`, `Yes, on ${dayTime(lead.consent_at, locale, market.timezone)} (${market.name} time)`)}</p>
+                    <p className="mt-1 text-[14px] font-medium text-strong">{t(`Sí, el ${marketTime(lead.consent_at, locale, market)}`, `Yes, on ${marketTime(lead.consent_at, locale, market)}`)}<OwnTime at={new Date(lead.consent_at).toISOString()} zone={market.timezone} locale={locale} /></p>
                     {lead.consent_text && <p className="mt-1 text-[13px] text-muted-2">{t('Aceptó: ', 'Accepted: ')}“{lead.consent_text}”</p>}
                   </>
                 ) : (

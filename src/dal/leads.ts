@@ -2,6 +2,7 @@ import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { isUuid } from '@/lib/ids'
+import type { Territory } from '@/lib/territory'
 
 export type LeadListItem = {
   id: string
@@ -103,6 +104,16 @@ export async function marketPipelines(ctx: Ctx, market?: string): Promise<{ id: 
        where p.is_active and p.market_code = any(${market ? [market] : ctx.markets.map((m) => m.code)}::text[])
          and exists (select 1 from crm.stages s where s.pipeline_id = p.id)
        order by p.market_code, p.position, p.id`
+    return [...rows]
+  })
+}
+
+/** Territorios de un mercado, con la marca de cuáles cubre una persona: de ahí sale el territorio de un lead convertido. */
+export async function territoriesOf(ctx: Ctx, market: string, userId: string): Promise<(Territory & { own: boolean })[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<(Territory & { own: boolean })[]>`
+      select t.id, t.code, t.name, exists (select 1 from crm.user_territories ut where ut.territory_id = t.id and ut.user_id = ${userId}) as own
+        from crm.territories t where t.market_code = ${market} and t.archived_at is null order by t.name`
     return [...rows]
   })
 }

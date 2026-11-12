@@ -232,6 +232,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                 screens={LANDING.tour.screens.map((s) => ({ shot: s.shot, label: l(s.label), caption: l(s.caption) }))}
                 labels={{ tabs: l(LANDING.tour.tabs), pause: l(LANDING.tour.pause), play: l(LANDING.tour.play) }}
               />
+              <p className="mt-4 text-[13.5px] text-on-black" data-testid="tour-data-note">{l(LANDING.tour.shotsNote)}</p>
             </div>
           </div>
         </section>

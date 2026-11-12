@@ -13,7 +13,7 @@ import { pauseDealAction, resumeDealAction } from '@/app/(app)/b2b-actions'
 import { FIELD_LABEL, winMissingText } from '@/domain/deals'
 import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, buttonClass, cx, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { addDays, day, dayTime, daysSince, isoDay, money } from '@/lib/format'
+import { addDays, day, dayTime, daysSince, isoDay, money, zoneNote } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
 import { moveDealAction, updateDealAction } from '@/app/(app)/pipelines/actions'
 import { gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
@@ -266,7 +266,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           <Card>
-            <CardTitle title={t('Hilo', 'Thread')} />
+            <CardTitle title={t('Hilo', 'Thread')} hint={<span data-testid="thread-zone">{zoneNote(market, locale)}</span>} />
             {ctx.can('activity.write', deal.market_code) && (
               <ActionForm action={addActivityAction} onOk="reset" className="mb-6">
                 <input type="hidden" name="deal_id" value={deal.id} />

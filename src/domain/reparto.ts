@@ -75,6 +75,35 @@ async function moveAccounts(tx: Tx, ctx: Ctx, market: string, accs: Acc[], toUse
   return moved.length
 }
 
+/**
+ * Tomar un comercio que nadie lleva. Quien dirige toma cualquiera de su alcance; quien vende, solo los que están en uno
+ * de sus territorios (la base repite ese límite en `accounts_upd`). Se va con sus negocios abiertos y sus pendientes, como
+ * en una reasignación, y queda en la bitácora con el mismo evento.
+ */
+export async function takeAccount(ctx: Ctx, accountId: string): Promise<string> {
+  const id = z.guid().parse(accountId)
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<(Acc & { market_code: string; name: string; territory_id: string | null })[]>`
+      select id, market_code, owner_id, name, territory_id from crm.accounts where id = ${id} and archived_at is null for update`
+    const acc = rows[0]
+    if (!acc) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
+    ctx.assert('account.take', acc.market_code)
+    if (acc.owner_id) throw invalid('Ese comercio ya tiene quien lo lleve.', 'That merchant already has an owner.')
+    if (!ctx.can('account.reassign', acc.market_code)) {
+      const mine = acc.territory_id ? await tx`select 1 from crm.user_territories where user_id = ${ctx.user.id} and territory_id = ${acc.territory_id}` : []
+      if (!mine[0]) {
+        throw invalid('Esta tienda no está en tus territorios. Pídesela a tu supervisión o a quien lidera tu mercado.',
+          'This store is not in your territories. Ask your supervisor or your market lead for it.')
+      }
+    }
+    const toName = await assertTarget(tx, ctx, acc.market_code, ctx.user.id)
+    // Primero el comercio: lo demás (negocios, pendientes, atribución) se mueve ya con dueño.
+    await tx`update crm.accounts set owner_id = ${ctx.user.id} where id = ${acc.id}`
+    await moveAccounts(tx, ctx, acc.market_code, [{ id: acc.id, owner_id: null }], ctx.user.id, toName)
+    return acc.name
+  })
+}
+
 /** Reasignar una selección de comercios (uno desde la ficha, varios desde la lista). */
 export async function reassignAccounts(ctx: Ctx, accountIds: string[], toUserId: string): Promise<number> {
   const ids = z.array(z.guid()).min(1).max(REPARTO_BATCH).parse(accountIds)

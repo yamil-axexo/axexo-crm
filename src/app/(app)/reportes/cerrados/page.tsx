@@ -30,7 +30,8 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
   const sel = reportSelects(t, options, f)
   const canExport = ctx.can('report.export', f.market)
   const sums = (status: 'won' | 'lost') => data.amounts.filter((a) => a.status === status)
-  const sumText = (status: 'won' | 'lost') => sums(status).map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || noData(locale)
+  // Sin montos en el periodo, la marca de sin dato va con su explicación ("Sin dato"), igual que en las filas.
+  const sumText = (status: 'won' | 'lost') => sums(status).map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || <NoData locale={locale} />
   const mobile = '@4xl:hidden text-muted'
 
   return (

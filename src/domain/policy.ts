@@ -3,7 +3,7 @@
 export type Role = 'admin' | 'lt' | 'market_lead' | 'supervisor' | 'rep' | 'ops'
 
 export const ROLE_LABEL: Record<Role, { es: string; en: string }> = {
-  admin: { es: 'Administración', en: 'Admin' },
+  admin: { es: 'Administración', en: 'Administration' },
   lt: { es: 'Leadership', en: 'Leadership' },
   market_lead: { es: 'Líder de mercado', en: 'Market lead' },
   supervisor: { es: 'Supervisión', en: 'Supervisor' },
@@ -39,6 +39,9 @@ export const CAPABILITIES = {
   'account.create': SELLERS,
   'account.edit': [...SELLERS, 'ops'],
   'account.reassign': MANAGERS,
+  // Tomar un comercio sin asignar: quien dirige, cualquiera de su alcance; quien vende, solo los de sus territorios
+  // (el mismo límite que ya pone la base en accounts_upd; ver domain/reparto.ts).
+  'account.take': SELLERS,
   // Armar el árbol: quien dirige mueve cualquier cuenta de su alcance; quien vende, solo entre cuentas que son suyas (ver domain/accounts.ts).
   'account.tree': SELLERS,
   'account.merge': ['admin'],

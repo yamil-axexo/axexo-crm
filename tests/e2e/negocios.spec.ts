@@ -10,7 +10,7 @@ const axe = async (page: Page, label: string) => {
 }
 const noSideScroll = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
 
-/** Deja un negocio de Marco en "Interés del decisor" sin próximo paso y devuelve su comercio. */
+/** Deja un negocio de Marco en "Interés de quien decide" sin próximo paso y devuelve su comercio. */
 async function dealWithoutNextStep(): Promise<{ id: string; name: string }> {
   const sql = testDb()
   const [d] = await sql<{ id: string; name: string }[]>`
@@ -21,7 +21,7 @@ async function dealWithoutNextStep(): Promise<{ id: string; name: string }> {
     update crm.deals d set next_step = null, next_step_due = null from pick, crm.accounts a
      where d.id = pick.id and a.id = d.account_id returning d.id, a.name`
   await sql.end()
-  if (!d) throw new Error('el seed no dejó un negocio de Marco en "Interés del decisor"')
+  if (!d) throw new Error('el seed no dejó un negocio de Marco en "Interés de quien decide"')
   return d
 }
 
@@ -108,16 +108,16 @@ for (const w of WIDTHS) {
       await expect(moved.getByTestId('deal-chip')).toContainText('Volver con la dueña')
       await expect(moved).not.toHaveAttribute('data-warn', '')
 
-      // "Interés del decisor" exige haber hablado con quien decide: el tablero no lo deja pasar y explica qué falta
+      // "Interés de quien decide" exige haber hablado con quien decide: el tablero no lo deja pasar y explica qué falta
       const gated = await dealWithoutDecisionMaker()
       await page.reload()
       if (w.name === 'movil') await page.getByTestId('stage-tab-visitada').click()
       const other = page.locator(`[data-card="${gated}"]`)
       if (w.name === 'desktop') await drag(page, other, 'interes')
-      else await other.getByTestId('deal-stage-select').selectOption({ label: 'Interés del decisor' })
+      else await other.getByTestId('deal-stage-select').selectOption({ label: 'Interés de quien decide' })
       // El candado de etapa se resuelve en una hoja ahí mismo (antes era un aviso): dice qué falta y la tarjeta no se mueve sola.
       await expect(page.getByTestId('gate-dialog')).toBeVisible()
-      await expect(page.getByTestId('gate-dialog')).toContainText('Interés del decisor')
+      await expect(page.getByTestId('gate-dialog')).toContainText('Interés de quien decide')
       await expect(page.getByTestId('gate-fields')).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(page.getByTestId('gate-dialog')).toBeHidden()

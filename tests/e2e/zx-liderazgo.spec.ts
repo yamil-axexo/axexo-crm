@@ -111,7 +111,7 @@ test.describe('negocios cerrados', () => {
     expect(errors, errors.join('\n')).toEqual([])
   })
 
-  test('supervisión ve y exporta solo lo de su equipo; ventas y operaciones no entran', async ({ page }) => {
+  test('supervisión ve y exporta solo lo de su equipo; ventas ve solo lo suyo sin exportar y operaciones no entra', async ({ page }) => {
     await loginAs(page, 'fernando.ibarra')
     await page.goto('/reportes/cerrados?periodo=rango&desde=2026-01-01&hasta=2026-12-31')
     await expect(page.getByTestId('closed-person').first()).toBeVisible()
@@ -126,10 +126,17 @@ test.describe('negocios cerrados', () => {
     await page.goto('/reportes/cerrados?periodo=rango&desde=2026-01-01&hasta=2026-12-31&mercado=US')
     await expect(page.getByTestId('closed-list')).not.toContainText('Dealer onboarding')
 
+    // Ola 4: quien vende entra a SUS negocios cerrados (solo los que lleva, sin exportar); Operaciones sigue sin entrar.
     for (const persona of ['marco.pena', 'valeria.soto']) {
+      const sells = persona === 'marco.pena'
       await loginAs(page, persona)
-      await expect(page.getByTestId('nav-closed')).toHaveCount(0)
-      expect((await page.goto('/reportes/cerrados'))?.status(), persona).toBe(404)
+      await expect(page.getByTestId('nav-closed')).toHaveCount(sells ? 1 : 0)
+      expect((await page.goto('/reportes/cerrados?periodo=rango&desde=2026-01-01&hasta=2026-12-31'))?.status(), persona).toBe(sells ? 200 : 404)
+      if (sells) {
+        await expect(page.getByRole('heading', { level: 1 })).toHaveText('Mis negocios cerrados')
+        for (const row of await page.getByTestId('closed-person').all()) await expect(row).toContainText('Marco Peña')
+        await expect(page.getByRole('link', { name: 'Exportar CSV' })).toHaveCount(0)
+      }
       expect((await page.goto('/reportes/campo'))?.status(), persona).toBe(404)
       expect((await page.goto('/reportes/adopcion'))?.status(), persona).toBe(404)
       expect((await page.request.get('/reportes/cerrados/export')).status(), persona).toBe(404)

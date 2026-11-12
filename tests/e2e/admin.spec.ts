@@ -409,7 +409,9 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
         await expect(origin.getByTestId(`origin-${key}`)).toHaveText(value)
       }
       await expect(origin.getByTestId('lead-consent')).toContainText('Sí, el')
-      await expect(origin.getByTestId('lead-consent')).toContainText('hora de United States')
+      // ola 4: la zona de US se dice con nombre y, con el navegador en otra zona (Puerto Rico), va también la hora local
+      await expect(origin.getByTestId('lead-consent')).toContainText('hora del Este')
+      await expect(origin.getByTestId('lead-consent').getByTestId('own-time')).toContainText('tu hora')
       await expect(origin.getByTestId('lead-consent')).toContainText('I agree to receive emails from axexo about its products and news.')
       await clean(page, `${w.name} detalle del lead con origen`)
 

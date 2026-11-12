@@ -109,10 +109,12 @@ export async function getAccount(ctx: Ctx, id: string) {
     const rows = await tx<
       { id: string; market_code: string; name: string; kind: string; segment: string | null; lifecycle: string; lifecycle_at: Date; owner_id: string | null; owner_name: string | null;
         parent_id: string | null; ancestor_ids: string[]; phone: string | null; email: string | null; address_line: string | null; locality: string | null; region: string | null;
-        postal_code: string | null; territory: string | null; custom: Record<string, unknown>; created_at: Date; archived_at: Date | null; merged_into: string | null;
+        postal_code: string | null; territory: string | null; in_my_territory: boolean; custom: Record<string, unknown>; created_at: Date; archived_at: Date | null; merged_into: string | null;
         account_type: string; type_es: string | null; type_en: string | null }[]
     >`select a.id, a.market_code, a.name, a.kind, a.segment, a.lifecycle, a.lifecycle_at, a.owner_id, u.full_name as owner_name, a.parent_id, a.ancestor_ids,
-             a.phone, a.email::text, a.address_line, a.locality, a.region, a.postal_code, t.name as territory, a.custom, a.created_at, a.archived_at, a.merged_into,
+             a.phone, a.email::text, a.address_line, a.locality, a.region, a.postal_code, t.name as territory,
+             exists (select 1 from crm.user_territories ut where ut.territory_id = a.territory_id and ut.user_id = ${ctx.user.id}) as in_my_territory,
+             a.custom, a.created_at, a.archived_at, a.merged_into,
              a.account_type, ty.label_es as type_es, ty.label_en as type_en
         from crm.accounts a left join crm.users u on u.id = a.owner_id left join crm.territories t on t.id = a.territory_id
         left join lateral (select x.label_es, x.label_en from crm.account_types x where x.code = a.account_type and (x.market_code is null or x.market_code = a.market_code)
@@ -170,8 +172,11 @@ export async function getAccount(ctx: Ctx, id: string) {
         left join lateral (select x.as_of, x.txn_count_30d, x.volume_minor_30d from crm.merchant_metrics_daily x
                             where x.account_id = m.account_id and x.as_of <= m.as_of - 30 and x.as_of >= m.as_of - 37 order by x.as_of desc limit 1) p on true
        where m.account_id = ${id} order by m.as_of desc limit 1`
-    const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; owner_name: string | null }[]>`
-      select a.id, a.kind, a.subject, a.due_at, u.full_name as owner_name from crm.activities a left join crm.users u on u.id = a.owner_id
+    // `motor`: el tipo de venta del embudo del negocio al que pertenece la tarea; sin negocio, vale el segmento del comercio.
+    const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; owner_name: string | null; motor: string | null }[]>`
+      select a.id, a.kind, a.subject, a.due_at, u.full_name as owner_name,
+             (select p.motor from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where d.id = a.deal_id) as motor
+        from crm.activities a left join crm.users u on u.id = a.owner_id
        where a.account_id = ${id} and a.kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit') and a.done_at is null order by a.due_at nulls last limit 10`
     // ACT-01: un solo hilo con actividades (incluidas las visitas capturadas a mano), visitas de la Sales App, cambios de etapa y de dueño.
     const timeline = await tx<TimelineItem[]>`

@@ -94,7 +94,7 @@ describe('1 a 4: convertir funciona en todos los mercados y conserva la historia
 
   it('las notas, los intentos y la tarea del lead quedan en el hilo del comercio y del negocio, sin una segunda tarea', async () => {
     const marco = await ctxFor('marco.pena')
-    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Abarrotes Historia ${tag()}`, contactName: 'Lola Ruiz', phone: mxPhone() })
+    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Abarrotes Historia ${tag()}`, contactName: 'Lola Ruiz', phone: mxPhone(), locality: 'Guadalajara' })
     await addActivity(marco, { leadId: id, kind: 'note', subject: 'Pidió la lista de productos' })
     await completeItem(marco, { type: 'lead', id, result: 'reached', next: 'proposal', when: tomorrow })
     await qualifyLead(marco, id)
@@ -112,7 +112,7 @@ describe('1 a 4: convertir funciona en todos los mercados y conserva la historia
 
   it('sin nada pendiente en el lead, la conversión deja la tarea de siempre (una sola)', async () => {
     const marco = await ctxFor('marco.pena')
-    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Abarrotes Limpio ${tag()}`, contactName: 'Lola Ruiz', phone: mxPhone() })
+    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Abarrotes Limpio ${tag()}`, contactName: 'Lola Ruiz', phone: mxPhone(), locality: 'Guadalajara' })
     await qualifyLead(marco, id)
     const out = await convertLead(marco, id)
     const open = await admin`select subject from crm.activities where deal_id = ${out.dealId} and done_at is null`

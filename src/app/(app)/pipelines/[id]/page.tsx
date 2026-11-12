@@ -54,7 +54,20 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const personSelect = Boolean(options && people.length > 0)
   const personValue = sp.owner === ctx.user.id ? here({ owner: 'me' }) : isUuid(sp.owner) || sp.owner === 'none' || sp.owner === 'me' ? here({}) : here({ owner: undefined })
   // Cuántos filtros están puestos: lo dice el botón "Filtros" del teléfono.
-  const activeFilters = [team, sp.owner, sp.paso === 'sin' || sp.paso === 'pausa' ? sp.paso : undefined].filter(Boolean).length
+  // "Sin movimiento en más de": en escritorio va bajo el encabezado; en el teléfono, dentro del botón Filtros.
+  const quietForm = (suffix: '' | '-m') => (
+    <form action={`/pipelines/${id}`} className="mb-4 flex w-full flex-wrap items-end gap-2" data-testid={`quiet-filter${suffix}`}>
+      <label className="text-[14px] font-medium">{t('Sin movimiento en más de', 'No movement in more than')}
+        <span className="mt-1 flex items-center gap-2">
+          <input name="quietos" type="number" min={1} max={720} defaultValue={quietDays || 30} className="input !w-24" data-testid={`quiet-days${suffix}`} />
+          <span className="text-[14px] font-normal text-muted">{t('días', 'days')}</span>
+        </span>
+      </label>
+      <button className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-4 text-[15px] font-medium text-strong hover:bg-green-50" data-testid={`quiet-apply${suffix}`}>{t('Ver negocios quietos', 'Show quiet deals')}</button>
+      {quietDays > 0 && <Link href={here({})} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid={`quiet-clear${suffix}`}>{t('Volver al tablero', 'Back to the board')}</Link>}
+    </form>
+  )
+  const activeFilters = [team, sp.owner, sp.paso === 'sin' || sp.paso === 'pausa' ? sp.paso : undefined, quietDays > 0 ? 'quietos' : undefined].filter(Boolean).length
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
@@ -143,22 +156,13 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
               <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
               <Link href={here({ paso: 'pausa' })} aria-current={sp.paso === 'pausa' ? 'page' : undefined} className={seg(sp.paso === 'pausa')} data-testid="filter-paused">{t(`En pausa (${paused})`, `On hold (${paused})`)}</Link>
             </nav>
+            {canBulk && <div className="w-full md:hidden">{quietForm('-m')}</div>}
           </FilterFold>
         </div>
       </header>
 
-      {canBulk && (
-        <form action={`/pipelines/${id}`} className="mb-4 flex flex-wrap items-end gap-2" data-testid="quiet-filter">
-          <label className="text-[14px] font-medium">{t('Sin movimiento en más de', 'No movement in more than')}
-            <span className="mt-1 flex items-center gap-2">
-              <input name="quietos" type="number" min={1} max={720} defaultValue={quietDays || 30} className="input !w-24" data-testid="quiet-days" />
-              <span className="text-[14px] font-normal text-muted">{t('días', 'days')}</span>
-            </span>
-          </label>
-          <button className="press inline-flex h-11 items-center rounded-[10px] border border-line-2 bg-surface px-4 text-[15px] font-medium text-strong hover:bg-green-50" data-testid="quiet-apply">{t('Ver negocios quietos', 'Show quiet deals')}</button>
-          {quietDays > 0 && <Link href={here({})} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid="quiet-clear">{t('Volver al tablero', 'Back to the board')}</Link>}
-        </form>
-      )}
+      {canBulk && <div className="hidden md:block">{quietForm('')}</div>}
+      {quietDays > 0 && <p className="mb-3 md:hidden"><Link href={here({})} className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="quiet-back">{t('Volver al tablero', 'Back to the board')}</Link></p>}
       {quietDays > 0 ? (
         <div className="card overflow-hidden" data-testid="quiet-list">
           <p className="border-b border-line px-4 py-3 text-[14.5px] text-strong">

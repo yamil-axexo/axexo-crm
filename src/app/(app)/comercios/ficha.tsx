@@ -13,13 +13,13 @@ import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CompleteButton } from '@/ui/complete'
 import { CallLink, LogButton } from '@/ui/log'
 import { ConfirmButton, CopyButton } from '@/ui/confirm'
-import { ago, day, isoDay, offsetMs, money, monthYear, num, phoneText, threadDate, weekday } from '@/lib/format'
+import { ago, day, isoDay, offsetMs, money, monthYear, num, phoneText, threadDate, weekday, zoneNote } from '@/lib/format'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { ACTIVITY, ALIAS_SYSTEM, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
 import { addContactAction, setParentAction, updateAccountAction } from './actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
-import { reassignOneAction } from '@/app/(app)/actividades/log-actions'
+import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
 import { StagePicker } from '@/ui/ops'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
@@ -51,6 +51,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const canWrite = !a.archived_at && ctx.can('activity.write', a.market_code)
   const canEdit = !a.archived_at && ctx.can('account.edit', a.market_code)
   const canReassign = !a.archived_at && ctx.can('account.reassign', a.market_code)
+  // Un comercio sin asignar: lo toma quien vende en ese mercado si la regla se lo permite (quien dirige, cualquiera de su
+  // alcance; quien vende, los de sus territorios). Si no, la ficha dice a quién pedirlo.
+  const sellsHere = ctx.memberships.some((x) => x.market === a.market_code && x.role !== 'ops')
+  const unowned = !a.archived_at && !a.owner_id && sellsHere && ctx.can('account.take', a.market_code)
+  const canTake = unowned && (canReassign || a.in_my_territory)
   const canSell = !a.archived_at && ctx.can('deal.create', a.market_code)
   const isParent = a.kind !== 'store'
   const openDeal = deals.find((d) => d.status === 'open')
@@ -176,6 +181,15 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             <Link href={href(a.id, 'datos')} scroll={false} className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="ficha-reassign">
               {a.owner_id ? t('Reasignar', 'Reassign') : t('Asignar', 'Assign')}
             </Link>
+          )}
+          {canTake && (
+            <ConfirmButton action={takeAccountAction} fields={{ account_id: a.id }} label={t('Tomar esta tienda', 'Take this store')}
+              title={t('¿Tomar esta tienda?', 'Take this store?')}
+              body={t(`${a.name} queda a tu nombre${moves.es ? `, con ${moves.es}` : ''}.`, `${a.name} becomes yours${moves.en ? `, with ${moves.en}` : ''}.`)}
+              confirm={t('Sí, tomarla', 'Yes, take it')} cancel={m('action.cancel')} testId="ficha-take" />
+          )}
+          {unowned && !canTake && (
+            <span className="text-[14px] text-muted-2" data-testid="ficha-ask">{t('Para llevarla, pídesela a tu supervisión o a quien lidera tu mercado.', 'To take it on, ask your supervisor or your market lead.')}</span>
           )}
           {a.archived_at && <Badge tone="bad">{m('record.archived')}</Badge>}
         </p>
@@ -317,13 +331,14 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                             <p className="text-[15px] leading-6 font-medium text-strong">{task.subject}</p>
                             {task.owner_name && task.owner_name !== ctx.user.name && <p className="text-[13px] text-muted">{task.owner_name}</p>}
                           </div>
-                          {config && <CompleteButton item={taskItem(ctx, task, a.name, a.segment)} config={config} action={completeItemAction} />}
+                          {config && <CompleteButton item={taskItem(ctx, task, a.name, task.motor ?? a.segment)} config={config} action={completeItemAction} />}
                         </div>
                       </li>
                     )
                   })}
                 </ol>
               )}
+              {timeline.length > 0 && <p className="mb-3 text-[13px] text-muted" data-testid="thread-zone">{zoneNote(market, locale)}</p>}
               <ol className="thread">
               {timeline.map((it, i) => (
                 <li key={i} className="thread-item" data-testid={`tl-${it.kind}`} data-origin={it.kind === 'visit' ? (manualVisit(it) ? 'manual' : 'sales_app') : undefined}>

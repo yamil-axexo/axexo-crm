@@ -6,7 +6,7 @@ const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()
 async function newLead(page: Page, name: string, phone = '') {
   await page.goto('/leads')
   await page.getByTestId('new-lead').click()
-  await page.locator('select[name=motor]').selectOption('d2d')
+  await page.locator('dialog[open] select[name=motor]').selectOption('d2d')
   await page.getByTestId('lead-source').selectOption('walk_in') // ola 2: el alta manual pide el origen
   await page.locator('input[name=business_name]').fill(name)
   await page.locator('input[name=contact_name]').fill('Carmen Prueba')
@@ -116,6 +116,9 @@ test.describe('leads', () => {
     await expect(page.getByTestId('lead-contacted')).toHaveCount(0)
     await expect(page.getByTestId('lead-qualify')).toBeVisible()
     await page.getByTestId('lead-qualify').click()
+    // Marco cubre dos territorios y el lead no trae ciudad: la hoja pregunta en cuál nace el comercio (ola 4)
+    await expect(page.getByTestId('lead-territory')).toHaveValue('')
+    await page.getByTestId('lead-territory').selectOption({ label: 'Guadalajara' })
     await page.getByTestId('lead-convert').click()
     await expect(page).toHaveURL(/\/deals\//)
     await expect(page.locator('h1')).toHaveText(`Alta: ${name}`)

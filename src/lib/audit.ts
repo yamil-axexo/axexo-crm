@@ -1,4 +1,4 @@
-import type { Locale, T } from '@/lib/format'
+import { zoneName, type Locale, type T } from '@/lib/format'
 import { ROLE_LABEL, type Role } from '@/domain/policy'
 import { ACTIVITY, EXCEPTION, LEAD_STATUS, MOTOR, SOURCE } from '@/lib/labels'
 
@@ -419,8 +419,8 @@ export function validTimeZone(tz: string | null | undefined): tz is string {
 export function zoneLabel(timeZone: string, locale: Locale, at = new Date()): string {
   if (timeZone === 'UTC') return locale === 'en' ? 'UTC time' : 'hora UTC'
   const offset = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' }).formatToParts(at).find((p) => p.type === 'timeZoneName')?.value ?? ''
-  const place = (timeZone.split('/').pop() ?? timeZone).replaceAll('_', ' ')
-  return locale === 'en' ? `${place} time (${offset})` : `hora de ${place} (${offset})`
+  // Las zonas con nombre propio se dicen por su nombre ("hora del Este"); las demás, por su ciudad.
+  return `${zoneName(timeZone, locale, undefined, true)} (${offset})`
 }
 
 /** Fecha y hora de un evento, con segundos: "11 nov 2026, 9:02:15 p.m.". */

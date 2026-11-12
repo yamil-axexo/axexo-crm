@@ -90,7 +90,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         {d.pipelines.map((p) => (
           <Card key={p.id} pad={false} data-testid="pipeline-card">
             <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={`${p.market_code} · ${p.name}`} hint={`${lab(t, MOTOR[p.motor])} · ${t(`${num(p.open_deals, locale)} ${p.open_deals === 1 ? 'negocio abierto' : 'negocios abiertos'}`, `${num(p.open_deals, locale)} open ${p.open_deals === 1 ? 'deal' : 'deals'}`)}`} /></div>
-            <Table label={t(`Etapas de ${p.name}`, `Stages of ${p.name}`)} head={<><th>#</th><th>{t('Etapa', 'Stage')}</th><th>{t('Para entrar hace falta', 'Required to enter')}</th><th>{t('Criterio de salida', 'Exit criteria')}</th><th>{t('Se estanca a los', 'Stalls after')}</th>{admin && <th className="relative"><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
+            <Table label={t(`Etapas de ${p.name}`, `Stages of ${p.name}`)} head={<><th>#</th><th>{t('Etapa', 'Stage')}</th><th>{t('Para entrar hace falta', 'Required to enter')}</th><th data-testid="stage-exit-head">{t('Para avanzar', 'To move on')}</th><th>{t('Se estanca a los', 'Stalls after')}</th>{admin && <th className="relative"><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
               {d.stages.filter((s) => s.pipeline_id === p.id).map((s) => {
                 const closing = s.kind === 'won' || s.kind === 'lost'
                 const needs = [...(s.kind === 'open' ? ['next_step'] : []), ...s.required_fields].filter((v, i, a) => a.indexOf(v) === i)
@@ -99,7 +99,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   <td className="num text-muted">{s.position}</td>
                   <td><span className="font-semibold text-strong" data-testid="stage-name">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2" data-testid="stage-await"><Badge tone="info">{p.close_by_transaction ? t('espera la primera venta', 'waits for the first sale') : t('desde aquí se gana a mano', 'won by hand from here')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{p.close_by_transaction ? t('solo por transacción', 'by transaction only') : t('cierre manual', 'closed by hand')}</Badge></span>}</td>
                   <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => { const def = f.startsWith('field:') ? d.fields.find((x) => x.object === 'deal' && x.key === f.slice(6)) : undefined; return def ? t(def.label_es, def.label_en) : f.startsWith('field:') ? t('un campo adicional del negocio', 'an additional deal field') : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}</td>
-                  <td className="text-[13.5px] text-muted-2">{t(s.exit_es, s.exit_en) || t('sin criterio escrito', 'no written criteria')}</td>
+                  <td className="text-[13.5px] text-muted-2">{t(s.exit_es, s.exit_en) || t('sin nada escrito', 'nothing written')}</td>
                   <td className="num text-[13.5px]" data-testid="stage-rot">{s.rot_days ? t(`${s.rot_days} días`, `${s.rot_days} days`) : t('nunca', 'never')}</td>
                   {admin && (
                     <td className="text-right">

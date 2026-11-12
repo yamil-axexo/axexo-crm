@@ -2,13 +2,14 @@ import 'server-only'
 import { saveFormAnswers } from '@/domain/b2b'
 import { CONTACT_ROLES } from '@/domain/accounts'
 import { z } from 'zod'
-import { marketToday, withUser, type Tx } from '@/server/db'
+import { marketToday, marketWorkday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
 import { assertNoProhibited } from '@/domain/guard'
 import { scrub } from '@/domain/pipedrive/mapping'
+import { territoryFor, type Territory } from '@/lib/territory'
 
 export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
 
@@ -480,7 +481,7 @@ export async function bulkDisqualify(ctx: Ctx, leadIds: string[], reasonCode: st
   })
 }
 
-export type ConvertOptions = { linkAccountId?: string | null; pipelineId?: string | null; accountType?: string | null; contactRole?: string | null }
+export type ConvertOptions = { linkAccountId?: string | null; pipelineId?: string | null; accountType?: string | null; contactRole?: string | null; territoryId?: string | null }
 
 /**
  * LEAD-01: al convertir, el prospecto queda dentro del objeto cuenta, con su contacto,
@@ -536,6 +537,24 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
       if (!acc[0]) throw notFound('No puedes ver ese comercio para ligarlo.', 'You cannot see that merchant to link it.')
     } else {
       accountId = await newId(tx)
+      // Territorio: el que se eligió en la hoja o el que se puede inferir (el único de quien lo lleva, o el de la plaza del lead).
+      // Con dos o más territorios y una plaza que no dice cuál, no se adivina: se pregunta.
+      const territories = await tx<(Territory & { own: boolean })[]>`
+        select t.id, t.code, t.name, exists (select 1 from crm.user_territories ut where ut.territory_id = t.id and ut.user_id = ${ownerId}) as own
+          from crm.territories t where t.market_code = ${lead.market_code} and t.archived_at is null order by t.name`
+      let territoryId: string | null
+      if (opts.territoryId) {
+        if (!territories.some((x) => x.id === opts.territoryId)) throw invalid('Ese territorio no es de este mercado.', 'That territory does not belong to this market.')
+        territoryId = opts.territoryId
+      } else {
+        const pick = territoryFor(territories.filter((x) => x.own), [...territories], lead.locality)
+        if (pick.ask) {
+          throw new DomainError('pick_territory',
+            'Elige el territorio del comercio: quien lleva este lead cubre más de uno y la ciudad del lead no dice cuál.',
+            'Pick the merchant’s territory: the person who owns this lead covers more than one and the lead’s city does not say which.')
+        }
+        territoryId = pick.id
+      }
       // Respuestas para calificar: solo las llaves que también son un campo activo del comercio en este mercado y tipo de venta.
       const carriedFields = await tx<{ custom: Record<string, unknown> }[]>`
         select coalesce(jsonb_object_agg(d.key, l.custom -> d.key), '{}'::jsonb) as custom
@@ -543,8 +562,8 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
           join crm.field_definitions d on d.object = 'account' and d.is_active and d.mapped_to is null and l.custom ? d.key
            and (d.market_code is null or d.market_code = l.market_code) and (d.motor is null or d.motor = ${pipe.motor})
          where l.id = ${leadId}`
-      await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, lifecycle, owner_id, phone, email, locality, country, custom, created_by)
-               values (${accountId}, ${lead.market_code}, ${level}, ${accountType}, ${lead.business_name}, ${pipe.motor}, 'prospect', ${ownerId},
+      await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, lifecycle, owner_id, territory_id, phone, email, locality, country, custom, created_by)
+               values (${accountId}, ${lead.market_code}, ${level}, ${accountType}, ${lead.business_name}, ${pipe.motor}, 'prospect', ${ownerId}, ${territoryId},
                        ${lead.phone}, ${lead.email}, ${lead.locality}, ${lead.market_code}, ${tx.json((carriedFields[0]?.custom ?? {}) as never)}, ${ctx.user.id})`
       const people: { name: string; phone: string | null; email: string | null; role: string }[] = [
         { name: lead.contact_name, phone: lead.phone, email: lead.email, role: role.data },
@@ -572,7 +591,7 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     await tx`insert into crm.deals (id, market_code, pipeline_id, stage_id, account_id, lead_id, owner_id, title, currency, next_step, next_step_due, created_by)
              values (${dealId}, ${lead.market_code}, ${pipe.id}, ${pipe.stage_id}, ${accountId}, ${leadId}, ${ownerId},
                      ${(market.locale === 'en' ? 'Onboarding: ' : 'Alta: ') + lead.business_name}, ${market.currency}, ${nextStep},
-                     ${carried?.due ? tx`${carried.due}::date` : tx`${marketToday(tx, lead.market_code)} + 2`}, ${ctx.user.id})`
+                     ${carried?.due ? tx`${carried.due}::date` : marketWorkday(tx, lead.market_code, 2)}, ${ctx.user.id})`
     await tx`insert into crm.deal_stage_events (deal_id, market_code, to_stage_id, actor_id) values (${dealId}, ${lead.market_code}, ${pipe.stage_id}, ${ctx.user.id})`
     // La historia del lead sigue al comercio y al negocio: mismas filas, ahora ligadas a los tres.
     const moved = await tx`update crm.activities set account_id = ${accountId}, deal_id = ${dealId} where lead_id = ${leadId}`
@@ -581,7 +600,7 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
       await tx`update crm.activities set deal_step = 'sales' where id = ${carried.id}`
     } else {
       await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, deal_step)
-               values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, ((${marketToday(tx, lead.market_code)} + 2 + time '15:00') at time zone 'UTC'), ${ownerId}, ${ctx.user.id}, 'sales')`
+               values (${lead.market_code}, ${accountId}, ${dealId}, 'task', ${nextStep}, ((${marketWorkday(tx, lead.market_code, 2)} + time '15:00') at time zone 'UTC'), ${ownerId}, ${ctx.user.id}, 'sales')`
     }
     // Lo que la persona escribió al pedir contacto no se queda en el lead: pasa al hilo del comercio y del negocio como primera nota, con su fecha.
     if (lead.message && lead.message.trim()) {

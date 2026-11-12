@@ -21,6 +21,8 @@ export type Market = {
   phoneCc: string
   status: 'live' | 'planned'
   closeByTransaction: boolean
+  /** Días en que el mercado trabaja (1 = lunes ... 7 = domingo), de su horario hábil. */
+  workdays: number[]
 }
 
 export type Ctx = {
@@ -49,8 +51,9 @@ export async function loadCtx(userId: string, localeOverride?: Locale): Promise<
       select market_code, role, team_id from app.active_memberships()`
     if (ms.length === 0) return null
     const markets = await tx<
-      { code: string; name: string; currency: string; default_locale: Locale; timezone: string; phone_cc: string; status: 'live' | 'planned'; flags: Record<string, unknown> }[]
-    >`select code, name, currency, default_locale, timezone, phone_cc, status, flags
+      { code: string; name: string; currency: string; default_locale: Locale; timezone: string; phone_cc: string; status: 'live' | 'planned'; flags: Record<string, unknown>; workdays: number[] | null }[]
+    >`select code, name, currency, default_locale, timezone, phone_cc, status, flags,
+             (select h.days from crm.market_hours h where h.market_code = crm.markets.code) as workdays
         from crm.markets where code = any(app.my_markets()) order by status, code`
     const memberships: Membership[] = ms.map((m) => ({ market: m.market_code, role: m.role, teamId: m.team_id }))
     const locale = localeOverride ?? u.locale
@@ -63,6 +66,7 @@ export async function loadCtx(userId: string, localeOverride?: Locale): Promise<
       phoneCc: m.phone_cc,
       status: m.status,
       closeByTransaction: m.flags?.close_by_transaction !== false,
+      workdays: m.workdays?.length ? m.workdays : [1, 2, 3, 4, 5],
     }))
     const ctx: Ctx = {
       user: { id: u.id, name: u.full_name, email: u.email, isSystem: u.is_system },

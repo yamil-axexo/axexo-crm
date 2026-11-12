@@ -27,7 +27,7 @@ export const TRACK_LABEL: Record<Track, L> = {
   lead: { es: 'Líder de mercado', en: 'Market lead' },
   ops: { es: 'Operaciones', en: 'Operations' },
   lt: { es: 'Leadership', en: 'Leadership' },
-  admin: { es: 'Administración', en: 'Admin' },
+  admin: { es: 'Administración', en: 'Administration' },
 }
 
 // ---------------------------------------------------------------- primer ingreso
@@ -921,6 +921,11 @@ export const HELP: HelpItem[] = [
     a: { es: 'En el negocio, sección Operaciones. El Merchant ID se copia con "Copiar". "Aprobación por proveedor" lleva el estado de cada uno; "Documentos", el estado y un enlace a dónde está cada documento; "Capacitación", su estado y fecha. Identificaciones y datos bancarios no se guardan en CONTIGO.', en: 'On the deal, Operations section. The Merchant ID copies with "Copy". "Provider approval" holds each one\'s status; "Documents", the status and a link to where each document is; "Training", its status and date. IDs and bank details are not stored in CONTIGO.' },
   },
   {
+    id: 'ops-merchant-id-duplicate', topic: 'ops', tracks: ['ops', 'admin'],
+    q: { es: '¿Qué hago si el Merchant ID ya lo tiene otro comercio?', en: 'What do I do if another merchant already has that Merchant ID?' },
+    a: { es: 'CONTIGO te avisa al guardarlo y te dice qué comercio lo tiene. Casi siempre es un error de captura: revisa el número o si son el mismo comercio. Si de verdad es el mismo ID, confirma y se guarda en los dos; la confirmación queda en la bitácora. Si es un duplicado, avisa a administración para que los fusione.', en: 'CONTIGO warns you when you save it and names the merchant that has it. It is almost always a typing mistake: check the number, or whether both are the same merchant. If it really is the same ID, confirm and it is saved on both; the confirmation stays in the audit log. If it is a duplicate, tell administration so they merge them.' },
+  },
+  {
     id: 'ops-alerts', topic: 'ops', tracks: ['ops'],
     q: { es: 'Soy de Operaciones. ¿Dónde veo los avisos y la bitácora de mi mercado?', en: 'I am in Operations. Where do I see the alerts and the audit log for my market?' },
     a: { es: 'En tu menú: "Avisos del mercado" abre la cola de lo que se salió de la regla en tus mercados, y "Administración", la sección Auditoría con la bitácora de tus mercados. La configuración la ves en solo lectura.', en: 'In your menu: "Market alerts" opens the queue of what broke a rule in your markets, and "Administration", the Audit section with the log for your markets. You see configuration read-only.' },
@@ -1003,6 +1008,16 @@ export const HELP: HelpItem[] = [
     id: 'street-rep', topic: 'field', tracks: SELL,
     q: { es: '¿Dónde pongo al vendedor de calle?', en: 'Where do I put the street rep?' },
     a: { es: 'En cada visita, en "¿Quién visitó?". CONTIGO sugiere los nombres ya usados en tu mercado. La visita cuenta para quien lleva el comercio.', en: 'On each visit, under "Who visited?". CONTIGO suggests the names already used in your market. The visit counts for whoever owns the merchant.' },
+  },
+  {
+    id: 'street-add', topic: 'field', tracks: ['supervisor', 'lead', 'admin'],
+    q: { es: '¿Cómo agrego un vendedor de calle?', en: 'How do I add a street seller?' },
+    a: { es: 'En Mi equipo, en "Vendedores de calle", toca "Agregar vendedor de calle": escribe su nombre y elige a quién responde. Lo hacen supervisión y quien lidera el mercado. Desde ahí se sugiere en "¿Quién visitó?" al registrar una visita. "Dar de baja" deja de sugerirlo y conserva sus visitas.', en: 'On My team, under "Street sellers", tap "Add street seller": write their name and pick who they report to. Supervisors and the market lead do this. From then on the name is suggested under "Who visited?" when a visit is logged. "Remove" stops suggesting it and keeps their visits.' },
+  },
+  {
+    id: 'visit-no-sale', topic: 'field', tracks: SELL,
+    q: { es: '¿Por qué una visita sin venta me pide un motivo?', en: 'Why does a visit with no sale ask me for a reason?' },
+    a: { es: 'Porque el motivo dice qué hacer después: no es lo mismo que la tienda estuviera cerrada, que tuviera inventario o que no estuviera quien decide. Al elegir "No hubo venta" aparece "¿Por qué no hubo venta?" con los motivos de tu mercado, y queda guardado con la visita.', en: 'Because the reason says what to do next: a closed store, a store with stock and a store where the decision-maker was out call for different things. When you pick "No sale", "Why was there no sale?" shows the reasons for your market, and it is saved with the visit.' },
   },
   {
     id: 'visits-team', topic: 'field', tracks: WATCH,
@@ -1576,7 +1591,7 @@ export const LANDING = {
     clock: { es: 'Primer contacto vence en {time}', en: 'First contact due in {time}' },
     items: [
       { title: { es: 'Llamar a Abarrotes La Esquina', en: 'Call Corner Market' }, context: { es: 'Lead nuevo del formulario web', en: 'New lead from the web form' }, chip: { es: 'Lead nuevo', en: 'New lead' }, tone: 'clock' as const },
-      { title: { es: 'Enviar propuesta a Miscelánea Don Beto', en: 'Send proposal to Sunrise Wireless' }, context: { es: 'Negocio en Interés del decisor', en: 'Deal in Decision-maker interested' }, chip: { es: 'Vencido', en: 'Overdue' }, tone: 'late' as const },
+      { title: { es: 'Enviar propuesta a Miscelánea Don Beto', en: 'Send proposal to Sunrise Wireless' }, context: { es: 'Negocio en Interés de quien decide', en: 'Deal in Decision-maker interested' }, chip: { es: 'Vencido', en: 'Overdue' }, tone: 'late' as const },
       { title: { es: 'Confirmar visita con Súper El Mirador', en: 'Confirm visit with Bayview Grocery' }, context: { es: 'Negocio en Alta iniciada', en: 'Deal in Enrollment started' }, chip: { es: 'Hoy 11:00', en: 'Today 11:00' }, tone: 'today' as const },
       { title: { es: 'Recargas El Sol no tiene próximo paso', en: 'Main Street Cellular has no next step' }, context: { es: 'Negocio en Tienda visitada', en: 'Deal in Store visited' }, chip: { es: 'Sugerido', en: 'Suggested' }, tone: 'suggested' as const },
     ],
@@ -1615,6 +1630,8 @@ export const LANDING = {
     eyebrow: { es: 'El producto', en: 'The product' },
     title: { es: 'Míralo por dentro.', en: 'See it from the inside.' },
     note: { es: 'Pantallas reales de CONTIGO, con datos de prueba.', en: 'Real CONTIGO screens, with test data.' },
+    // Va bajo las capturas: las cifras que se ven (por ejemplo "Ventas, 30 días" en Mi equipo) son del seed, no de ventas reales.
+    shotsNote: { es: 'Pantallas con datos de prueba.', en: 'Screens with test data.' },
     tabs: { es: 'Pantallas de CONTIGO', en: 'CONTIGO screens' },
     pause: { es: 'Pausar el recorrido', en: 'Pause the tour' },
     play: { es: 'Reproducir el recorrido', en: 'Play the tour' },
@@ -1647,7 +1664,7 @@ export const LANDING = {
       title: { es: 'Negocios por etapa', en: 'Deals by stage' },
       stages: [
         { label: { es: 'Tienda visitada', en: 'Store visited' }, value: 48 },
-        { label: { es: 'Interés del decisor', en: 'Decision-maker interested' }, value: 31 },
+        { label: { es: 'Interés de quien decide', en: 'Decision-maker interested' }, value: 31 },
         { label: { es: 'Alta iniciada', en: 'Enrollment started' }, value: 22 },
         { label: { es: 'Esperando primera venta', en: 'Awaiting first sale' }, value: 14 },
       ],

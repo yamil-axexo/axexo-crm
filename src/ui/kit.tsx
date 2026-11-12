@@ -25,7 +25,7 @@ export function Card({ children, className, pad = true, ...rest }: { children: R
   )
 }
 
-export function CardTitle({ title, hint, right }: { title: string; hint?: string; right?: ReactNode }) {
+export function CardTitle({ title, hint, right }: { title: string; hint?: ReactNode; right?: ReactNode }) {
   return (
     <div className="mb-5 flex items-start justify-between gap-4">
       <div>

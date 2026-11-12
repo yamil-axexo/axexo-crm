@@ -184,7 +184,9 @@ describe('B2B', () => {
     const key = (await one(admin<{ key: string }[]>`select split_part(email, '@', 1) as key from crm.users where id = ${lead.owner_id}`)).key
     const rep = await ctxFor(key)
     await qualifyLead(rep, res.leadId)
-    const out = await convertLead(rep, res.leadId)
+    // Quien recibe el lead por turno puede cubrir dos territorios: la hoja lo pregunta y aquí se elige el primero (integración de la ola 4).
+    const terr = await admin<{ id: string }[]>`select territory_id as id from crm.user_territories where user_id = ${lead.owner_id} order by territory_id limit 1`
+    const out = await convertLead(rep, res.leadId, terr[0] ? { territoryId: terr[0].id } : {})
     const note = await one(admin<{ subject: string; body: string; kind: string }[]>`
       select subject, body, kind from crm.activities where account_id = ${out.accountId} and deal_id = ${out.dealId} and body = ${msg}`)
     expect(note).toMatchObject({ kind: 'note', subject: 'Mensaje del formulario' })

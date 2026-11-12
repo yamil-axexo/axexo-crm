@@ -69,11 +69,59 @@ export function clock(d: Date, locale: Locale, timeZone = 'UTC'): string {
 /** La fecha de hoy (AAAA-MM-DD) en una zona horaria, y esa fecha más n días. */
 export const isoDay = (d: Date, timeZone = 'UTC') => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 export const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
+/** El primer día (AAAA-MM-DD) desde `iso` en que el mercado trabaja; `workdays` usa 1 = lunes ... 7 = domingo. */
+export function workday(iso: string, workdays: readonly number[] = [1, 2, 3, 4, 5]): string {
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(iso, i)
+    if (workdays.includes(new Date(`${d}T12:00:00Z`).getUTCDay() || 7)) return d
+  }
+  return iso
+}
 
 export function dayTime(d: Date | string | null | undefined, locale: Locale, timeZone = 'UTC'): string {
   if (!d) return noData(locale)
   const date = typeof d === 'string' ? new Date(d) : d
   return new Intl.DateTimeFormat(tag(locale), { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone }).format(date)
+}
+
+/** Zonas que se dicen por su nombre y no por una ciudad o un país: el mercado US corre en hora del Este. */
+const ZONE_NAMES: Record<string, [es: string, en: string]> = {
+  'America/New_York': ['hora del Este', 'Eastern'],
+}
+
+/**
+ * El nombre con el que se dice una zona: "hora del Este" / "Eastern"; si no tiene nombre propio, "hora de México" / "Mexico time".
+ * `long` es para frases como "Times are in Eastern time".
+ */
+export function zoneName(timeZone: string, locale: Locale, place?: string, long = false): string {
+  const named = ZONE_NAMES[timeZone]
+  if (named) return locale === 'en' ? (long ? `${named[1]} time` : named[1]) : named[0]
+  if (timeZone === 'UTC') return locale === 'en' ? 'UTC time' : 'hora UTC'
+  const where = place ?? (timeZone.split('/').pop() ?? timeZone).replaceAll('_', ' ')
+  return locale === 'en' ? `${where} time` : `hora de ${where}`
+}
+
+/** "Las horas están en hora del Este." / "Times are in Eastern time.": lo que dice un hilo o una lista sobre la zona que usa. */
+export const zoneNote = (market: { timezone: string; name: string }, locale: Locale): string =>
+  locale === 'en' ? `Times are in ${zoneName(market.timezone, 'en', market.name, true)}.` : `Las horas están en ${zoneName(market.timezone, 'es', market.name)}.`
+
+/** "10:00 AM your time" cuando quien lee está en una zona con otra hora que la del mercado en ese instante; si no, nada. */
+export function ownTime(date: Date, locale: Locale, marketZone: string, readerZone?: string | null): string {
+  if (!readerZone || offsetMs(date, readerZone) === offsetMs(date, marketZone)) return ''
+  const own = isoDay(date, readerZone) === isoDay(date, marketZone) ? clock(date, locale, readerZone) : dayTime(date, locale, readerZone)
+  return `${own} ${locale === 'en' ? 'your time' : 'tu hora'}`
+}
+
+/**
+ * La hora de un mercado con su zona escrita y, cuando quien lee está en otra zona, también su hora entre paréntesis:
+ * "Nov 12, 11:00 AM Eastern (10:00 AM your time)" / "12 nov, 11:00 a.m., hora del Este (10:00 a.m. tu hora)".
+ */
+export function marketTime(d: Date | string | null | undefined, locale: Locale, market: { timezone: string; name: string }, readerZone?: string | null): string {
+  if (!d) return noData(locale)
+  const date = typeof d === 'string' ? new Date(d) : d
+  const base = `${dayTime(date, locale, market.timezone)}${locale === 'en' ? ' ' : ', '}${zoneName(market.timezone, locale, market.name)}`
+  const own = ownTime(date, locale, market.timezone, readerZone)
+  return own ? `${base} (${own})` : base
 }
 
 export function ago(d: Date | string | null | undefined, locale: Locale, now = new Date()): string {

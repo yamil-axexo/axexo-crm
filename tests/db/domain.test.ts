@@ -16,7 +16,7 @@ const phone = () => `55 6${Math.floor(1000000 + Math.random() * 8999999)}`
 describe('leads (LEAD-01, LEAD-03, REL-07)', () => {
   it('un lead no se convierte sin calificar; al convertir nace cuenta, contacto, atribución, deal y tarea', async () => {
     const marco = await ctxFor('marco.pena')
-    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Tienda Dominio ${tag()}`, contactName: 'Rosa Luna', phone: phone() })
+    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Tienda Dominio ${tag()}`, contactName: 'Rosa Luna', phone: phone(), locality: 'Guadalajara' })
     await expect(convertLead(marco, id)).rejects.toMatchObject({ code: 'invalid' })
     await qualifyLead(marco, id)
     const out = await convertLead(marco, id)

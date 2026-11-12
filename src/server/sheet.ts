@@ -3,7 +3,7 @@ import type { Ctx } from '@/server/context'
 import { NEXTS, OPS_RESULTS, VISIT_RESULTS, type OpsResult, type Result, type VisitResult } from '@/domain/queue'
 import { NEXT_SETS, opsVoice } from '@/domain/followup'
 import { BACKDATE_DAYS } from '@/domain/activities'
-import { addDays, isoDay, weekday } from '@/lib/format'
+import { addDays, isoDay, weekday, workday } from '@/lib/format'
 import type { MessageKey } from '@/lib/messages'
 import type { SheetConfig, SheetItem } from '@/ui/complete'
 import type { LogConfig } from '@/ui/log'
@@ -39,7 +39,8 @@ export function sheetConfig(ctx: Ctx, now = new Date()): SheetConfig {
       ...(dow !== 5 ? [{ value: addDays(today, 2), label: weekday(addDays(today, 2), locale) }] : []),
       ...(monday !== tomorrow && monday !== addDays(today, 2) ? [{ value: monday, label: weekday(monday, locale) }] : []),
     ],
-    defaultWhen: tomorrow,
+    // El próximo paso por defecto no cae en un día en que el mercado no trabaja (sábado o domingo, según su horario hábil).
+    defaultWhen: workday(tomorrow, ctx.markets[0]?.workdays),
     minDate: today,
   }
 }

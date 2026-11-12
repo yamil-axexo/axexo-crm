@@ -5,6 +5,7 @@ import { notifyOptions } from '@/dal/ops'
 import { requireCtx } from '@/server/context'
 import { recordActivity } from '@/domain/activities'
 import { reassignAccounts } from '@/domain/accounts'
+import { takeAccount } from '@/domain/reparto'
 import { resolveException } from '@/domain/rules'
 import { findAccounts, noSaleReasons, visitorNames, type FoundAccount } from '@/dal/field'
 import { withUser } from '@/server/db'
@@ -108,4 +109,14 @@ export async function noSaleReasonsAction(market?: string): Promise<{ value: str
   const markets = typeof market === 'string' && market ? [market] : ctx.markets.map((m) => m.code)
   const rows = await noSaleReasons(ctx, markets)
   return rows.map((r) => ({ value: r.code, label: ctx.t(r.label_es, r.label_en) }))
+}
+
+/** "Tomar esta tienda": un comercio sin asignar queda a nombre de quien lo toma (ver `takeAccount`). */
+export async function takeAccountAction(_: ActionResult<Done> | null, fd: FormData): Promise<ActionResult<Done>> {
+  return runAction<Done>(async (ctx) => {
+    const id = str(fd, 'account_id')
+    if (!isUuid(id)) throw notFound()
+    const name = await takeAccount(ctx, id)
+    return { data: { toast: ctx.t(`${name} ahora es tuya.`, `${name} is now yours.`) } }
+  })
 }

@@ -59,14 +59,14 @@ insert into crm.pipelines (id, market_code, motor, name, position) values
 insert into crm.stages (id, pipeline_id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en)
 select pg_temp.uid('s-' || p || '-' || c), pg_temp.uid('p-' || p), pos, c, es, en, k, pr, rot, req::text[], xes, xen from (values
   ('mx-d2d', 1, 'visitada', 'Tienda visitada', 'Store visited', 'open', 10, 10, '{}', 'Se habló con alguien de la tienda', 'Someone at the store was reached'),
-  ('mx-d2d', 2, 'interes', 'Interés del decisor', 'Decision-maker interested', 'open', 35, 10, '{decision_maker}', 'El decisor confirmó interés', 'The decision-maker confirmed interest'),
+  ('mx-d2d', 2, 'interes', 'Interés de quien decide', 'Decision-maker interested', 'open', 35, 10, '{decision_maker}', 'Quien decide confirmó interés', 'The decision-maker confirmed interest'),
   ('mx-d2d', 3, 'alta', 'Alta iniciada', 'Enrollment started', 'open', 60, 7, '{decision_maker,next_step}', 'Expediente completo en la Sales App', 'File complete in the Sales App'),
   ('mx-d2d', 4, 'espera', 'Esperando primera venta', 'Awaiting first sale', 'awaiting_txn', 85, 14, '{}', 'S5 reporta la primera transacción', 'S5 reports the first transaction'),
   ('mx-d2d', 5, 'ganada', 'Activa', 'Active', 'won', 100, 0, '{}', '', ''),
   ('mx-d2d', 6, 'perdida', 'Perdida', 'Lost', 'lost', 0, 0, '{}', '', ''),
-  ('mx-b2b', 1, 'calificacion', 'Calificación', 'Qualification', 'open', 10, 14, '{}', 'Tamaño de red y decisor identificados', 'Network size and decision-maker identified'),
+  ('mx-b2b', 1, 'calificacion', 'Calificación', 'Qualification', 'open', 10, 14, '{}', 'Tamaño de red y quien decide, identificados', 'Network size and decision-maker identified'),
   ('mx-b2b', 2, 'propuesta', 'Propuesta', 'Proposal', 'open', 30, 14, '{amount}', 'Propuesta enviada con volumen esperado', 'Proposal sent with expected volume'),
-  ('mx-b2b', 3, 'negociacion', 'Negociación', 'Negotiation', 'open', 55, 21, '{amount,decision_maker,next_step}', 'Términos acordados con el decisor', 'Terms agreed with the decision-maker'),
+  ('mx-b2b', 3, 'negociacion', 'Negociación', 'Negotiation', 'open', 55, 21, '{amount,decision_maker,next_step}', 'Términos acordados con quien decide', 'Terms agreed with the decision-maker'),
   ('mx-b2b', 4, 'espera', 'Contrato firmado, esperando primera venta', 'Signed, awaiting first sale', 'awaiting_txn', 85, 21, '{}', 'S5 reporta la primera transacción', 'S5 reports the first transaction'),
   ('mx-b2b', 5, 'ganada', 'Ganada', 'Won', 'won', 100, 0, '{}', '', ''),
   ('mx-b2b', 6, 'perdida', 'Perdida', 'Lost', 'lost', 0, 0, '{}', '', ''),
@@ -87,7 +87,7 @@ insert into crm.loss_reasons (code, kind, label_es, label_en) values
   ('price', 'lost', 'Precio o comisión', 'Price or commission'), ('competitor', 'lost', 'Se fue con un competidor', 'Chose a competitor'),
   ('no_decision', 'lost', 'Sin decisión', 'No decision'), ('not_qualified', 'lost', 'No califica', 'Not qualified'),
   ('duplicate', 'lost', 'Duplicado', 'Duplicate'), ('no_response', 'lost', 'No responde', 'No response'),
-  ('owner_absent', 'no_sale', 'No estaba el decisor', 'Decision-maker absent'), ('no_cash', 'no_sale', 'Sin efectivo hoy', 'No cash today'),
+  ('owner_absent', 'no_sale', 'No estaba quien decide', 'Decision-maker absent'), ('no_cash', 'no_sale', 'Sin efectivo hoy', 'No cash today'),
   ('has_stock', 'no_sale', 'Tiene inventario', 'Has stock'), ('not_interested', 'no_sale', 'No le interesa', 'Not interested'),
   ('closed', 'no_sale', 'Tienda cerrada', 'Store closed')
 on conflict (code) do nothing;

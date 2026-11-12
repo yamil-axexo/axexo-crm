@@ -74,6 +74,7 @@ export async function leadStepAction(_: R | null, fd: FormData): Promise<R> {
         pipelineId: str(fd, 'pipeline_id') || null,
         accountType: str(fd, 'account_type') || null,
         contactRole: str(fd, 'contact_role') || null,
+        territoryId: str(fd, 'territory_id') || null,
       })
       goto = `/deals/${out.dealId}`
     }

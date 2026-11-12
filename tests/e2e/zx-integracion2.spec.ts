@@ -209,8 +209,11 @@ test.describe('un negocio en pausa no aparece como frío', () => {
       // el tablero: filtros de equipo y persona (liderazgo), filtro "En pausa" (b2b) y negocios quietos (operaciones) caben juntos
       await page.goto(`/pipelines/${pipe}`)
       // en el teléfono los filtros se guardan detrás del botón "Filtros": el encabezado ya no empuja las tarjetas fuera de la pantalla
-      for (const id of ['pipeline-select', 'view-list', 'quiet-filter']) await expect(page.getByTestId(id), id).toBeVisible()
+      for (const id of ['pipeline-select', 'view-list']) await expect(page.getByTestId(id), id).toBeVisible()
+      // ola 4: "Sin movimiento en más de" también se guarda detrás de "Filtros" en el teléfono
+      await expect(page.getByTestId('quiet-filter'))[w.width < 768 ? 'toBeHidden' : 'toBeVisible']()
       if (w.width < 768) {
+        await expect(page.getByTestId('quiet-filter-m')).toBeHidden()
         for (const id of ['board-team', 'board-person', 'filter-no-step', 'filter-paused']) await expect(page.getByTestId(id), id).toBeHidden()
         const header = await page.locator('header').filter({ has: page.getByTestId('pipeline-select') }).boundingBox()
         expect(header!.height, 'alto del encabezado del tablero en el teléfono').toBeLessThan(340)
@@ -218,6 +221,7 @@ test.describe('un negocio en pausa no aparece como frío', () => {
         await page.getByTestId('board-filters').click()
       } else await expect(page.getByTestId('board-filters')).toBeHidden()
       for (const id of ['board-team', 'board-person', 'filter-no-step', 'filter-paused']) await expect(page.getByTestId(id), id).toBeVisible()
+      if (w.width < 768) await expect(page.getByTestId('quiet-filter-m')).toBeVisible()
       // un solo control para "de quién": con el selector de persona, "Míos" es una opción suya y las dos pastillas no están
       await expect(page.getByTestId('pill-all')).toHaveCount(0)
       await expect(page.getByTestId('board-person').locator('option', { hasText: /^Míos$/ })).toHaveCount(1)
