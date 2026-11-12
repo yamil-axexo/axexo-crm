@@ -1,6 +1,7 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
+import { notifyOptions } from '@/dal/ops'
 import { requireCtx } from '@/server/context'
 import { recordActivity } from '@/domain/activities'
 import { reassignAccounts } from '@/domain/accounts'
@@ -36,6 +37,7 @@ export async function logActivityAction(_: ActionResult<Done> | null, fd: FormDa
       nextWhen: str(fd, 'when'),
       nextText: str(fd, 'next_text'),
       askNext: true,
+      notify: kind === 'note' ? str(fd, 'notify') : '',
     })
     const saved = kind === 'visit' ? ctx.t(`Visita guardada en ${out.name}.`, `Visit saved on ${out.name}.`) : kind === 'call' ? ctx.t(`Llamada guardada en ${out.name}.`, `Call saved on ${out.name}.`) : ctx.t(`Nota guardada en ${out.name}.`, `Note saved on ${out.name}.`)
     const next = out.next ? ` ${ctx.t(`Próximo paso: ${out.next}, ${weekday(out.due, 'es')}.`, `Next step: ${out.next}, ${weekday(out.due, 'en')}.`)}` : ''
@@ -90,4 +92,11 @@ export async function dismissExceptionAction(_: ActionResult<Done> | null, fd: F
     await resolveException(ctx, str(fd, 'id'), str(fd, 'note'))
     return { data: { toast: ctx.t('Pendiente descartado. Si sigue sin corregirse, vuelve a aparecer en 7 días.', 'Item dismissed. If it is still not fixed, it comes back in 7 days.') } }
   })
+}
+
+/** A quién se le puede avisar desde una nota de este comercio (o negocio): personas que ven el registro. */
+export async function notifyOptionsAction(accountId: string, dealId: string | null): Promise<{ id: string; full_name: string }[]> {
+  const ctx = await requireCtx()
+  if (!ctx.can('activity.write')) return []
+  return notifyOptions(ctx, { accountId, dealId })
 }

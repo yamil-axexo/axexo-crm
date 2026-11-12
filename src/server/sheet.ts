@@ -79,6 +79,8 @@ export function logConfig(ctx: Ctx, now = new Date()): LogConfig {
       missingMerchant: t('Elige el comercio para poder guardar.', 'Choose the merchant to save.'),
       missingResult: t('Elige cómo te fue para poder guardar.', 'Choose how it went to save.'),
       missingDay: t('Elige el día de la visita para poder guardar.', 'Choose the day of the visit to save.'),
+      notify: t('Avisar a (opcional): le aparece en Hoy', 'Notify (optional): it shows in their Today'),
+      notifyNone: t('Nadie', 'Nobody'),
     },
     visitResults: resultOptions(ctx, VISIT_RESULTS),
     callResults: resultOptions(ctx, ['reached', 'no_answer']),

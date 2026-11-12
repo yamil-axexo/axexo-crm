@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Choices, NextStep, SheetText, VisitorField, fill, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
-import { findAccountsAction, logActivityAction } from '@/app/(app)/actividades/log-actions'
+import { findAccountsAction, logActivityAction, notifyOptionsAction } from '@/app/(app)/actividades/log-actions'
 import type { FoundAccount } from '@/dal/field'
 
 export type LogKind = 'visit' | 'call' | 'note'
@@ -29,6 +29,9 @@ export type LogConfig = {
     missingMerchant: string
     missingResult: string
     missingDay: string
+    /** "Avisar a": a quién le aparece la nota como aviso en Hoy. */
+    notify: string
+    notifyNone: string
   }
   visitResults: { value: string; label: string }[]
   callResults: { value: string; label: string }[]
@@ -88,6 +91,25 @@ export function LogHost({ config }: { config: LogConfig }) {
   )
 }
 
+/** "Avisar a": personas que ven este comercio. Se cargan al elegir el comercio; sin nadie a quien avisar, no se muestra. */
+function NotifyPicker({ accountId, dealId, label, none }: { accountId: string; dealId: string | null; label: string; none: string }) {
+  const [people, setPeople] = useState<{ id: string; full_name: string }[]>([])
+  useEffect(() => {
+    let alive = true
+    notifyOptionsAction(accountId, dealId).then((list) => { if (alive) setPeople(list) }).catch(() => {})
+    return () => { alive = false }
+  }, [accountId, dealId])
+  if (people.length === 0) return null
+  return (
+    <label className="mt-5 block text-[14px] font-medium text-white">{label}
+      <select name="notify" defaultValue="" className="input mt-1.5 !border-black-line !bg-graphite !text-white" data-testid="log-notify">
+        <option value="">{none}</option>
+        {people.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+      </select>
+    </label>
+  )
+}
+
 function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; config: LogConfig; onCancel: () => void; onSaved: (toast: string | null) => void }) {
   const { labels, sheet } = config
   const [kind, setKind] = useState<LogKind>(target.kind)
@@ -132,6 +154,7 @@ function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; con
       {!target.account && <MerchantPicker labels={labels} account={account} onPick={(a) => { setAccount(a); setError(null) }} />}
 
       {account && kind === 'note' && <SheetText name="subject" label={labels.what} maxLength={200} required testId="log-subject" />}
+      {account && kind === 'note' && <NotifyPicker key={account.id} accountId={account.id} dealId={target.dealId ?? null} label={labels.notify} none={labels.notifyNone} />}
 
       {account && kind !== 'note' && (
         <>
