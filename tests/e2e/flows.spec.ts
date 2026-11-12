@@ -7,6 +7,7 @@ async function newLead(page: Page, name: string, phone = '') {
   await page.goto('/leads')
   await page.getByTestId('new-lead').click()
   await page.locator('select[name=motor]').selectOption('d2d')
+  await page.locator('select[name=source]').selectOption('walk_in') // ola 2: el alta manual pide el origen
   await page.locator('input[name=business_name]').fill(name)
   await page.locator('input[name=contact_name]').fill('Carmen Prueba')
   if (phone) await page.locator('input[name=phone]').fill(phone)

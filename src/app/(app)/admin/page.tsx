@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Horario } from './horario'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { env } from '@/env'
@@ -166,6 +167,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const [d, people] = await Promise.all([getIntake(ctx), sellers(ctx)])
     return (
       <div className="space-y-8" data-testid="admin-intake">
+        <Horario />
         <Card pad={false}>
           <div className="px-7 pt-7"><CardTitle title={t('Formularios web', 'Web forms')} hint={t('Cada formulario tiene una página lista para usar y una API para conectarlo desde el sitio web.', 'Each form has a ready-to-use page and an API to connect it from the website.')} /></div>
           <Table testId="form-table" head={<><th>{t('Formulario', 'Form')}</th><th>{t('Página', 'Page')}</th><th>API</th><th>{t('Reparte por', 'Routed by')}</th><th>{t('Leads 30 días', 'Leads, 30 days')}</th></>}>

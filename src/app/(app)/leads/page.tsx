@@ -218,8 +218,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               {data.items.map((l) => {
                 const s = state(l)
                 const mine = l.owner_id === ctx.user.id
-                // Llamar no desaparece después de un intento: sigue mientras el lead esté nuevo o contactado.
-                const canCall = ['new', 'contacted'].includes(l.status) && !!l.phone && ctx.can('lead.work', l.market_code) && (mine || !l.owner_id)
+                // Llamar no desaparece después de un intento sin respuesta: sigue mientras nadie haya logrado el contacto.
+                const canCall = l.status === 'new' && !!l.phone && ctx.can('lead.work', l.market_code) && (mine || !l.owner_id)
                 const canPick = canBulk(l)
                 return (
                   <li key={l.id} className={cx('row-hover relative px-4 py-3.5 @3xl:px-5', cols)} data-testid="lead-row" data-state={s.waiting ? (s.late ? 'late' : 'waiting') : l.status}>
