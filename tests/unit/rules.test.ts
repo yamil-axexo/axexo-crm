@@ -32,7 +32,7 @@ describe('criterios de etapa (PIPE-01, ACT-02)', () => {
 describe('matriz de capacidades (AUT-01)', () => {
   const m = (role: Role, market: string | null = 'MX'): Membership[] => [{ role, market, teamId: null }]
   it('el LT lee tableros y auditoría pero no escribe nada', () => {
-    const writes = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((c) => !['board.supervisor', 'board.lt', 'audit.read', 'status.read'].includes(c))
+    const writes = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((c) => !['board.supervisor', 'board.lt', 'audit.read', 'status.read', 'report.view', 'report.export', 'adoption.read', 'exception.read'].includes(c))
     for (const cap of writes) expect(can(m('lt', null), cap, 'MX'), cap).toBe(false)
     expect(can(m('lt', null), 'board.lt')).toBe(true)
   })

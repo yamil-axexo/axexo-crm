@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCtx } from '@/server/context'
-import { opsVoice } from '@/server/sheet'
+import { homePath } from '@/domain/policy'
 
 export default async function Home() {
   const ctx = await getCtx()
-  redirect(!ctx ? '/login' : opsVoice(ctx) ? '/operaciones' : '/hoy')
+  redirect(ctx ? homePath(ctx.memberships) : '/login')
 }

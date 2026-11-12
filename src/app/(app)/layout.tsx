@@ -1,16 +1,16 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { Activity, CircleHelp, Eye, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
-import { ReportLink } from '@/ui/report'
+import { ReportLink } from '@/ui/problem-report'
 import { LogHost } from '@/ui/log'
 import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
-import { ROLE_LABEL, isReadOnly } from '@/domain/policy'
+import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
 const initials = (name: string) =>
@@ -54,7 +54,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-full">
       <header className="sticky top-0 z-[36] flex h-[60px] items-center gap-4 border-b border-line bg-surface px-4 md:h-[64px] md:gap-6 md:px-8 desk:h-[72px] desk:px-10" data-testid="topbar">
-        <Link href="/hoy" className="shrink-0" aria-label="axexo CONTIGO">
+        <Link href={homePath(ctx.memberships)} className="shrink-0" aria-label="axexo CONTIGO" data-testid="home-link">
           <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={129} height={32} priority className="h-7 w-auto md:h-8" />
         </Link>
         <SearchBox placeholder={m('top.search')} label={m('top.searchLabel')} />
@@ -83,7 +83,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <div className="py-1">
               {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
               {ctx.can('config.manage') && <Link href="/admin/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-config"><Settings size={20} strokeWidth={1.75} aria-hidden />{t('Catálogos de Operaciones', 'Operations catalogs')}</Link>}
-              {ctx.can('board.supervisor') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>}
+              {ctx.can('board.supervisor') ? <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>
+                : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}
+              {ctx.can('report.view') && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}
               {ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}

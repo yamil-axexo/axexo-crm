@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { asPersona, attempt, ctxFor, owner, personaId } from './helpers'
-import { answerReport, createReport, screenPath } from '@/domain/reports'
-import { allReports, myReports } from '@/dal/reports'
+import { answerReport, createReport, screenPath } from '@/domain/problem-reports'
+import { allReports, myReports } from '@/dal/problem-reports'
 
 // Reportar un problema (0017_problem_reports): cada quien ve los suyos, administración ve todos y responde,
 // quien reportó ve la respuesta, y todo deja evento en la bitácora. 42501 = la base rechazó la operación.

@@ -1,6 +1,6 @@
 import { requireCtx } from '@/server/context'
-import { myReports } from '@/dal/reports'
-import { screenPath } from '@/domain/reports'
+import { myReports } from '@/dal/problem-reports'
+import { screenPath } from '@/domain/problem-reports'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { dayTime } from '@/lib/format'

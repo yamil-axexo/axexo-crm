@@ -1,7 +1,7 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
-import { answerReport, createReport } from '@/domain/reports'
+import { answerReport, createReport } from '@/domain/problem-reports'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>

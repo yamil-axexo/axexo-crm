@@ -43,10 +43,20 @@ export const CAPABILITIES = {
   'activity.write': [...SELLERS, 'ops'],
   'exception.resolve': [...MANAGERS, 'ops', 'rep'],
   'board.supervisor': [...MANAGERS, 'lt'],
+  // La cola de avisos del alcance, en solo lectura para leadership. Operaciones ve la de sus mercados (ya resolvía avisos
+  // uno por uno): entra a la misma pantalla, sin el tablero del equipo de ventas.
+  'exception.read': [...MANAGERS, 'lt', 'ops'],
   // Evaluar las reglas a mano abre y cierra excepciones para todos: es un cambio de datos, así que Leadership (solo lectura) no lo corre.
   'rules.run': MANAGERS,
   'board.lt': ['admin', 'lt', 'market_lead'],
-  'audit.read': ['admin', 'lt', 'market_lead'],
+  // La bitácora se lee en solo lectura y dentro del alcance: leadership toda, quien lidera y operaciones la de sus mercados (RLS).
+  'audit.read': ['admin', 'lt', 'market_lead', 'ops'],
+  // Reportes de resultados (negocios cerrados, reporte semanal de campo). Supervisión ve y exporta lo de su equipo.
+  // Exportar es una lectura que sale de CONTIGO: lleva permiso propio y deja evento en la bitácora con filtros y filas.
+  'report.view': ['admin', 'lt', 'market_lead', 'supervisor'],
+  'report.export': ['admin', 'lt', 'market_lead', 'supervisor'],
+  // Adopción: conteos de uso por persona. No la ve supervisión ni ventas.
+  'adoption.read': ['admin', 'lt', 'market_lead'],
   'config.manage': ['admin'],
   'integration.operate': ['admin'],
   // Página de estado: ambiente, versión, frescura de los datos e integraciones. La ven quien administra y quien responde por los controles.
@@ -73,4 +83,21 @@ export function isReadOnly(memberships: Membership[]): boolean {
 
 export function rolesIn(memberships: Membership[], market: string): Role[] {
   return memberships.filter((m) => m.market === null || m.market === market).map((m) => m.role)
+}
+
+/**
+ * La pantalla donde aterriza cada quien al entrar: UNA sola función lo decide (la usan la raíz, el primer ingreso después
+ * de la bienvenida, el logo de la barra y las pruebas). Quien vende o supervisa llega a Hoy, su lista de trabajo;
+ * Operaciones, a su cola. Quien no lleva registros propios llega a su tablero: administración a Administración, leadership
+ * al Panel del LT y quien lidera un mercado a Mi equipo. Hoy sigue en el menú para todos.
+ */
+export type Home = '/hoy' | '/admin' | '/panel-lt' | '/supervisor' | '/operaciones'
+export function homePath(memberships: Membership[]): Home {
+  const has = (role: Role) => memberships.some((m) => m.role === role)
+  if (has('admin')) return '/admin'
+  if (has('lt')) return '/panel-lt'
+  if (has('market_lead')) return '/supervisor'
+  // Quien es de Operaciones y no vende ni supervisa empieza en su cola (paquete operaciones).
+  if (has('ops') && !has('supervisor') && !has('rep')) return '/operaciones'
+  return '/hoy'
 }

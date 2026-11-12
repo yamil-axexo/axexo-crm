@@ -1,5 +1,5 @@
 import type { Ctx } from '@/server/context'
-import { allReports } from '@/dal/reports'
+import { allReports } from '@/dal/problem-reports'
 import { Badge, Card, CardTitle, Empty, Field, Pills } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { dayTime } from '@/lib/format'

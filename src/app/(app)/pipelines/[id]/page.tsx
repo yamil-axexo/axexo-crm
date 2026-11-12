@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getBoard, listPipelines, BOARD_LIMIT } from '@/dal/pipelines'
 import { track } from '@/dal/boards'
+import { getReportOptions } from '@/dal/reports'
+import { isUuid } from '@/lib/ids'
 import { cx } from '@/ui/kit'
 import { Board, NavSelect, type BoardCard, type BoardCol } from '@/ui/board'
 import { daysSince, isoDay, money, weekday } from '@/lib/format'
@@ -16,13 +18,16 @@ import { ActionForm, Submit } from '@/ui/client'
 import { day } from '@/lib/format'
 import { flat } from '@/server/params'
 
-export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string; quietos?: string }> }) {
+export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string; quietos?: string; equipo?: string }> }) {
   const ctx = await requireCtx()
   const { t, m, locale } = ctx
   const { id } = await params
   const sp = flat(await searchParams)
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
-  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin', paused: sp.paso === 'pausa' }), listPipelines(ctx)])
+  // Persona y equipo: filtros para supervisión, quien lidera y leadership, dentro de su alcance.
+  const options = ctx.can('report.view') ? await getReportOptions(ctx) : null
+  const team = sp.equipo === 'none' ? 'none' : options?.teams.some((x) => x.id === sp.equipo) ? sp.equipo : undefined
+  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin', paused: sp.paso === 'pausa', team }), listPipelines(ctx)])
   if (!board) notFound()
   await track(ctx, 'view.pipeline')
   const market = ctx.market(board.pipeline.market_code)
@@ -40,7 +45,10 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const noStep = board.totals.reduce((n, x) => n + x.no_step, 0)
   const revisits = board.totals.reduce((n, x) => n + x.revisits, 0)
   const paused = board.totals.reduce((n, x) => n + x.paused, 0)
-  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, quietos: undefined, ...patch })
+  const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, equipo: team, quietos: undefined, ...patch })
+  const teams = (options?.teams ?? []).filter((x) => x.market_code === board.pipeline.market_code)
+  const people = [...new Map((options?.people ?? []).filter((x) => x.market_code === board.pipeline.market_code && (!team || (team === 'none' ? !x.team_id : x.team_id === team))).map((x) => [x.id, x.full_name])).entries()]
+  const personValue = isUuid(sp.owner) || sp.owner === 'none' ? here({}) : here({ owner: undefined })
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
@@ -101,7 +109,16 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <NavSelect label={m('deals.pipeline')} value={here({})} testId="pipeline-select"
-            options={pipelines.map((p) => ({ href: qs(`/pipelines/${p.id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso }), label: `${ctx.markets.length > 1 ? `${p.market_code} · ` : ''}${p.name} (${p.open_deals})` }))} />
+            options={pipelines.map((p) => ({ href: qs(`/pipelines/${p.id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, equipo: team }), label: `${ctx.markets.length > 1 ? `${p.market_code} · ` : ''}${p.name} (${p.open_deals})` }))} />
+          {options && teams.length > 0 && (
+            <NavSelect label={t('Equipo', 'Team')} value={here({})} testId="board-team"
+              options={[{ href: here({ equipo: undefined }), label: t('Todos los equipos', 'All teams') }, ...teams.map((x) => ({ href: here({ equipo: x.id, owner: sp.owner === 'me' ? 'me' : undefined }), label: x.name })), { href: here({ equipo: 'none', owner: sp.owner === 'me' ? 'me' : undefined }), label: t('Sin equipo', 'No team') }]} />
+          )}
+          {options && people.length > 0 && (
+            <NavSelect label={t('Persona', 'Person')} value={personValue} testId="board-person"
+              options={[{ href: here({ owner: undefined }), label: t('Todas las personas', 'Everyone') }, ...people.map(([pid, name]) => ({ href: here({ owner: pid }), label: name })), { href: here({ owner: 'none' }), label: t('Sin dueño', 'No owner') },
+                ...(isUuid(sp.owner) && !people.some(([pid]) => pid === sp.owner) ? [{ href: here({}), label: t('La persona elegida', 'The chosen person') }] : [])]} />
+          )}
           <nav aria-label={m('deals.scope')} className="inline-flex rounded-full border border-line bg-surface p-1">
             <Link href={here({ owner: undefined })} aria-current={sp.owner !== 'me' ? 'page' : undefined} className={seg(sp.owner !== 'me')} data-testid="pill-all">{m('merchants.scope.all')}</Link>
             <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>

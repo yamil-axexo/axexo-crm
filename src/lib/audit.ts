@@ -102,6 +102,8 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'rules.evaluated': ['Evaluó las reglas a mano', 'Ran the rules by hand'],
   'report.created': ['Reportó un problema o pidió algo', 'Reported a problem or asked for something'],
   'report.answered': ['Respondió un reporte del equipo', 'Answered a team report'],
+  'report.exported': ['Exportó un reporte', 'Exported a report'],
+  'fx.rate_set': ['Cargó una tasa de cambio', 'Loaded an exchange rate'],
   'session.started': ['Inició sesión', 'Signed in'],
   'session.ended': ['Cerró sesión', 'Signed out'],
 }
@@ -110,10 +112,12 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%'], not: null },
+  // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
+  exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
-  reports: { label: ['Reportes del equipo', 'Team reports'] as Pair, like: ['report.%'], not: null },
+  reports: { label: ['Reportes del equipo', 'Team reports'] as Pair, like: ['report.created', 'report.answered'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const
@@ -143,10 +147,19 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   ingest_batch: ['Archivo de S5', 'S5 file'],
   integration: ['Integración', 'Integration'],
   rules: ['Reglas', 'Rules'],
+  report: ['Reporte', 'Report'],
+  fx_rate: ['Tasa de cambio', 'Exchange rate'],
   session: ['Sesión', 'Session'],
   notice: ['Aviso de una nota', 'Notice from a note'],
   ops_catalog: ['Catálogo de Operaciones', 'Operations catalog'],
   product: ['Producto', 'Product'],
+}
+
+/** Los reportes que se pueden exportar, con su nombre. */
+export const REPORT_NAME: Record<string, Pair> = {
+  closed_deals: ['Negocios cerrados', 'Closed deals'],
+  field_stores: ['Reporte semanal de campo: altas y ganados', 'Weekly field report: enrollments and wins'],
+  field_visits: ['Reporte semanal de campo: visitas por persona', 'Weekly field report: visits by person'],
 }
 
 export const actionLabel = (t: T, action: string) => {
@@ -365,6 +378,11 @@ export function summary(t: T, locale: Locale, action: string, before: Record<str
   if (action === 'activity.added' || action === 'activity.completed') return [after?.kind ? w('kind', after.kind) : null, after?.outcome ? w('outcome', after.outcome) : null].filter(Boolean).join(' · ')
   if (action === 'api_client.created') return w('scopes', after?.scopes)
   if (action === 'session.started') return w('kind', after?.kind)
+  if (action === 'report.exported') {
+    const name = REPORT_NAME[String(after?.report)]
+    return [name ? t(name[0], name[1]) : String(after?.report ?? ''), t(`${Number(after?.rows ?? 0)} filas`, `${Number(after?.rows ?? 0)} rows`)].join(' · ')
+  }
+  if (action === 'fx.rate_set') return t(`1 ${String(after?.currency)} = ${String(after?.usd_rate)} USD, tasa del ${String(after?.as_of)}`, `1 ${String(after?.currency)} = ${String(after?.usd_rate)} USD, rate dated ${String(after?.as_of)}`)
   return ''
 }
 
