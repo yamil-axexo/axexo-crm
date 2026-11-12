@@ -288,12 +288,12 @@ test.describe('integraciones', () => {
     await expect(page.getByTestId('revisit-banner')).toBeVisible()
   })
 
-  test('un evento con un ID que no existe no se pierde: va a la cola de excepciones', async ({ page }) => {
+  test('un evento con un ID que no existe no se pierde: va a Pendientes del equipo', async ({ page }) => {
     await loginAs(page, 'nora.salas')
     await page.goto('/admin?tab=integraciones')
     await page.getByTestId('sim-visit-ref').selectOption('SC-XX-000000')
     await page.getByTestId('sim-visit-send').click()
-    await expect(page.getByTestId('sim-visit').getByTestId('form-ok')).toContainText('cola de excepciones')
+    await expect(page.getByTestId('sim-visit').getByTestId('form-ok')).toContainText('Pendientes del equipo')
     await expect(page.getByTestId('inbound-row').first()).toContainText('sin comercio')
     await page.goto('/supervisor?kind=unmatched_event')
     await expect(page.getByTestId('exception-row').first()).toContainText('Evento sin comercio')

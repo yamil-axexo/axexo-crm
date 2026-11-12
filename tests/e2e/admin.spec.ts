@@ -479,7 +479,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
 
       await page.getByTestId('sim-visit-ref').selectOption('SC-XX-000000')
       await page.getByTestId('sim-visit-send').click()
-      await expect(page.getByTestId('sim-visit').getByTestId('form-ok')).toContainText('cola de excepciones')
+      await expect(page.getByTestId('sim-visit').getByTestId('form-ok')).toContainText('Pendientes del equipo')
       await page.goto('/admin?tab=auditoria&tipo=integrations')
       const event = page.getByTestId('audit-row').filter({ hasText: 'Probó una integración desde Administración' }).first()
       await expect(event).toContainText('Nora Salas')
