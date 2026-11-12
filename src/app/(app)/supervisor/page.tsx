@@ -7,7 +7,8 @@ import { ensureRulesFresh, EXCEPTION_KINDS } from '@/domain/rules'
 import { Badge, Card, CardTitle, Empty, LinkButton, PageHeader, Pills, Table } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { RepartoForm } from '@/ui/reparto'
-import { ago, num, pct } from '@/lib/format'
+import { ago, pct } from '@/lib/format'
+import { holderName, holdsText } from '@/lib/reparto-text'
 import { EXCEPTION, lab, qs } from '@/lib/labels'
 import { resolveExceptionAction, runRulesAction } from './actions'
 import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
@@ -25,18 +26,6 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const sources = canReassign ? await getRepartoSources(ctx) : null
   // Lo que nadie atiende: sin dueño, o a nombre de una cuenta de servicio o de alguien que ya no vende en ese mercado.
   const vacant = (sources?.holders ?? []).filter((h) => !h.current && (!sp.market || h.market_code === sp.market) && h.accounts + h.deals + h.leads > 0)
-  const many = (n: number, one: [string, string], other: [string, string]) => `${num(n, locale)} ${n === 1 ? t(one[0], one[1]) : t(other[0], other[1])}`
-  const holds = (h: (typeof vacant)[number]) => {
-    const parts = [
-      h.accounts ? many(h.accounts, ['comercio', 'merchant'], ['comercios', 'merchants']) : '',
-      h.deals ? many(h.deals, ['negocio abierto', 'open deal'], ['negocios abiertos', 'open deals']) : '',
-      h.leads ? many(h.leads, ['lead abierto', 'open lead'], ['leads abiertos', 'open leads']) : '',
-    ].filter(Boolean)
-    const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} ${t('y', 'and')} ${parts[parts.length - 1]}` : parts[0]
-    return h.owner_id ? t(`Tiene ${list} sin dueño vigente.`, `Holds ${list} with no current owner.`) : t(`Hay ${list} sin dueño.`, `There are ${list} with no owner.`)
-  }
-  const holderName = (h: (typeof vacant)[number]) =>
-    h.owner_id ? `${h.full_name}${h.is_active === false ? t(' (inactiva)', ' (inactive)') : t(' (sin rol de ventas)', ' (no sales role)')}` : t('Sin dueño', 'No owner')
   const totalOpen = Object.values(board.byKind).reduce((a, b) => a + b, 0)
   const link = (patch: Record<string, string | undefined>) => qs('/supervisor', { market: sp.market, kind: sp.kind, owner: sp.owner, ...patch })
   const href = (e: (typeof board.queue)[number]) => (e.deal_id ? `/deals/${e.deal_id}` : e.lead_id ? `/leads/${e.lead_id}` : e.account_id ? `/comercios/${e.account_id}` : '/admin?tab=integraciones')
@@ -98,8 +87,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
             {vacant.slice(0, 20).map((h) => (
               <li key={`${h.owner_id}${h.market_code}`} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 border-t border-line py-4 first:border-t-0" data-testid="vacant-row">
                 <div className="min-w-0 flex-1 basis-[260px]">
-                  <p className="text-[15px] font-semibold text-strong [overflow-wrap:anywhere]">{holderName(h)}{live.length > 1 ? ` · ${h.market_code}` : ''}</p>
-                  <p className="mt-0.5 text-[14px] text-muted-2" data-testid="vacant-holds">{holds(h)}</p>
+                  <p className="text-[15px] font-semibold text-strong [overflow-wrap:anywhere]">{holderName(t, h)}{live.length > 1 ? ` · ${h.market_code}` : ''}</p>
+                  <p className="mt-0.5 text-[14px] text-muted-2" data-testid="vacant-holds">{holdsText(t, locale, h)}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {h.leads > 0 && <LinkButton href={qs('/leads', { owner: h.owner_id ?? 'none', market: h.market_code, status: 'open' })} variant="quiet" testId="vacant-leads">{t('Ver sus leads', 'See the leads')}</LinkButton>}

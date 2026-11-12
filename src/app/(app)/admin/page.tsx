@@ -14,6 +14,7 @@ import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
 import { configurePipelineAction, createApiClientAction, createTeamAction, endMembershipAction, grantMembershipAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction } from './actions'
 import { PipedriveTab } from './pipedrive'
 import { TerritoriosTab } from './territorios'
+import { VacantNotice } from './sin-dueno'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { domainList } from '@/lib/domains'
@@ -49,7 +50,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader title={t('Administración', 'Administration')} desc={t('La configuración se hace aquí y queda en la bitácora. Ventas opera; administración configura.', 'Configuration happens here and is logged. Sales operates; administration configures.')} />
       <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={tab} items={allowed.map((k) => ({ key: k, href: qs('/admin', { tab: k }), label: labels[k] }))} /></div>
-      {tab === 'personas' && <People />}
+      {tab === 'personas' && <><VacantNotice ctx={ctx} /><People /></>}
       {tab === 'territorios' && <TerritoriosTab ctx={ctx} />}
       {tab === 'embudos' && <Config />}
       {tab === 'entrada' && <Intake />}

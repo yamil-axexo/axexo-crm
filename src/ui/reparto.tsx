@@ -282,7 +282,7 @@ export function RepartoBar({ locale, market, filter, narrowed, total, people, te
                 <span>{t(`Todos los de este filtro (${fmt(total, locale)})`, `Everything in this filter (${fmt(total, locale)})`)}</span>
               </label>
             </div>
-            {!canAll && <p className="text-[13px] text-muted" data-testid="reparto-narrow">{!market ? t('Elige un mercado para repartir todo un filtro.', 'Choose a market to distribute a whole filter.') : t('Para repartir todo de una vez, filtra primero por responsable, región, ciudad o territorio.', 'To distribute everything at once, filter first by owner, region, city or territory.')}</p>}
+            {!canAll && <p className="text-[13px] text-muted" data-testid="reparto-narrow">{!market ? t('Elige un mercado para repartir todo un filtro.', 'Choose a market to distribute a whole filter.') : t('Para repartir todo de una vez, filtra primero por dueño, región, ciudad o territorio.', 'To distribute everything at once, filter first by owner, region, city or territory.')}</p>}
             {!all && (
               <label className="mt-1 flex min-h-11 w-fit items-center gap-2 text-[14px] text-muted-2">
                 <input type="checkbox" className="h-4 w-4" onChange={(e) => setRows(e.target.checked)} checked={selected.length > 0 && selected.length === rows} data-testid="reparto-page" />

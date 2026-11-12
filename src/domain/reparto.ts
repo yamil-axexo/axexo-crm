@@ -112,7 +112,7 @@ export async function previewAccounts(ctx: Ctx, f: AccountFilters, toUserId?: st
 export async function reassignByFilter(ctx: Ctx, f: AccountFilters, toUserId: string, batch = REPARTO_BATCH): Promise<Progress> {
   const market = marketOf(ctx, f.market)
   ctx.assert('account.reassign', market)
-  if (!narrows(f)) throw invalid('Acota primero: elige responsable, región, ciudad o territorio.', 'Narrow it down first: choose an owner, region, city or territory.')
+  if (!narrows(f)) throw invalid('Acota primero: elige dueño, región, ciudad o territorio.', 'Narrow it down first: choose an owner, region, city or territory.')
   const size = Math.min(Math.max(1, batch), REPARTO_BATCH)
   return withUser(ctx.user.id, async (tx) => {
     const toName = await assertTarget(tx, ctx, market, toUserId)
@@ -164,7 +164,7 @@ export async function setTerritory(ctx: Ctx, accountIds: string[], territoryId: 
 export async function setTerritoryByFilter(ctx: Ctx, f: AccountFilters, territoryId: string | null, batch = REPARTO_BATCH): Promise<Progress> {
   const market = marketOf(ctx, f.market)
   ctx.assert('account.territory', market)
-  if (!narrows(f)) throw invalid('Acota primero: elige responsable, región, ciudad o territorio.', 'Narrow it down first: choose an owner, region, city or territory.')
+  if (!narrows(f)) throw invalid('Acota primero: elige dueño, región, ciudad o territorio.', 'Narrow it down first: choose an owner, region, city or territory.')
   const size = Math.min(Math.max(1, batch), REPARTO_BATCH)
   return withUser(ctx.user.id, async (tx) => {
     const name = await assertTerritory(tx, market, territoryId)
