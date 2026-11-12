@@ -234,7 +234,12 @@ export const STEPS: Record<Track, Step[]> = {
   admin: [S.access, S.pipelines, S.quality, S.audit, S.panel, S.help],
 }
 
-export type Intro = { lead: L; how: { title: L; text: L }[] }
+/** Pantallas reales del producto capturadas con datos de prueba (public/landing, scripts/landing-shots.mjs). */
+export type Shot = 'hoy' | 'leads' | 'negocios' | 'comercio' | 'equipo' | 'panel' | 'completar' | 'admin'
+/** Apoyo visual de un paso: una captura real o una ilustración. */
+export type Visual = { shot: Shot } | { art: 'log' | 'readonly' }
+export type How = { title: L; text: L; visual: Visual }
+export type Intro = { lead: L; how: How[] }
 
 const HOW = {
   queue: {
@@ -243,6 +248,7 @@ const HOW = {
       es: 'Arriba, lo siguiente: el pendiente más urgente, con el botón para llamar. Abajo, lo vencido, lo de hoy y las sugerencias.',
       en: 'At the top, what is next: the most urgent item, with the call button. Below, overdue, today and suggestions.',
     },
+    visual: { shot: 'hoy' },
   },
   done: {
     title: { es: 'Al terminar, dices cómo te fue', en: 'When you finish, you say how it went' },
@@ -250,6 +256,7 @@ const HOW = {
       es: 'Tocas el círculo, eliges el resultado y dejas el próximo paso con fecha. Son tres toques.',
       en: 'Tap the circle, pick the result and leave the next step with a date. Three taps.',
     },
+    visual: { shot: 'completar' },
   },
   record: {
     title: { es: 'Todo lo de un comercio está en su ficha', en: 'Everything about a merchant is on its record' },
@@ -257,6 +264,7 @@ const HOW = {
       es: 'El hilo junta notas, llamadas, cambios de etapa y de dueño. El árbol muestra la cadena y sus tiendas.',
       en: 'The thread gathers notes, calls, stage and owner changes. The tree shows the chain and its stores.',
     },
+    visual: { shot: 'comercio' },
   },
   deals: {
     title: { es: 'Un negocio siempre lleva próximo paso', en: 'A deal always carries a next step' },
@@ -264,6 +272,7 @@ const HOW = {
       es: 'En el tablero mueves la tarjeta de etapa. Si la etapa pide algo (quién decide, un dato), te lo dice ahí mismo.',
       en: 'On the board you move the card to the next stage. If the stage needs something (who decides, a detail), it tells you right there.',
     },
+    visual: { shot: 'negocios' },
   },
   teamView: {
     title: { es: 'Mi equipo: una fila por persona', en: 'My team: one row per person' },
@@ -271,6 +280,7 @@ const HOW = {
       es: 'Leads abiertos y tardíos, primer intento a tiempo, contacto logrado, negocios sin próximo paso y revisitas.',
       en: 'Open and late leads, first attempt on time, reached, deals with no next step and revisits.',
     },
+    visual: { shot: 'equipo' },
   },
   owners: {
     title: { es: 'Tú decides quién es dueño de qué', en: 'You decide who owns what' },
@@ -278,6 +288,7 @@ const HOW = {
       es: 'Reasignas leads y comercios de tu equipo. Los leads sin dueño los ve cualquier vendedor del mercado y los puede tomar.',
       en: 'You reassign your team\'s leads and merchants. Leads with no owner are visible to any seller in the market, who can take them.',
     },
+    visual: { shot: 'leads' },
   },
   market: {
     title: { es: 'Ves todo tu mercado', en: 'You see your whole market' },
@@ -285,6 +296,7 @@ const HOW = {
       es: 'Todos los embudos, todos los equipos y los registros que quedaron a nombre de la cuenta de la casa o de personas que ya no están.',
       en: 'Every pipeline, every team, and the records still held by the house account or by people who have left.',
     },
+    visual: { shot: 'negocios' },
   },
   numbers: {
     title: { es: 'De dónde salen los números', en: 'Where the numbers come from' },
@@ -292,6 +304,7 @@ const HOW = {
       es: 'De lo que el equipo registra en CONTIGO. Las visitas de campo y la primera venta llegarán solas cuando se conecten la Sales App y S5.',
       en: 'From what the team logs in CONTIGO. Field visits and the first sale will arrive on their own once the Sales App and S5 are connected.',
     },
+    visual: { shot: 'panel' },
   },
   after: {
     title: { es: 'Recibes el negocio después del alta', en: 'You receive the deal after enrollment' },
@@ -299,6 +312,7 @@ const HOW = {
       es: 'Lo encuentras en el tablero, en las etapas que te tocan. Lo editas, lo mueves y completas los datos del comercio. No creas negocios ni trabajas leads.',
       en: 'You find it on the board, in the stages you own. You edit it, move it and complete the merchant details. You do not create deals or work leads.',
     },
+    visual: { shot: 'negocios' },
   },
   readOnly: {
     title: { es: 'Ves todo y no cambias nada', en: 'You see everything and change nothing' },
@@ -306,6 +320,7 @@ const HOW = {
       es: 'Tu acceso es de solo lectura en todos los mercados. Los botones para crear o editar no aparecen.',
       en: 'Your access is read-only across all markets. The buttons to create or edit do not appear.',
     },
+    visual: { art: 'readonly' },
   },
   config: {
     title: { es: 'Administración tiene siete pestañas', en: 'Admin has seven tabs' },
@@ -313,6 +328,7 @@ const HOW = {
       es: 'Personas, Embudos, Entrada de leads, Integraciones, Pipedrive, Calidad de datos y Bitácora.',
       en: 'People, Pipelines, Lead intake, Integrations, Pipedrive, Data quality and Audit log.',
     },
+    visual: { shot: 'admin' },
   },
   logged: {
     title: { es: 'Todo cambio queda escrito', en: 'Every change is written down' },
@@ -320,8 +336,9 @@ const HOW = {
       es: 'Accesos, dueños, etapas y configuración quedan en la bitácora con quién, qué y cuándo. Nada se borra: se cierra con fecha.',
       en: 'Access, owners, stages and configuration are logged with who, what and when. Nothing is deleted: it is ended with a date.',
     },
+    visual: { art: 'log' },
   },
-} satisfies Record<string, { title: L; text: L }>
+} satisfies Record<string, How>
 
 export const INTRO: Record<Track, Intro> = {
   rep: {
@@ -553,6 +570,12 @@ export const LANDING = {
       en: 'Leads, deals and merchants from every market in one place. You sign in and already know who to call, what is pending and which deal is going cold.',
     },
     secondary: { es: 'Ver cómo funciona', en: 'See how it works' },
+    // El hilo de un comercio de ejemplo: lo hecho y, al final, su próximo paso.
+    thread: [
+      { when: { es: 'Ayer', en: 'Yesterday' }, what: { es: 'Llamada: no contestó', en: 'Call: no answer' }, done: true },
+      { when: { es: 'Hoy', en: 'Today' }, what: { es: 'Llamada: contactado', en: 'Call: reached' }, done: true },
+      { when: { es: 'Mañana', en: 'Tomorrow' }, what: { es: 'Enviar propuesta', en: 'Send proposal' }, done: false },
+    ],
   },
   day: {
     eyebrow: { es: 'Tu día', en: 'Your day' },
@@ -602,6 +625,124 @@ export const LANDING = {
       { figure: '0', title: { es: 'licencias por usuario', en: 'per-user licenses' }, text: { es: 'Es de axexo: sumar a alguien al equipo no cuesta una licencia más.', en: 'It belongs to axexo: adding someone to the team does not cost another license.' } },
     ],
   },
+  demo: {
+    tag: { es: 'Demo en vivo. Tócala.', en: 'Live demo. Tap it.' },
+    label: { es: 'Demo de la cola de Hoy, con comercios de ejemplo', en: 'Demo of the Today queue, with example merchants' },
+    screen: { es: 'Hoy', en: 'Today' },
+    pending: { es: '{n} pendientes', en: '{n} to do' },
+    pendingOne: { es: '1 pendiente', en: '1 to do' },
+    now: { es: 'Ahora', en: 'Now' },
+    later: { es: 'Después', en: 'Up next' },
+    complete: { es: 'Completar', en: 'Complete' },
+    completeOf: { es: 'Completar: {title}', en: 'Complete: {title}' },
+    result: { es: '¿Cómo te fue?', en: 'How did it go?' },
+    next: { es: '¿Qué sigue?', en: 'What is next?' },
+    save: { es: 'Guardar y programar', en: 'Save and schedule' },
+    cancel: { es: 'Cancelar', en: 'Cancel' },
+    results: [
+      { es: 'Contactado', en: 'Reached' },
+      { es: 'No contestó', en: 'No answer' },
+      { es: 'Llamar después', en: 'Call later' },
+    ],
+    nexts: [
+      { es: 'Llamar de nuevo', en: 'Call again' },
+      { es: 'Enviar propuesta', en: 'Send proposal' },
+      { es: 'Reunión', en: 'Meeting' },
+    ],
+    toast: { es: 'Hecho. Próximo paso: {next}, mañana.', en: 'Done. Next step: {next}, tomorrow.' },
+    clock: { es: 'Primer contacto vence en {time}', en: 'First contact due in {time}' },
+    items: [
+      { title: { es: 'Llamar a Abarrotes La Esquina', en: 'Call Corner Market' }, context: { es: 'Lead nuevo del formulario web', en: 'New lead from the web form' }, chip: { es: 'Lead nuevo', en: 'New lead' }, tone: 'clock' as const },
+      { title: { es: 'Enviar propuesta a Miscelánea Don Beto', en: 'Send proposal to Sunrise Wireless' }, context: { es: 'Negocio en Interés del decisor', en: 'Deal in Decision-maker interested' }, chip: { es: 'Vencido', en: 'Overdue' }, tone: 'late' as const },
+      { title: { es: 'Confirmar visita con Súper El Mirador', en: 'Confirm visit with Bayview Grocery' }, context: { es: 'Negocio en Alta iniciada', en: 'Deal in Enrollment started' }, chip: { es: 'Hoy 11:00', en: 'Today 11:00' }, tone: 'today' as const },
+      { title: { es: 'Recargas El Sol no tiene próximo paso', en: 'Main Street Cellular has no next step' }, context: { es: 'Negocio en Tienda visitada', en: 'Deal in Store visited' }, chip: { es: 'Sugerido', en: 'Suggested' }, tone: 'suggested' as const },
+    ],
+    empty: { title: { es: 'Todo al día', en: 'All caught up' }, text: { es: 'Cada comercio quedó con su próximo paso.', en: 'Every merchant has its next step.' } },
+    again: { es: 'Volver a empezar', en: 'Start over' },
+    pause: { es: 'Pausar la demo', en: 'Pause the demo' },
+    play: { es: 'Reproducir la demo', en: 'Play the demo' },
+    note: { es: 'Comercios de ejemplo', en: 'Example merchants' },
+  },
+  ribbon: {
+    label: { es: 'Lo que ya funciona', en: 'What works today' },
+    pause: { es: 'Pausar la cinta', en: 'Pause the ticker' },
+    play: { es: 'Mover la cinta', en: 'Play the ticker' },
+    items: [
+      { es: 'Cola de Hoy', en: 'Today queue' },
+      { es: 'Leads con reloj', en: 'Leads with a clock' },
+      { es: 'Tablero de negocios', en: 'Deals board' },
+      { es: 'Ficha del comercio', en: 'Merchant record' },
+      { es: 'Árbol de la cadena', en: 'Chain tree' },
+      { es: 'Llamada y WhatsApp desde la ficha', en: 'Call and WhatsApp from the record' },
+      { es: 'Mi equipo', en: 'My team' },
+      { es: 'Panel del LT', en: 'Leadership panel' },
+      { es: 'Bitácora de cambios', en: 'Audit log' },
+      { es: 'Español e inglés', en: 'Spanish and English' },
+      { es: 'Teléfono, tablet y escritorio', en: 'Phone, tablet and desktop' },
+    ],
+  },
+  tour: {
+    eyebrow: { es: 'El producto', en: 'The product' },
+    title: { es: 'Míralo por dentro.', en: 'See it from the inside.' },
+    note: { es: 'Pantallas reales de CONTIGO, con datos de prueba.', en: 'Real CONTIGO screens, with test data.' },
+    tabs: { es: 'Pantallas de CONTIGO', en: 'CONTIGO screens' },
+    pause: { es: 'Pausar el recorrido', en: 'Pause the tour' },
+    play: { es: 'Reproducir el recorrido', en: 'Play the tour' },
+    screens: [
+      { shot: 'hoy' as Shot, label: { es: 'Hoy', en: 'Today' }, caption: { es: 'Tu cola del día, con lo más urgente arriba.', en: 'Your queue for the day, most urgent on top.' } },
+      { shot: 'leads' as Shot, label: { es: 'Leads', en: 'Leads' }, caption: { es: 'Cada lead nuevo trae su reloj de primer contacto.', en: 'Every new lead carries its first-contact clock.' } },
+      { shot: 'negocios' as Shot, label: { es: 'Negocios', en: 'Deals' }, caption: { es: 'Una columna por etapa, y cada tarjeta con su próximo paso.', en: 'One column per stage, and every card with its next step.' } },
+      { shot: 'comercio' as Shot, label: { es: 'Comercios', en: 'Merchants' }, caption: { es: 'La ficha junta el hilo, el árbol de la cadena y los datos.', en: 'The record gathers the thread, the chain tree and the details.' } },
+      { shot: 'equipo' as Shot, label: { es: 'Mi equipo', en: 'My team' }, caption: { es: 'Una fila por persona: quién va al día y quién va tarde.', en: 'One row per person: who is on track and who is late.' } },
+      { shot: 'panel' as Shot, label: { es: 'Panel del LT', en: 'Leadership panel' }, caption: { es: 'Cada mercado, del lead al negocio ganado. Las ventas se sumarán cuando se conecte S5.', en: 'Each market, from lead to won deal. Sales will be added once S5 is connected.' } },
+    ],
+  },
+  moments: {
+    eyebrow: { es: 'Lo que hace por ti', en: 'What it does for you' },
+    title: { es: 'Menos perseguir pendientes. Más hablar con comercios.', en: 'Less chasing loose ends. More talking to merchants.' },
+    cards: [
+      { art: 'queue' as const, title: { es: 'Tu cola se ordena sola', en: 'Your queue sorts itself' }, text: { es: 'Primero el lead con el reloj corriendo. Luego lo vencido, lo de hoy y cinco sugerencias.', en: 'First the lead with the clock running. Then overdue, today and five suggestions.' } },
+      { art: 'clock' as const, title: { es: 'Cada lead nuevo trae su reloj', en: 'Every new lead carries a clock' }, text: { es: 'Marca cuánto queda para el primer intento. Se detiene cuando registras la llamada.', en: 'It shows how long is left for the first attempt. It stops when you log the call.' } },
+      { art: 'tree' as const, title: { es: 'La cadena completa, en un árbol', en: 'The whole chain, in one tree' }, text: { es: 'La cadena o el distribuidor arriba y sus tiendas abajo, con sus totales.', en: 'The chain or distributor on top and its stores below, with totals.' } },
+      { art: 'stage' as const, title: { es: 'El negocio avanza con su próximo paso', en: 'The deal moves on with its next step' }, text: { es: 'Mueves la tarjeta de etapa. Si la etapa pide algo, te lo dice ahí mismo.', en: 'You move the card to the next stage. If the stage needs something, it tells you right there.' } },
+    ],
+  },
+  numbers: {
+    eyebrow: { es: 'Para quien dirige', en: 'For those who lead' },
+    title: { es: 'Tu mercado, de un vistazo.', en: 'Your market at a glance.' },
+    text: { es: 'Mi equipo y el Panel del LT se arman solos con lo que el equipo registra. Nadie llena un reporte.', en: 'My team and the Leadership panel build themselves from what the team logs. Nobody fills in a report.' },
+    badge: { es: 'Ejemplo', en: 'Example' },
+    note: { es: 'Cifras de ejemplo para mostrar cómo se ve. No son datos de axexo.', en: 'Example figures to show what it looks like. They are not axexo data.' },
+    funnel: {
+      title: { es: 'Negocios por etapa', en: 'Deals by stage' },
+      stages: [
+        { label: { es: 'Tienda visitada', en: 'Store visited' }, value: 48 },
+        { label: { es: 'Interés del decisor', en: 'Decision-maker interested' }, value: 31 },
+        { label: { es: 'Alta iniciada', en: 'Enrollment started' }, value: 22 },
+        { label: { es: 'Esperando primera venta', en: 'Awaiting first sale' }, value: 14 },
+      ],
+    },
+    response: {
+      title: { es: 'Respuesta a leads', en: 'Lead response' },
+      first: { es: 'Primer intento a tiempo', en: 'First attempt on time' },
+      reached: { es: 'Contacto logrado', en: 'Reached' },
+      teams: [
+        { label: { es: 'Equipo Centro', en: 'Central team' }, first: 92, reached: 71 },
+        { label: { es: 'Equipo Norte', en: 'North team' }, first: 81, reached: 63 },
+        { label: { es: 'Equipo Sur', en: 'South team' }, first: 74, reached: 58 },
+      ],
+    },
+    rings: [
+      { label: { es: 'Negocios con próximo paso', en: 'Deals with a next step' }, value: 92 },
+      { label: { es: 'Leads atendidos a tiempo', en: 'Leads answered on time' }, value: 84 },
+    ],
+  },
+  people: {
+    eyebrow: { es: 'Del otro lado', en: 'On the other side' },
+    title: { es: 'Detrás de cada pendiente hay un comercio.', en: 'Behind every task there is a merchant.' },
+    text: { es: 'CONTIGO existe para que ninguno se quede esperando tu llamada.', en: 'CONTIGO exists so none of them is left waiting for your call.' },
+    credit: { es: 'Fotos de archivo, con fines ilustrativos.', en: 'Stock photos, for illustration only.' },
+  },
   cta: {
     title: { es: 'Entra con tu cuenta de trabajo.', en: 'Sign in with your work account.' },
     text: { es: 'La primera vez te recibe una guía corta con tus primeros pasos.', en: 'The first time, a short guide welcomes you with your first steps.' },
@@ -620,4 +761,27 @@ export const LANDING = {
     tagline: { es: 'El CRM de axexo, para todos los mercados.', en: 'axexo\'s CRM, for every market.' },
     note: { es: 'Herramienta interna de axexo. Uso exclusivo del equipo.', en: 'Internal axexo tool. For team use only.' },
   },
+}
+
+/** Qué muestra cada captura, para quien no la ve. */
+export const SHOT_ALT: Record<Shot, L> = {
+  hoy: { es: 'Pantalla Hoy: la tarjeta Ahora con el pendiente más urgente y, debajo, la lista de vencidos y de hoy.', en: 'Today screen: the Now card with the most urgent item and, below, the overdue and today lists.' },
+  leads: { es: 'Pantalla Leads: cada lead con su reloj de primer contacto y el botón para llamar.', en: 'Leads screen: each lead with its first-contact clock and the call button.' },
+  negocios: { es: 'Tablero de Negocios: una columna por etapa y, en cada tarjeta, su próximo paso.', en: 'Deals board: one column per stage and, on each card, its next step.' },
+  comercio: { es: 'Ficha de un comercio: lo siguiente, los botones para llamar y escribir, y el hilo con su historia.', en: 'A merchant record: what is next, the call and message buttons, and the thread with its history.' },
+  equipo: { es: 'Mi equipo: una fila por persona con sus leads, primer intento a tiempo, contacto logrado y negocios.', en: 'My team: one row per person with leads, first attempt on time, reached and deals.' },
+  panel: { es: 'Panel del LT: por mercado, leads, negocios por etapa, primer intento a tiempo y contacto logrado.', en: 'Leadership panel: per market, leads, deals by stage, first attempt on time and reached.' },
+  completar: { es: 'Hoja Completar: cómo te fue, qué sigue y cuándo, antes de guardar.', en: 'Complete sheet: how it went, what is next and when, before saving.' },
+  admin: { es: 'Administración: sus pestañas y la lista de personas con acceso.', en: 'Admin: its tabs and the list of people with access.' },
+}
+
+/** Fotos de archivo con licencia (Adobe Stock, cuenta de axexo, 11-nov-2026). Ilustran; no retratan a personas del equipo ni a comercios de axexo. */
+export type Photo = 'llamada' | 'asesor' | 'equipo' | 'mostrador' | 'retrato' | 'seguimiento'
+export const PHOTOS: Record<Photo, { w: number; h: number; alt: L }> = {
+  llamada: { w: 1400, h: 788, alt: { es: 'Una persona atiende una llamada detrás del mostrador de una panadería.', en: 'A person takes a phone call behind a bakery counter.' } },
+  asesor: { w: 820, h: 1229, alt: { es: 'Una persona muestra un teléfono dentro de una tienda de tecnología.', en: 'A person holds up a phone inside a technology store.' } },
+  equipo: { w: 1400, h: 933, alt: { es: 'Cinco personas revisan juntas una laptop sobre una mesa.', en: 'Five people look at a laptop together at a table.' } },
+  mostrador: { w: 1400, h: 933, alt: { es: 'Una persona sonríe mientras cobra en el mostrador de una tienda.', en: 'A person smiles while ringing up a sale at a store counter.' } },
+  retrato: { w: 1400, h: 933, alt: { es: 'Una persona con delantal sonríe dentro de su tienda.', en: 'A person in an apron smiles inside their store.' } },
+  seguimiento: { w: 1000, h: 1140, alt: { es: 'Una persona habla por teléfono y toma nota sobre un mostrador.', en: 'A person talks on the phone and takes notes at a counter.' } },
 }

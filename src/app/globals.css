@@ -5,6 +5,7 @@
 @import '@fontsource/poppins/latin-ext-500.css';
 @import '@fontsource/poppins/latin-ext-600.css';
 @import 'tailwindcss';
+@import './showcase.css';
 
 /* ------------------------------------------------------------------
    axexo CONTIGO · sistema de diseño v1.1 (handoff del 11-nov-2026)
