@@ -66,7 +66,7 @@ export async function leadStepAction(_: R | null, fd: FormData): Promise<R> {
     }
     if (step === 'release') {
       await releaseLead(ctx, id, str(fd, 'reason_text'))
-      return { message: ['El lead quedó sin dueño.', 'The lead now has no owner.'] }
+      return { message: ['El lead quedó sin asignar.', 'The lead now has no owner.'] }
     }
     if (step === 'convert') {
       const out = await convertLead(ctx, id, {

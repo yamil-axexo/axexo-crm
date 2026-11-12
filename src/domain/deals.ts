@@ -89,7 +89,7 @@ const OPS_ONLY = () => new DomainError('ops_only',
 async function loadDeal(tx: Tx, id: string): Promise<DealRow> {
   const rows = await tx<DealRow[]>`select id, market_code, pipeline_id, stage_id, account_id, owner_id, status, title, amount_minor, next_step,
     next_step_due, decision_maker_id, decision_maker_met, revisit_needed, ops_owner_id from crm.deals where id = ${id} for update`
-  if (!rows[0]) throw notFound('No encontramos ese deal.', 'We could not find that deal.')
+  if (!rows[0]) throw notFound('No encontramos ese negocio.', 'We could not find that deal.')
   return rows[0]
 }
 
@@ -182,7 +182,7 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string; position: number; is_ops: boolean }[]>`
       select id, kind, required_fields, name_es, name_en, position, is_ops from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id} and archived_at is null`
     const stage = stages[0]
-    if (!stage) throw invalid('Esa etapa no es de este pipeline.', 'That stage is not part of this pipeline.')
+    if (!stage) throw invalid('Esa etapa no es de este embudo.', 'That stage is not part of this pipeline.')
     const curs = await tx<{ position: number; is_ops: boolean }[]>`select position, is_ops from crm.stages where id = ${d.stage_id}`
     const cur = curs[0]!
     // Separación de funciones: lo que pasa por una etapa de Operaciones lo avanza Operaciones, y no quien vendió.
@@ -219,8 +219,8 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       const pipe = await tx<{ close_by_transaction: boolean }[]>`select close_by_transaction from crm.pipelines where id = ${d.pipeline_id}`
       if (pipe[0]?.close_by_transaction !== false) {
         throw new DomainError('won_by_transaction',
-          'Un deal se gana solo cuando S5 reporta la primera transacción del comercio.',
-          'A deal is won only when S5 reports the merchant’s first transaction.')
+          'Este negocio se gana solo, cuando los datos de ventas traen la primera transacción del comercio.',
+          'This deal is won on its own, when the sales data shows the merchant’s first transaction.')
       }
       // Ganar a mano: la fecha real de cierre es de hoy hacia atrás (en el día del mercado), nunca futura.
       const on = (extra?.wonOn ?? '').trim()
@@ -323,7 +323,7 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
     const all = await tx<{ id: string; position: number; kind: StageKind; required_fields: string[]; is_ops: boolean; name_es: string; name_en: string; multi_open: boolean }[]>`
       select s.id, s.position, s.kind, s.required_fields, s.is_ops, s.name_es, s.name_en, p.multi_open from crm.stages s join crm.pipelines p on p.id = s.pipeline_id
       where p.id = ${v.pipelineId} and p.market_code = ${acc.market_code} and s.archived_at is null order by s.position`
-    if (!all[0]) throw invalid('Ese pipeline no es de este mercado.', 'That pipeline does not belong to this market.')
+    if (!all[0]) throw invalid('Ese embudo no es de este mercado.', 'That pipeline does not belong to this market.')
     const first = v.stageId ? all.find((x) => x.id === v.stageId) : all[0]
     if (!first) throw invalid('Esa etapa no es de este embudo.', 'That stage is not part of this pipeline.')
     // Nace en la etapa que le corresponde, con lo mismo que se pide para llegar ahí. Las etapas de Operaciones no son punto de partida.

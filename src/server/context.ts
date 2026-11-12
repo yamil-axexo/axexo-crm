@@ -95,9 +95,21 @@ export const getCtx = cache(async (): Promise<Ctx | null> => {
   const rows = await withoutUser((tx) => tx<{ id: string | null }[]>`select app.session_user(${hash(token)}) as id`)
   const userId = rows[0]?.id
   if (!userId) return null
-  const raw = jar.get(LOCALE_COOKIE)?.value
-  return loadCtx(userId, raw === 'en' || raw === 'es' ? raw : undefined)
+  return loadCtx(userId, await sessionLocale())
 })
+
+/**
+ * Idioma de una persona con sesión. Manda lo que eligió con el interruptor (la cookie). Si todavía no ha elegido,
+ * la app hereda el del navegador, igual que la entrada, para que el primer ingreso no cambie de idioma al pasar de
+ * /login a la app. Solo cuando la solicitud no dice qué idioma quiere (una llamada sin Accept-Language) vale el
+ * idioma guardado en su usuario.
+ */
+export async function sessionLocale(): Promise<Locale | undefined> {
+  const raw = (await cookies()).get(LOCALE_COOKIE)?.value
+  if (raw === 'en' || raw === 'es') return raw
+  const accept = (await headers()).get('accept-language')
+  return accept?.trim() ? browserLocale(accept) : undefined
+}
 
 export async function requireCtx(): Promise<Ctx> {
   const ctx = await getCtx()

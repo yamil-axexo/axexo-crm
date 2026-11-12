@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, startTransition, useActionState, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, startTransition, useActionState, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -67,8 +67,13 @@ export function ActionForm({ action, children, className, onOk, testId }: { acti
   )
 }
 
+const never = () => () => {}
+/** Idioma del documento (el layout lo fija con el de la persona): para etiquetas de componentes cliente que no reciben sus textos. */
+const useDocLang = () => useSyncExternalStore(never, () => (document.documentElement.lang === 'en' ? 'en' : 'es'), () => 'es')
+
 export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md', testId, hash, triggerClass }: { trigger: ReactNode; title: string; children: ReactNode; variant?: 'primary' | 'ghost' | 'quiet' | 'danger'; size?: 'sm' | 'md'; testId?: string; hash?: string; triggerClass?: string }) {
   const ref = useRef<HTMLDialogElement>(null)
+  const lang = useDocLang()
   // El botón crear del dock enlaza a la lista con un ancla (#nuevo): el diálogo se abre solo.
   useEffect(() => {
     if (!hash) return
@@ -98,7 +103,7 @@ export function Dialog({ trigger, title, children, variant = 'ghost', size = 'md
         <div className="p-6 md:p-8">
           <div className="mb-6 flex items-start justify-between gap-4">
             <h2 className="text-[20px] font-semibold">{title}</h2>
-            <button type="button" onClick={() => ref.current?.close()} aria-label="Cerrar / Close" className="rounded-full px-3 py-1 text-[13px] font-semibold text-muted hover:bg-surface-3">
+            <button type="button" onClick={() => ref.current?.close()} aria-label={lang === 'en' ? 'Close' : 'Cerrar'} className="rounded-full px-3 py-1 text-[13px] font-semibold text-muted hover:bg-surface-3">
               ✕
             </button>
           </div>

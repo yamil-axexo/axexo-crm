@@ -75,7 +75,7 @@ export default async function OpsQueuePage({ searchParams }: { searchParams: Pro
                       r.paused_at ? null : t(`${days} ${days === 1 ? 'día' : 'días'} aquí`, `${days} ${days === 1 ? 'day' : 'days'} here`)].filter(Boolean).join(' · ')}
                   </p>
                   <p className="text-[13px] text-muted">
-                    {t(`Vendió: ${r.seller ?? 'sin dueño'}`, `Sold by: ${r.seller ?? 'no owner'}`)}
+                    {t(`Vendió: ${r.seller ?? 'sin asignar'}`, `Sold by: ${r.seller ?? 'no owner'}`)}
                     {r.ops_owner ? ` · ${t(`Lo lleva ${r.ops_owner}`, `Handled by ${r.ops_owner}`)}` : ''}
                     {r.ops_next_step ? ` · ${r.ops_next_step} (${day(r.ops_next_step_due, locale)})` : ''}
                   </p>

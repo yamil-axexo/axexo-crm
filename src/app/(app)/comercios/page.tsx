@@ -66,7 +66,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const placeOn = !!(sp.region || sp.city || sp.territory || sp.team || sp.pipeline || (sp.owner && sp.owner !== 'me'))
   const teams = options ? inMarket(options.teams) : []
   const pipes = options ? inMarket(options.pipelines) : []
-  const ownerTag = (h: { is_active: boolean | null; current: boolean }) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (sin rol de ventas)', ' (no sales role)') : '')
+  const ownerTag = (h: { is_active: boolean | null; current: boolean }) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (no vende ni opera en este mercado)', ' (does not sell or run operations in this market)') : '')
   const withMarket = (label: string, code: string) => (multi && !sp.market ? `${label} · ${code}` : label)
   const current = sp.ver ?? (sp.lifecycle ? `lc:${sp.lifecycle}` : sp.kind ? `k:${sp.kind}` : '')
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
@@ -158,17 +158,17 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
         {!tree && (
           <details className="mt-3" open={placeOn || repartir} data-testid="place-filters">
             <summary className="press inline-flex min-h-11 cursor-pointer items-center rounded-[10px] px-3 text-[14px] font-semibold text-strong hover:bg-green-50" data-testid="place-filters-toggle">
-              {lead ? t('Filtrar por dueño, equipo, embudo, plaza o territorio', 'Filter by owner, team, pipeline, place or territory') : wide ? t('Filtrar por dueño, plaza o territorio', 'Filter by owner, place or territory') : t('Filtrar por plaza o territorio', 'Filter by place or territory')}
+              {lead ? t('Filtrar por quién lo lleva, equipo, embudo, plaza o territorio', 'Filter by owner, team, pipeline, place or territory') : wide ? t('Filtrar por quién lo lleva, plaza o territorio', 'Filter by owner, place or territory') : t('Filtrar por plaza o territorio', 'Filter by place or territory')}
             </summary>
             <form action="/comercios" method="get" className="card mt-2 grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="place-form">
               {(['q', 'market', 'ver', 'vista', 'lifecycle', 'kind'] as const).map((k) => (sp[k] ? <input key={k} type="hidden" name={k} value={sp[k]} /> : null))}
               {repartir && <input type="hidden" name="repartir" value="1" />}
               {wide ? (
-                <Field label={t('Dueño', 'Owner')}>
+                <Field label={t('Quién lo lleva', 'Owner')}>
                   <select name="owner" defaultValue={sp.owner ?? ''} className="input" data-testid="filter-owner">
                     <option value="">{t('Todos', 'All')}</option>
-                    <option value="vacant">{t(`Sin dueño vigente (${num(inMarket(holders).filter((h) => !h.current).reduce((n, h) => n + h.accounts, 0), locale)})`, `No current owner (${num(inMarket(holders).filter((h) => !h.current).reduce((n, h) => n + h.accounts, 0), locale)})`)}</option>
-                    <option value="none">{t(`Sin dueño (${num(inMarket(holders).filter((h) => !h.owner_id).reduce((n, h) => n + h.accounts, 0), locale)})`, `No owner (${num(inMarket(holders).filter((h) => !h.owner_id).reduce((n, h) => n + h.accounts, 0), locale)})`)}</option>
+                    <option value="vacant">{t(`Por repartir (${num(inMarket(holders).filter((h) => !h.current).reduce((n, h) => n + h.accounts, 0), locale)})`, `No current owner (${num(inMarket(holders).filter((h) => !h.current).reduce((n, h) => n + h.accounts, 0), locale)})`)}</option>
+                    <option value="none">{t(`Sin asignar (${num(inMarket(holders).filter((h) => !h.owner_id).reduce((n, h) => n + h.accounts, 0), locale)})`, `No owner (${num(inMarket(holders).filter((h) => !h.owner_id).reduce((n, h) => n + h.accounts, 0), locale)})`)}</option>
                     {owners.map((h) => <option key={`${h.owner_id}${h.market_code}`} value={h.owner_id!}>{withMarket(`${h.full_name}${ownerTag(h)} (${num(h.accounts, locale)})`, h.market_code)}</option>)}
                     {isUuid(sp.owner) && !owners.some((h) => h.owner_id === sp.owner) && <option value={sp.owner}>{t('La persona elegida', 'The chosen person')}</option>}
                   </select>
@@ -285,12 +285,12 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                               {[a.type_es ? t(a.type_es, a.type_en ?? a.type_es) : lab(t, KIND[a.kind]), a.kind !== 'store' ? m('merchants.size.children', { count: a.children }) : a.parent_name ? m('merchants.size.under', { name: a.parent_name }) : a.account_type === 'store' ? null : m('merchants.size.independent'), a.locality, a.territory, multi ? a.market_code : null].filter(Boolean).join(' · ')}
                             </span>
                             {/* En teléfono la columna de dueño no cabe: quien ve comercios de varias personas lo lee aquí. */}
-                            {wide && <span className="block truncate text-[13px] text-muted @2xl:hidden" data-testid="row-owner">{a.owner_name ? `${a.owner_name}${a.owner_current ? '' : t(' · sin dueño vigente', ' · no current owner')}` : a.parent_name ? m('merchants.viaChain') : m('merchants.noOwner')}</span>}
+                            {wide && <span className="block truncate text-[13px] text-muted @2xl:hidden" data-testid="row-owner">{a.owner_name ? `${a.owner_name}${a.owner_current ? '' : t(' · por repartir', ' · no current owner')}` : a.parent_name ? m('merchants.viaChain') : m('merchants.noOwner')}</span>}
                           </span>
                           <span className="mt-1.5 block @2xl:mt-0">{healthCell(a.lifecycle, a.has_deal)}</span>
                           <span className={cx('hidden min-w-0 text-[15px] @2xl:block', a.owner_name ? 'text-strong' : a.parent_name ? 'text-muted' : 'text-amber-text')}>
                             <span className="block truncate">{a.owner_name ?? (a.parent_name ? m('merchants.viaChain') : m('merchants.noOwner'))}</span>
-                            {a.owner_name && !a.owner_current && <span className="block truncate text-[13px] text-amber-text" data-testid="owner-vacant">{t('Sin dueño vigente', 'No current owner')}</span>}
+                            {a.owner_name && !a.owner_current && <span className="block truncate text-[13px] text-amber-text" data-testid="owner-vacant">{t('Por repartir', 'No current owner')}</span>}
                           </span>
                           <span className="hidden text-[15px] text-muted-2 @2xl:block">{a.last_txn_at ? ago(a.last_txn_at, locale) : m('merchants.never')}</span>
                         </Link>

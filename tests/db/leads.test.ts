@@ -85,7 +85,7 @@ describe('1 a 4: convertir funciona en todos los mercados y conserva la historia
     await qualifyLead(sam, id)
     const off = await admin<{ id: string }[]>`update crm.pipelines set is_active = false where market_code = 'US' and is_active returning id`
     try {
-      await expect(convertLead(sam, id)).rejects.toMatchObject({ code: 'no_pipeline', en: expect.stringContaining('ask an admin') })
+      await expect(convertLead(sam, id)).rejects.toMatchObject({ code: 'no_pipeline', en: expect.stringContaining('ask administration') })
       expect((await one(admin`select status from crm.leads where id = ${id}`)).status).toBe('qualified')
     } finally {
       await admin`update crm.pipelines set is_active = true where id = any(${off.map((e) => e.id)}::uuid[])`

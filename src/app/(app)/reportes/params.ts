@@ -28,7 +28,7 @@ export function reportSelects(t: (es: string, en: string) => string, o: ReportOp
     market: { name: 'mercado', label: t('Mercado', 'Market'), all: t('Todos los mercados', 'All markets'), options: multi ? o.markets.map((m) => ({ value: m.code, label: m.name })) : [] },
     pipeline: { name: 'embudo', label: t('Embudo', 'Pipeline'), all: t('Todos los embudos', 'All pipelines'), options: o.pipelines.filter(inMarket).map((p) => ({ value: p.id, label: `${tag(p.market_code)}${p.name}` })) },
     team: { name: 'equipo', label: t('Equipo', 'Team'), all: t('Todos los equipos', 'All teams'), options: [...o.teams.filter(inMarket).map((x) => ({ value: x.id, label: `${tag(x.market_code)}${x.name}` })), ...(o.teams.length ? [{ value: 'none', label: t('Sin equipo', 'No team') }] : [])] },
-    owner: { name: 'persona', label: t('Persona', 'Person'), all: t('Todas las personas', 'Everyone'), options: [...[...people].map(([value, label]) => ({ value, label })), { value: 'none', label: t('Sin dueño', 'No owner') }] },
+    owner: { name: 'persona', label: t('Persona', 'Person'), all: t('Todas las personas', 'Everyone'), options: [...[...people].map(([value, label]) => ({ value, label })), { value: 'none', label: t('Sin asignar', 'No owner') }] },
     result: { name: 'resultado', label: t('Resultado', 'Result'), all: t('Ganados y perdidos', 'Won and lost'), options: [{ value: 'won', label: t('Ganados', 'Won') }, { value: 'lost', label: t('Perdidos', 'Lost') }] },
   }
 }

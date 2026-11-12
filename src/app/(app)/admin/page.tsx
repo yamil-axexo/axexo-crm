@@ -97,7 +97,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 return (
                 <tr key={s.position} className="table-row" data-testid="stage-row">
                   <td className="num text-muted">{s.position}</td>
-                  <td><span className="font-semibold text-strong" data-testid="stage-name">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2"><Badge tone="info">{t('espera a S5', 'waits for S5')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{p.close_by_transaction ? t('solo por transacción', 'by transaction only') : t('cierre manual', 'closed by hand')}</Badge></span>}</td>
+                  <td><span className="font-semibold text-strong" data-testid="stage-name">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2"><Badge tone="info">{t('espera la primera venta', 'waits for the first sale')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{p.close_by_transaction ? t('solo por transacción', 'by transaction only') : t('cierre manual', 'closed by hand')}</Badge></span>}</td>
                   <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f)).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}</td>
                   <td className="text-[13.5px] text-muted-2">{t(s.exit_es, s.exit_en) || t('sin criterio escrito', 'no written criteria')}</td>
                   <td className="num text-[13.5px]" data-testid="stage-rot">{s.rot_days ? t(`${s.rot_days} días`, `${s.rot_days} days`) : t('nunca', 'never')}</td>
@@ -143,7 +143,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             {admin && (
               <ActionForm action={configurePipelineAction} className="flex flex-wrap items-end gap-5 border-t border-line px-5 py-5 md:px-7" testId="pipeline-config">
                 <input type="hidden" name="pipeline_id" value={p.id} />
-                <label className="flex items-center gap-2 pb-3 text-[13.5px]"><input type="checkbox" name="close_by_transaction" className="h-4 w-4" defaultChecked={p.close_by_transaction} data-testid="pipeline-cbt" />{t('Se gana con la primera transacción (S5)', 'Won by the first transaction (S5)')}</label>
+                <label className="flex items-center gap-2 pb-3 text-[13.5px]"><input type="checkbox" name="close_by_transaction" className="h-4 w-4" defaultChecked={p.close_by_transaction} data-testid="pipeline-cbt" />{t('Se gana con la primera transacción, según los datos de ventas', 'Won by the first transaction, per the sales data')}</label>
                 <Field label={t('Etapa que espera la transacción', 'Stage that waits for the transaction')}>
                   <select name="awaiting_stage_id" className="input !w-64" defaultValue={d.stages.find((s) => s.pipeline_id === p.id && s.kind === 'awaiting_txn')?.id ?? ''}>
                     <option value="">{t('Ninguna', 'None')}</option>
@@ -164,9 +164,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         ))}
         {admin && <B2bConfig ctx={ctx} pipelines={d.pipelines} stages={d.stages} />}
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
-          <Card><CardTitle title={t('Registro de campos', 'Field registry')} hint={t('Los campos por mercado son metadata: se agregan sin tocar el esquema.', 'Per-market fields are metadata: they are added without touching the schema.')} />
+          <Card><CardTitle title={t('Registro de campos', 'Field registry')} hint={t('Cada mercado tiene sus propios campos. Se agregan aquí mismo, sin pedir un cambio al sistema.', 'Each market has its own fields. You add them right here, with no system change needed.')} />
             {d.imported.length > 0 && <p className="mb-4 text-[13.5px] text-muted-2" data-testid="imported-fields">{t('Importados de Pipedrive: ', 'Imported from Pipedrive: ')}{d.imported.map((x) => `${x.object} ${x.n}`).join(' · ')}. <Link href="/admin?tab=pipedrive" className="underline">{t('Ver el mapeo', 'See the mapping')}</Link></p>}
-            <ul className="space-y-2.5">{d.fields.map((f) => <li key={`${f.object}${f.key}${f.market_code}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[14px]"><span className="min-w-0 [overflow-wrap:anywhere]"><code className="text-[12.5px] text-muted-2">{f.object}.{f.key}</code> <span className="ml-2 font-medium text-strong">{t(f.label_es, f.label_en)}</span></span><span className="flex gap-2"><Badge>{f.market_code ?? t('todos', 'all')}</Badge><Badge>{f.data_class}</Badge></span></li>)}</ul>
+            <ul className="space-y-2.5">{d.fields.map((f) => <li key={`${f.object}${f.key}${f.market_code}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[14px]"><span className="min-w-0 [overflow-wrap:anywhere]"><span className="text-[12.5px] text-muted-2">{f.object === 'deal' ? t('Negocio', 'Deal') : f.object === 'account' ? t('Comercio', 'Merchant') : f.object === 'lead' ? 'Lead' : f.object}</span> <span className="ml-2 font-medium text-strong">{t(f.label_es, f.label_en)}</span></span><span className="flex gap-2"><Badge>{f.market_code ?? t('todos', 'all')}</Badge><Badge>{f.data_class === 'public' ? t('Público', 'Public') : f.data_class === 'confidential' ? t('Confidencial', 'Confidential') : t('Interno', 'Internal')}</Badge></span></li>)}</ul>
           </Card>
           <Card><CardTitle title={t('Motivos codificados', 'Coded reasons')} hint={t('La etiqueta cambia con el idioma. Los de pérdida se ofrecen por tipo de venta: se editan arriba, en "Motivos de pérdida por embudo".', 'The label changes with the language. Loss reasons are offered by sale type: edit them above, under "Loss reasons by pipeline".')} />
             <ul className="space-y-2.5">{d.reasons.map((r) => <li key={r.code} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[14px]"><span className="min-w-0 font-medium text-strong [overflow-wrap:anywhere]">{t(r.label_es, r.label_en)}</span><Badge tone={r.kind === 'lost' ? 'bad' : 'warn'}>{r.kind === 'lost' ? t('pérdida de negocio', 'deal loss') : t('visita sin venta', 'no-sale visit')}</Badge></li>)}</ul>
@@ -209,7 +209,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <CardTitle
                 title={r.name}
                 hint={t(
-                  `Turno rotativo · respuesta en ${r.sla_minutes} min · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead queda sin dueño y lo ve todo el mercado'}`,
+                  `Turno rotativo · respuesta en ${r.sla_minutes} min · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead queda sin asignar y lo ve todo el mercado'}`,
                   `Round robin · response within ${r.sla_minutes} min · ${fallback ? `if nobody is left in the rotation, it goes to ${fallback}` : 'no fallback: if nobody is left in the rotation, the lead stays unowned and the whole market sees it'}`,
                 )}
                 right={<Badge>{r.market_code}</Badge>}
@@ -252,13 +252,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const scopeText: Record<(typeof API_SCOPES)[number], string> = {
       'forms:write': t('crea leads desde un formulario del sitio web', 'creates leads from a website form'),
       'events:write': t('manda visitas y puntos de venta nuevos desde la Sales App', 'sends visits and new stores from the Sales App'),
-      'metrics:write': t('carga el archivo diario de ventas de S5', 'loads the S5 daily sales file'),
+      'metrics:write': t('carga el archivo diario de ventas', 'loads the daily sales file'),
     }
     return (
       <div className="space-y-8" data-testid="admin-integrations">
         <div className="rounded-[22px] bg-surface-3 px-6 py-5 text-[14px] text-muted-2" data-testid="integration-status">
           <strong className="text-strong">{t('Estado: contrato propuesto, sin conexión real todavía.', 'Status: proposed contract, no live connection yet.')}</strong>{' '}
-          {t('CONTIGO ya recibe eventos de la Sales App y el archivo diario de S5 por una API versionada. Falta que los equipos dueños de esos sistemas acuerden el contrato y lo conecten.', 'CONTIGO already accepts Sales App events and the S5 daily file through a versioned API. The teams that own those systems still need to agree on the contract and connect it.')}
+          {t('CONTIGO ya recibe eventos de la Sales App y el archivo diario de ventas. Falta que los equipos que llevan esos sistemas acuerden el formato y los conecten.', 'CONTIGO already accepts Sales App events and the daily sales file. The teams that run those systems still need to agree on the format and connect them.')}
         </div>
 
         {staging && (
@@ -267,7 +267,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <p className="mb-5 rounded-[10px] bg-warn-bg px-4 py-3 text-[13.5px] font-medium text-amber-text" data-testid="sim-warning">{t('Estas pruebas cambian registros de este ambiente: pueden ganar un negocio, marcar una revisita o crear un comercio. Queda en la bitácora quién corrió cada una.', 'These tests change records in this environment: they can win a deal, flag a revisit or create a merchant. The audit log keeps who ran each one.')}</p>
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
               <ActionForm action={simulateMetricsAction} className="card-2 p-5" testId="sim-metrics">
-                <p className="text-[14.5px] font-semibold text-strong">{t('S5: primera transacción', 'S5: first transaction')}</p>
+                <p className="text-[14.5px] font-semibold text-strong">{t('Datos de ventas: primera transacción', 'Sales data: first transaction')}</p>
                 <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Carga un archivo diario con la primera venta de un comercio que está esperando. Su negocio se gana solo.', 'Loads a daily file with the first sale of a waiting merchant. Its deal wins on its own.')}</p>
                 <Field label={t('Comercio esperando primera venta', 'Merchant awaiting first sale')}>
                   <select name="merchant_ref" className="input" data-testid="sim-metrics-ref">{d.awaiting.map((a) => <option key={a.alias} value={a.alias}>{a.name} · {a.alias}</option>)}</select>
@@ -283,8 +283,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <div className="mt-4"><Submit variant="ghost" size="sm" testId="sim-visit-send">{t('Enviar evento', 'Send event')}</Submit></div>
               </ActionForm>
               <ActionForm action={simulateStoreAction} onOk="reset" className="card-2 p-5" testId="sim-store">
-                <p className="text-[14.5px] font-semibold text-strong">{t('Sales App: PDV nuevo', 'Sales App: new store')}</p>
-                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('El PDV nace en la Sales App. CONTIGO le emite su ID o lo liga al prospecto que ya existía.', 'The store is born in the Sales App. CONTIGO issues its ID or links it to the prospect that already existed.')}</p>
+                <p className="text-[14.5px] font-semibold text-strong">{t('Sales App: tienda nueva', 'Sales App: new store')}</p>
+                <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('La tienda nace en la Sales App. CONTIGO le da su ID o la liga al prospecto que ya existía.', 'The store starts in the Sales App. CONTIGO gives it an ID or links it to the prospect that already existed.')}</p>
                 <Field label={t('Nombre', 'Name')}><input name="name" className="input" required minLength={2} data-testid="sim-store-name" /></Field>
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <Field label={t('Mercado', 'Market')}><select name="market" className="input">{live.map((m) => <option key={m.code} value={m.code}>{m.code}</option>)}</select></Field>
@@ -301,10 +301,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             {d.events.length === 0 ? <p className="text-[14px] text-muted">{t('Todavía no llega nada.', 'Nothing has arrived yet.')}</p> : (
               <ul className="space-y-2.5">{d.events.map((e) => <li key={e.id} className="flex items-center justify-between gap-3 text-[13.5px]" data-testid="inbound-row"><span><code className="text-[12.5px]">{e.source} · {e.event_type}</code><span className="ml-2 text-muted">{ago(e.received_at, locale)}</span></span><Badge tone={e.status === 'processed' ? 'good' : e.status === 'rejected' ? 'bad' : 'neutral'}>{e.status === 'processed' ? t('procesado', 'processed') : e.status === 'rejected' ? t('sin comercio', 'no merchant') : t('recibido', 'received')}</Badge></li>)}</ul>
             )}
-            <p className="eyebrow mt-7 mb-3">{t('Archivos diarios de S5', 'S5 daily files')}</p>
+            <p className="eyebrow mt-7 mb-3">{t('Archivos diarios de ventas', 'Daily sales files')}</p>
             <ul className="space-y-2.5">{d.batches.map((b) => <li key={b.id} className="flex items-center justify-between gap-3 text-[13.5px]" data-testid="batch-row"><span className="truncate"><code className="text-[12.5px]">{b.file_name}</code></span><span className="shrink-0 text-muted-2">{t(`${num(b.matched, locale)} de ${num(b.row_count, locale)} filas ligadas`, `${num(b.matched, locale)} of ${num(b.row_count, locale)} rows matched`)} · {day(b.as_of, locale)}</span></li>)}</ul>
           </Card>
-          <Card data-testid="outbox-log"><CardTitle title={t('Lo que sale (outbox)', 'What goes out (outbox)')} hint={t('Avisos que CONTIGO guarda para otros sistemas. Todavía nadie los consume: el número crece y no afecta el trabajo diario.', 'Notices CONTIGO keeps for other systems. Nobody consumes them yet: the number grows and it does not affect daily work.')} right={<Badge tone={d.outboxPending ? 'warn' : 'good'}>{t(`${num(d.outboxPending, locale)} por publicar`, `${num(d.outboxPending, locale)} to publish`)}</Badge>} />
+          <Card data-testid="outbox-log"><CardTitle title={t('Avisos para otros sistemas', 'Notices for other systems')} hint={t('Avisos que CONTIGO guarda para otros sistemas. Todavía nadie los consume: el número crece y no afecta el trabajo diario.', 'Notices CONTIGO keeps for other systems. Nobody consumes them yet: the number grows and it does not affect daily work.')} right={<Badge tone={d.outboxPending ? 'warn' : 'good'}>{t(`${num(d.outboxPending, locale)} por publicar`, `${num(d.outboxPending, locale)} to publish`)}</Badge>} />
             <ul className="space-y-2.5">{d.outbox.map((o) => <li key={o.id} className="flex items-center justify-between gap-3 text-[13.5px]"><code className="text-[12.5px]">{o.event_type}</code><span className="text-muted-2">{o.market_code ?? '—'} · {ago(o.created_at, locale)}</span></li>)}</ul>
           </Card>
         </div>
@@ -358,14 +358,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <div className="space-y-8" data-testid="admin-quality">
         <Card pad={false}>
           <div className="px-7 pt-7"><CardTitle title={t('Huecos por mercado', 'Gaps by market')} /></div>
-          <Table label={t('Huecos por mercado', 'Gaps by market')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Comercios sin dueño', 'Merchants with no owner')}</th><th>{t('Negocios abiertos sin dueño', 'Open deals with no owner')}</th><th>{t('Leads abiertos sin dueño', 'Open leads with no owner')}</th><th>{t('Sin teléfono', 'No phone')}</th><th>{t('Sin contacto', 'No contact')}</th><th>{t('Sin ID externo', 'No external ID')}</th></>}>
+          <Table label={t('Huecos por mercado', 'Gaps by market')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Comercios sin asignar', 'Merchants with no owner')}</th><th>{t('Negocios abiertos sin asignar', 'Open deals with no owner')}</th><th>{t('Leads abiertos sin asignar', 'Open leads with no owner')}</th><th>{t('Sin teléfono', 'No phone')}</th><th>{t('Sin contacto', 'No contact')}</th><th>{t('Sin ID externo', 'No external ID')}</th></>}>
             {d.gaps.map((g) => <tr key={g.market_code} className="table-row" data-testid="gap-row"><td className="font-semibold text-strong">{g.market_code}</td><td className="num">{num(g.total, locale)}</td><td className="num">{g.no_owner}</td><td className="num">{d.unowned[g.market_code]?.deals ?? 0}</td><td className="num">{d.unowned[g.market_code]?.leads ?? 0}</td><td className="num">{g.no_phone}</td><td className="num">{g.no_contact}</td><td className="num">{g.no_alias}</td></tr>)}
           </Table>
         </Card>
         <Card pad={false} data-testid="orphans">
-          <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Registros con dueño sin acceso', 'Records whose owner has no access')} hint={t('Siguen a nombre de alguien que ya no puede entrar: nadie los va a trabajar hasta que se reasignen en Mi equipo.', 'They still belong to someone who can no longer sign in: nobody will work them until they are reassigned in My team.')} /></div>
-          {d.orphans.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Todo lo abierto tiene un dueño con acceso', 'Everything open has an owner with access')} /></div> : (
-            <Table label={t('Registros con dueño sin acceso', 'Records whose owner has no access')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('Dueño sin acceso', 'Owner with no access')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Negocios abiertos', 'Open deals')}</th><th>{t('Leads abiertos', 'Open leads')}</th></>}>
+          <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Por repartir', 'No current owner')} hint={t('Siguen a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en ese mercado. Nadie los va a trabajar hasta que se repartan en Mi equipo. Es la misma regla de "Por repartir" en Mi equipo y en Comercios: tener solo acceso de administración no cuenta como llevar cartera.', 'They still sit under a service account or someone who no longer sells or runs operations in that market. Nobody will work them until they are distributed in My team. It is the same "No current owner" rule used in My team and in Merchants: administration access alone does not count as carrying a book.')} /></div>
+          {d.orphans.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Nada por repartir', 'Nothing to distribute')} hint={t('Todo lo abierto lo lleva alguien que vende u opera en su mercado.', 'Everything open is with someone who sells or runs operations in its market.')} /></div> : (
+            <Table label={t('Por repartir', 'No current owner')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('A nombre de', 'Held by')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Negocios abiertos', 'Open deals')}</th><th>{t('Leads abiertos', 'Open leads')}</th></>}>
               {d.orphans.map((o) => <tr key={`${o.market_code}${o.owner_id}`} className="table-row" data-testid="orphan-row"><td className="font-semibold text-strong">{o.market_code}</td><td>{o.full_name}</td><td className="num">{num(o.accounts, locale)}</td><td className="num">{num(o.deals, locale)}</td><td className="num">{num(o.leads, locale)}</td></tr>)}
             </Table>
           )}

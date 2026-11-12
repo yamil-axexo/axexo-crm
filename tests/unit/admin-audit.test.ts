@@ -80,7 +80,7 @@ describe('bitácora: el antes y el después en palabras', () => {
   it('cambia identificadores por nombres y códigos por palabras', () => {
     const rows = diffRows(es, 'es', { owner_id: null, status: 'new', role: 'rep' }, { owner_id: U, status: 'contacted', role: 'rep' }, names)
     expect(rows).toEqual([
-      { key: 'owner_id', label: 'Dueño', before: 'nada', after: 'Marco Peña' },
+      { key: 'owner_id', label: 'Quién lo lleva', before: 'nada', after: 'Marco Peña' },
       { key: 'status', label: 'Estado', before: 'Nuevo', after: 'Contactado' },
     ]) // lo que no cambió (el rol) no se repite
     expect(diffRows(en, 'en', { stage_id: S1 }, { stage_id: S2 }, names)).toEqual([{ key: 'stage_id', label: 'Stage', before: 'Propuesta', after: 'Negociación' }])

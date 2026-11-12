@@ -80,7 +80,7 @@ export async function reassignOneAction(_: ActionResult<Done> | null, fd: FormDa
     await reassignAccounts(ctx, [id], to)
     const who = await withUser(ctx.user.id, (tx) => tx<{ full_name: string }[]>`select full_name from crm.users where id = ${to}`)
     const name = who[0]?.full_name ?? ''
-    const es = [a.deals ? (a.deals === 1 ? '1 negocio abierto' : `${a.deals} negocios abiertos`) : null, a.tasks ? (a.tasks === 1 ? '1 tarea abierta' : `${a.tasks} tareas abiertas`) : null].filter(Boolean).join(' y ')
+    const es = [a.deals ? (a.deals === 1 ? '1 negocio abierto' : `${a.deals} negocios abiertos`) : null, a.tasks ? (a.tasks === 1 ? '1 pendiente' : `${a.tasks} pendientes`) : null].filter(Boolean).join(' y ')
     const en = [a.deals ? (a.deals === 1 ? '1 open deal' : `${a.deals} open deals`) : null, a.tasks ? (a.tasks === 1 ? '1 open task' : `${a.tasks} open tasks`) : null].filter(Boolean).join(' and ')
     return { data: { toast: ctx.t(`${a.name} ahora es de ${name}${es ? `, con ${es}` : ''}.`, `${a.name} now belongs to ${name}${en ? `, with ${en}` : ''}.`) } }
   })

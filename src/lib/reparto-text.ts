@@ -17,8 +17,8 @@ export function heldList(t: T, locale: Locale, h: Pick<Held, 'accounts' | 'deals
 
 /** "Tiene 951 comercios y 952 negocios abiertos sin dueño vigente." */
 export const holdsText = (t: T, locale: Locale, h: Held): string =>
-  h.owner_id ? t(`Tiene ${heldList(t, locale, h)} sin dueño vigente.`, `Holds ${heldList(t, locale, h)} with no current owner.`) : t(`Hay ${heldList(t, locale, h)} sin dueño.`, `There are ${heldList(t, locale, h)} with no owner.`)
+  h.owner_id ? t(`Tiene ${heldList(t, locale, h)} por repartir.`, `Holds ${heldList(t, locale, h)} with no current owner.`) : t(`Hay ${heldList(t, locale, h)} sin asignar.`, `There are ${heldList(t, locale, h)} with no owner.`)
 
 /** Nombre de quien los tiene, con por qué no cuenta como dueño vigente. */
 export const holderName = (t: T, h: Held): string =>
-  h.owner_id ? `${h.full_name}${h.is_active === false ? t(' (inactiva)', ' (inactive)') : t(' (sin rol de ventas)', ' (no sales role)')}` : t('Sin dueño', 'No owner')
+  h.owner_id ? `${h.full_name}${h.is_active === false ? t(' (inactiva)', ' (inactive)') : t(' (no vende ni opera en este mercado)', ' (does not sell or run operations in this market)')}` : t('Sin asignar', 'No owner')

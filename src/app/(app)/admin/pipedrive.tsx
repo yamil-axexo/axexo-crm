@@ -13,12 +13,12 @@ type Pair = [es: string, en: string]
 const OBJECTS: { key: string; label: Pair; into: Pair }[] = [
   { key: 'organization', label: ['Organizaciones', 'Organizations'], into: ['Comercios', 'Merchants'] },
   { key: 'person', label: ['Personas', 'People'], into: ['Contactos', 'Contacts'] },
-  { key: 'deal', label: ['Deals', 'Deals'], into: ['Deals', 'Deals'] },
+  { key: 'deal', label: ['Negocios', 'Deals'], into: ['Negocios', 'Deals'] },
   { key: 'lead', label: ['Leads', 'Leads'], into: ['Leads', 'Leads'] },
   { key: 'activity', label: ['Actividades', 'Activities'], into: ['Actividades', 'Activities'] },
-  { key: 'note', label: ['Notas', 'Notes'], into: ['Notas en el timeline', 'Timeline notes'] },
+  { key: 'note', label: ['Notas', 'Notes'], into: ['Notas en el hilo', 'Thread notes'] },
   { key: 'product', label: ['Productos', 'Products'], into: ['Productos', 'Products'] },
-  { key: 'deal_product', label: ['Productos en deals', 'Deal products'], into: ['Partidas del deal', 'Deal line items'] },
+  { key: 'deal_product', label: ['Productos de los negocios', 'Deal products'], into: ['Líneas del negocio', 'Deal line items'] },
 ]
 
 const PHASE: Record<string, Pair> = {
@@ -31,8 +31,8 @@ const SKIP: Record<string, Pair> = {
   archived_open: ['archivado sin cerrar', 'archived while open'],
   deleted: ['borrado en Pipedrive', 'deleted in Pipedrive'],
   no_stage: ['etapa inexistente', 'missing stage'],
-  no_link: ['sin comercio, deal ni lead', 'no merchant, deal or lead'],
-  no_deal: ['su deal no se cargó', 'its deal was not loaded'],
+  no_link: ['sin comercio, negocio ni lead', 'no merchant, deal or lead'],
+  no_deal: ['su negocio no se cargó', 'its deal was not loaded'],
   empty: ['sin texto', 'no text'],
   merged_in_contigo: ['ya fusionado en CONTIGO', 'already merged in CONTIGO'],
 }
@@ -63,7 +63,7 @@ const DEST: Record<string, Pair> = {
   'policy:omit': ['No se guarda (DATA-06)', 'Not stored (DATA-06)'],
 }
 const OBJ: Record<string, Pair> = {
-  account: ['Comercio', 'Merchant'], contact: ['Contacto', 'Contact'], deal: ['Deal y lead', 'Deal and lead'], activity: ['Actividad', 'Activity'], product: ['Producto', 'Product'],
+  account: ['Comercio', 'Merchant'], contact: ['Contacto', 'Contact'], deal: ['Negocio y lead', 'Deal and lead'], activity: ['Actividad', 'Activity'], product: ['Producto', 'Product'],
 }
 
 export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
@@ -168,7 +168,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
           })}
         </Table>
         <p className="px-7 pb-6 text-[12.5px] text-muted">
-          {t(`Además. Comercios creados para deals sin organización: ${num(stats.created?.account_from_deal ?? 0, locale)}. IDs de EMIDA ligados: ${num(stats.created?.alias_emida ?? 0, locale)}. Accesos de ventas otorgados: ${num(stats.created?.membership ?? 0, locale)}.`,
+          {t(`Además. Comercios creados para negocios sin organización: ${num(stats.created?.account_from_deal ?? 0, locale)}. IDs de EMIDA ligados: ${num(stats.created?.alias_emida ?? 0, locale)}. Accesos de ventas otorgados: ${num(stats.created?.membership ?? 0, locale)}.`,
             `Also. Merchants created for deals with no organization: ${num(stats.created?.account_from_deal ?? 0, locale)}. EMIDA IDs linked: ${num(stats.created?.alias_emida ?? 0, locale)}. Sales access grants: ${num(stats.created?.membership ?? 0, locale)}.`)}
         </p>
       </Card>
@@ -176,7 +176,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
       <div className="space-y-8">
         <Card pad={false} data-testid="import-totals">
           <div className="px-7 pt-7"><CardTitle title={t('Lo que hay hoy en CONTIGO', 'What CONTIGO holds today')} /></div>
-          <Table head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Contactos', 'Contacts')}</th><th>Deals</th><th>Leads</th><th>{t('Actividades', 'Activities')}</th></>}>
+          <Table head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Contactos', 'Contacts')}</th><th>{t('Negocios', 'Deals')}</th><th>Leads</th><th>{t('Actividades', 'Activities')}</th></>}>
             {d.totals.map((m) => <tr key={m.market_code} className="table-row"><td className="font-semibold text-strong">{m.market_code}</td><td className="num">{num(m.accounts, locale)}</td><td className="num">{num(m.contacts, locale)}</td><td className="num">{num(m.deals, locale)}</td><td className="num">{num(m.leads, locale)}</td><td className="num">{num(m.activities, locale)}</td></tr>)}
           </Table>
           <p className="px-7 pb-6 text-[12.5px] text-muted" data-testid="import-users">

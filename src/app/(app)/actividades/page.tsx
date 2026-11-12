@@ -26,7 +26,7 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <PageHeader title={t('Actividades', 'Activities')} desc={t('Tareas y entregas a Operaciones con fecha. Las notas, llamadas y visitas viven en el hilo de cada comercio.', 'Dated tasks and handoffs. Notes, calls and visits live on each merchant’s timeline.')} />
+      <PageHeader title={t('Actividades', 'Activities')} desc={t('Tareas y entregas a Operaciones con fecha. Las notas, llamadas y visitas viven en el hilo de cada comercio.', 'Dated tasks and handoffs to Operations. Notes, calls and visits live on each merchant’s thread.')} />
       <Pills
         label={t('Vista', 'View')}
         current={view}

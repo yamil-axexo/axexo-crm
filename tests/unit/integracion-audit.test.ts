@@ -16,9 +16,9 @@ describe('bitácora: lo que registran reparto y campo se lee en palabras', () =>
     expect(summary(es, 'es', 'lead.reassigned', { count: 5, from: 'vacant' }, { to_user_id: U }, names)).toBe('5 leads a Marco Peña')
     expect(summary(en, 'en', 'deal.reassigned', { count: 9, from: U }, { to_user_id: U }, names)).toBe('9 deals to Marco Peña')
     const rows = diffRows(es, 'es', { count: 5, from: 'vacant' }, { to_user_id: U, to_name: 'Marco Peña', lead_ids: [U, T] }, names, 'lead.reassigned')
-    expect(row(rows, 'from')).toMatchObject({ label: 'Eran de', before: 'Sin dueño vigente' })
+    expect(row(rows, 'from')).toMatchObject({ label: 'Eran de', before: 'Por repartir' })
     expect(row(rows, 'lead_ids')).toMatchObject({ label: 'Leads movidos', after: '2 leads' })
-    expect(row(diffRows(es, 'es', { count: 2, from_user_ids: ['none', U] }, null, names, 'account.reassigned'), 'from_user_ids')!.before).toBe('nadie (no tenían dueño), Marco Peña')
+    expect(row(diffRows(es, 'es', { count: 2, from_user_ids: ['none', U] }, null, names, 'account.reassigned'), 'from_user_ids')!.before).toBe('nadie (estaban sin asignar), Marco Peña')
   })
 
   it('los territorios aparecen con su nombre y caen en Configuración', () => {
@@ -48,7 +48,7 @@ describe('bitácora: lo que registran reparto y campo se lee en palabras', () =>
 
   it('quitar un acceso deja escrito si lo suyo quedó sin dueño vigente', () => {
     const rows = diffRows(es, 'es', { role: 'ops', market: 'MX', team_id: null }, { removed_from_rules: [], fallback_cleared: [], accounts: 3, deals: 1, leads: 1, no_current_owner: true }, names, 'membership.ended')
-    expect(row(rows, 'no_current_owner')).toMatchObject({ label: 'Lo suyo quedó sin dueño vigente', after: 'Sí' })
+    expect(row(rows, 'no_current_owner')).toMatchObject({ label: 'Lo suyo quedó por repartir', after: 'Sí' })
     expect(row(rows, 'accounts')!.after).toBe('3')
   })
 

@@ -14,8 +14,8 @@ export async function VacantNotice({ ctx }: { ctx: Ctx }) {
   const held = (await getHolders(ctx, live)).filter((h) => h.owner_id && !h.current && h.accounts + h.deals + h.leads > 0)
   if (held.length === 0) return null
   return (
-    <section className="card mb-8 p-6" data-testid="admin-vacant" aria-label={t('Cartera sin dueño vigente', 'Book with no current owner')}>
-      <h2 className="text-[18px] leading-[26px] font-semibold">{t('Cartera sin dueño vigente', 'Book with no current owner')}</h2>
+    <section className="card mb-8 p-6" data-testid="admin-vacant" aria-label={t('Cartera por repartir', 'Book with no current owner')}>
+      <h2 className="text-[18px] leading-[26px] font-semibold">{t('Cartera por repartir', 'Book with no current owner')}</h2>
       <p className="mt-1 text-[13px] text-muted">{t('Estas personas o cuentas ya no tienen un rol de ventas ni de operaciones en ese mercado y siguen teniendo registros a su nombre. Los ve supervisión y quien lidera el mercado, para repartirlos.', 'These people or accounts no longer have a sales or operations role in that market and still hold records. Supervisors and the market lead can see them, to distribute them.')}</p>
       <ul className="mt-3">
         {held.slice(0, 12).map((h) => (

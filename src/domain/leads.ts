@@ -85,7 +85,7 @@ async function loadLead(tx: Tx, id: string): Promise<LeadRow> {
  * así cada contacto y cada cambio de estado tiene un responsable. Quien asigna leads sí puede.
  */
 export function assertOwned(ctx: Ctx, lead: { owner_id: string | null; market_code: string }): void {
-  if (!lead.owner_id && !ctx.can('lead.assign', lead.market_code)) throw invalid('Este lead no tiene dueño: tómalo antes de trabajarlo.', 'This lead has no owner: take it before working it.')
+  if (!lead.owner_id && !ctx.can('lead.assign', lead.market_code)) throw invalid('Nadie lleva este lead: tómalo antes de trabajarlo.', 'This lead has no owner: take it before working it.')
 }
 
 /** De dónde vino un lead web (E3.F6): los parámetros de campaña y los identificadores de clic de la dirección de la página. */
@@ -114,7 +114,7 @@ async function insertLead(
   // El tipo de venta tiene que existir: uno de los de siempre o el de un embudo activo del mercado.
   if (!(MOTORS as readonly string[]).includes(v.motor)) {
     const known = await tx`select 1 from crm.pipelines where market_code = ${v.market} and motor = ${v.motor} and is_active limit 1`
-    if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sales type from the list.')
+    if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sale type from the list.')
   }
   const phone = v.phone ? toE164(v.phone, market.phoneCc) : null
   if (v.phone && !phone) throw invalid('El teléfono no parece válido.', 'The phone number does not look valid.')
@@ -335,7 +335,7 @@ export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
     ctx.assert('lead.work', lead.market_code)
     if (!['new', 'contacted'].includes(lead.status)) throw invalid('Este lead ya se trabajó.', 'This lead was already worked.')
     if (lead.owner_id === ctx.user.id) return
-    if (lead.owner_id) throw invalid('Este lead ya tiene dueño. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
+    if (lead.owner_id) throw invalid('Alguien ya lleva este lead. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
     await tx`update crm.leads set owner_id = ${ctx.user.id}, assigned_at = now() where id = ${leadId} and owner_id is null`
     await audit(tx, ctx, 'lead.taken', 'lead', leadId, lead.market_code, { owner_id: null }, { owner_id: ctx.user.id })
   })
@@ -363,7 +363,7 @@ export async function updateLeadDetails(ctx: Ctx, leadId: string, input: { motor
     const motor = input.motor?.trim() || lead.motor
     if (motor !== lead.motor && !(MOTORS as readonly string[]).includes(motor)) {
       const known = await tx`select 1 from crm.pipelines where market_code = ${lead.market_code} and motor = ${motor} and is_active limit 1`
-      if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sales type from the list.')
+      if (!known[0]) throw invalid('Elige un tipo de venta de la lista.', 'Pick a sale type from the list.')
     }
     const type = input.accountType?.trim() || null
     const role = input.contactRole ? z.enum(CONTACT_ROLES).safeParse(input.contactRole) : null
@@ -421,7 +421,7 @@ export async function releaseLead(ctx: Ctx, leadId: string, reason: string): Pro
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.work', lead.market_code)
     const mine = lead.owner_id === ctx.user.id
-    if (!lead.owner_id) throw invalid('Este lead ya está sin dueño.', 'This lead already has no owner.')
+    if (!lead.owner_id) throw invalid('Este lead ya está sin asignar.', 'This lead already has no owner.')
     if (!mine && !ctx.can('lead.assign', lead.market_code)) throw invalid('Solo puedes soltar un lead que es tuyo.', 'You can only release a lead that is yours.')
     if (!OPEN.includes(lead.status)) throw invalid('Este lead ya se cerró.', 'This lead is already closed.')
     await tx`insert into crm.activities (market_code, lead_id, kind, subject, body, done_at, owner_id, created_by)
@@ -490,7 +490,7 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     if (usable.length === 0) {
       throw new DomainError('no_pipeline',
         `${market.name} todavía no tiene un embudo de ventas. El lead queda calificado y no se pierde: pide a administración que lo configure (Administración, Embudos y campos) y vuelve a convertirlo.`,
-        `${market.name} has no sales pipeline yet. The lead stays qualified and is not lost: ask an admin to set one up (Admin, Pipelines and fields), then convert it again.`)
+        `${market.name} has no sales pipeline yet. The lead stays qualified and is not lost: ask administration to set one up (Administration, Pipelines and fields), then convert it again.`)
     }
     const pipe = opts.pipelineId
       ? usable.find((p) => p.id === opts.pipelineId)

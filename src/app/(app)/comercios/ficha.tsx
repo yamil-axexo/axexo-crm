@@ -79,7 +79,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const openDeals = deals.filter((d) => d.status === 'open').length
   const openTasks = tasks.filter((x) => x.kind === 'task' || x.kind === 'visit').length
   const moves = {
-    es: [openDeals ? (openDeals === 1 ? '1 negocio abierto' : `${openDeals} negocios abiertos`) : null, openTasks ? (openTasks === 1 ? '1 tarea abierta' : `${openTasks} tareas abiertas`) : null].filter(Boolean).join(' y '),
+    es: [openDeals ? (openDeals === 1 ? '1 negocio abierto' : `${openDeals} negocios abiertos`) : null, openTasks ? (openTasks === 1 ? '1 pendiente' : `${openTasks} pendientes`) : null].filter(Boolean).join(' y '),
     en: [openDeals ? (openDeals === 1 ? '1 open deal' : `${openDeals} open deals`) : null, openTasks ? (openTasks === 1 ? '1 open task' : `${openTasks} open tasks`) : null].filter(Boolean).join(' and '),
   }
   const Title = mode === 'page' ? 'h1' : 'h2'
@@ -92,6 +92,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
       : null
   const startOfToday = new Date(new Date(`${today}T00:00:00Z`).getTime() - offsetMs(now, tz))
   const stepLate = !!step?.due && step.due < startOfToday
+  // Una tienda activa, sin negocio abierto y sin tarea, está al día: no es una advertencia ni pide una fecha de relleno.
+  const calm = !step && !openDeal && a.lifecycle === 'active'
   const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
   const dueLabel = (due: Date | null, late: boolean) => (due ? m(late ? 'record.next.late' : 'record.next.due', { date: weekday(due, locale, tz) }) : '')
 
@@ -117,7 +119,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const ownerFrom = (it: Item) => (meta(it).from && meta(it).from !== it.title ? meta(it).from! : null)
   const ownerChange = (it: Item) => {
     const from = ownerFrom(it)
-    return from ? t(`Pasó a ${it.title}; venía de ${from}`, `Moved to ${it.title}; it came from ${from}`) : t(`Dueño: ${it.title}`, `Owner: ${it.title}`)
+    return from ? t(`Pasó a ${it.title}; venía de ${from}`, `Moved to ${it.title}; it came from ${from}`) : t(`Lo lleva ${it.title}`, `Owner: ${it.title}`)
   }
   const threadTitle = (it: Item) =>
     it.kind === 'visit' ? visitText(it) : it.kind === 'stage' ? `${t('Pasó a', 'Moved to')} "${t(it.title, it.body ?? it.title)}"` : it.kind === 'attribution' ? ownerChange(it) : it.title
@@ -128,7 +130,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
     return ` · ${t(`ahora ${d > 0 ? '+' : ''}${d}%`, `now ${d > 0 ? '+' : ''}${d}%`)}`
   }
   const threadWho = (it: Item) =>
-    it.kind === 'stage' && meta(it).cause === 'transaction' ? t('Primera transacción (S5)', 'First transaction (S5)')
+    it.kind === 'stage' && meta(it).cause === 'transaction' ? t('Primera transacción', 'First transaction')
       : manualVisit(it) ? [t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
         : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}`
           : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
@@ -201,11 +203,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </p>
         )}
 
-        <div className={cx('mt-4 rounded-[12px] px-4 py-3.5', step ? 'bg-green-100' : 'bg-warn-bg')} data-testid="ficha-next" data-state={step ? (stepLate ? 'late' : 'set') : 'none'}>
-          <p className={cx('text-[13px]', step ? 'text-brand-text' : 'text-amber-text')}>{m('record.next')}</p>
-          <p className="mt-0.5 text-[15px] leading-6 font-medium text-strong">{step ? step.text : m('record.next.none')}</p>
+        <div className={cx('mt-4 rounded-[12px] px-4 py-3.5', step ? 'bg-green-100' : calm ? 'bg-surface-2' : 'bg-warn-bg')} data-testid="ficha-next" data-state={step ? (stepLate ? 'late' : 'set') : calm ? 'calm' : 'none'}>
+          <p className={cx('text-[13px]', step ? 'text-brand-text' : calm ? 'text-muted-2' : 'text-amber-text')}>{m('record.next')}</p>
+          <p className="mt-0.5 text-[15px] leading-6 font-medium text-strong">{step ? step.text : calm ? m('record.next.calm') : m('record.next.none')}</p>
           <p className={cx('text-[13px]', stepLate ? 'font-medium text-red-text' : 'text-muted-2')}>
-            {step ? dueLabel(step.due, stepLate) : m('record.next.noneHint')}
+            {step ? dueLabel(step.due, stepLate) : calm ? (metrics?.last_txn_at ? m('record.next.calmSale', { when: ago(metrics.last_txn_at, locale, now) }) : m('record.next.calmHint')) : m('record.next.noneHint')}
             {(openDeal || lastDeal) && (
               <>
                 {step?.due ? ' · ' : step ? '' : ' '}
@@ -397,7 +399,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             <section data-testid="account-reassign">
               <form data-testid="reassign-form">
                 <input type="hidden" name="account_id" value={a.id} />
-                <Field label={t('Reasignar dueño', 'Reassign owner')}>
+                <Field label={t('Reasignar a otra persona', 'Reassign to someone else')}>
                   <select name="to_user_id" className="input" required defaultValue={a.owner_id ?? ''} data-testid="reassign-to">
                     {!a.owner_id && <option value="" disabled>{t('Elige a alguien', 'Pick someone')}</option>}
                     {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -440,7 +442,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               {a.territory && <KeyVal k={t('Territorio', 'Territory')}>{a.territory}</KeyVal>}
               {a.segment && <KeyVal k={t('Canal', 'Channel')}>{lab(t, MOTOR[a.segment])}</KeyVal>}
             </dl>
-            {metrics && <p className="mt-2 text-[13px] text-muted" data-testid="metrics-asof">{t(`Ventas según S5, con corte al ${day(metrics.as_of, locale)}.`, `Sales per S5, as of ${day(metrics.as_of, locale)}.`)}</p>}
+            {metrics && <p className="mt-2 text-[13px] text-muted" data-testid="metrics-asof">{t(`Datos de ventas con corte al ${day(metrics.as_of, locale)}.`, `Sales data as of ${day(metrics.as_of, locale)}.`)}</p>}
           </section>
 
           {deals.length > 0 && (
@@ -533,7 +535,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 </KeyVal>
               ))}
             </dl>
-            {aliases.length === 0 && <p className="mt-2 text-[13px] text-muted">{t('Todavía no existe en la Sales App ni en S5.', 'It does not exist in the Sales App or S5 yet.')}</p>}
+            {aliases.length === 0 && <p className="mt-2 text-[13px] text-muted">{t('Todavía no existe en la Sales App ni en los datos de ventas.', 'It is not in the Sales App or the sales data yet.')}</p>}
           </section>
 
           {defs.length > 0 && (

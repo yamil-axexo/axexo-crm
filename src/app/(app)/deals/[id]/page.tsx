@@ -59,7 +59,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <PageHeader
-        eyebrow={`Deal · ${deal.pipeline_name}`}
+        eyebrow={`${t('Negocio', 'Deal')} · ${deal.pipeline_name}`}
         title={deal.title}
         actions={<>
           {callee && (canLog
@@ -117,11 +117,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   current.kind === 'awaiting_txn' && !deal.close_by_transaction
                     ? t(`Lleva ${daysSince(deal.stage_entered_at)} días aquí. ${pilotRule}`, `It has been here ${daysSince(deal.stage_entered_at)} days. ${pilotRule}`)
                     : current.kind === 'awaiting_txn'
-                    ? t(`Lleva ${daysSince(deal.stage_entered_at)} días aquí. Se gana cuando el archivo diario de S5 trae la primera venta de este comercio; nadie lo marca a mano.`, `It has been here ${daysSince(deal.stage_entered_at)} days. It is won when the S5 daily file brings this merchant’s first sale; nobody marks it by hand.`)
+                    ? t(`Lleva ${daysSince(deal.stage_entered_at)} días aquí. Se gana cuando los datos de ventas traen la primera venta de este comercio; nadie lo marca a mano.`, `It has been here ${daysSince(deal.stage_entered_at)} days. It is won when the sales data shows this merchant’s first sale; nobody marks it by hand.`)
                     : current.exit_es
                       ? t(`Criterio de salida: ${current.exit_es}.`, `Exit criteria: ${current.exit_en}.`)
                       : lastOpen && deal.close_by_transaction
-                        ? t('Última etapa del embudo. El negocio se gana cuando S5 reporta la primera transacción del comercio; nadie lo marca a mano.', 'Last stage of the pipeline. The deal is won when S5 reports the merchant’s first transaction; nobody marks it by hand.')
+                        ? t('Última etapa del embudo. El negocio se gana cuando los datos de ventas traen la primera transacción del comercio; nadie lo marca a mano.', 'Last stage of the pipeline. The deal is won when the sales data shows the merchant’s first transaction; nobody marks it by hand.')
                         : undefined
                 }
               />
@@ -255,7 +255,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           <Card>
-            <CardTitle title="Timeline" />
+            <CardTitle title={t('Hilo', 'Thread')} />
             {ctx.can('activity.write', deal.market_code) && (
               <ActionForm action={addActivityAction} onOk="reset" className="mb-6">
                 <input type="hidden" name="deal_id" value={deal.id} />
@@ -288,7 +288,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               {events.map((e, i) => (
                 <li key={`e${i}`} className="border-l-2 border-brand/50 pl-4">
                   <p className="text-[14px] font-semibold text-strong">{e.from_es ? `${t(e.from_es, e.from_en ?? '')} → ` : ''}{t(e.to_es, e.to_en)}</p>
-                  <p className="text-[12.5px] text-muted">{e.cause === 'transaction' ? t('Primera transacción (S5)', 'First transaction (S5)') : (e.actor ?? '—')} · {dayTime(e.at, locale, market.timezone)}</p>
+                  <p className="text-[12.5px] text-muted">{e.cause === 'transaction' ? t('Primera transacción', 'First transaction') : (e.actor ?? '—')} · {dayTime(e.at, locale, market.timezone)}</p>
                 </li>
               ))}
             </ul>
@@ -300,7 +300,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             <CardTitle title={t('Resumen', 'Summary')} />
             <dl>
               <KeyVal k={t('Comercio', 'Merchant')}><Link href={`/comercios/${deal.account_id}`} className="text-blue-text underline" data-testid="deal-account">{deal.account_name}</Link></KeyVal>
-              <KeyVal k={t('Dueño', 'Owner')}>{deal.owner_name ?? '—'}</KeyVal>
+              <KeyVal k={t('Quién lo lleva', 'Owner')}>{deal.owner_name ?? '—'}</KeyVal>
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
               <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>

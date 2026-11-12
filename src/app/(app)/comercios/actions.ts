@@ -86,8 +86,8 @@ export async function reassignAction(_: R | null, fd: FormData): Promise<R> {
     const ids = fd.getAll('account_id').filter((v): v is string => typeof v === 'string' && v.length > 0)
     if (ids.length === 0) throw invalid('Elige al menos un comercio.', 'Choose at least one merchant.')
     const n = await reassignAccounts(ctx, ids, str(fd, 'to_user_id'))
-    if (n === 1) return { message: ['1 comercio reasignado, con sus negocios y tareas abiertas.', '1 merchant reassigned, with its open deals and tasks.'] }
-    return { message: [`${n} comercios reasignados, con sus negocios y tareas abiertas.`, `${n} merchants reassigned, with their open deals and tasks.`] }
+    if (n === 1) return { message: ['1 comercio reasignado, con sus negocios abiertos y sus pendientes.', '1 merchant reassigned, with its open deals and to-dos.'] }
+    return { message: [`${n} comercios reasignados, con sus negocios abiertos y sus pendientes.`, `${n} merchants reassigned, with their open deals and to-dos.`] }
   })
 }
 

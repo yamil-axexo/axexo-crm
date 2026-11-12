@@ -100,16 +100,16 @@ function noun(what: RepartoPayload['what'], count: number, locale: Locale): stri
   return t(`${n} ${plural(count, 'comercio', 'comercios')}`, `${n} ${plural(count, 'merchant', 'merchants')}`)
 }
 
-/** Lo que se va con los comercios: "con 4 negocios abiertos y 3 tareas abiertas", o sin números cuando no se contaron. */
+/** Lo que se va con los comercios: "con 4 negocios abiertos y 3 pendientes", o sin números cuando no se contaron. */
 function carried(plan: Pick<Plan, 'payload' | 'deals' | 'tasks'>, locale: Locale): string {
   const t = tr(locale)
   if (plan.payload.what !== 'accounts') return ''
-  if (plan.deals === undefined) return t(', con sus negocios y tareas abiertas', ', with their open deals and tasks')
+  if (plan.deals === undefined) return t(', con sus negocios abiertos y sus pendientes', ', with their open deals and to-dos')
   const d = fmt(plan.deals, locale)
   const k = fmt(plan.tasks ?? 0, locale)
   return t(
-    `, con ${d} ${plural(plan.deals, 'negocio abierto', 'negocios abiertos')} y ${k} ${plural(plan.tasks ?? 0, 'tarea abierta', 'tareas abiertas')}`,
-    `, with ${d} open ${plural(plan.deals, 'deal', 'deals')} and ${k} open ${plural(plan.tasks ?? 0, 'task', 'tasks')}`,
+    `, con ${d} ${plural(plan.deals, 'negocio abierto', 'negocios abiertos')} y ${k} ${plural(plan.tasks ?? 0, 'pendiente', 'pendientes')}`,
+    `, with ${d} open ${plural(plan.deals, 'deal', 'deals')} and ${k} ${plural(plan.tasks ?? 0, 'to-do', 'to-dos')}`,
   )
 }
 
@@ -175,9 +175,9 @@ function Steps({ locale, phase, onConfirm, onCancel, onStop, listHref }: { local
         <p role="status" className="rounded-[10px] bg-green-100 px-4 py-3 text-[15px] font-medium text-brand-text">
           {territory
             ? plan.payload.to
-              ? t(`Listo. ${moved} ${plural(phase.done, 'quedó', 'quedaron')} en el territorio ${plan.toLabel}.`, `Done. ${moved} ${plural(phase.done, 'is', 'are')} now in the territory ${plan.toLabel}.`)
-              : t(`Listo. ${moved} ${plural(phase.done, 'quedó', 'quedaron')} sin territorio.`, `Done. ${moved} ${plural(phase.done, 'has', 'have')} no territory now.`)
-            : t(`Listo. ${moved} ${plural(phase.done, 'pasó', 'pasaron')} a ${plan.toLabel}${carried({ payload: plan.payload }, locale)}.`, `Done. ${moved} moved to ${plan.toLabel}${carried({ payload: plan.payload }, locale)}.`)}
+              ? t(`${moved} ${plural(phase.done, 'quedó', 'quedaron')} en el territorio ${plan.toLabel}.`, `${moved} ${plural(phase.done, 'is', 'are')} now in the ${plan.toLabel} territory.`)
+              : t(`${moved} ${plural(phase.done, 'quedó', 'quedaron')} sin territorio.`, `${moved} ${plural(phase.done, 'has', 'have')} no territory now.`)
+            : t(`${moved} ${plural(phase.done, 'pasó', 'pasaron')} a ${plan.toLabel}${carried({ payload: plan.payload }, locale)}.`, `${moved} moved to ${plan.toLabel}${carried({ payload: plan.payload }, locale)}.`)}
           {phase.left > 0 && <span className="mt-1 block font-normal" data-testid="reparto-left">{t(`Quedan ${fmt(phase.left, locale)} por mover con esta selección.`, `${fmt(phase.left, locale)} are still left to move with this selection.`)}</span>}
         </p>
         <div className="mt-3 flex justify-end"><button type="button" className={buttonClass('ghost')} onClick={onCancel} data-testid="reparto-again">{phase.left > 0 ? t('Seguir', 'Continue') : t('Repartir más', 'Distribute more')}</button></div>
@@ -282,7 +282,7 @@ export function RepartoBar({ locale, market, filter, narrowed, total, people, te
                 <span>{t(`Todos los de este filtro (${fmt(total, locale)})`, `Everything in this filter (${fmt(total, locale)})`)}</span>
               </label>
             </div>
-            {!canAll && <p className="text-[13px] text-muted" data-testid="reparto-narrow">{!market ? t('Elige un mercado para repartir todo un filtro.', 'Choose a market to distribute a whole filter.') : t('Para repartir todo de una vez, filtra primero por dueño, región, ciudad o territorio.', 'To distribute everything at once, filter first by owner, region, city or territory.')}</p>}
+            {!canAll && <p className="text-[13px] text-muted" data-testid="reparto-narrow">{!market ? t('Elige un mercado para repartir todo un filtro.', 'Choose a market to distribute a whole filter.') : t('Para repartir todo de una vez, filtra primero por quién lo lleva, región, ciudad o territorio.', 'To distribute everything at once, filter first by owner, region, city or territory.')}</p>}
             {!all && (
               <label className="mt-1 flex min-h-11 w-fit items-center gap-2 text-[14px] text-muted-2">
                 <input type="checkbox" className="h-4 w-4" onChange={(e) => setRows(e.target.checked)} checked={selected.length > 0 && selected.length === rows} data-testid="reparto-page" />
@@ -300,7 +300,7 @@ export function RepartoBar({ locale, market, filter, narrowed, total, people, te
                 </select>
                 <button type="button" className={buttonClass('primary')} disabled={none || !to} onClick={() => start('accounts')} data-testid="reparto-assign">{t('Reasignar', 'Reassign')}</button>
               </div>
-              <p className="mt-1.5 text-[12px] text-muted">{people.length === 0 ? t('No hay a quién pasarle en este mercado.', 'There is nobody to move them to in this market.') : t('Cada comercio se va con sus negocios y tareas abiertas.', 'Each merchant moves with its open deals and tasks.')}</p>
+              <p className="mt-1.5 text-[12px] text-muted">{people.length === 0 ? t('No hay a quién pasarle en este mercado.', 'There is nobody to move them to in this market.') : t('Cada comercio se va con sus negocios abiertos y sus pendientes (tareas y visitas por hacer).', 'Each merchant moves with its open deals and to-dos (tasks and planned visits).')}</p>
             </div>
             <div>
               <label className="block text-[13px] font-semibold text-muted-2" htmlFor="reparto-territory">{t('Poner territorio', 'Set territory')}</label>
@@ -351,7 +351,7 @@ export function RepartoForm({ locale, markets, holders, regions, territories, pe
   const vacantTotal = inMarket.filter((h) => !h.current).reduce((a, h) => a + n(h), 0)
   const named = inMarket.filter((h) => h.owner_id !== null).sort((a, b) => Number(a.current) - Number(b.current) || n(b) - n(a))
   const targets = people.filter((p) => p.market_code === market)
-  const tag = (h: RepartoHolder) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (sin rol de ventas)', ' (no sales role)') : '')
+  const tag = (h: RepartoHolder) => (h.is_active === false ? t(' (inactiva)', ' (inactive)') : !h.current ? t(' (no vende ni opera en este mercado)', ' (does not sell or run operations in this market)') : '')
   const filter: RepartoFilter = { market, owner: from, region: region || undefined, city: city.trim() || undefined, territory: territory || undefined }
   const listHref = what === 'accounts' ? `/comercios?${new URLSearchParams(Object.entries({ ...filter, repartir: '1' }).filter((e): e is [string, string] => !!e[1])).toString()}` : undefined
 
@@ -365,7 +365,7 @@ export function RepartoForm({ locale, markets, holders, regions, territories, pe
     void review(what === 'accounts' ? { what, filter, to } : { what, market, from, to }, label)
   }
   const WHAT: { key: What; label: string; hint: string }[] = [
-    { key: 'accounts', label: t('Comercios', 'Merchants'), hint: t('Con sus negocios y tareas abiertas.', 'With their open deals and tasks.') },
+    { key: 'accounts', label: t('Comercios', 'Merchants'), hint: t('Con sus negocios abiertos y sus pendientes.', 'With their open deals and to-dos.') },
     { key: 'leads', label: t('Leads abiertos', 'Open leads'), hint: t('Por ejemplo, cuando alguien sale.', 'For example, when someone leaves.') },
     { key: 'deals', label: t('Negocios abiertos', 'Open deals'), hint: t('El comercio se queda con quien lo lleva.', 'The merchant stays with its owner.') },
   ]
@@ -391,11 +391,11 @@ export function RepartoForm({ locale, markets, holders, regions, territories, pe
       )}
       <label className="block"><span className="mb-2 block text-[13px] font-semibold text-muted-2">{t('De', 'From')}</span>
         <select className="input" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="reparto-from">
-          <option value="vacant">{t(`Todo lo que no tiene dueño vigente (${fmt(vacantTotal, locale)})`, `Everything with no current owner (${fmt(vacantTotal, locale)})`)}</option>
-          {nobody && <option value="none">{t(`Sin dueño (${fmt(n(nobody), locale)})`, `No owner (${fmt(n(nobody), locale)})`)}</option>}
+          <option value="vacant">{t(`Todo lo que está por repartir (${fmt(vacantTotal, locale)})`, `Everything with no current owner (${fmt(vacantTotal, locale)})`)}</option>
+          {nobody && <option value="none">{t(`Sin asignar (${fmt(n(nobody), locale)})`, `No owner (${fmt(n(nobody), locale)})`)}</option>}
           {named.map((h) => <option key={h.owner_id} value={h.owner_id!}>{h.full_name}{tag(h)} ({fmt(n(h), locale)})</option>)}
         </select>
-        <span className="mt-1.5 block text-[12px] text-muted">{t('Sin dueño vigente: no tiene dueño, o su dueño es una cuenta de servicio o alguien que ya no vende ni opera en este mercado.', 'No current owner: it has no owner, or its owner is a service account or someone who no longer sells or runs operations in this market.')}</span>
+        <span className="mt-1.5 block text-[12px] text-muted">{t('Por repartir: no está asignado a nadie, o lo lleva una cuenta de servicio o alguien que ya no vende ni opera en este mercado.', 'No current owner: it has no owner, or its owner is a service account or someone who no longer sells or runs operations in this market.')}</span>
       </label>
       {what === 'accounts' && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

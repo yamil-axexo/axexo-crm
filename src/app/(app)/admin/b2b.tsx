@@ -55,7 +55,7 @@ export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipeline
                 <Field label={t('Nombre del embudo', 'Pipeline name')} className="col-span-2"><input name="name" className="input" required minLength={2} maxLength={80} data-testid="pipeline-new-name" /></Field>
                 <Field label={t('Mercado', 'Market')}>{marketSelect('pipeline-new-market', false)}</Field>
                 <Field label={t('Tipo de venta', 'Sale type')}>{motorSelect('pipeline-new-motor', false)}</Field>
-                <Field label={t('Etapas, una por renglón', 'Stages, one per line')} className="col-span-2" hint={t('Escribe "Nombre en español | Name in English". "Ganado" y "Perdido" se agregan solos. El embudo nace con cierre a mano.', 'Write "Nombre en español | Name in English". "Won" and "Lost" are added for you. The pipeline starts as won by hand.')}>
+                <Field label={t('Etapas, una por renglón', 'Stages, one per line')} className="col-span-2" hint={t('Escribe "Nombre en español | Nombre en inglés". "Ganado" y "Perdido" se agregan solos. El embudo nace con cierre a mano.', 'Write "Spanish name | English name". "Won" and "Lost" are added for you. The pipeline starts as won by hand.')}>
                   <textarea name="stages" rows={5} required className="input !h-auto py-3" data-testid="pipeline-new-stages" />
                 </Field>
                 <div className="col-span-2 flex justify-end"><Submit testId="pipeline-new-save">{t('Crear embudo', 'Create pipeline')}</Submit></div>

@@ -88,7 +88,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       await expect(confirm.getByTestId('end-owned')).toContainText(`${name} tiene a su nombre 1 lead abierto en US`)
       await expect(confirm.getByTestId('end-rules')).toContainText(`Sale de los turnos de leads: ${RULE}`)
       await expect(confirm.getByTestId('end-impact')).toContainText('ya no va a poder entrar a CONTIGO')
-      await expect(confirm.getByTestId('end-vacates')).toContainText('queda sin dueño vigente')
+      await expect(confirm.getByTestId('end-vacates')).toContainText('queda por repartir')
       await clean(page, `${w.name} confirmar quitar acceso`)
       // Cancelar no cambia nada.
       await confirm.getByTestId('dialog-cancel').click()
@@ -101,7 +101,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       await expect(notice).toContainText(`Acceso cerrado: ${name} ya no tiene ese rol.`)
       await expect(notice).toContainText(`Salió del turno: ${RULE}.`)
       // Lo suyo quedó sin dueño vigente: el aviso lo dice con la misma cuenta y lleva a repartirlo.
-      await expect(notice).toContainText('Lo que tiene a su nombre (1 lead abierto) quedó sin dueño vigente en US y hay que repartirlo.')
+      await expect(notice).toContainText('Lo que tiene a su nombre (1 lead abierto) quedó por repartir en US: nadie lo atiende hasta que lo repartas.')
       await expect(notice.getByTestId('admin-notice-link')).toHaveAttribute('href', '/supervisor?market=US')
       await expect(page.getByTestId('person-row').filter({ hasText: email })).toHaveCount(0)
       await page.getByTestId('pill-sin').click()
@@ -143,7 +143,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
         await page.goto('/admin?tab=entrada')
         const card = page.getByTestId('rule-card').filter({ hasText: RULE })
         await expect(card.getByTestId('rule-empty')).toBeVisible()
-        await expect(card).toContainText('sin respaldo: si en el turno no queda nadie, el lead queda sin dueño')
+        await expect(card).toContainText('sin respaldo: si en el turno no queda nadie, el lead queda sin asignar')
         await clean(page, `${w.name} formularios y turnos`)
       } finally {
         await sql`update crm.routing_rules set member_ids = ${original.member_ids}::uuid[], cursor = ${original.cursor}, fallback_id = ${original.fallback_id} where name = ${RULE}`
@@ -317,7 +317,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
         await expect(page.getByTestId('status-row-web_forms')).toContainText('3 formularios activos')
         // Lo que nadie ha definido no trae un valor inventado.
         await expect(page.getByTestId('status-undefined-row')).toHaveCount(7)
-        for (const item of ['Dueño técnico', 'Respaldo de la base de datos', 'Plan de restauración', 'Costo mensual de operación']) {
+        for (const item of ['Responsable técnico', 'Respaldo de la base de datos', 'Plan de restauración', 'Costo mensual de operación']) {
           await expect(page.getByTestId('status-undefined-row').filter({ hasText: item })).toContainText('Por definir')
         }
         await expect(page.getByTestId('status-admins')).toContainText('Nora Salas')
@@ -450,7 +450,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       await expect(page.getByTestId('read-only')).toHaveCount(0)
       await page.goto('/supervisor')
       await page.getByTestId('run-rules').click()
-      await expect(page.getByTestId('form-ok')).toContainText(/Reglas evaluadas|Rules evaluated/) // Kira trabaja en inglés
+      await expect(page.getByTestId('form-ok')).toContainText(/Avisos actualizados|Alerts refreshed/) // Kira trabaja en inglés
       await loginAs(page, 'nora.salas')
       await expect(page.getByTestId('read-only')).toHaveCount(0)
       await page.goto('/admin?tab=auditoria&tipo=integrations')

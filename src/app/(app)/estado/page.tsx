@@ -68,7 +68,7 @@ export default async function StatusPage() {
     },
     {
       key: 's5',
-      name: 'S5',
+      name: t('Datos de ventas', 'Sales data'),
       what: t('Archivo diario de ventas por comercio', 'Daily sales file per merchant'),
       state: inbound(s.keys['metrics:write'] ?? 0, s.s5),
       last: s.s5 ? t(`Último archivo: corte del ${day(s.s5.as_of, locale)}, cargado el ${when(s.s5.loaded_at)}${s.s5.simulated ? test : ''}`, `Last file: as of ${day(s.s5.as_of, locale)}, loaded ${when(s.s5.loaded_at)}${s.s5.simulated ? test : ''}`) : t('No ha llegado ningún archivo', 'No file has arrived'),
