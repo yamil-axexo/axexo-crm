@@ -92,12 +92,19 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
         from crm.exceptions e left join crm.users u on u.id = e.owner_id
        where e.resolved_at is null
          ${f.market ? tx`and e.market_code = ${f.market}` : tx``}
+         ${f.team === 'none'
+           ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = e.owner_id and mm.market_code = e.market_code and mm.team_id is null and (mm.valid_to is null or mm.valid_to > now()))`
+           : isUuid(f.team) ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = e.owner_id and mm.team_id = ${f.team!} and (mm.valid_to is null or mm.valid_to > now()))` : tx``}
          ${f.kind ? tx`and e.kind = ${f.kind}` : tx``}
          ${f.owner === 'none' ? tx`and e.owner_id is null` : isUuid(f.owner) ? tx`and e.owner_id = ${f.owner}` : tx``}
        order by case e.severity when 'high' then 0 when 'medium' then 1 else 2 end, e.opened_at limit 60`
     const byKind = await tx<{ kind: string; n: number }[]>`
       select e.kind, count(*)::int as n from crm.exceptions e where e.resolved_at is null
-        ${f.market ? tx`and e.market_code = ${f.market}` : tx``} group by e.kind`
+        ${f.market ? tx`and e.market_code = ${f.market}` : tx``}
+        ${f.team === 'none'
+           ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = e.owner_id and mm.market_code = e.market_code and mm.team_id is null and (mm.valid_to is null or mm.valid_to > now()))`
+           : isUuid(f.team) ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = e.owner_id and mm.team_id = ${f.team!} and (mm.valid_to is null or mm.valid_to > now()))` : tx``}
+       group by e.kind`
     const last = await tx<{ at: string | null }[]>`select value #>> '{}' as at from crm.settings where key = 'rules_last_run'`
     return { reps: [...reps], queue: [...queue], byKind: Object.fromEntries(byKind.map((k) => [k.kind, k.n])) as Record<string, number>, rulesAt: last[0]?.at ?? null, metricsAsOf: metricsAsOf[0]?.as_of ?? null }
   })
@@ -181,12 +188,73 @@ export async function track(ctx: Ctx, event: string): Promise<void> {
   })
 }
 
-/** Lo que el dock necesita saber en cada pantalla: cuántos leads propios o sin dueño (los que la persona puede tomar) tienen el reloj de primer contacto corriendo. Los que llegaron de una importación no traen reloj y no cuentan aquí. */
-export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number }> {
+/**
+ * Lo que el dock necesita saber en cada pantalla: cuántos leads propios o sin dueño (los que la persona puede tomar) tienen el reloj
+ * de primer contacto corriendo. Los que llegaron de una importación no traen reloj y no cuentan aquí.
+ * `latest` es cuándo llegó (o se le asignó) el más reciente: con eso la app abierta sabe que entró uno nuevo aunque el total no cambie.
+ */
+export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number; latest: string | null; latestName: string | null }> {
   return withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ n: number }[]>`
-      select count(*)::int as n from crm.leads l
+    const rows = await tx<{ n: number; latest: Date | null; name: string | null }[]>`
+      select count(*)::int as n, max(greatest(l.created_at, coalesce(l.assigned_at, l.created_at))) as latest,
+             (array_agg(l.business_name order by greatest(l.created_at, coalesce(l.assigned_at, l.created_at)) desc))[1] as name
+        from crm.leads l
        where l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.work')}))`
-    return { leadsWaiting: rows[0]?.n ?? 0 }
+    return { leadsWaiting: rows[0]?.n ?? 0, latest: rows[0]?.latest ? new Date(rows[0].latest).toISOString() : null, latestName: rows[0]?.name ?? null }
+  })
+}
+
+export type LeadWatchRow = {
+  id: string
+  business_name: string
+  market_code: string
+  motor: string
+  owner_id: string | null
+  owner_name: string | null
+  created_at: Date
+  sla_due_at: Date
+  /** Minutos de horario hábil del mercado que quedan para la meta de primer contacto. 0 si ya pasó. */
+  minutes_left: number
+  late: boolean
+}
+
+/**
+ * La guardia de leads: los que tienen la meta de primer contacto corriendo (o ya vencida) y nadie ha intentado, con los minutos
+ * que quedan contados en el horario hábil del mercado, igual que la fecha de vencimiento (app.business_due).
+ * Con un equipo elegido salen solo los de su gente; sin equipo elegido también salen los que nadie lleva.
+ */
+export async function getLeadWatch(ctx: Ctx, f: { market?: string; team?: string }): Promise<LeadWatchRow[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<LeadWatchRow[]>`
+      select l.id, l.business_name, l.market_code, l.motor, l.owner_id, u.full_name as owner_name, l.created_at, l.sla_due_at,
+             (l.sla_due_at < now()) as late,
+             coalesce((
+               select round(sum(greatest(0, extract(epoch from (
+                        least(l.sla_due_at at time zone mk.timezone, g.d + coalesce(h.closes, time '18:00'))
+                        - greatest(now() at time zone mk.timezone, g.d + coalesce(h.opens, time '09:00'))))) / 60.0))::int
+                 from generate_series((now() at time zone mk.timezone)::date::timestamp, (l.sla_due_at at time zone mk.timezone)::date::timestamp, interval '1 day') g(d)
+                where extract(isodow from g.d)::int = any(coalesce(h.days, '{1,2,3,4,5}'::int[]))), 0) as minutes_left
+        from crm.leads l
+        join crm.markets mk on mk.code = l.market_code
+        left join crm.market_hours h on h.market_code = l.market_code
+        left join crm.users u on u.id = l.owner_id
+       where l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null
+         and l.sla_due_at > now() - interval '7 days'
+         ${f.market ? tx`and l.market_code = ${f.market}` : tx``}
+         ${f.team === 'none'
+           ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = l.owner_id and mm.market_code = l.market_code and mm.team_id is null and (mm.valid_to is null or mm.valid_to > now()))`
+           : isUuid(f.team) ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = l.owner_id and mm.team_id = ${f.team!} and (mm.valid_to is null or mm.valid_to > now()))` : tx``}
+       order by l.sla_due_at limit 25`
+    return [...rows]
+  })
+}
+
+/** Quién está o estuvo en un equipo ("none": quien vende sin equipo). Sirve para filtrar por equipo lo que quedó a nombre de alguien que ya no está. */
+export async function teamPeople(ctx: Ctx, team: string): Promise<Set<string>> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ user_id: string }[]>`
+      select distinct m.user_id from crm.memberships m
+       where ${team === 'none' ? tx`m.team_id is null and m.role in ('rep', 'supervisor', 'market_lead')` : isUuid(team) ? tx`m.team_id = ${team}` : tx`false`}`
+    return new Set(rows.map((r) => r.user_id))
   })
 }

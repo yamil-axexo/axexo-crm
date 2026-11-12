@@ -154,6 +154,8 @@ async function insertLead(
     await audit(tx, ctx, 'lead.contacted', 'lead', id, v.market, { status: 'new' }, { status: 'contacted', outcome: 'reached', at: 'creation' })
   }
   await emit(tx, 'lead.created', 'lead', id, v.market, { source: opts.source, motor: v.motor })
+  // Aviso para otros sistemas: a quién se le asignó. Cuando se conecte un canal (correo, Slack), sale de aquí sin tocar el producto.
+  if (opts.ownerId) await emit(tx, 'lead.assigned', 'lead', id, v.market, { owner_id: opts.ownerId, by: opts.source === 'web_form' ? 'routing' : 'creation', motor: v.motor, sla_due: !spoke })
   return id
 }
 
@@ -338,6 +340,7 @@ export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
     if (lead.owner_id) throw invalid('Alguien ya lleva este lead. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
     await tx`update crm.leads set owner_id = ${ctx.user.id}, assigned_at = now() where id = ${leadId} and owner_id is null`
     await audit(tx, ctx, 'lead.taken', 'lead', leadId, lead.market_code, { owner_id: null }, { owner_id: ctx.user.id })
+    await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ctx.user.id, by: 'taken', motor: lead.motor })
   })
 }
 
@@ -350,6 +353,7 @@ export async function assignLead(ctx: Ctx, leadId: string, ownerId: string): Pro
     if (!ok[0]) throw invalid('Esa persona no vende en este mercado.', 'That person does not sell in this market.')
     await tx`update crm.leads set owner_id = ${ownerId}, assigned_at = now() where id = ${leadId}`
     await audit(tx, ctx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: ownerId })
+    await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ownerId, previous_owner_id: lead.owner_id, by: 'assignment', motor: lead.motor })
   })
 }
 
@@ -411,6 +415,7 @@ export async function passLead(ctx: Ctx, leadId: string, toUserId: string, note:
     }
     await audit(tx, ctx, 'lead.passed', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: toUserId, note: text.slice(0, 200), clock_restarted: clock })
     await tx`select app.hand_lead(${leadId}, ${toUserId}::uuid)`
+    await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: toUserId, previous_owner_id: lead.owner_id, by: 'passed', motor: lead.motor })
   })
 }
 
