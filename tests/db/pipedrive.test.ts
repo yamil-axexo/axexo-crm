@@ -32,7 +32,7 @@ const ref = async (object: string, id: number | string) => (await one(admin`sele
 const skipped = async (object: string, id: number | string) => (await admin`select load_note from crm.import_raw where source = 'pipedrive' and object = ${object} and external_id = ${String(id)}`)[0]?.load_note
 
 beforeAll(async () => {
-  mock = await startMock(Number(process.env.UNIT_PIPEDRIVE_PORT ?? 45991), { rateLimitOnce: true })
+  mock = await startMock(45991, { rateLimitOnce: true })
   nora = await ctxFor('nora.salas')
   await runImport('full')
 }, 120_000)
