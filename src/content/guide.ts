@@ -645,7 +645,7 @@ export const LANDING = {
       { es: 'Llamar después', en: 'Call later' },
     ],
     nexts: [
-      { es: 'Llamar de nuevo', en: 'Call again' },
+      { es: 'Llamar', en: 'Call' },
       { es: 'Enviar propuesta', en: 'Send proposal' },
       { es: 'Reunión', en: 'Meeting' },
     ],
