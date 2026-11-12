@@ -16,7 +16,7 @@ Markets with data: MX and US. SV is configured (market row and pipeline) with no
 | PIPE-06 | Close by transactional event | Built | Nobody can mark a deal as won; the S5 file does |
 | ACT-01 | Single timeline | Built | Activities, Sales App visits, stage changes, owner changes |
 | ACT-02 | Mandatory next step | Built | Enforced on every open stage |
-| CAMPO-03 | Book of accounts, territories, reassignment | Built | Single account and whole book. No territory editor |
+| CAMPO-03 | Book of accounts, territories, reassignment | Built | Single account, a selection or a whole filter (owner, region, city, territory), in batches; open leads and open deals from one person to another; territory editor in Administration, shipped empty. Rule for records with no current owner: ADR-003 |
 | CAMPO-04 | Supervisor board and exception queue | Built | |
 | CAMPO-06 | Enrollment file and control desk | Not in this PR | Needs the document vault decision (committee #9); documents are prohibited data in the CRM |
 | CANAL-05 | Commission and incentive visibility | Not in this PR | Needs committee decisions #4 and #5 |

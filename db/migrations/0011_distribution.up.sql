@@ -160,3 +160,12 @@ end $$;
 -- Solo al crear o al cambiar el territorio: un cambio de mercado lo sigue rechazando la política de la tabla, con su propio error.
 create trigger accounts_territory before insert or update of territory_id on crm.accounts
   for each row execute function crm.account_territory();
+
+-- ------------------------------------------------------------ 5) rendimiento con miles de comercios
+-- Con la cartera real una lista de Comercios recorre miles de filas, cada una con sus sub-consultas de alcance. A ese
+-- costo estimado Postgres decide compilar la consulta (JIT) y la compilación tarda más que la consulta misma: medido
+-- con 6,000 comercios, de medio segundo a segundo y medio extra por pantalla. Son consultas cortas de aplicación, no
+-- análisis: el rol de la aplicación no compila en esta base.
+do $$ begin
+  execute format('alter role contigo_app in database %I set jit = off', current_database());
+end $$;

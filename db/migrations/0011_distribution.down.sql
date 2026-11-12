@@ -1,3 +1,7 @@
+do $$ begin
+  execute format('alter role contigo_app in database %I reset jit', current_database());
+end $$;
+
 drop trigger accounts_territory on crm.accounts;
 drop function crm.account_territory();
 alter table crm.territories drop column archived_at;
