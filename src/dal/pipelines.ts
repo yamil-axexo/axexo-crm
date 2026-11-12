@@ -108,9 +108,10 @@ export async function getDeal(ctx: Ctx, id: string) {
       select e.at, f.name_es as from_es, f.name_en as from_en, t.name_es as to_es, t.name_en as to_en, u.full_name as actor, e.cause
         from crm.deal_stage_events e left join crm.stages f on f.id = e.from_stage_id join crm.stages t on t.id = e.to_stage_id
         left join crm.users u on u.id = e.actor_id where e.deal_id = ${id} order by e.at desc`
-    const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; due_at: Date | null; done_at: Date | null; created_at: Date; author: string | null }[]>`
-      select a.id, a.kind, a.subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author
-        from crm.activities a left join crm.users u on u.id = a.created_by where a.deal_id = ${id} order by a.created_at desc limit 40`
+    // Lo hecho se ordena y se fecha por el día en que se hizo, no por el día en que se creó la tarea.
+    const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; due_at: Date | null; done_at: Date | null; created_at: Date; author: string | null; outcome: string | null; visited_by: string | null }[]>`
+      select a.id, a.kind, a.subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author, a.outcome, a.visited_by
+        from crm.activities a left join crm.users u on u.id = a.created_by where a.deal_id = ${id} order by coalesce(a.done_at, a.created_at) desc limit 40`
     const items = await tx<{ id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }[]>`
       select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments from crm.deal_items where deal_id = ${id} order by position, created_at`
     const current = stages.find((s) => s.id === deal.stage_id)

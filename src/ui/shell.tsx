@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Inbox, Kanban, Plus, Search, Store, Sun } from 'lucide-react'
 import { cx } from '@/ui/kit'
 import { showToast } from '@/ui/complete'
+import { openLog } from '@/ui/log'
 
 const ICONS = { today: Sun, leads: Inbox, deals: Kanban, merchants: Store } as const
 export type DockItem = { key: keyof typeof ICONS; href: string; label: string; match: string[]; badge?: number; badgeLabel?: string }
@@ -32,7 +33,7 @@ function useDismiss(open: boolean, close: () => void) {
  * Dock: la misma navegación en desktop, tablet y móvil (handoff, secciones 4 y 5).
  * Cuatro destinos y crear. En móvil es la barra inferior; desde 768 px flota abajo al centro.
  */
-export function Dock({ items, label, createLabel, create }: { items: DockItem[]; label: string; createLabel: string; create: { href: string; label: string }[] }) {
+export function Dock({ items, label, createLabel, create, logLabel }: { items: DockItem[]; label: string; createLabel: string; create: { href: string; label: string }[]; /** "Registrar actividad": empieza por la actividad y busca el comercio ahí mismo. */ logLabel?: string }) {
   const path = usePathname()
   const active = items.findIndex((i) => i.match.some((m) => path === m || path.startsWith(m + '/')))
   const [open, setOpen] = useState(false)
@@ -74,7 +75,7 @@ export function Dock({ items, label, createLabel, create }: { items: DockItem[];
           )
         })}
       </div>
-      {create.length > 0 && (
+      {(create.length > 0 || logLabel) && (
         <div ref={menu} className="relative flex shrink-0 items-center md:pl-2">
           <span aria-hidden className="mr-2 hidden h-7 w-px bg-black-line md:block" />
           <button
@@ -89,7 +90,21 @@ export function Dock({ items, label, createLabel, create }: { items: DockItem[];
             <Plus size={22} strokeWidth={2} aria-hidden className={cx('transition-transform duration-200', open && 'rotate-45')} />
           </button>
           {open && (
-            <div role="menu" className="on-ink absolute right-0 bottom-[calc(100%+12px)] w-52 animate-pop rounded-[16px] bg-black p-2 shadow-[var(--cg-shadow-float)]" data-testid="dock-create-menu">
+            <div role="menu" className="on-ink absolute right-0 bottom-[calc(100%+12px)] w-56 animate-pop rounded-[16px] bg-black p-2 shadow-[var(--cg-shadow-float)]" data-testid="dock-create-menu">
+              {logLabel && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false)
+                    openLog({ kind: 'visit' })
+                  }}
+                  className="flex h-11 w-full items-center rounded-[10px] px-3 text-left text-[15px] font-medium text-white hover:bg-graphite"
+                  data-testid="dock-log"
+                >
+                  {logLabel}
+                </button>
+              )}
               {create.map((c) => (
                 <Link key={c.href} href={c.href} role="menuitem" onClick={() => setOpen(false)} className="flex h-11 items-center rounded-[10px] px-3 text-[15px] font-medium text-white hover:bg-graphite">
                   {c.label}

@@ -64,7 +64,7 @@ export const ACTIVITY: Record<string, Pair> = {
   email: ['Correo', 'Email'],
   handoff: ['Handoff', 'Handoff'],
   system: ['Sistema', 'System'],
-  visit: ['Visita (Sales App)', 'Visit (Sales App)'],
+  visit: ['Visita', 'Visit'],
   stage: ['Cambio de etapa', 'Stage change'],
   attribution: ['Cambio de dueño', 'Owner change'],
 }

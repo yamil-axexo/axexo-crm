@@ -62,7 +62,7 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
         left join crm.leads l on l.id = a.lead_id
         left join crm.deals d on d.id = a.deal_id and d.status = 'open'
         left join crm.stages s on s.id = d.stage_id
-       where a.owner_id = ${me} and a.done_at is null and a.kind in ('task', 'handoff', 'call', 'meeting', 'email')
+       where a.owner_id = ${me} and a.done_at is null and a.kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit')
          and (a.due_at is null or a.due_at < ${end})
        order by a.due_at nulls last, a.created_at limit ${QUEUE_PAGE * 2}`
     // Una sugerencia por registro (si un negocio no tiene próximo paso y además está estancado, gana "sin próximo paso"),
@@ -85,8 +85,8 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
     const totals = await tx<{ leads_late: number; leads_today: number; tasks_late: number; tasks_today: number; suggested: number }[]>`
       select (select count(*)::int from crm.leads where owner_id = ${me} and status = 'new' and first_touch_at is null and sla_due_at < now()) as leads_late,
              (select count(*)::int from crm.leads where owner_id = ${me} and status = 'new' and first_touch_at is null and sla_due_at >= now()) as leads_today,
-             (select count(*)::int from crm.activities where owner_id = ${me} and done_at is null and kind in ('task', 'handoff', 'call', 'meeting', 'email') and due_at < ${start}) as tasks_late,
-             (select count(*)::int from crm.activities where owner_id = ${me} and done_at is null and kind in ('task', 'handoff', 'call', 'meeting', 'email') and (due_at is null or (due_at >= ${start} and due_at < ${end}))) as tasks_today,
+             (select count(*)::int from crm.activities where owner_id = ${me} and done_at is null and kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit') and due_at < ${start}) as tasks_late,
+             (select count(*)::int from crm.activities where owner_id = ${me} and done_at is null and kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit') and (due_at is null or (due_at >= ${start} and due_at < ${end}))) as tasks_today,
              (select count(distinct coalesce(deal_id, account_id, lead_id, id))::int from crm.exceptions where resolved_at is null and owner_id = ${me} and kind <> 'lead_sla') as suggested`
     const c = totals[0]!
     const now = new Date()
@@ -121,7 +121,7 @@ export async function getTeamQueue(ctx: Ctx): Promise<TeamRow[]> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<TeamRow[]>`
       select distinct on (u.full_name, u.id) u.id, u.full_name, m.market_code,
-             (select count(*)::int from crm.activities a where a.owner_id = u.id and a.done_at is null and a.kind in ('task', 'handoff', 'call', 'meeting', 'email')
+             (select count(*)::int from crm.activities a where a.owner_id = u.id and a.done_at is null and a.kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit')
                 and a.due_at < date_trunc('day', now() at time zone ${tz}) at time zone ${tz})
              + (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()) as late,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null) as leads_waiting,

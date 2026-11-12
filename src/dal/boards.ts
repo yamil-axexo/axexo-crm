@@ -53,8 +53,9 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
              (select count(*)::int from crm.exceptions e where e.owner_id = u.id and e.resolved_at is null and e.kind = 'stalled_deal') as stalled,
              (select count(*)::int from crm.deals d where d.owner_id = u.id and d.status = 'open' and d.revisit_needed) as revisits,
              (select count(*)::int from crm.deals d join crm.stages s on s.id = d.stage_id where d.owner_id = u.id and d.status = 'open' and s.kind = 'awaiting_txn') as awaiting,
-             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = u.id and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7) as visits_7d,
-             (select count(*)::int from crm.visits v join crm.accounts a on a.id = v.account_id where a.owner_id = u.id and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7 and v.outcome = 'sale') as sales_7d,
+             -- crm.visit_log: visitas de la Sales App y las capturadas a mano; la manual no cuenta si la Sales App trajo la misma (comercio y día).
+             (select count(*)::int from crm.visit_log v where v.owner_id = u.id and v.visited_at > now() - interval '9 days' and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7) as visits_7d,
+             (select count(*)::int from crm.visit_log v where v.owner_id = u.id and v.visited_at > now() - interval '9 days' and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7 and v.outcome = 'sale') as sales_7d,
              (select count(*)::int from crm.accounts a where a.owner_id = u.id and a.archived_at is null) as accounts
         from crm.users u join crm.memberships m on m.user_id = u.id and m.role = 'rep' and (m.valid_to is null or m.valid_to > now())
         left join crm.teams t on t.id = m.team_id

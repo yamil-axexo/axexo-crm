@@ -150,17 +150,20 @@ export async function getAccount(ctx: Ctx, id: string) {
         from crm.merchant_metrics_daily where account_id = ${id} order by as_of desc limit 1`
     const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; owner_name: string | null }[]>`
       select a.id, a.kind, a.subject, a.due_at, u.full_name as owner_name from crm.activities a left join crm.users u on u.id = a.owner_id
-       where a.account_id = ${id} and a.kind in ('task', 'handoff', 'call', 'meeting', 'email') and a.done_at is null order by a.due_at nulls last limit 10`
-    // ACT-01: un solo timeline con actividades, visitas de la Sales App, cambios de etapa y cambios de dueño.
+       where a.account_id = ${id} and a.kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit') and a.done_at is null order by a.due_at nulls last limit 10`
+    // ACT-01: un solo hilo con actividades (incluidas las visitas capturadas a mano), visitas de la Sales App, cambios de etapa y de dueño.
     const timeline = await tx<TimelineItem[]>`
       select * from (
-        select a.created_at as at, a.kind, a.subject as title, a.body, u.full_name as actor,
-               jsonb_build_object('done', a.done_at is not null, 'source', a.source, 'outcome', a.outcome) as meta
+        -- Lo hecho se fecha con el día en que se hizo, no con el día en que se creó la tarea.
+        select coalesce(a.done_at, a.created_at) as at, a.kind, a.subject as title, a.body, u.full_name as actor,
+               jsonb_build_object('done', a.done_at is not null, 'source', a.source, 'outcome', a.outcome, 'visited_by', a.visited_by,
+                                  'origin', case when a.kind = 'visit' then 'manual' end) as meta
           from crm.activities a left join crm.users u on u.id = a.created_by where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
         union all
         select v.checked_in_at, 'visit', v.outcome, v.note, coalesce(u.full_name, v.salesperson_ref),
-               jsonb_build_object('rejection', v.rejection_code, 'revisit', v.revisit, 'minutes', v.duration_seconds / 60, 'decision_maker', v.decision_maker_seen)
-          from crm.visits v left join crm.users u on u.id = v.user_id where v.account_id = ${id}
+               jsonb_build_object('origin', 'sales_app', 'rejection', v.rejection_code, 'rejection_es', r.label_es, 'rejection_en', r.label_en,
+                                  'revisit', v.revisit, 'minutes', v.duration_seconds / 60, 'decision_maker', v.decision_maker_seen)
+          from crm.visits v left join crm.users u on u.id = v.user_id left join crm.loss_reasons r on r.code = v.rejection_code where v.account_id = ${id}
         union all
         select e.at, 'stage', t.name_es, t.name_en, u.full_name, jsonb_build_object('cause', e.cause, 'kind', t.kind)
           from crm.deal_stage_events e join crm.deals d on d.id = e.deal_id join crm.stages t on t.id = e.to_stage_id left join crm.users u on u.id = e.actor_id

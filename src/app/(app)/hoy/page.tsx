@@ -3,7 +3,7 @@ import { requireCtx, systemCtx } from '@/server/context'
 import { track } from '@/dal/boards'
 import { getQueue, getTeamQueue, QUEUE_PAGE, type QueueRow } from '@/dal/queue'
 import { ensureRulesFresh } from '@/domain/rules'
-import { resultOptions, sheetConfig } from '@/server/sheet'
+import { resultOptions, sheetConfig, taskResults } from '@/server/sheet'
 import { ago, clock, daysSince, longDay, weekday } from '@/lib/format'
 import type { MessageKey } from '@/lib/messages'
 import { cx } from '@/ui/kit'
@@ -148,8 +148,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
             : timed
               ? { text: clock(r.due, locale, tz), tone: r.due < now ? 'warn' : 'neutral' }
               : { text: m('today.chip.today'), tone: 'neutral' },
-      results: resultOptions(ctx, ['done', 'reached', 'no_answer', 'later']),
-      defaultResult: 'done',
+      ...taskResults(ctx, r.kind),
     }
   }
 

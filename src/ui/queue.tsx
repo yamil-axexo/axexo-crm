@@ -25,6 +25,7 @@ export type QueueItem = {
   results: { value: string; label: string }[]
   defaultResult: string | null
   closable?: boolean
+  visit?: boolean
 }
 export type QueueLabels = {
   now: string
@@ -255,7 +256,7 @@ export function Queue({
                         onClick={() => openSheet(item)}
                         aria-label={fill(labels.completeOf, item.title)}
                         title={labels.markDone}
-                        className="q-check inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
+                        className="q-check inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-line-2 text-black md:h-7 md:w-7"
                         data-testid="row-complete"
                       >
                         <Check size={16} strokeWidth={2.5} aria-hidden className="opacity-0" />

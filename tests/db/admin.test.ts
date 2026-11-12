@@ -298,7 +298,7 @@ describe('bitácora que se puede leer', () => {
     const access = await getAudit(nora, { tz, group: 'access' })
     expect(access.items.every((e) => /^(membership|team|user)\./.test(e.action))).toBe(true)
     const config = await getAudit(nora, { tz, group: 'config' })
-    expect(config.items.every((e) => /^(pipeline|stage|routing|api_client)\./.test(e.action))).toBe(true)
+    expect(config.items.every((e) => /^(pipeline|stage|routing|api_client|territory)\./.test(e.action))).toBe(true)
     const leads = await getAudit(nora, { tz, object: 'lead', market: 'US' })
     expect(leads.items.length).toBeGreaterThan(0)
     expect(leads.items.every((e) => e.object === 'lead' && e.market_code === 'US')).toBe(true)

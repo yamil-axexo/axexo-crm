@@ -26,6 +26,8 @@ export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: n
       select 'revisit_due', 'high', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title, 'due', d.revisit_due, 'reason', d.revisit_reason), 'revisit_due:' || d.id
         from crm.deals d where d.status = 'open' and d.revisit_needed and d.revisit_due <= ${marketToday(tx, tx`d.market_code`)}
+         -- con una visita por hacer en ese comercio, la revisita ya está en la lista de quien la lleva: no se avisa dos veces
+         and not exists (select 1 from crm.activities x where x.account_id = d.account_id and x.kind = 'visit' and x.done_at is null)
       union all
       select 'activation_risk', 'high', d.market_code, d.account_id, d.id, null, d.owner_id,
              jsonb_build_object('title', d.title, 'since', d.stage_entered_at), 'activation_risk:' || d.id

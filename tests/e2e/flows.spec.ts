@@ -430,6 +430,7 @@ test.describe('cuentas', () => {
     await fichaTab(page, 'datos')
     await page.getByTestId('reassign-to').selectOption({ label: 'Lucía Vega' })
     await page.getByTestId('reassign-save').click()
+    await page.getByTestId('reassign-save-confirm').click() // reasignar pide confirmación
     await expect(page.getByTestId('account-facts')).toContainText('Lucía Vega')
     const attribution = page.getByTestId('account-attribution')
     await expect(attribution).toContainText('Marco Peña')
@@ -498,6 +499,7 @@ test.describe('operación', () => {
     expect(n).toBeGreaterThan(0)
     const first = (await page.getByTestId('exception-row').first().locator('a span').first().innerText()).trim()
     await page.getByTestId('exception-row').first().getByTestId('exception-dismiss').click()
+    await page.getByTestId('exception-dismiss-confirm').click() // descartar pide confirmación
     await expect(page.getByTestId('exception-row').first().locator('a span').first()).not.toHaveText(first)
   })
 

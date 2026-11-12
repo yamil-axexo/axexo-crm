@@ -97,7 +97,7 @@ export async function AuditTab({ ctx, sp }: { ctx: Ctx; sp: AuditParams }) {
       ) : (
         <Table testId="audit-table" label={t('Eventos de la bitácora', 'Audit events')} head={<><th>{t('Cuándo', 'When')}</th><th>{t('Quién', 'Who')}</th><th>{t('Qué hizo', 'What they did')}</th><th>{t('Sobre', 'On')}</th><th>{t('Mercado', 'Market')}</th></>}>
           {d.items.map((e) => {
-            const rows = diffRows(t, locale, e.before, e.after, d.names)
+            const rows = diffRows(t, locale, e.before, e.after, d.names, e.action)
             const line = summary(t, locale, e.action, e.before, e.after, d.names)
             const name = e.object_id ? d.names[e.object_id] : null
             const href = e.object_id ? d.links[e.object_id] : null

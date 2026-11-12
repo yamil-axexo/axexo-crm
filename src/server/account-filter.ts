@@ -54,7 +54,7 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
   const risk = tx`a.lifecycle in ('at_risk', 'inactive', 'churned')`
   const idle = tx`(a.lifecycle = 'onboarding' or (a.lifecycle = 'prospect' and ${openDeal}))`
   const nostep = tx`(a.lifecycle <> 'churned'
-    and not exists (select 1 from crm.activities x where x.account_id = a.id and x.done_at is null and x.kind in ('task', 'handoff', 'call', 'meeting', 'email'))
+    and not exists (select 1 from crm.activities x where x.account_id = a.id and x.done_at is null and x.kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit'))
     and not exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open' and d.next_step is not null and d.next_step_due >= ${marketToday(tx, tx`a.market_code`)}))`
   const owner =
     f.owner === 'me' ? tx`and a.owner_id = ${ctx.user.id}`

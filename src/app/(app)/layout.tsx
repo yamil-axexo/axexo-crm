@@ -6,6 +6,8 @@ import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
+import { LogHost } from '@/ui/log'
+import { logConfig } from '@/server/sheet'
 import { ROLE_LABEL, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
@@ -37,6 +39,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ...(ctx.can('lead.create') ? [{ href: '/leads#nuevo', label: m('nav.create.lead') }] : []),
     ...(ctx.can('account.create') ? [{ href: '/comercios#nuevo', label: m('nav.create.merchant') }] : []),
   ]
+  // Registrar una visita, una llamada o una nota empieza en el dock: quien trabaja en la calle no abre primero la ficha.
+  const canLog = ctx.can('activity.write')
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
 
   return (
@@ -88,7 +92,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </header>
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
-      <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} />
+      <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} logLabel={canLog ? t('Registrar actividad', 'Log activity') : undefined} />
+      {canLog && <LogHost config={logConfig(ctx)} />}
       <ToastHost />
     </div>
   )

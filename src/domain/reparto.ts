@@ -54,7 +54,7 @@ async function assertTarget(tx: Tx, ctx: Ctx, market: string, toUserId: string):
 type Acc = { id: string; owner_id: string | null }
 
 /**
- * CAMPO-03 / CANAL-03: el comercio se va con sus negocios abiertos, sus tareas abiertas y sus pendientes, y la atribución
+ * CAMPO-03 / CANAL-03: el comercio se va con sus negocios abiertos, sus tareas y visitas por hacer y sus pendientes, y la atribución
  * de dueño queda con fecha efectiva (la anterior se cierra, no se borra).
  */
 async function moveAccounts(tx: Tx, ctx: Ctx, market: string, accs: Acc[], toUserId: string, toName: string): Promise<number> {
@@ -65,7 +65,7 @@ async function moveAccounts(tx: Tx, ctx: Ctx, market: string, accs: Acc[], toUse
   await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
            select a.id, a.market_code, 'owner', 'user', ${toUserId}, ${toName}, ${ctx.user.id} from crm.accounts a where a.id = any(${moved}::uuid[])`
   const deals = await tx`update crm.deals set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and status = 'open'`
-  const tasks = await tx`update crm.activities set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and kind = 'task' and done_at is null`
+  const tasks = await tx`update crm.activities set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and kind in ('task', 'visit') and done_at is null`
   await tx`update crm.accounts set owner_id = ${toUserId} where id = any(${moved}::uuid[])`
   // Los pendientes abiertos siguen al registro: Mi equipo cuenta por dueño y no debe seguir cargándolos a quien ya no lo lleva.
   await tx`update crm.exceptions set owner_id = ${toUserId} where resolved_at is null and account_id = any(${moved}::uuid[]) and kind not in ('unowned_account', 'duplicate_suspect')`
@@ -102,7 +102,7 @@ export async function previewAccounts(ctx: Ctx, f: AccountFilters, toUserId?: st
     const rows = await tx<RepartoPreview[]>`
       select count(*)::int as accounts,
              coalesce(sum((select count(*) from crm.deals d where d.account_id = a.id and d.status = 'open')), 0)::int as deals,
-             coalesce(sum((select count(*) from crm.activities x where x.account_id = a.id and x.kind = 'task' and x.done_at is null)), 0)::int as tasks
+             coalesce(sum((select count(*) from crm.activities x where x.account_id = a.id and x.kind in ('task', 'visit') and x.done_at is null)), 0)::int as tasks
         from crm.accounts a where ${where} ${isUuid(toUserId) ? tx`and a.owner_id is distinct from ${toUserId}` : tx``}`
     return rows[0]!
   })
@@ -225,7 +225,7 @@ export async function reassignLeads(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
 
 /**
  * Pasa los negocios abiertos de una persona a otra sin mover el comercio: el comercio se queda con su dueño.
- * Las tareas abiertas ligadas a esos negocios y sus pendientes se van con el negocio.
+ * Las tareas y las visitas por hacer ligadas a esos negocios y sus pendientes se van con el negocio.
  */
 export async function reassignDeals(ctx: Ctx, s: Source, batch = REPARTO_BATCH): Promise<Progress> {
   const market = marketOf(ctx, s.market)
@@ -239,7 +239,7 @@ export async function reassignDeals(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
     const ids = rows.map((r) => r.id)
     if (ids.length === 0) return { moved: 0, left: 0 }
     await tx`update crm.deals set owner_id = ${s.to} where id = any(${ids}::uuid[])`
-    const tasks = await tx`update crm.activities set owner_id = ${s.to} where deal_id = any(${ids}::uuid[]) and kind = 'task' and done_at is null`
+    const tasks = await tx`update crm.activities set owner_id = ${s.to} where deal_id = any(${ids}::uuid[]) and kind in ('task', 'visit') and done_at is null`
     await tx`update crm.exceptions set owner_id = ${s.to} where resolved_at is null and deal_id = any(${ids}::uuid[])`
     await audit(tx, ctx, 'deal.reassigned', 'deal', null, market, { count: ids.length, from: s.from }, { to_user_id: s.to, to_name: toName, tasks: tasks.count, deal_ids: ids.slice(0, 50) })
     await emit(tx, 'deal.reassigned', 'user', s.to, market, { count: ids.length })

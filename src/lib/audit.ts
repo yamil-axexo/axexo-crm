@@ -1,6 +1,6 @@
 import type { Locale, T } from '@/lib/format'
 import { ROLE_LABEL, type Role } from '@/domain/policy'
-import { EXCEPTION, LEAD_STATUS, MOTOR, SOURCE } from '@/lib/labels'
+import { ACTIVITY, EXCEPTION, LEAD_STATUS, MOTOR, SOURCE } from '@/lib/labels'
 
 type Pair = [es: string, en: string]
 
@@ -182,6 +182,11 @@ const FIELD: Record<string, Pair> = {
   unmatched: ['Filas sin comercio', 'Rows with no merchant'],
   deals_won: ['Negocios ganados', 'Deals won'],
   follows: ['Sigue a la actividad', 'Follows the activity'],
+  origin: ['Dónde se registró', 'Where it was logged'],
+  on: ['Día de la visita', 'Day of the visit'],
+  visited_by: ['Quién visitó', 'Who visited'],
+  revisit_needed: ['Pide revisita', 'Needs a revisit'],
+  by: ['Por', 'Because of'],
   contact_id: ['Contacto', 'Contact'],
 }
 
@@ -207,7 +212,21 @@ const VALUE: Record<string, Pair> = {
   done: ['Hecho', 'Done'],
   later: ['Después', 'Later'],
   none: ['Nada más', 'Nothing else'],
+  manual: ['En CONTIGO, a mano', 'In CONTIGO, by hand'],
+  manual_visit: ['Una visita registrada en CONTIGO', 'A visit logged in CONTIGO'],
+  sale: ['Hubo venta o alta', 'Sale or sign-up'],
+  no_sale: ['No hubo venta', 'No sale'],
+  revisit: ['Volver con quien decide', 'Go back for the decision-maker'],
   vacant: ['Sin dueño vigente', 'No current owner'],
+}
+
+/** "Qué sigue" al completar o registrar una actividad: los mismos nombres que la hoja de completar. */
+const NEXT: Record<string, Pair> = {
+  call: ['Llamar', 'Call'],
+  visit: ['Visitar', 'Visit'],
+  proposal: ['Enviar propuesta', 'Send proposal'],
+  meeting: ['Reunión', 'Meeting'],
+  task: ['Otra tarea', 'Other task'],
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -222,7 +241,7 @@ export function idsIn(value: Json, out: Set<string> = new Set()): Set<string> {
   return out
 }
 
-function word(t: T, locale: Locale, key: string, v: Json, names: Names): string {
+function word(t: T, locale: Locale, key: string, v: Json, names: Names, action = ''): string {
   if (v === null || v === undefined || v === '') return t('nada', 'nothing')
   if (typeof v === 'boolean') return v ? t('Sí', 'Yes') : 'No'
   if (typeof v === 'number') {
@@ -233,7 +252,7 @@ function word(t: T, locale: Locale, key: string, v: Json, names: Names): string 
     if (key === 'account_ids') return t(`${v.length} comercios`, `${v.length} merchants`)
     if (key === 'lead_ids') return t(`${v.length} leads`, `${v.length} leads`)
     if (key === 'deal_ids') return t(`${v.length} negocios`, `${v.length} deals`)
-    return v.length === 0 ? t('nadie', 'nobody') : v.map((x) => word(t, locale, key, x, names)).join(', ')
+    return v.length === 0 ? t('nadie', 'nobody') : v.map((x) => word(t, locale, key, x, names, action)).join(', ')
   }
   if (typeof v === 'object') return JSON.stringify(v).slice(0, 160)
   const s = String(v)
@@ -243,7 +262,10 @@ function word(t: T, locale: Locale, key: string, v: Json, names: Names): string 
   if (key === 'source' && SOURCE[s]) return t(...SOURCE[s])
   if (key === 'motor' && MOTOR[s]) return t(...MOTOR[s])
   if (key === 'kind' && EXCEPTION[s]) return t(...EXCEPTION[s].label)
-  if ((key === 'expires' || key === 'next_step_due' || key === 'as_of' || key === 'next') && DAY.test(s)) {
+  // En una actividad, "visit" es la visita que alguien registró o dejó por hacer; en una integración, la que llega de la Sales App.
+  if (key === 'kind' && action.startsWith('activity.') && ACTIVITY[s]) return t(...ACTIVITY[s])
+  if (key === 'next' && NEXT[s]) return t(...NEXT[s])
+  if ((key === 'expires' || key === 'next_step_due' || key === 'as_of' || key === 'next' || key === 'on') && DAY.test(s)) {
     return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${s}T12:00:00Z`))
   }
   if ((key === 'from' || key === 'from_user_ids') && s === 'none') return t('nadie (no tenían dueño)', 'nobody (they had no owner)')
@@ -256,7 +278,7 @@ const empty = (v: Json) => v === null || v === undefined || (Array.isArray(v) &&
 export type DiffRow = { key: string; label: string; before: string | null; after: string | null }
 
 /** El antes y el después de un evento, campo por campo y con nombres en vez de identificadores. */
-export function diffRows(t: T, locale: Locale, before: Record<string, Json> | null, after: Record<string, Json> | null, names: Names): DiffRow[] {
+export function diffRows(t: T, locale: Locale, before: Record<string, Json> | null, after: Record<string, Json> | null, names: Names, action = ''): DiffRow[] {
   const keys = [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])]
   return keys
     .filter((k) => JSON.stringify(before?.[k] ?? null) !== JSON.stringify(after?.[k] ?? null))
@@ -265,14 +287,14 @@ export function diffRows(t: T, locale: Locale, before: Record<string, Json> | nu
     .map((k) => ({
       key: k,
       label: FIELD[k] ? t(...FIELD[k]) : k,
-      before: before && k in before ? word(t, locale, k, before[k], names) : null,
-      after: after && k in after ? word(t, locale, k, after[k], names) : null,
+      before: before && k in before ? word(t, locale, k, before[k], names, action) : null,
+      after: after && k in after ? word(t, locale, k, after[k], names, action) : null,
     }))
 }
 
 /** Lo esencial de un evento en una línea, para leerlo sin abrir el detalle: "Ventas · US · vence el 30 nov 2026". */
 export function summary(t: T, locale: Locale, action: string, before: Record<string, Json> | null, after: Record<string, Json> | null, names: Names): string {
-  const w = (key: string, v: Json) => word(t, locale, key, v, names)
+  const w = (key: string, v: Json) => word(t, locale, key, v, names, action)
   const src = { ...(before ?? {}), ...(after ?? {}) }
   if (action.startsWith('membership.')) {
     const parts = [w('role', src.role), src.market ? String(src.market) : null, src.team_id ? w('team_id', src.team_id) : null]
@@ -292,6 +314,7 @@ export function summary(t: T, locale: Locale, action: string, before: Record<str
   if (action === 'pipeline.configured') return after?.close_by_transaction ? t('se gana con la primera transacción', 'won by the first transaction') : t('se cierra a mano', 'closed by hand')
   if (action === 'rules.evaluated') return t(`${w('opened', after?.opened)} avisos nuevos, ${w('closed', after?.closed)} resueltos solos`, `${w('opened', after?.opened)} new alerts, ${w('closed', after?.closed)} cleared on their own`)
   if (action === 'integration.simulated') return w('kind', after?.kind)
+  if (action === 'activity.added' || action === 'activity.completed') return [after?.kind ? w('kind', after.kind) : null, after?.outcome ? w('outcome', after.outcome) : null].filter(Boolean).join(' · ')
   if (action === 'api_client.created') return w('scopes', after?.scopes)
   if (action === 'session.started') return w('kind', after?.kind)
   return ''

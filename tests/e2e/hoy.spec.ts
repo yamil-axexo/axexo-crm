@@ -157,7 +157,7 @@ test.describe('móvil: llamar y volver', () => {
     const sheet = page.getByTestId('complete-sheet')
     await expect(sheet.getByTestId('sheet-title')).toHaveText(`¿Cómo te fue con ${name}?`)
     await sheet.getByText('Contactado', { exact: true }).click()
-    await sheet.getByText('Llamar de nuevo', { exact: true }).click()
+    await sheet.getByText('Llamar', { exact: true }).click() // la opción dejó de decir "de nuevo": también sigue a una visita
     await sheet.getByText('Hoy', { exact: true }).click()
     await sheet.getByTestId('sheet-save').click()
     await expect(page.getByTestId('toast')).toContainText(`Próximo paso: Llamar a ${name}`)

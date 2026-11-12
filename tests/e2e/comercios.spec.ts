@@ -74,13 +74,13 @@ for (const w of WIDTHS) {
       }
       await noSideScroll(page)
 
-      // encabezado, lo siguiente, cuatro acciones y pestañas con Hilo por defecto
+      // encabezado, lo siguiente, seis acciones (contactar: llamar, WhatsApp, mensaje; registrar: visita, nota, actividad) y pestañas con Hilo por defecto
       const ficha = page.getByTestId('ficha')
       await expect(ficha.locator('#ficha-title')).toHaveText('Grupo Abarrotero del Valle')
       await expect(ficha.getByTestId('account-facts')).toContainText(/Cadena · \d+ puntos de venta/)
       await expect(ficha.getByTestId('health')).toHaveText(/Activo|Sin transaccionar|En riesgo|Lead nuevo/)
       await expect(ficha.getByTestId('ficha-next')).toContainText('Lo siguiente')
-      await expect(ficha.getByTestId('ficha-actions').locator(':scope > a, :scope > button, :scope > span')).toHaveCount(4)
+      await expect(ficha.getByTestId('ficha-actions').locator(':scope > a, :scope > button, :scope > span')).toHaveCount(6)
       await expect(page.getByTestId('tab-hilo')).toHaveAttribute('aria-current', 'page')
       await axe(page, `ficha hilo ${w.name}`)
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/${w.name}-ficha.png` })
