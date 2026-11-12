@@ -15,6 +15,7 @@ import { configurePipelineAction, createApiClientAction, revokeApiClientAction, 
 import { PipedriveTab } from './pipedrive'
 import { PeopleTab, accessFilter } from './people'
 import { AuditTab, type AuditParams } from './audit'
+import { TerritoriosTab } from './territorios'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
@@ -22,7 +23,7 @@ import { readerTimeZone } from '@/server/timezone'
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
 
-const TABS = ['personas', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'auditoria'] as const
+const TABS = ['personas', 'territorios', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'auditoria'] as const
 type Tab = (typeof TABS)[number]
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; acceso?: string } & AuditParams> }) {
@@ -37,6 +38,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const hidden = TABS.includes(sp.tab as Tab) && !allowed.includes(sp.tab as Tab) ? (sp.tab as Tab) : null
   const labels: Record<Tab, string> = {
     personas: t('Personas y acceso', 'People and access'),
+    territorios: t('Territorios', 'Territories'),
     embudos: t('Embudos y campos', 'Pipelines and fields'),
     entrada: t('Formularios y turnos', 'Forms and rotation'),
     integraciones: t('Integraciones', 'Integrations'),
@@ -57,6 +59,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </p>
       )}
       {tab === 'personas' && <PeopleTab ctx={ctx} access={accessFilter(sp.acceso)} today={isoDay(new Date(), await readerTimeZone(ctx))} />}
+      {tab === 'territorios' && <TerritoriosTab ctx={ctx} />}
       {tab === 'embudos' && <Config />}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}

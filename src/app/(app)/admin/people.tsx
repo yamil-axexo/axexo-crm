@@ -9,6 +9,7 @@ import { CloseDialog, GrantFields, NoticeArea, NoticeForm } from '@/ui/admin'
 import { ago, day } from '@/lib/format'
 import { MOTOR, lab, qs } from '@/lib/labels'
 import { domainList } from '@/lib/domains'
+import { VacantNotice } from './sin-dueno'
 import { createTeamAction, endMembershipAction, grantMembershipAction, setMembershipExpiryAction } from './actions'
 
 const list = (items: string[], and: string) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} ${and} ${items[items.length - 1]}` : (items[0] ?? ''))
@@ -27,6 +28,8 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
 
   return (
     <NoticeArea closeLabel={t('Cerrar aviso', 'Dismiss notice')}>
+      {/* Debajo del aviso de lo que se acaba de hacer: quién tiene cartera sin dueño vigente y el botón para repartirla. */}
+      <VacantNotice ctx={ctx} />
       <Card pad={false} data-testid="admin-people">
         <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-6 md:px-7 md:pt-7">
           <div className="min-w-0 flex-1 basis-64">
@@ -151,7 +154,10 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
                                   : t(`Pierde este rol hoy. Conserva: ${others.map(roleText).join(', ')}.`, `They lose this role today. They keep: ${others.map(roleText).join(', ')}.`)}</li>
                                 {m.leaves_rules.length > 0 && <li data-testid="end-rules">{t(`Sale de los turnos de leads: ${m.leaves_rules.join(', ')}. Los leads nuevos ya no le llegan.`, `They leave the lead rotations: ${m.leaves_rules.join(', ')}. New leads stop going to them.`)}</li>}
                                 {m.fallback_of.length > 0 && <li>{t(`Deja de ser el respaldo de: ${m.fallback_of.join(', ')}. Ese turno queda sin respaldo hasta que alguien lo defina.`, `They stop being the fallback of: ${m.fallback_of.join(', ')}. That rotation has no fallback until someone sets one.`)}</li>}
-                                {things && <li>{t('Lo que tiene a su nombre no se mueve solo: sigue a su nombre hasta que alguien lo reasigne en ', 'What they have in their name does not move on its own: it stays theirs until someone reassigns it in ')}<Link href="/supervisor" className="font-semibold text-blue-text underline">{t('Mi equipo', 'My team')}</Link>.</li>}
+                                {things && m.vacates && <li data-testid="end-vacates">{t('Lo que tiene a su nombre no se mueve solo: queda sin dueño vigente. Supervisión y quien lidera el mercado lo ven en ', 'What they have in their name does not move on its own: it is left with no current owner. Supervisors and the market lead see it in ')}<Link href={qs('/supervisor', { market: m.market_code })} className="font-semibold text-blue-text underline">{t('Mi equipo', 'My team')}</Link>{t(', en "Sin dueño vigente", para repartirlo.', ', under "No current owner", to distribute it.')}</li>}
+                                {things && !m.vacates && <li data-testid="end-keeps">{m.market_code
+                                  ? t('Lo que tiene a su nombre sigue siendo suyo: conserva otro rol con el que lleva cartera en este mercado.', 'What they have in their name stays theirs: they keep another role that carries records in this market.')
+                                  : t('Lo que tiene a su nombre no se mueve: este rol no decide quién lleva la cartera de un mercado.', 'What they have in their name does not move: this role does not decide who carries a market’s records.')}</li>}
                                 <li>{t('Su historial se queda y puedes volver a darle acceso cuando haga falta.', 'Their history stays and you can grant access again whenever needed.')}</li>
                               </ul>
                               <NoticeForm action={endMembershipAction} className="mt-6">

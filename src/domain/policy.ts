@@ -18,6 +18,10 @@ export const CAPABILITIES = {
   'lead.create': SELLERS,
   'lead.work': SELLERS,
   'lead.assign': MANAGERS,
+  // Reparto: pasar negocios abiertos de una persona a otra sin mover el comercio, y poner territorio a comercios.
+  // Supervisión reparte dentro de su equipo; el líder de mercado, en todo su mercado (ver domain/reparto.ts).
+  'deal.reassign': MANAGERS,
+  'account.territory': MANAGERS,
   'deal.create': SELLERS,
   // Operaciones recibe el negocio después del alta y lo lleva hasta el final: lo edita y lo mueve en su mercado.
   // No crea negocios. Cada cambio queda en la bitácora con su nombre, igual que el de quien vende.

@@ -142,7 +142,7 @@
   "merchants.total": "{count, plural, one {# merchant in this view} other {# merchants in this view}}",
   "merchants.empty.title": "Nothing matches those filters",
   "merchants.empty.body": "Search by another name, by phone or by its Sales App ID.",
-  "merchants.search": "Name, phone or ID",
+  "merchants.search": "Name, city, phone or ID",
   "merchants.searchLabel": "Search merchants",
   "merchants.more": "Load more",
   "merchants.size.children": "{count, plural, one {# point of sale} other {# points of sale}}",

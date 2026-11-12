@@ -1,15 +1,17 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx, systemCtx } from '@/server/context'
-import { getBookSources, getSupervisorBoard } from '@/dal/boards'
-import { sellers } from '@/dal/leads'
+import { getSupervisorBoard } from '@/dal/boards'
+import { getRepartoSources } from '@/dal/reparto'
 import { ensureRulesFresh, EXCEPTION_KINDS } from '@/domain/rules'
-import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table } from '@/ui/kit'
+import { Badge, Card, CardTitle, Empty, LinkButton, PageHeader, Pills, Table } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
+import { RepartoForm } from '@/ui/reparto'
 import { ago, pct } from '@/lib/format'
+import { holderName, holdsText } from '@/lib/reparto-text'
 import { EXCEPTION, lab, qs } from '@/lib/labels'
 import { resolveExceptionAction, runRulesAction } from './actions'
-import { reassignAction } from '@/app/(app)/comercios/actions'
+import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
 import { flat } from '@/server/params'
 
 export default async function SupervisorPage({ searchParams }: { searchParams: Promise<{ market?: string; kind?: string; owner?: string }> }) {
@@ -21,8 +23,9 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const board = await getSupervisorBoard(ctx, sp)
   const live = ctx.markets.filter((m) => m.status === 'live')
   const canReassign = ctx.can('account.reassign', sp.market)
-  const people = canReassign ? await sellers(ctx, sp.market) : []
-  const book = canReassign ? await getBookSources(ctx) : { owners: [], regions: [] }
+  const sources = canReassign ? await getRepartoSources(ctx) : null
+  // Lo que nadie atiende: sin dueño, o a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en ese mercado.
+  const vacant = (sources?.holders ?? []).filter((h) => !h.current && (!sp.market || h.market_code === sp.market) && h.accounts + h.deals + h.leads > 0)
   const totalOpen = Object.values(board.byKind).reduce((a, b) => a + b, 0)
   const link = (patch: Record<string, string | undefined>) => qs('/supervisor', { market: sp.market, kind: sp.kind, owner: sp.owner, ...patch })
   const href = (e: (typeof board.queue)[number]) => (e.deal_id ? `/deals/${e.deal_id}` : e.lead_id ? `/leads/${e.lead_id}` : e.account_id ? `/comercios/${e.account_id}` : '/admin?tab=integraciones')
@@ -65,20 +68,39 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
             ))}
           </Table>
         )}
-        {canReassign && book.owners.length > 0 && (
+        {sources && sources.markets.length > 0 && (
           <div className="border-t border-line px-7 py-5">
-            <Dialog trigger={t('Reasignar una cartera completa', 'Reassign a whole book')} title={t('Reasignar cartera', 'Reassign book')} size="sm" testId="reassign-book">
-              <ActionForm action={reassignAction} onOk="close" className="space-y-4">
-                <p className="text-[13.5px] text-muted-2">{t('Mueve los comercios de una persona a otra, con sus negocios y tareas abiertas, de 500 en 500. La atribución anterior queda con fecha de cierre.', 'Moves one person’s merchants to another, with their open deals and tasks, 500 at a time. The previous attribution is closed with a date.')}</p>
-                <Field label={t('De', 'From')} hint={t('Incluye cuentas de servicio y personas que ya no están.', 'Includes service accounts and people who have left.')}><select name="from_user_id" className="input" required data-testid="book-from">{book.owners.map((o) => <option key={`${o.id}${o.market_code}`} value={`${o.id}|${o.market_code}`}>{o.full_name}{o.is_active ? '' : t(' (inactiva)', ' (inactive)')} · {o.market_code} ({o.accounts})</option>)}</select></Field>
-                {book.regions.length > 0 && <Field label={t('Solo esta región', 'Only this region')} hint={t('Opcional. Tiene que ser del mismo mercado.', 'Optional. It must be in the same market.')}><select name="region" className="input" data-testid="book-region"><option value="">{t('Todas las regiones', 'All regions')}</option>{book.regions.map((r) => <option key={`${r.market_code}${r.region}`} value={`${r.market_code}|${r.region}`}>{r.market_code} · {r.region} ({r.accounts})</option>)}</select></Field>}
-                <Field label={t('A', 'To')}><select name="to_user_id" className="input" data-testid="book-to">{people.map((p) => <option key={`${p.id}${p.market_code}`} value={p.id}>{p.full_name} · {p.market_code}</option>)}</select></Field>
-                <div className="flex justify-end"><Submit testId="book-save">{t('Reasignar', 'Reassign')}</Submit></div>
-              </ActionForm>
+            <Dialog trigger={t('Reasignar cartera', 'Reassign book')} title={t('Reasignar cartera', 'Reassign book')} testId="reassign-book">
+              <RepartoForm locale={locale} markets={sp.market ? sources.markets.filter((m) => m.code === sp.market) : sources.markets} holders={sources.holders} regions={sources.regions} territories={sources.territories} people={sources.people} actions={{ preview: repartoPreviewAction, step: repartoStepAction }} />
             </Dialog>
           </div>
         )}
       </Card>
+
+      {vacant.length > 0 && (
+        <Card className="mt-8" data-testid="vacant-block">
+          <CardTitle
+            title={t('Sin dueño vigente', 'No current owner')}
+            hint={t('Lo que nadie atiende hoy: no tiene dueño, o está a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en este mercado. Repártelo por dueño, región, ciudad o territorio.', 'What nobody is working today: it has no owner, or it sits under a service account or someone who no longer sells or runs operations in this market. Distribute it by owner, region, city or territory.')}
+          />
+          <ul>
+            {vacant.slice(0, 20).map((h) => (
+              <li key={`${h.owner_id}${h.market_code}`} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 border-t border-line py-4 first:border-t-0" data-testid="vacant-row">
+                <div className="min-w-0 flex-1 basis-[260px]">
+                  <p className="text-[15px] font-semibold text-strong [overflow-wrap:anywhere]">{holderName(t, h)}{live.length > 1 ? ` · ${h.market_code}` : ''}</p>
+                  <p className="mt-0.5 text-[14px] text-muted-2" data-testid="vacant-holds">{holdsText(t, locale, h)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {h.leads > 0 && <LinkButton href={qs('/leads', { owner: h.owner_id ?? 'none', market: h.market_code, status: 'open' })} variant="quiet" testId="vacant-leads">{t('Ver sus leads', 'See the leads')}</LinkButton>}
+                  {h.accounts > 0 && <LinkButton href={qs('/comercios', { owner: h.owner_id ?? 'none', market: h.market_code, repartir: '1' })} testId="vacant-go">{t('Repartir comercios', 'Distribute merchants')}</LinkButton>}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {vacant.length > 20 && <p className="mt-3 text-[13px] text-muted">{t(`Y ${vacant.length - 20} más. Usa "Reasignar cartera" para verlos todos.`, `And ${vacant.length - 20} more. Use "Reassign book" to see them all.`)}</p>}
+          <p className="mt-4 border-t border-line pt-4 text-[13px] text-muted">{t('Los leads y los negocios que no se van con un comercio se pasan desde "Reasignar cartera", arriba.', 'Leads and deals that do not move with a merchant are passed from "Reassign book", above.')}</p>
+        </Card>
+      )}
 
       <Card className="mt-8" data-testid="exception-queue">
         <CardTitle

@@ -23,6 +23,11 @@ export type MembershipRow = {
   /** Turnos de los que saldría si se le quita este rol, y turnos de los que es respaldo. */
   leaves_rules: string[]
   fallback_of: string[]
+  /**
+   * Es su último rol con el que cuenta como dueña vigente en ese mercado (ventas, supervisión, líder u operaciones):
+   * al quitarlo, lo que tiene a su nombre queda sin dueño vigente y aparece en Mi equipo para repartirlo.
+   */
+  vacates: boolean
 }
 
 /** Vigencia de una membresía: la misma condición que usa la base para decidir quién entra. */
@@ -49,7 +54,10 @@ export async function getUsers(ctx: Ctx, access: AccessFilter = 'con') {
              coalesce((select array_agg(r.name order by r.name) from crm.routing_rules r
                         where r.market_code = m.market_code and m.user_id = any(r.member_ids) and k.last_sales_role), '{}') as leaves_rules,
              coalesce((select array_agg(r.name order by r.name) from crm.routing_rules r
-                        where r.market_code = m.market_code and r.fallback_id = m.user_id and k.last_sales_role), '{}') as fallback_of
+                        where r.market_code = m.market_code and r.fallback_id = m.user_id and k.last_sales_role), '{}') as fallback_of,
+             (m.market_code is not null and m.role = any(app.owner_roles()) and not exists (
+                select 1 from crm.memberships o where o.user_id = m.user_id and o.id <> m.id and o.market_code = m.market_code
+                   and o.role = any(app.owner_roles()) and o.valid_from <= now() and (o.valid_to is null or o.valid_to > now()))) as vacates
         from crm.memberships m
         left join crm.teams t on t.id = m.team_id
         cross join lateral (select coalesce((select mk.timezone from crm.markets mk where mk.code = m.market_code), 'UTC') as tz) z
@@ -242,6 +250,7 @@ export async function getAudit(ctx: Ctx, f: AuditFilters) {
         union all select id, 'deal', title from crm.deals where id = any(${list}::uuid[])
         union all select id, 'lead', business_name from crm.leads where id = any(${list}::uuid[])
         union all select id, 'team', name from crm.teams where id = any(${list}::uuid[])
+        union all select id, 'territory', market_code || ' · ' || name from crm.territories where id = any(${list}::uuid[])
         union all select p.id, 'pipeline', p.market_code || ' · ' || p.name from crm.pipelines p where p.id = any(${list}::uuid[])
         union all select s.id, 'stage', ${ctx.locale === 'en' ? tx`s.name_en` : tx`s.name_es`} from crm.stages s where s.id = any(${list}::uuid[])
         union all select id, 'routing_rule', name from crm.routing_rules where id = any(${list}::uuid[])

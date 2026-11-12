@@ -14,6 +14,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'account.custom_updated': ['Cambió campos adicionales de un comercio', 'Edited a merchant’s additional fields'],
   'account.parent_changed': ['Cambió la cadena de un comercio', 'Changed a merchant’s parent'],
   'account.reassigned': ['Reasignó comercios', 'Reassigned merchants'],
+  'account.territory_set': ['Cambió el territorio de comercios', 'Changed the territory of merchants'],
   'account.merged': ['Fusionó un comercio duplicado', 'Merged a duplicate merchant'],
   'contact.added': ['Agregó un contacto', 'Added a contact'],
   'activity.added': ['Registró una actividad', 'Logged an activity'],
@@ -21,10 +22,12 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'deal.created': ['Creó un negocio', 'Created a deal'],
   'deal.updated': ['Cambió un negocio', 'Edited a deal'],
   'deal.custom_updated': ['Cambió campos adicionales de un negocio', 'Edited a deal’s additional fields'],
+  'deal.reassigned': ['Reasignó negocios abiertos', 'Reassigned open deals'],
   'deal.stage_changed': ['Movió un negocio de etapa', 'Moved a deal to another stage'],
   'deal.won_by_transaction': ['Negocio ganado por primera transacción', 'Deal won by first transaction'],
   'lead.created': ['Creó un lead', 'Created a lead'],
   'lead.assigned': ['Asignó un lead', 'Assigned a lead'],
+  'lead.reassigned': ['Reasignó leads abiertos', 'Reassigned open leads'],
   'lead.taken': ['Tomó un lead', 'Took a lead'],
   'lead.attempted': ['Intentó contactar un lead', 'Tried to reach a lead'],
   'lead.contacted': ['Contactó un lead', 'Reached a lead'],
@@ -39,6 +42,11 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   // La lista de arranque del ambiente (BOOTSTRAP_ADMIN_EMAILS) le dio Administración a esta persona al entrar: nadie se la otorgó desde la pantalla.
   'user.bootstrap_admin': ['Recibió Administración por la lista de arranque del ambiente', 'Got Administration from the environment’s bootstrap list'],
   'team.created': ['Creó un equipo', 'Created a team'],
+  'user.territories_changed': ['Cambió los territorios de una persona', 'Changed a person’s territories'],
+  'territory.created': ['Creó un territorio', 'Created a territory'],
+  'territory.renamed': ['Cambió el nombre de un territorio', 'Renamed a territory'],
+  'territory.archived': ['Archivó un territorio', 'Archived a territory'],
+  'territory.restored': ['Volvió a activar un territorio', 'Restored a territory'],
   'pipeline.configured': ['Cambió la regla de cierre de un embudo', 'Changed a pipeline’s closing rule'],
   'stage.updated': ['Cambió una etapa', 'Edited a stage'],
   'routing.members_changed': ['Cambió un turno de leads', 'Changed a lead rotation'],
@@ -63,7 +71,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
@@ -81,6 +89,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   activity: ['Actividad', 'Activity'],
   exception: ['Aviso', 'Alert'],
   team: ['Equipo', 'Team'],
+  territory: ['Territorio', 'Territory'],
   pipeline: ['Embudo', 'Pipeline'],
   stage: ['Etapa', 'Stage'],
   routing_rule: ['Turno de leads', 'Lead rotation'],
@@ -126,6 +135,16 @@ const FIELD: Record<string, Pair> = {
   motor: ['Tipo de venta', 'Sales motion'],
   count: ['Cantidad', 'Count'],
   account_ids: ['Comercios movidos', 'Merchants moved'],
+  lead_ids: ['Leads movidos', 'Leads moved'],
+  deal_ids: ['Negocios movidos', 'Deals moved'],
+  from_user_ids: ['Eran de', 'They belonged to'],
+  from: ['Eran de', 'They belonged to'],
+  to_name: ['Nombre de quien recibe', 'Name of who receives'],
+  tasks: ['Tareas y visitas abiertas que se fueron con ellos', 'Open tasks and visits moved with them'],
+  territory_id: ['Territorio', 'Territory'],
+  territory: ['Nombre del territorio', 'Territory name'],
+  territory_ids: ['Territorios', 'Territories'],
+  no_current_owner: ['Lo suyo quedó sin dueño vigente', 'Their records were left with no current owner'],
   account_id: ['Comercio', 'Merchant'],
   parent_id: ['Cadena', 'Parent'],
   source_id: ['Comercio archivado', 'Archived merchant'],
@@ -188,6 +207,7 @@ const VALUE: Record<string, Pair> = {
   done: ['Hecho', 'Done'],
   later: ['Después', 'Later'],
   none: ['Nada más', 'Nothing else'],
+  vacant: ['Sin dueño vigente', 'No current owner'],
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -211,6 +231,8 @@ function word(t: T, locale: Locale, key: string, v: Json, names: Names): string 
   }
   if (Array.isArray(v)) {
     if (key === 'account_ids') return t(`${v.length} comercios`, `${v.length} merchants`)
+    if (key === 'lead_ids') return t(`${v.length} leads`, `${v.length} leads`)
+    if (key === 'deal_ids') return t(`${v.length} negocios`, `${v.length} deals`)
     return v.length === 0 ? t('nadie', 'nobody') : v.map((x) => word(t, locale, key, x, names)).join(', ')
   }
   if (typeof v === 'object') return JSON.stringify(v).slice(0, 160)
@@ -224,6 +246,7 @@ function word(t: T, locale: Locale, key: string, v: Json, names: Names): string 
   if ((key === 'expires' || key === 'next_step_due' || key === 'as_of' || key === 'next') && DAY.test(s)) {
     return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${s}T12:00:00Z`))
   }
+  if ((key === 'from' || key === 'from_user_ids') && s === 'none') return t('nadie (no tenían dueño)', 'nobody (they had no owner)')
   if (VALUE[s]) return t(...VALUE[s])
   return s.length > 160 ? `${s.slice(0, 160)}…` : s
 }
@@ -261,6 +284,10 @@ export function summary(t: T, locale: Locale, action: string, before: Record<str
   if (action === 'deal.stage_changed') return t(`de ${w('stage_id', before?.stage_id)} a ${w('stage_id', after?.stage_id)}`, `from ${w('stage_id', before?.stage_id)} to ${w('stage_id', after?.stage_id)}`)
   if (action === 'lead.assigned' || action === 'lead.taken') return t(`de ${w('owner_id', before?.owner_id)} a ${w('owner_id', after?.owner_id)}`, `from ${w('owner_id', before?.owner_id)} to ${w('owner_id', after?.owner_id)}`)
   if (action === 'account.reassigned') return t(`${w('count', before?.count)} comercios a ${w('to_user_id', after?.to_user_id)}`, `${w('count', before?.count)} merchants to ${w('to_user_id', after?.to_user_id)}`)
+  if (action === 'lead.reassigned') return t(`${w('count', before?.count)} leads a ${w('to_user_id', after?.to_user_id)}`, `${w('count', before?.count)} leads to ${w('to_user_id', after?.to_user_id)}`)
+  if (action === 'deal.reassigned') return t(`${w('count', before?.count)} negocios a ${w('to_user_id', after?.to_user_id)}`, `${w('count', before?.count)} deals to ${w('to_user_id', after?.to_user_id)}`)
+  if (action === 'account.territory_set') return t(`${w('count', before?.count)} comercios: ${after?.territory ? w('territory', after.territory) : 'sin territorio'}`, `${w('count', before?.count)} merchants: ${after?.territory ? w('territory', after.territory) : 'no territory'}`)
+  if (action.startsWith('territory.')) return w('name', after?.name)
   if (action === 'routing.members_changed') return w('member_ids', after?.member_ids)
   if (action === 'pipeline.configured') return after?.close_by_transaction ? t('se gana con la primera transacción', 'won by the first transaction') : t('se cierra a mano', 'closed by hand')
   if (action === 'rules.evaluated') return t(`${w('opened', after?.opened)} avisos nuevos, ${w('closed', after?.closed)} resueltos solos`, `${w('opened', after?.opened)} new alerts, ${w('closed', after?.closed)} cleared on their own`)

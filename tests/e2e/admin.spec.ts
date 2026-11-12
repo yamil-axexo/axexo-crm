@@ -88,6 +88,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       await expect(confirm.getByTestId('end-owned')).toContainText(`${name} tiene a su nombre 1 lead abierto en US`)
       await expect(confirm.getByTestId('end-rules')).toContainText(`Sale de los turnos de leads: ${RULE}`)
       await expect(confirm.getByTestId('end-impact')).toContainText('ya no va a poder entrar a CONTIGO')
+      await expect(confirm.getByTestId('end-vacates')).toContainText('queda sin dueño vigente')
       await clean(page, `${w.name} confirmar quitar acceso`)
       // Cancelar no cambia nada.
       await confirm.getByTestId('dialog-cancel').click()
@@ -99,7 +100,9 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       const notice = page.getByTestId('admin-notice')
       await expect(notice).toContainText(`Acceso cerrado: ${name} ya no tiene ese rol.`)
       await expect(notice).toContainText(`Salió del turno: ${RULE}.`)
-      await expect(notice).toContainText('Sigue teniendo a su nombre 1 lead abierto: reasígnalos en Mi equipo.')
+      // Lo suyo quedó sin dueño vigente: el aviso lo dice con la misma cuenta y lleva a repartirlo.
+      await expect(notice).toContainText('Lo que tiene a su nombre (1 lead abierto) quedó sin dueño vigente en US y hay que repartirlo.')
+      await expect(notice.getByTestId('admin-notice-link')).toHaveAttribute('href', '/supervisor?market=US')
       await expect(page.getByTestId('person-row').filter({ hasText: email })).toHaveCount(0)
       await page.getByTestId('pill-sin').click()
       await expect(page.getByTestId('person-row').filter({ hasText: email }).getByTestId('no-access')).toContainText('Sin acceso desde el')

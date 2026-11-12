@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, startTransition, useActionState, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { buttonClass, cx } from '@/ui/kit'
@@ -25,21 +26,31 @@ export function TimezoneSync({ current }: { current: string }) {
 }
 
 // ------------------------------------------------------------------ aviso que sobrevive a la fila que lo causó
-const Notice = createContext<(text: string) => void>(() => {})
+export type NoticeLink = { href: string; label: string }
+type NoticeState = { text: string; link?: NoticeLink }
+const Notice = createContext<(notice: NoticeState) => void>(() => {})
+const linkOf = (data: unknown): NoticeLink | undefined => {
+  const link = (data as { link?: Partial<NoticeLink> } | null | undefined)?.link
+  return link && typeof link.href === 'string' && link.href.startsWith('/') && typeof link.label === 'string' ? { href: link.href, label: link.label } : undefined
+}
 
 /**
  * Zona con un aviso arriba. Al quitar un acceso, la fila (y su diálogo) desaparece: el resultado se muestra aquí,
  * se queda hasta que la persona lo cierra y lo anuncia un lector de pantalla.
  */
 export function NoticeArea({ children, closeLabel }: { children: ReactNode; closeLabel: string }) {
-  const [text, setText] = useState<string | null>(null)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
   return (
-    <Notice.Provider value={setText}>
+    <Notice.Provider value={setNotice}>
       <div aria-live="polite">
-        {text && (
+        {notice && (
           <div role="status" data-testid="admin-notice" className="mb-5 flex items-start gap-3 rounded-[14px] bg-green-100 px-5 py-4 text-[14px] font-medium text-brand-text">
-            <p className="min-w-0 flex-1 [overflow-wrap:anywhere]">{text}</p>
-            <button type="button" onClick={() => setText(null)} aria-label={closeLabel} className="press -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-green-50" data-testid="admin-notice-close">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-3">
+              <p className="min-w-0 flex-1 basis-[240px] [overflow-wrap:anywhere]">{notice.text}</p>
+              {/* El aviso lleva a lo que sigue: al quitar un acceso, a repartir lo que quedó sin dueño vigente. */}
+              {notice.link && <Link href={notice.link.href} className={buttonClass('ghost')} data-testid="admin-notice-link">{notice.link.label}</Link>}
+            </div>
+            <button type="button" onClick={() => setNotice(null)} aria-label={closeLabel} className="press -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-green-50" data-testid="admin-notice-close">
               <X size={18} strokeWidth={1.75} aria-hidden />
             </button>
           </div>
@@ -65,7 +76,7 @@ export function NoticeForm({ action, children, className, testId }: { action: Fo
     const res = await action(prev, data)
     if (res.ok) {
       last.current = Date.now()
-      if (res.message) notify(res.message)
+      if (res.message) notify({ text: res.message, link: linkOf(res.data) })
       ref.current?.closest('dialog')?.close()
     }
     return res

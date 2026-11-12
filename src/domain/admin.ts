@@ -169,12 +169,28 @@ export async function createTeam(ctx: Ctx, input: z.input<typeof teamInput>): Pr
   })
 }
 
-export type EndResult = { name: string; removedFrom: string[]; fallbackOf: string[]; accounts: number; deals: number; leads: number }
+export type EndResult = {
+  userId: string
+  name: string
+  /** Mercado del rol que se quitó; null si era un rol global (Administración, Leadership). */
+  market: string | null
+  removedFrom: string[]
+  fallbackOf: string[]
+  accounts: number
+  deals: number
+  leads: number
+  /**
+   * Con este rol se fue el último con el que la persona contaba como dueña vigente en ese mercado (ventas, supervisión,
+   * líder u operaciones): lo que tiene a su nombre quedó sin dueño vigente y lo ve supervisión para repartirlo.
+   */
+  vacant: boolean
+}
 
 /**
  * Quitar un acceso cierra la membresía hoy. Si con eso la persona deja de vender en el mercado, sale en la misma
  * operación de todos los turnos de leads de ese mercado y deja de ser el respaldo de cualquiera de ellos.
- * Sus comercios, negocios y leads siguen a su nombre: la respuesta dice cuántos son para que alguien los reasigne.
+ * Sus comercios, negocios y leads siguen a su nombre: la respuesta dice cuántos son y si quedaron sin dueño vigente,
+ * con la misma cuenta que muestra Mi equipo en "Sin dueño vigente", para mandarlos a repartir.
  */
 export async function endMembership(ctx: Ctx, membershipId: string): Promise<EndResult> {
   ctx.assert('config.manage')
@@ -205,9 +221,16 @@ export async function endMembership(ctx: Ctx, membershipId: string): Promise<End
       if (fallback !== r.fallback_id) fallbackOf.push(r.name)
     }
     const owned = await ownedOpen(tx, m.user_id, m.market_code)
+    // Un rol global no decide quién es dueño vigente: quitarlo no cambia lo que Mi equipo muestra en ningún mercado.
+    const left = m.market_code
+      ? await tx<{ vacant: boolean }[]>`
+          select ${m.role} = any(app.owner_roles())
+                 and not ((${m.market_code}::text || ':' || ${m.user_id}::text) = any(app.owner_keys(array[${m.market_code}]::text[]))) as vacant`
+      : []
+    const vacant = (left[0]?.vacant ?? false) && owned.accounts + owned.deals + owned.leads > 0
     await audit(tx, ctx, 'membership.ended', 'user', m.user_id, m.market_code, { role: m.role, market: m.market_code, team_id: m.team_id },
-      { removed_from_rules: removedFrom, fallback_cleared: fallbackOf, ...owned })
-    return { name: m.full_name, removedFrom, fallbackOf, ...owned }
+      { removed_from_rules: removedFrom, fallback_cleared: fallbackOf, ...owned, no_current_owner: vacant })
+    return { userId: m.user_id, name: m.full_name, market: m.market_code, removedFrom, fallbackOf, ...owned, vacant }
   })
 }
 
