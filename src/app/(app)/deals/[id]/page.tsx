@@ -13,7 +13,7 @@ import { pauseDealAction, resumeDealAction } from '@/app/(app)/b2b-actions'
 import { FIELD_LABEL } from '@/domain/deals'
 import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, buttonClass, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { day, dayTime, daysSince, money } from '@/lib/format'
+import { addDays, day, dayTime, daysSince, isoDay, money } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
 import { moveDealAction, updateDealAction } from '@/app/(app)/pipelines/actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
@@ -31,8 +31,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const market = ctx.market(deal.market_code)
   const canEdit = deal.status === 'open' && ctx.can('deal.edit', deal.market_code)
   // Cada embudo ofrece los motivos de su tipo de venta, más los que valen para todos.
-  const reasons = canEdit || deal.status === 'lost' ? await lossReasonsFor(ctx, deal.market_code, deal.status === 'lost' ? null : deal.motor) : []
-  const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: market.timezone })
+  const reasons = canEdit || deal.status === 'lost' ? await lossReasonsFor(ctx, deal.market_code, deal.motor) : []
+  const tomorrow = addDays(isoDay(new Date(), market.timezone), 1)
   const lost = stages.find((s) => s.kind === 'lost')
   const flow = stages.filter((s) => s.kind !== 'lost')
   const prev = current ? stages.find((s) => s.position === current.position - 1 && s.kind === 'open') : undefined

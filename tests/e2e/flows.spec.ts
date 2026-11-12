@@ -216,9 +216,12 @@ test.describe('embudo', () => {
     await page.getByTestId('deal-advance').click()
     await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Negociación')
 
-    await page.waitForTimeout(800)
-    await page.getByTestId('deal-advance').click()
-    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Contrato firmado, esperando primera venta')
+    // El embudo B2B de México trae las etapas del proceso corporativo después de negociar (paquete b2b, 12-nov-2026).
+    for (const stage of ['Integración', 'Pruebas', 'Certificación', 'Alta y capacitación', 'Contrato firmado, esperando primera venta']) {
+      await page.waitForTimeout(800)
+      await page.getByTestId('deal-advance').click()
+      await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText(stage)
+    }
     await expect(page.getByTestId('deal-move')).toContainText('nadie lo marca a mano')
     await expect(page.getByTestId('deal-advance')).toHaveCount(0)
   })
