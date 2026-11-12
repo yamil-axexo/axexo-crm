@@ -3,6 +3,7 @@ import { asPersona, attempt, ctxFor, owner, personaId } from './helpers'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
 import { addDealItem, bulkCloseLost, markNoticeSeen, removeDealItem, saveOpsCatalog, saveProduct, setMerchantRef, setOpsCheck, setOpsStep, setPipelineFlags, setTraining, takeDeal } from '@/domain/ops'
 import { createAccount } from '@/domain/accounts'
+import { updateCustom } from '@/domain/custom'
 import { addActivity } from '@/domain/activities'
 import { completeItem } from '@/domain/queue'
 import { getQueue } from '@/dal/queue'
@@ -110,7 +111,9 @@ describe('entrega de Ventas a Operaciones, cola y devolución', () => {
     const id = await createDeal(jade, { accountId, pipelineId: await uid('p-us-dealer'), title: `Entrega ${tag()}`, nextStep: 'Reunir documentos', nextStepDue: today })
     const contact = await one(admin<{ id: string }[]>`insert into crm.contacts (market_code, full_name) values ('US', 'Persona de prueba') returning id`)
     await admin`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${contact.id}, 'US', 'decision_maker')`
-    await updateDeal(jade, id, { decisionMakerId: contact.id, decisionMakerMet: true })
+    // La entrega a Operaciones pide monto y "Cuenta ACH o prepago" (ola 4, ajustes-campo): un negocio listo para entregar ya los trae.
+    await updateDeal(jade, id, { decisionMakerId: contact.id, decisionMakerMet: true, amount: 1200 })
+    await updateCustom(jade, 'deal', id, { account_funding: 'ACH' })
     await moveDeal(jade, id, await stage('p-us-dealer', 'application'))
     return { jade, id, accountId }
   }

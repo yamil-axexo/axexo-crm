@@ -176,7 +176,7 @@ export async function getOpsConfig(ctx: Ctx) {
   })
 }
 
-export type GateField = { token: string; key: string; label_es: string; label_en: string; data_type: string; options: string[] }
+export type GateField = { ref: string; key: string; label_es: string; label_en: string; data_type: string; options: string[] }
 export type GateInfo = { /** Campos adicionales que la etapa pide y faltan: se llenan en la misma hoja. */ fields?: GateField[]; missing: string[]; stageName: { es: string; en: string }; amount: string | null; nextStep: string | null; nextStepDue: string | null; decisionMakerId: string | null; decisionMakerMet: boolean; contacts: { id: string; full_name: string }[]; accountId: string }
 
 /** Definición de los campos adicionales que faltan ('field:<clave>'), para pedirlos en la hoja del candado. */
@@ -186,7 +186,7 @@ export async function gateFields(tx: Tx, market: string, missing: string[]): Pro
   const rows = await tx<{ key: string; label_es: string; label_en: string; data_type: string; options: string[] | null }[]>`
     select distinct on (key) key, label_es, label_en, data_type, options from crm.field_definitions
      where object = 'deal' and is_active and key = any(${keys}::text[]) and (market_code is null or market_code = ${market}) order by key, market_code nulls last`
-  return rows.map((r) => ({ token: `field:${r.key}`, key: r.key, label_es: r.label_es, label_en: r.label_en, data_type: r.data_type, options: Array.isArray(r.options) ? r.options.map(String) : [] }))
+  return rows.map((r) => ({ ref: `field:${r.key}`, key: r.key, label_es: r.label_es, label_en: r.label_en, data_type: r.data_type, options: Array.isArray(r.options) ? r.options.map(String) : [] }))
 }
 
 /** Qué le falta a un negocio para entrar a una etapa, con lo necesario para resolverlo ahí mismo (candado de etapa). */

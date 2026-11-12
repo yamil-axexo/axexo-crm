@@ -516,7 +516,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               {attributions.map((at, i) => (
                 <li key={i} className={at.effective_to ? 'text-muted' : ''}>
                   <p className="text-[13px] text-muted">{lab(t, ATTRIBUTION_LAYER[at.layer])}</p>
-                  <p className={cx('text-[15px] font-medium', at.effective_to ? 'text-muted-2' : 'text-strong')}>{at.party_label}</p>
+                  <p className={cx('text-[15px] font-medium', at.effective_to ? 'text-muted-2' : 'text-strong')} data-testid={`attribution-${at.layer}`}>{at.party_kind === 'form' ? t('Formulario web', 'Web form') : at.party_label}</p>
                   <p className="text-[13px] text-muted-2">{t('desde', 'since')} {day(at.effective_from, locale, tz)}{at.effective_to ? ` ${t('hasta', 'until')} ${day(at.effective_to, locale, tz)}` : ''}</p>
                 </li>
               ))}

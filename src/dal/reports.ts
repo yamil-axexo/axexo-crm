@@ -19,7 +19,8 @@ export function reportScope(ctx: Ctx): ReportScope {
   const live = ctx.markets.filter((m) => m.status === 'live').map((m) => m.code)
   const has = (code: string, roles: Role[]) => ctx.memberships.some((m) => roles.includes(m.role) && (m.market === null || m.market === code))
   const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead']))
-  const team = live.filter((c) => !full.includes(c) && has(c, ['supervisor']))
+  // Supervisión ve a su equipo; quien vende, solo lo que lleva (app.supervised_user_ids() devuelve a la propia persona y a quienes supervisa).
+  const team = live.filter((c) => !full.includes(c) && has(c, ['supervisor', 'rep']))
   return { full, team }
 }
 export const scopeMarkets = (s: ReportScope) => [...s.full, ...s.team]

@@ -71,7 +71,7 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
     if (card.winTo) void ops.gateInfo(card.id, card.winTo).then((info) => setWinInfo(info && info.missing.length > 0 ? info : null), () => {})
   }
   const winNeeds = (info: GateInfo) => {
-    const fieldName = (k: string) => { const f = (info.fields ?? []).find((x) => x.token === k); return f ? (labels.gate.lang === 'en' ? f.label_en : f.label_es) : k }
+    const fieldName = (k: string) => { const f = (info.fields ?? []).find((x) => x.ref === k); return f ? (labels.gate.lang === 'en' ? f.label_en : f.label_es) : k }
     const parts = info.missing.map((k) => labels.win.plain[k] ?? fieldName(k))
     return labels.win.needs.replace('%s', parts.length <= 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} ${labels.win.and} ${parts[parts.length - 1]}`)
   }

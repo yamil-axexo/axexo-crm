@@ -21,6 +21,10 @@ import { IntakeFields } from '@/ui/intake'
 import { Ficha, fichaTab, type FichaTab } from './ficha'
 import { flat } from '@/server/params'
 import { visitorNames } from '@/dal/field'
+import { marketPipelines } from '@/dal/leads'
+
+/** Las vistas compartidas que vienen de fábrica se guardaron con nombre en español: en inglés se leen en inglés. Las que crea cada equipo salen como las escribió. */
+const VIEW_EN: Record<string, string> = { 'En riesgo': 'At risk', 'Sin dueño': 'No owner', 'Esperando primera venta': 'Awaiting first sale' }
 
 type Params = AccountFilters & { vista?: string; ficha?: string; tab?: string; repartir?: string }
 
@@ -53,6 +57,9 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   // "Visitado por": sugiere el catálogo de vendedores de calle y los nombres ya usados en los mercados de la persona.
   const visitors = tree ? [] : [...new Set((await Promise.all((sp.market ? [sp.market] : live.map((x) => x.code)).map((code) => visitorNames(ctx, code)))).flat())]
   const [typeOptions, intake] = ctx.can('account.create') ? await Promise.all([accountTypeOptions(ctx), intakeFields(ctx)]) : [[], []]
+  // Canal por defecto de "Nuevo comercio": el del primer embudo del mercado de la persona (en US, Dealers; en México, tiendas).
+  const firstPipe = ctx.can('account.create') ? (await marketPipelines(ctx, live.find((x) => ctx.can('account.create', x.code))?.code))[0] : undefined
+  const defaultSegment = firstPipe && firstPipe.motor in MOTOR ? firstPipe.motor : 'd2d'
   await track(ctx, 'view.comercios')
   const multi = ctx.markets.length > 1
   // El estado de la lista vive en la URL: abrir o cerrar la ficha no pierde filtros, búsqueda ni página.
@@ -98,7 +105,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 <Field label={t('Mercado', 'Market')}><select name="market" className="input">{live.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></Field>
                 <Field label={t('Tipo de cuenta', 'Account type')}><select name="kind" className="input" data-testid="account-type">{typeOptions.map((x) => <option key={x.code} value={x.code}>{t(x.label_es, x.label_en)}</option>)}</select></Field>
                 <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="name" className="input" required minLength={2} data-testid="account-name" /></Field>
-                <Field label={t('Canal', 'Channel')}><select name="segment" className="input">{Object.entries(MOTOR).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
+                <Field label={t('Canal', 'Channel')}><select name="segment" className="input" defaultValue={defaultSegment} data-testid="account-segment">{Object.entries(MOTOR).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="account-phone" /></Field>
                 <Field label={t('Ciudad', 'City')}><input name="locality" className="input" /></Field>
                 <Field label={t('Estado o región', 'State or region')}><input name="region" className="input" /></Field>
@@ -126,7 +133,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
             // vistas guardadas del equipo; las que repiten un filtro de arriba no se duplican
             ...views.filter((v) => !v.filters.owner && v.filters.lifecycle !== 'at_risk').map((v) => {
               const f = v.filters
-              return { key: f.lifecycle ? `lc:${f.lifecycle}` : f.kind ? `k:${f.kind}` : `v:${v.id}`, href: qs('/comercios', { market: sp.market, owner: sp.owner, ...f }), label: v.name }
+              return { key: f.lifecycle ? `lc:${f.lifecycle}` : f.kind ? `k:${f.kind}` : `v:${v.id}`, href: qs('/comercios', { market: sp.market, owner: sp.owner, ...f }), label: t(v.name, VIEW_EN[v.name] ?? v.name) }
             }),
           ]}
         />}

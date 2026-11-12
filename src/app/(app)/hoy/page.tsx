@@ -80,7 +80,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
             <ul className="divide-y divide-line">
               {rows.map((r) => (
                 <li key={r.id} data-testid="team-row">
-                  <Link href={`/supervisor?owner=${r.id}`} className="row-hover grid grid-cols-3 gap-x-4 gap-y-2 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_96px_140px_120px_minmax(0,1.6fr)] md:items-center md:px-5">
+                  <Link href={r.late <= 2 && r.leads_waiting > 0 ? `/leads?owner=${r.id}&status=new&market=${r.market_code}` : `/supervisor?owner=${r.id}`} data-testid="team-row-link" className="row-hover grid grid-cols-3 gap-x-4 gap-y-2 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_96px_140px_120px_minmax(0,1.6fr)] md:items-center md:px-5">
                     <span className="col-span-3 min-w-0 md:col-span-1">
                       <span className="block truncate text-[15px] font-medium text-strong">{r.full_name}</span>
                       <span className="block text-[13px] text-muted">{r.market_code}</span>

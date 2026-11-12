@@ -62,7 +62,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     items: t('Falta al menos una línea de producto: agrégala abajo, en Líneas del pedido.', 'It needs at least one product line: add it below, under Order lines.'), openDeal: '',
     lang: locale, pickOne: t('Elige una opción', 'Pick an option'),
   }
-  const defNames = Object.fromEntries(gateDefs.map((f) => [f.token, { es: f.label_es, en: f.label_en }]))
+  const defNames = Object.fromEntries(gateDefs.map((f) => [f.ref, { es: f.label_es, en: f.label_en }]))
   const missingName = (k: string) => (defNames[k] ? t(defNames[k].es, defNames[k].en) : t(FIELD_LABEL[k]?.es ?? k, FIELD_LABEL[k]?.en ?? k))
   const gateInfoBase = { amount: deal.amount_minor ? String(Number(deal.amount_minor) / 100) : null, nextStep: deal.next_step, nextStepDue: deal.next_step_due,
     decisionMakerId: deal.decision_maker_id, decisionMakerMet: deal.decision_maker_met, contacts: contacts.map((c) => ({ id: c.id, full_name: c.full_name })), accountId: deal.account_id }
@@ -150,7 +150,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   <Dialog trigger={t('Completar lo que falta y avanzar', 'Fill in what is missing and move on')} title={t(`Para pasar a "${next.name_es}" falta esto`, `To move to "${next.name_en}" you still need this`)} variant="primary" testId="gate-open">
                     <ActionForm action={gateMoveAction} onOk="close">
                       <input type="hidden" name="deal_id" value={deal.id} /><input type="hidden" name="stage_id" value={next.id} />
-                      <GateFields minDate={today} dealHref={`/deals/${deal.id}`} info={{ ...gateInfoBase, missing: missingNext, fields: gateDefs.filter((f) => missingNext.includes(f.token)), stageName: { es: next.name_es, en: next.name_en } }} labels={gateLabels} />
+                      <GateFields minDate={today} dealHref={`/deals/${deal.id}`} info={{ ...gateInfoBase, missing: missingNext, fields: gateDefs.filter((f) => missingNext.includes(f.ref)), stageName: { es: next.name_es, en: next.name_en } }} labels={gateLabels} />
                       <div className="mt-6 flex justify-end"><Submit testId="gate-save">{t('Guardar y mover', 'Save and move')}</Submit></div>
                     </ActionForm>
                   </Dialog>
@@ -180,7 +180,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                         {won && missingWin.length > 0 && (
                           <div className="mt-4 border-t border-line pt-1" data-testid="win-gate">
                             <p className="mt-4 text-[14px] font-medium text-strong" data-testid="win-needs">{t(...winMissingText(missingWin, defNames))}</p>
-                            <GateFields minDate={today} dealHref={`/deals/${deal.id}`} info={{ ...gateInfoBase, missing: missingWin, fields: gateDefs.filter((f) => missingWin.includes(f.token)), stageName: { es: won.name_es, en: won.name_en } }} labels={gateLabels} />
+                            <GateFields minDate={today} dealHref={`/deals/${deal.id}`} info={{ ...gateInfoBase, missing: missingWin, fields: gateDefs.filter((f) => missingWin.includes(f.ref)), stageName: { es: won.name_es, en: won.name_en } }} labels={gateLabels} />
                           </div>
                         )}
                         <div className="mt-5 flex justify-end"><Submit testId="deal-win-confirm">{t('Marcar como ganado', 'Mark as won')}</Submit></div>

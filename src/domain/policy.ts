@@ -57,6 +57,8 @@ export const CAPABILITIES = {
   // Exportar es una lectura que sale de CONTIGO: lleva permiso propio y deja evento en la bitácora con filtros y filas.
   'report.view': ['admin', 'lt', 'market_lead', 'supervisor'],
   'report.export': ['admin', 'lt', 'market_lead', 'supervisor'],
+  // Quien vende ve SUS negocios cerrados (los que lleva), sin exportar ni ver los de nadie más.
+  'report.own': ['rep'],
   // Adopción: conteos de uso por persona. No la ve supervisión ni ventas.
   'adoption.read': ['admin', 'lt', 'market_lead'],
   'config.manage': ['admin'],
