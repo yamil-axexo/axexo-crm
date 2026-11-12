@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { getOnboarding } from '@/domain/onboarding'
-import { INTRO, STEPS, TRACK_LABEL, trackOf, type L, type Photo as PhotoName, type Track } from '@/content/guide'
+import { HABITS, INTRO, STEPS, TRACK_LABEL, trackOf, type L, type Photo as PhotoName, type Track } from '@/content/guide'
 import { buttonClass } from '@/ui/kit'
 import { MotionRoot } from '@/ui/showcase/motion'
 import { Phone, Photo } from '@/ui/showcase/frames'
@@ -11,7 +11,7 @@ import { hideOnboardingAction, showOnboardingAction, toggleStepAction } from './
 
 /** La foto que acompaña la bienvenida de cada rol. Administración va solo con su ilustración. */
 const TRACK_PHOTO: Record<Track, { name: PhotoName; pos: string } | null> = {
-  rep: { name: 'llamada', pos: '40% 30%' },
+  rep: { name: 'calle', pos: '58% 22%' },
   supervisor: { name: 'equipo', pos: '55% 35%' },
   lead: { name: 'equipo', pos: '55% 35%' },
   ops: { name: 'mostrador', pos: '66% 40%' },
@@ -29,6 +29,7 @@ export default async function WelcomePage() {
   const track = trackOf(ctx.memberships)
   const intro = INTRO[track]
   const steps = STEPS[track]
+  const habits = HABITS[track]
   const ob = await getOnboarding(ctx)
   const first = ctx.user.name.split(' ')[0]
   const photo = TRACK_PHOTO[track]
@@ -125,6 +126,31 @@ export default async function WelcomePage() {
           )}
         </div>
         <p className="mt-3 text-[13.5px] text-muted">{t('Esta página queda en tu menú, en "Primeros pasos".', 'This page stays in your menu, under "First steps".')}</p>
+      </section>
+
+      <section className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2" aria-label={t('Lo que cambia y lo que te pedimos', 'What changes and what we ask of you')} data-testid="habits">
+        <div className="card px-5 py-6 md:px-7" data-testid="habits-changes">
+          <h2 className="text-[19px] leading-7 font-semibold text-strong">{t('Lo que cambia frente a Pipedrive', 'What changes from Pipedrive')}</h2>
+          <ul className="mt-4 space-y-3">
+            {habits.changes.map((x) => (
+              <li key={x.es} className="grid grid-cols-[10px_1fr] items-start gap-3 text-[14.5px] leading-6 text-muted-2">
+                <span aria-hidden className="mt-2 h-2.5 w-2.5 rounded-full bg-[#33b888]" />
+                {l(x)}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="card px-5 py-6 md:px-7" data-testid="habits-asks">
+          <h2 className="text-[19px] leading-7 font-semibold text-strong">{t('Lo que te vamos a pedir', 'What we will ask of you')}</h2>
+          <ol className="mt-4 space-y-3">
+            {habits.asks.map((x, n) => (
+              <li key={x.es} className="grid grid-cols-[32px_1fr] items-start gap-3 text-[14.5px] leading-6 text-muted-2">
+                <span aria-hidden className="num grid h-8 w-8 place-items-center rounded-full bg-ink text-[13.5px] font-semibold text-[#3ddc97]">{n + 1}</span>
+                <span className="pt-1">{l(x)}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
       </section>
     </div>
   )
