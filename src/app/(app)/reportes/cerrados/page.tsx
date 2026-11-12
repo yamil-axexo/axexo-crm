@@ -56,7 +56,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
           <ul className="divide-y divide-line">
             {data.people.map((p) => (
               <li key={`${p.owner_id}${p.market_code}`} className="px-5 py-3.5 @2xl:grid @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_90px_90px_minmax(0,1.4fr)] @2xl:items-center @2xl:gap-4 @2xl:px-7" data-testid="closed-person">
-                <Link href={qs('/reportes/cerrados', { ...params, persona: p.owner_id ?? 'none', mercado: p.market_code })} className="block text-[15px] font-semibold text-strong underline decoration-line-2 underline-offset-4 [overflow-wrap:anywhere]">{p.owner_name ?? t('Sin dueño', 'No owner')}{options.markets.length > 1 ? ` · ${p.market_code}` : ''}</Link>
+                <Link href={qs('/reportes/cerrados', { ...params, persona: p.owner_id ?? 'none', mercado: p.market_code })} className="block text-[15px] font-semibold text-strong underline decoration-line-2 underline-offset-4 [overflow-wrap:anywhere]">{p.owner_name ?? t('Sin asignar', 'No owner')}{options.markets.length > 1 ? ` · ${p.market_code}` : ''}</Link>
                 <span className="block text-[14px] text-muted-2">{p.team_name ?? t('Sin equipo', 'No team')}</span>
                 <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Ganados: ', 'Won: ')}</span>{p.won}</span>
                 <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Perdidos: ', 'Lost: ')}</span>{p.lost}</span>
@@ -94,7 +94,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
                     <Link href={`/deals/${r.id}`} className="min-w-0 text-[14px] text-strong underline decoration-line-2 underline-offset-4 [overflow-wrap:anywhere]">{r.title}</Link>
                   </span>
                   <span className="mt-1 block text-[14px] text-muted-2 @4xl:mt-0"><span className={mobile}>{t('Embudo: ', 'Pipeline: ')}</span>{options.markets.length > 1 ? `${r.market_code} · ` : ''}{r.pipeline_name}</span>
-                  <span className="block text-[14px] text-strong"><span className={mobile}>{t('Quién: ', 'Owner: ')}</span>{r.owner_name ?? t('Sin dueño', 'No owner')}</span>
+                  <span className="block text-[14px] text-strong"><span className={mobile}>{t('Quién: ', 'Owner: ')}</span>{r.owner_name ?? t('Sin asignar', 'No owner')}</span>
                   <span className="num block text-[14px] text-strong"><span className={mobile}>{t('Cierre: ', 'Closed: ')}</span>{day(r.closed_on, locale)}</span>
                   <span className="num block text-[14px] text-strong"><span className={mobile}>{t('Monto: ', 'Amount: ')}</span>{r.amount_minor ? money(Number(r.amount_minor), r.currency.trim(), locale) : '—'}</span>
                   <span className="block text-[14px] text-muted-2">{r.status === 'lost' ? <><span className={mobile}>{t('Motivo: ', 'Reason: ')}</span>{t(r.reason_es ?? '—', r.reason_en ?? '—')}</> : <span className="hidden @4xl:inline">—</span>}</span>

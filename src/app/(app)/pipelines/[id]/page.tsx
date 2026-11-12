@@ -116,7 +116,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
           )}
           {options && people.length > 0 && (
             <NavSelect label={t('Persona', 'Person')} value={personValue} testId="board-person"
-              options={[{ href: here({ owner: undefined }), label: t('Todas las personas', 'Everyone') }, ...people.map(([pid, name]) => ({ href: here({ owner: pid }), label: name })), { href: here({ owner: 'none' }), label: t('Sin dueño', 'No owner') },
+              options={[{ href: here({ owner: undefined }), label: t('Todas las personas', 'Everyone') }, ...people.map(([pid, name]) => ({ href: here({ owner: pid }), label: name })), { href: here({ owner: 'none' }), label: t('Sin asignar', 'No owner') },
                 ...(isUuid(sp.owner) && !people.some(([pid]) => pid === sp.owner) ? [{ href: here({}), label: t('La persona elegida', 'The chosen person') }] : [])]} />
           )}
           <nav aria-label={m('deals.scope')} className="inline-flex rounded-full border border-line bg-surface p-1">

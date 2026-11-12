@@ -57,7 +57,7 @@ export async function getHolders(ctx: Ctx, markets: string[]): Promise<Holder[]>
     const rows = await tx<Holder[]>`
       with acc as (select a.market_code, a.owner_id, count(*)::int as n from crm.accounts a
                     where a.archived_at is null and a.market_code = any(${markets}::text[])
-                      and (a.owner_id is not null or a.parent_id is null)   -- sin dueño bajo una cadena: lo lleva la cadena
+                      and (a.owner_id is not null or a.parent_id is null)   -- sin asignar bajo una cadena: lo lleva la cadena
                     group by 1, 2),
            dl as (select d.market_code, d.owner_id, count(*)::int as n from crm.deals d
                    where d.status = 'open' and d.market_code = any(${markets}::text[]) group by 1, 2),

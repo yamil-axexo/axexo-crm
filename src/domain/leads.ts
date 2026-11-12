@@ -85,7 +85,7 @@ async function loadLead(tx: Tx, id: string): Promise<LeadRow> {
  * así cada contacto y cada cambio de estado tiene un responsable. Quien asigna leads sí puede.
  */
 export function assertOwned(ctx: Ctx, lead: { owner_id: string | null; market_code: string }): void {
-  if (!lead.owner_id && !ctx.can('lead.assign', lead.market_code)) throw invalid('Este lead no tiene dueño: tómalo antes de trabajarlo.', 'This lead has no owner: take it before working it.')
+  if (!lead.owner_id && !ctx.can('lead.assign', lead.market_code)) throw invalid('Nadie lleva este lead: tómalo antes de trabajarlo.', 'This lead has no owner: take it before working it.')
 }
 
 /** De dónde vino un lead web (E3.F6): los parámetros de campaña y los identificadores de clic de la dirección de la página. */
@@ -335,7 +335,7 @@ export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
     ctx.assert('lead.work', lead.market_code)
     if (!['new', 'contacted'].includes(lead.status)) throw invalid('Este lead ya se trabajó.', 'This lead was already worked.')
     if (lead.owner_id === ctx.user.id) return
-    if (lead.owner_id) throw invalid('Este lead ya tiene dueño. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
+    if (lead.owner_id) throw invalid('Alguien ya lleva este lead. Pide a tu supervisor que lo reasigne.', 'This lead already has an owner. Ask your supervisor to reassign it.')
     await tx`update crm.leads set owner_id = ${ctx.user.id}, assigned_at = now() where id = ${leadId} and owner_id is null`
     await audit(tx, ctx, 'lead.taken', 'lead', leadId, lead.market_code, { owner_id: null }, { owner_id: ctx.user.id })
   })
@@ -421,7 +421,7 @@ export async function releaseLead(ctx: Ctx, leadId: string, reason: string): Pro
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.work', lead.market_code)
     const mine = lead.owner_id === ctx.user.id
-    if (!lead.owner_id) throw invalid('Este lead ya está sin dueño.', 'This lead already has no owner.')
+    if (!lead.owner_id) throw invalid('Este lead ya está sin asignar.', 'This lead already has no owner.')
     if (!mine && !ctx.can('lead.assign', lead.market_code)) throw invalid('Solo puedes soltar un lead que es tuyo.', 'You can only release a lead that is yours.')
     if (!OPEN.includes(lead.status)) throw invalid('Este lead ya se cerró.', 'This lead is already closed.')
     await tx`insert into crm.activities (market_code, lead_id, kind, subject, body, done_at, owner_id, created_by)

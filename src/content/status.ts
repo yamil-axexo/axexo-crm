@@ -6,7 +6,7 @@ type Pair = [es: string, en: string]
 
 /** Datos de operación que hoy nadie ha definido. La página los muestra como "Por definir", sin inventar un valor. */
 export const UNDEFINED_ITEMS: { key: string; label: Pair; why: Pair }[] = [
-  { key: 'owner', label: ['Dueño técnico', 'Technical owner'], why: ['Quién responde por la herramienta y quién la cubre cuando no está.', 'Who answers for the tool and who covers when they are away.'] },
+  { key: 'owner', label: ['Responsable técnico', 'Technical owner'], why: ['Quién responde por la herramienta y quién la cubre cuando no está.', 'Who answers for the tool and who covers when they are away.'] },
   { key: 'backup', label: ['Respaldo de la base de datos', 'Database backup'], why: ['Cada cuánto se respalda y dónde queda la copia.', 'How often it is backed up and where the copy is kept.'] },
   { key: 'restore', label: ['Última restauración probada', 'Last tested restore'], why: ['Todavía no se ha probado recuperar la base desde un respaldo.', 'Recovering the database from a backup has not been tested yet.'] },
   { key: 'plan', label: ['Plan de restauración', 'Restore plan'], why: ['Cuánta información se puede perder como máximo y en cuánto tiempo vuelve el servicio.', 'How much data can be lost at most and how long the service takes to come back.'] },
@@ -21,7 +21,7 @@ export const NOT_YET: { group: Pair; items: Pair[] }[] = [
     group: ['Conexiones', 'Connections'],
     items: [
       // docs/scope.md: CAMPO-01 "contract and intake built; no live connection"
-      ['Conexión real con la Sales App y con S5. El contrato existe y se prueba desde Administración, pero ningún sistema manda datos todavía.', 'A live connection to the Sales App and to S5. The contract exists and is tested from Administration, but no system sends data yet.'],
+      ['Conexión real con la Sales App y con los datos de ventas. El contrato existe y se prueba desde Administración, pero ningún sistema manda datos todavía.', 'A live connection to the Sales App and to the sales data. The contract exists and is tested from Administration, but no system sends data yet.'],
       // docs/scope.md: AUT-02 "outbox written; no publisher"
       ['Envío de avisos a otros sistemas. CONTIGO los guarda, pero nadie los recoge.', 'Sending notices to other systems. CONTIGO stores them, but nobody picks them up.'],
       // docs/scope.md: AUT-04 "three inbound endpoints with keys; no read API"

@@ -17,6 +17,6 @@ export async function resolveExceptionAction(_: R | null, fd: FormData): Promise
 export async function runRulesAction(_: R | null, _fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const out = await runRulesNow(ctx, await systemCtx())
-    return { message: [`Reglas evaluadas: ${out.opened} nuevas, ${out.closed} resueltas solas.`, `Rules evaluated: ${out.opened} new, ${out.closed} cleared on their own.`] }
+    return { message: [`Avisos actualizados: ${out.opened} nuevos, ${out.closed} que ya se corrigieron.`, `Alerts refreshed: ${out.opened} new, ${out.closed} already fixed.`] }
   })
 }

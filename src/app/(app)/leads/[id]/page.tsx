@@ -95,7 +95,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         <div className="space-y-8 xl:col-span-2">
           {open && canWork && !lead.owner_id && !canAssign && (
             <Card data-testid="lead-free">
-              <CardTitle title={t('Este lead no tiene dueño', 'This lead has no owner')} hint={t('Tómalo para llamarlo y trabajarlo. Queda a tu nombre.', 'Take it to call and work it. It becomes yours.')} />
+              <CardTitle title={t('Nadie lleva este lead', 'This lead has no owner')} hint={t('Tómalo para llamarlo y trabajarlo. Queda a tu nombre.', 'Take it to call and work it. It becomes yours.')} />
               <ActionForm action={takeLeadAction}><input type="hidden" name="id" value={lead.id} /><Submit testId="lead-take">{t('Tomar este lead', 'Take this lead')}</Submit></ActionForm>
             </Card>
           )}
@@ -303,8 +303,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           )}
           <LeadAnswers ctx={ctx} leadId={lead.id} />
           <Card data-testid="lead-owner">
-            <CardTitle title={t('Dueño', 'Owner')} />
-            <p className="text-[15px] font-semibold text-strong">{lead.owner_name ?? t('Sin dueño', 'No owner')}</p>
+            <CardTitle title={t('Quién lo lleva', 'Owner')} />
+            <p className="text-[15px] font-semibold text-strong">{lead.owner_name ?? t('Sin asignar', 'No owner')}</p>
             {lead.owner_id && !lead.owner_active && open && <p className="mt-2 rounded-[10px] bg-warn-bg px-3 py-2 text-[13px] font-medium text-amber-text" data-testid="lead-owner-gone">{t('Esta persona ya no tiene acceso en este mercado. Pide que reasignen el lead.', 'This person no longer has access in this market. Ask for the lead to be reassigned.')}</p>}
             {lead.assigned_at && <p className="mt-1 text-[13px] text-muted">{t('Asignado', 'Assigned')} {ago(lead.assigned_at, locale)}</p>}
             {open && lead.owner_id && canWork && (mine || canAssign) && (
@@ -329,7 +329,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 <Dialog trigger={t('Soltar', 'Release')} title={t('Soltar este lead', 'Release this lead')} variant="quiet" size="sm" testId="lead-release">
                   <ActionForm action={leadStepAction} onOk="close" className="grid grid-cols-1 gap-4">
                     <input type="hidden" name="id" value={lead.id} />
-                    <Field label={t('Por qué lo sueltas', 'Why you are releasing it')} hint={t('Queda sin dueño y lo puede tomar cualquiera que venda en este mercado.', 'It is left with no owner and anyone who sells in this market can take it.')}>
+                    <Field label={t('Por qué lo sueltas', 'Why you are releasing it')} hint={t('Queda sin asignar y lo puede tomar cualquiera que venda en este mercado.', 'It is left with no owner and anyone who sells in this market can take it.')}>
                       <textarea name="reason_text" rows={3} required minLength={3} maxLength={500} className="input !h-auto py-3" data-testid="lead-release-reason" />
                     </Field>
                     <div className="flex justify-end"><Submit name="step" value="release" variant="danger" testId="lead-release-confirm">{t('Soltar lead', 'Release lead')}</Submit></div>

@@ -70,7 +70,7 @@ export async function endMembershipAction(_: R | null, fd: FormData): Promise<R>
     if (out.vacant && out.market) {
       // Lo que tenía a su nombre quedó sin dueño vigente: se dice con la misma cuenta que muestra Mi equipo y el aviso
       // lleva directo a repartirlo (los comercios, con sus negocios; si solo hay leads o negocios, a "Reasignar cartera").
-      es.push(`Lo que tiene a su nombre (${ownedEs}) quedó sin dueño vigente en ${out.market} y hay que repartirlo.`)
+      es.push(`Lo que tiene a su nombre (${ownedEs}) quedó por repartir en ${out.market} y hay que repartirlo.`)
       en.push(`What they hold (${ownedEn}) now has no current owner in ${out.market} and needs to be distributed.`)
       const href = out.accounts > 0 ? qs('/comercios', { owner: out.userId, market: out.market, repartir: '1' }) : qs('/supervisor', { market: out.market })
       return { message: [es.join(' '), en.join(' ')], data: { link: { href, label: ctx.t('Repartir', 'Distribute') } } }
@@ -164,7 +164,7 @@ export async function simulateVisitAction(_: R | null, fd: FormData): Promise<R>
     })
     await recordSimulation(ctx, 'visit', eventId, null)
     if (out.status === 'unmatched') return { message: ['El evento llegó, pero ese ID de la Sales App no existe aquí. Quedó en la cola de excepciones.', 'The event arrived, but that Sales App ID does not exist here. It went to the exception queue.'] }
-    return { message: ['Evento recibido y procesado. Mira el timeline del comercio y su deal.', 'Event received and processed. Check the merchant’s timeline and its deal.'] }
+    return { message: ['Evento recibido y procesado. Mira el hilo del comercio y su negocio.', 'Event received and processed. Check the merchant’s thread and its deal.'] }
   })
 }
 
@@ -183,7 +183,7 @@ export async function simulateStoreAction(_: R | null, fd: FormData): Promise<R>
     })
     if (out.status !== 'processed') throw invalid('No se pudo procesar el evento.', 'The event could not be processed.')
     await recordSimulation(ctx, 'store', eventId, ctx.markets.some((m) => m.code === market) ? market : null)
-    return { message: [`PDV recibido como ${customerId}. CONTIGO le emitió su ID y lo devolvió por el outbox.`, `Store received as ${customerId}. CONTIGO issued its ID and returned it through the outbox.`] }
+    return { message: [`Tienda recibida como ${customerId}. CONTIGO le dio su ID y dejó el aviso para la Sales App.`, `Store received as ${customerId}. CONTIGO gave it an ID and left the notice for the Sales App.`] }
   })
 }
 
@@ -206,7 +206,7 @@ export async function simulateMetricsAction(_: R | null, fd: FormData): Promise<
     })
     await recordSimulation(ctx, 'metrics', fileName, market?.code ?? null)
     if (out.matched === 0) throw invalid('Ese ID no corresponde a ningún comercio.', 'That ID does not match any merchant.')
-    return { message: [`Archivo cargado: ${out.matched} comercio, ${out.dealsWon} deal ganado por primera transacción.`, `File loaded: ${out.matched} merchant, ${out.dealsWon} deal won by first transaction.`] }
+    return { message: [`Archivo cargado: ${out.matched} comercio, ${out.dealsWon} negocio ganado por primera transacción.`, `File loaded: ${out.matched} merchant, ${out.dealsWon} deal won by first transaction.`] }
   })
 }
 

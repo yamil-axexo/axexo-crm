@@ -7,11 +7,19 @@ import postgres from 'postgres'
  * Mi equipo; leadership en el Panel del LT y administración en Administración. Las pruebas que ya existían parten de Hoy, así que
  * por defecto se navega ahí después de entrar; con `stay` la prueba se queda donde la persona aterrizó.
  */
-export async function loginAs(page: Page, persona: string, opts: { stay?: boolean } = {}) {
+const ENGLISH = new Set(['jade.kim', 'kira.dunn', 'robert.hale', 'sam.ortiz', 'tom.reyes'])
+
+export async function loginAs(page: Page, persona: string, opts: { stay?: boolean; /** Deja el idioma que hereda del navegador. */ browserLocale?: boolean } = {}) {
   await page.context().clearCookies()
   await page.goto('/login')
   await page.getByTestId(`persona-${persona}`).click()
   await expect(page).toHaveURL(/\/(hoy|operaciones|supervisor|panel-lt|admin)$/)
+  // Sin elección previa la app hereda el idioma del navegador de la prueba (es-MX). Las personas de US ya eligieron inglés:
+  // así cada prueba ve a la persona en su idioma, como antes. Quien prueba la herencia entra sin este helper.
+  if (!opts.browserLocale && ENGLISH.has(persona)) {
+    await page.context().addCookies([{ name: 'contigo_locale', value: 'en', url: page.url() }])
+    await page.reload()
+  }
   if (!opts.stay && !/\/hoy$/.test(page.url())) {
     await page.goto('/hoy')
     await expect(page).toHaveURL(/\/hoy$/)

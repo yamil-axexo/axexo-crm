@@ -27,7 +27,7 @@ export async function TerritoriosTab({ ctx }: { ctx: Ctx }) {
           <Card key={mk.code} data-testid={`territories-${mk.code}`}>
             <CardTitle
               title={t(`Territorios de ${mk.name}`, `Territories in ${mk.name}`)}
-              hint={t('Sirven para repartir por plaza. Quien vende ve los comercios sin dueño de sus territorios, y un comercio nuevo nace con el territorio de su dueño cuando tiene uno solo.', 'They are used to distribute by area. A seller sees the unowned merchants in their territories, and a new merchant starts with its owner’s territory when the owner has a single one.')}
+              hint={t('Sirven para repartir por plaza. Quien vende ve los comercios sin asignar de sus territorios, y un comercio nuevo nace con el territorio de quien lo lleva, cuando esa persona tiene uno solo.', 'They are used to distribute by area. A seller sees the unowned merchants in their territories, and a new merchant starts with its owner’s territory when the owner has a single one.')}
               right={<Badge>{t(`${current.length} vigentes`, `${current.length} current`)}</Badge>}
             />
             <ActionForm action={createTerritoryAction} onOk="reset" className="mb-6" testId="territory-create">

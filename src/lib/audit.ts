@@ -91,8 +91,8 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'api_client.revoked': ['Revocó una llave de API', 'Revoked an API key'],
   'integration.visit_received': ['Llegó una visita de la Sales App', 'A Sales App visit came in'],
   'integration.store_received': ['Llegó un punto de venta de la Sales App', 'A store came in from the Sales App'],
-  'integration.metrics_loaded': ['Se cargó el archivo diario de S5', 'The S5 daily file was loaded'],
-  'integration.metrics_quarantined': ['Archivo de S5 en cuarentena', 'S5 file quarantined'],
+  'integration.metrics_loaded': ['Se cargó el archivo diario de ventas', 'The daily sales file was loaded'],
+  'integration.metrics_quarantined': ['Archivo de ventas apartado para revisión', 'Sales file set aside for review'],
   'integration.simulated': ['Probó una integración desde Administración', 'Tested an integration from Administration'],
   'import.started': ['Inició la importación de Pipedrive', 'Started the Pipedrive import'],
   'import.resumed': ['Reanudó la importación de Pipedrive', 'Resumed the Pipedrive import'],
@@ -144,7 +144,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   routing_rule: ['Turno de leads', 'Lead rotation'],
   api_client: ['Llave de API', 'API key'],
   import_run: ['Importación de Pipedrive', 'Pipedrive import'],
-  ingest_batch: ['Archivo de S5', 'S5 file'],
+  ingest_batch: ['Archivo de ventas', 'Sales file'],
   integration: ['Integración', 'Integration'],
   rules: ['Reglas', 'Rules'],
   report: ['Reporte', 'Report'],
@@ -176,7 +176,7 @@ const FIELD: Record<string, Pair> = {
   market: ['Mercado', 'Market'],
   team_id: ['Equipo', 'Team'],
   expires: ['Vence el', 'Expires on'],
-  owner_id: ['Dueño', 'Owner'],
+  owner_id: ['Quién lo lleva', 'Owner'],
   to_user_id: ['Pasan a', 'Moved to'],
   status: ['Estado', 'Status'],
   stage_id: ['Etapa', 'Stage'],
@@ -187,7 +187,7 @@ const FIELD: Record<string, Pair> = {
   name_en: ['Nombre en inglés', 'Name in English'],
   rot_days: ['Se estanca a los', 'Stalls after'],
   required_fields: ['Pide para entrar', 'Required to enter'],
-  close_by_transaction: ['Se gana con la primera transacción (S5)', 'Won by the first transaction (S5)'],
+  close_by_transaction: ['Se gana con la primera transacción', 'Won by the first transaction'],
   awaiting_stage_id: ['Etapa que espera la transacción', 'Stage that waits for the transaction'],
   member_ids: ['Personas en el turno', 'People in the rotation'],
   fallback_id: ['Respaldo', 'Fallback'],
@@ -205,7 +205,7 @@ const FIELD: Record<string, Pair> = {
   territory_id: ['Territorio', 'Territory'],
   territory: ['Nombre del territorio', 'Territory name'],
   territory_ids: ['Territorios', 'Territories'],
-  no_current_owner: ['Lo suyo quedó sin dueño vigente', 'Their records were left with no current owner'],
+  no_current_owner: ['Lo suyo quedó por repartir', 'Their records were left with no current owner'],
   account_id: ['Comercio', 'Merchant'],
   parent_id: ['Cadena', 'Parent'],
   source_id: ['Comercio archivado', 'Archived merchant'],
@@ -264,7 +264,7 @@ const VALUE: Record<string, Pair> = {
   sso: ['Cuenta de Google', 'Google account'],
   visit: ['Visita de la Sales App', 'Sales App visit'],
   store: ['Punto de venta nuevo', 'New store'],
-  metrics: ['Archivo diario de S5', 'S5 daily file'],
+  metrics: ['Archivo diario de ventas', 'Daily sales file'],
   full: ['Completa', 'Full'],
   delta: ['Solo lo que cambió', 'Only what changed'],
   remap: ['Volver a aplicar el mapeo', 'Re-apply the mapping'],
@@ -278,7 +278,7 @@ const VALUE: Record<string, Pair> = {
   sale: ['Hubo venta o alta', 'Sale or sign-up'],
   no_sale: ['No hubo venta', 'No sale'],
   revisit: ['Volver con quien decide', 'Go back for the decision-maker'],
-  vacant: ['Sin dueño vigente', 'No current owner'],
+  vacant: ['Por repartir', 'No current owner'],
 }
 
 /** "Qué sigue" al completar o registrar una actividad: los mismos nombres que la hoja de completar. */
@@ -329,7 +329,7 @@ function word(t: T, locale: Locale, key: string, v: Json, names: Names, action =
   if ((key === 'expires' || key === 'next_step_due' || key === 'as_of' || key === 'next' || key === 'on') && DAY.test(s)) {
     return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${s}T12:00:00Z`))
   }
-  if ((key === 'from' || key === 'from_user_ids') && s === 'none') return t('nadie (no tenían dueño)', 'nobody (they had no owner)')
+  if ((key === 'from' || key === 'from_user_ids') && s === 'none') return t('nadie (estaban sin asignar)', 'nobody (they had no owner)')
   if (VALUE[s]) return t(...VALUE[s])
   return s.length > 160 ? `${s.slice(0, 160)}…` : s
 }

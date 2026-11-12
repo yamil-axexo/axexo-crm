@@ -15,7 +15,7 @@ export default async function PipelinesIndex({ searchParams }: { searchParams: P
   return (
     <>
       <PageHeader title="Pipelines" />
-      <Empty title={ctx.t('Tu mercado todavía no tiene pipelines', 'Your market has no pipelines yet')} />
+      <Empty title={ctx.t('Tu mercado todavía no tiene embudos', 'Your market has no pipelines yet')} />
     </>
   )
 }

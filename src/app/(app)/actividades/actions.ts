@@ -17,6 +17,6 @@ export async function addActivityAction(_: ActionResult<unknown> | null, fd: For
       dueAt: str(fd, 'due_at'),
       notify: kind === 'note' ? str(fd, 'notify') : '',
     })
-    return { message: ['Guardado en el timeline.', 'Saved to the timeline.'] }
+    return { message: ['Guardado en el hilo.', 'Saved to the thread.'] }
   })
 }

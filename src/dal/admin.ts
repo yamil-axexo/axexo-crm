@@ -291,7 +291,8 @@ export async function getDataQuality(ctx: Ctx) {
              count(*) filter (where not exists (select 1 from crm.account_contacts ac where ac.account_id = a.id and ac.valid_to is null))::int as no_contact,
              count(*) filter (where a.lifecycle <> 'prospect' and not exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null))::int as no_alias
         from crm.accounts a where a.archived_at is null group by a.market_code order by a.market_code`
-    // Lo que quedó a nombre de alguien que ya no tiene acceso, y lo que no tiene dueño: nadie lo va a trabajar hasta que se reasigne.
+    // "Por repartir": lo que sigue a nombre de alguien que hoy no vende ni opera en ese mercado (app.owner_roles, la misma regla
+    // de Mi equipo y de Comercios). Tener solo administración no cuenta como llevar cartera.
     const orphans = await tx<{ market_code: string; owner_id: string; full_name: string; accounts: number; deals: number; leads: number }[]>`
       select x.market_code, x.owner_id, u.full_name, sum(x.accounts)::int as accounts, sum(x.deals)::int as deals, sum(x.leads)::int as leads
         from (
@@ -299,7 +300,7 @@ export async function getDataQuality(ctx: Ctx) {
           union all select market_code, owner_id, 0, count(*), 0 from crm.deals where owner_id is not null and status = 'open' group by 1, 2
           union all select market_code, owner_id, 0, 0, count(*) from crm.leads where owner_id is not null and status in ('new','contacted','qualified') group by 1, 2
         ) x join crm.users u on u.id = x.owner_id
-       where not app.works_in(x.owner_id, x.market_code)
+       where not ((x.market_code || ':' || x.owner_id::text) = any((select app.owner_keys(array(select code from crm.markets)::text[]))::text[]))
        group by x.market_code, x.owner_id, u.full_name order by x.market_code, u.full_name limit 200`
     const unowned = await tx<{ market_code: string; leads: number; deals: number }[]>`
       select mk.code as market_code,

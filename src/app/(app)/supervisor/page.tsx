@@ -83,12 +83,12 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   return (
     <>
       <PageHeader
-        title={teamView ? t('Supervisión', 'Supervision') : t('Avisos del mercado', 'Market alerts')}
+        title={teamView ? t('Mi equipo', 'My team') : t('Avisos del mercado', 'Market alerts')}
         desc={teamView ? t('El equipo de un vistazo y la cola de lo que se salió de la regla. Nadie captura nada extra para alimentar esta pantalla.', 'The team at a glance and the queue of what broke a rule. Nobody enters anything extra to feed this screen.') : t('La cola de lo que se salió de la regla en tus mercados.', 'The queue of what broke a rule in your markets.')}
         actions={<>
           {canReport && <LinkButton href={qs('/reportes/cerrados', { mercado: sp.market, equipo: team })} testId="team-closed-link">{t('Negocios cerrados', 'Closed deals')}</LinkButton>}
           {canReport && <LinkButton href={qs('/reportes/campo', { mercado: sp.market, equipo: team })} variant="quiet" testId="team-field-link">{t('Reporte de campo', 'Field report')}</LinkButton>}
-          {ctx.can('rules.run') && <ActionForm action={runRulesAction}><Submit variant="ghost" testId="run-rules">{t('Evaluar reglas ahora', 'Evaluate rules now')}</Submit></ActionForm>}
+          {ctx.can('rules.run') && <ActionForm action={runRulesAction}><Submit variant="ghost" testId="run-rules">{t('Actualizar avisos', 'Refresh alerts')}</Submit></ActionForm>}
         </>}
       />
       {live.length > 1 && (
@@ -187,8 +187,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
       {vacant.length > 0 && (
         <Card className="mt-8" data-testid="vacant-block">
           <CardTitle
-            title={t('Sin dueño vigente', 'No current owner')}
-            hint={t('Lo que nadie atiende hoy: no tiene dueño, o está a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en este mercado. Repártelo por dueño, región, ciudad o territorio.', 'What nobody is working today: it has no owner, or it sits under a service account or someone who no longer sells or runs operations in this market. Distribute it by owner, region, city or territory.')}
+            title={t('Por repartir', 'No current owner')}
+            hint={t('Lo que nadie atiende hoy: no está asignado a nadie, o está a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en este mercado. Repártelo por quién lo lleva, región, ciudad o territorio.', 'What nobody is working today: it has no owner, or it sits under a service account or someone who no longer sells or runs operations in this market. Distribute it by owner, region, city or territory.')}
           />
           <ul>
             {vacant.slice(0, 20).map((h) => (
@@ -211,8 +211,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
 
       <Card className={teamView ? 'mt-8' : undefined} data-testid="exception-queue">
         <CardTitle
-          title={t('Cola de excepciones', 'Exception queue')}
-          hint={board.rulesAt ? t(`Reglas evaluadas ${ago(board.rulesAt, locale)}. Una excepción se cierra sola cuando se corrige.`, `Rules evaluated ${ago(board.rulesAt, locale)}. An exception closes itself once it is fixed.`) : undefined}
+          title={t('Pendientes del equipo', 'Team alerts')}
+          hint={board.rulesAt ? t(`Actualizado ${ago(board.rulesAt, locale)}. Un pendiente se cierra solo cuando se corrige.`, `Updated ${ago(board.rulesAt, locale)}. An alert clears itself once it is fixed.`) : undefined}
           right={<Badge tone={totalOpen ? 'warn' : 'good'}>{t(`${totalOpen} abiertas`, `${totalOpen} open`)}</Badge>}
         />
         <Pills
@@ -223,15 +223,17 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
             ...EXCEPTION_KINDS.filter((k) => board.byKind[k]).map((k) => ({ key: k, href: link({ kind: k }), label: lab(t, EXCEPTION[k]?.label), count: board.byKind[k] })),
           ]}
         />
-        {board.queue.length === 0 ? <div className="mt-6"><Empty title={t('Nada fuera de regla', 'Nothing off-rule')} /></div> : (
+        {board.queue.length === 0 ? <div className="mt-6"><Empty title={t('Nada pendiente en el equipo', 'Nothing pending on the team')} /></div> : (
           <ul className="mt-5">
             {board.queue.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-line py-3.5 first:border-t-0" data-testid="exception-row">
                 <Link href={href(e)} className="min-w-0 flex-1 basis-[240px]">
                   <span className="block truncate text-[14.5px] font-semibold text-strong">{String(e.detail.title ?? e.detail.name ?? e.detail.customer_id ?? '')}</span>
-                  <span className="mt-0.5 block truncate text-[13px] text-muted-2">{[lab(t, EXCEPTION[e.kind]?.label), e.owner_name ?? t('Sin dueño', 'No owner'), e.market_code, ago(e.opened_at, locale)].join(' · ')}</span>
+                  <span className="mt-0.5 block truncate text-[13px] text-muted-2">{[lab(t, EXCEPTION[e.kind]?.label), e.owner_name ?? t('Sin asignar', 'No owner'), e.market_code, ago(e.opened_at, locale)].join(' · ')}</span>
                 </Link>
-                <Badge tone={e.severity === 'high' ? 'bad' : e.severity === 'medium' ? 'warn' : 'neutral'}>{lab(t, EXCEPTION[e.kind]?.action)}</Badge>
+                {e.kind === 'unowned_account' && e.account_id && ctx.can('account.reassign', e.market_code)
+                  ? <LinkButton href={`/comercios/${e.account_id}?tab=datos`} size="sm" testId="exception-assign">{lab(t, EXCEPTION[e.kind]?.action)}</LinkButton>
+                  : <span className={e.severity === 'high' ? 'text-[13px] font-medium text-red-text' : 'text-[13px] text-muted-2'} data-testid="exception-hint">{t('Qué hacer: ', 'What to do: ')}{lab(t, EXCEPTION[e.kind]?.action)}</span>}
                 {ctx.can('exception.resolve', e.market_code) && (
                   <ConfirmButton
                     action={dismissExceptionAction}

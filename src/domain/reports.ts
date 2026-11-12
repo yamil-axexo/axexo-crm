@@ -57,7 +57,7 @@ export async function exportFieldReport(ctx: Ctx, f: FieldFilters, what: 'comerc
     const none = t('Sin dato', 'Not set')
     const csv = what === 'visitas'
       ? toCsv([t('Semana (lunes)', 'Week (Monday)'), t('Mercado', 'Market'), t('Equipo', 'Team'), t('Persona', 'Person'), t('Visitas', 'Visits'), t('Visitas con venta', 'Visits with a sale')],
-          data.visits.map((r) => [r.week, r.market_code, r.team_name ?? '', r.owner_name ?? t('Sin dueño', 'No owner'), r.visits, r.sales]))
+          data.visits.map((r) => [r.week, r.market_code, r.team_name ?? '', r.owner_name ?? t('Sin asignar', 'No owner'), r.visits, r.sales]))
       : toCsv([t('Semana (lunes)', 'Week (Monday)'), t('Mercado', 'Market'), f.by === 'plaza' ? t('Plaza', 'City') : t('Territorio', 'Territory'), t('Puntos de venta dados de alta', 'Stores enrolled'), t('Negocios ganados', 'Deals won')],
           data.places.map((r) => [r.week, r.market_code, r.place ?? none, r.stores, r.won]))
     const rows = what === 'visitas' ? data.visits.length : data.places.length

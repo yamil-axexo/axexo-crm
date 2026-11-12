@@ -96,7 +96,7 @@ export default async function FieldReportPage({ searchParams }: { searchParams: 
               <ul className="divide-y divide-line">
                 {visits.map((r) => (
                   <li key={`${r.market_code}${r.owner_id}`} className={`px-5 py-3 @2xl:px-7 ${VISIT}`} data-testid="field-person-row">
-                    <span className="block text-[14.5px] font-semibold text-strong [overflow-wrap:anywhere]">{r.owner_name ?? t('Sin dueño', 'No owner')}{multi ? ` · ${r.market_code}` : ''}</span>
+                    <span className="block text-[14.5px] font-semibold text-strong [overflow-wrap:anywhere]">{r.owner_name ?? t('Sin asignar', 'No owner')}{multi ? ` · ${r.market_code}` : ''}</span>
                     <span className="block text-[13.5px] text-muted-2">{r.team_name ?? t('Sin equipo', 'No team')}</span>
                     <span className="num block text-[14px] text-strong"><span className={lbl}>{t('Visitas: ', 'Visits: ')}</span>{num(r.visits, locale)}</span>
                     <span className="num block text-[14px] text-strong"><span className={lbl}>{t('Con venta: ', 'With a sale: ')}</span>{num(r.sales, locale)} <span className="text-muted">({pct(r.sales, r.visits)})</span></span>
