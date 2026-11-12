@@ -147,7 +147,8 @@ declare
   v_uid uuid := app.current_user_id();
   v_from int; v_to int; v_kind text; v_pipe uuid;
 begin
-  if new.stage_id is not distinct from old.stage_id or v_uid is null then return new; end if;
+  -- Sin identidad (migraciones) o con rol de administración (importación, integraciones de sistema) no aplica: la regla es para quien vende.
+  if new.stage_id is not distinct from old.stage_id or v_uid is null or app.is_admin() then return new; end if;
   select position, pipeline_id into v_from, v_pipe from crm.stages where id = old.stage_id;
   select position, kind into v_to, v_kind from crm.stages where id = new.stage_id;
   if v_kind = 'lost' or v_to <= v_from then return new; end if;

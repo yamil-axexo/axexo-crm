@@ -58,12 +58,14 @@ test.describe('pedido, entrega a Operaciones, cola, devolución y ganar a mano',
     await page.getByTestId('item-add').click()
     await expect(page.getByTestId('item-row')).toHaveCount(1)
     await expect(page.getByTestId('items-total')).toContainText('750')
+    await page.waitForTimeout(800) // justo después de guardar, el formulario ignora otro envío por un momento (doble clic)
     await page.getByTestId('item-product').selectOption(await uid('prod-us-topup'))
     await page.getByTestId('item-quantity').fill('2')
     await page.getByTestId('item-price').fill('40')
     await page.getByTestId('item-add').click()
     await expect(page.getByTestId('item-row')).toHaveCount(2)
     await expect(page.getByTestId('items-total')).toContainText('830')
+    await page.waitForTimeout(800)
     // un error dice qué campo y por qué
     await page.getByTestId('item-product').selectOption(await uid('prod-us-sim'))
     await page.getByTestId('item-quantity').fill('0')
@@ -132,7 +134,7 @@ test.describe('pedido, entrega a Operaciones, cola, devolución y ganar a mano',
     // próximo paso de Operaciones: llega a su Hoy y no pisa el de la vendedora
     await ops.getByTestId('ops-step').fill('Revisar inventario del pedido')
     await ops.getByTestId('ops-step-save').click()
-    await expect(ops.getByTestId('form-ok').last()).toBeVisible()
+    await expect(ops.getByText('Próximo paso de Operaciones guardado.')).toBeVisible()
     await page.goto('/hoy')
     await expect(page.getByText('Revisar inventario del pedido').first()).toBeVisible()
     const steps = await sql<{ next_step: string; ops_next_step: string }[]>`select next_step, ops_next_step from crm.deals where id = ${dealId}`

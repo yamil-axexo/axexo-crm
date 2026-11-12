@@ -143,7 +143,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               {canEdit && (
                 <div className="flex flex-wrap gap-3">
                   {next && next.kind !== 'won' && canAdvance && (
-                    <ActionForm action={moveDealAction}>
+                    <ActionForm action={moveDealAction} className="max-w-full [&_button]:h-auto [&_button]:min-h-11 [&_button]:py-2 [&_button]:whitespace-normal">
                       <input type="hidden" name="deal_id" value={deal.id} /><input type="hidden" name="stage_id" value={next.id} />
                       <Submit testId="deal-advance">{t(`Pasar a "${next.name_es}"`, `Move to "${next.name_en}"`)}</Submit>
                     </ActionForm>
@@ -161,7 +161,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                     </Dialog>
                   )}
                   {prev && !(current.is_ops && !prev.is_ops) && (
-                    <ActionForm action={moveDealAction}>
+                    <ActionForm action={moveDealAction} className="max-w-full [&_button]:h-auto [&_button]:min-h-11 [&_button]:py-2 [&_button]:whitespace-normal">
                       <input type="hidden" name="deal_id" value={deal.id} /><input type="hidden" name="stage_id" value={prev.id} />
                       <Submit variant="ghost" testId="deal-back">{t(`Regresar a "${prev.name_es}"`, `Back to "${prev.name_en}"`)}</Submit>
                     </ActionForm>

@@ -134,7 +134,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
           {stale.length > 0 && (
             <ActionForm action={bulkCloseAction} onOk="reset">
               <BulkPick
-                labels={{ all: t('Elegir todos', 'Select all'), none: t('Quitar selección', 'Clear selection'), picked: t('%n elegidos', '%n selected') }}
+                labels={{ all: t('Elegir todos', 'Select all'), none: t('Quitar selección', 'Clear selection'), picked: t('%n elegidos', '%n selected'), pickedOne: t('1 elegido', '1 selected'), pick: t('Elegir este negocio', 'Select this deal') }}
                 rows={stale.map((d) => ({
                   id: d.id,
                   node: (
