@@ -70,3 +70,17 @@ export function isReadOnly(memberships: Membership[]): boolean {
 export function rolesIn(memberships: Membership[], market: string): Role[] {
   return memberships.filter((m) => m.market === null || m.market === market).map((m) => m.role)
 }
+
+/**
+ * La pantalla donde aterriza cada quien al entrar. Quien vende u opera llega a Hoy, su lista de trabajo. Quien no lleva
+ * registros propios llega a su tablero: administración a Administración, leadership al Panel del LT y quien lidera un
+ * mercado a Mi equipo. Hoy sigue en el menú para todos.
+ */
+export type Home = '/hoy' | '/admin' | '/panel-lt' | '/supervisor'
+export function homePath(memberships: Membership[]): Home {
+  const has = (role: Role) => memberships.some((m) => m.role === role)
+  if (has('admin')) return '/admin'
+  if (has('lt')) return '/panel-lt'
+  if (has('market_lead')) return '/supervisor'
+  return '/hoy'
+}

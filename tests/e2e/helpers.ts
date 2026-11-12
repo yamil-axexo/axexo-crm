@@ -2,11 +2,20 @@ import { expect, type Page } from '@playwright/test'
 import postgres from 'postgres'
 
 /** Entra como una persona sintética desde la pantalla de login (solo existe fuera de producción). */
-export async function loginAs(page: Page, persona: string) {
+/**
+ * Cada rol aterriza en su pantalla: ventas, supervisión y operaciones en Hoy; quien lidera el mercado en Mi equipo;
+ * leadership en el Panel del LT y administración en Administración. Las pruebas que ya existían parten de Hoy, así que
+ * por defecto se navega ahí después de entrar; con `stay` la prueba se queda donde la persona aterrizó.
+ */
+export async function loginAs(page: Page, persona: string, opts: { stay?: boolean } = {}) {
   await page.context().clearCookies()
   await page.goto('/login')
   await page.getByTestId(`persona-${persona}`).click()
-  await expect(page).toHaveURL(/\/hoy$/)
+  await expect(page).toHaveURL(/\/(hoy|supervisor|panel-lt|admin)$/)
+  if (!opts.stay && !/\/hoy$/.test(page.url())) {
+    await page.goto('/hoy')
+    await expect(page).toHaveURL(/\/hoy$/)
+  }
 }
 
 export const pageErrors = (page: Page) => {

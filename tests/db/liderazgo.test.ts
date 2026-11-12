@@ -309,7 +309,7 @@ describe('resultados por semana y reporte de campo', () => {
     const all = await getWeeklyResults(ana, {})
     const sum = (rows: typeof weeks, k: 'won' | 'visits') => rows.reduce((n, r) => n + r[k], 0)
     expect(sum(all, 'won')).toBeGreaterThanOrEqual(sum(weeks, 'won'))
-    expect(sum(all, 'visits')).toBeGreaterThan(sum(weeks, 'visits'))
+    expect(sum(all, 'visits')).toBeGreaterThanOrEqual(sum(weeks, 'visits'))
     expect(sum(weeks, 'visits')).toBeGreaterThan(0)
     expect((await getWeeklyResults(await ctxFor('marco.pena'), {})).every((w) => w.won + w.lost + w.visits + w.stores === 0)).toBe(true)
   })

@@ -101,3 +101,7 @@ export function ReportFilters({ t, locale, base, params, period, periods = PERIO
 export function ExportLink({ href, children, testId }: { href: string; children: ReactNode; testId?: string }) {
   return <a href={href} download className={buttonClass('ghost')} data-testid={testId ?? 'export-csv'}>{children}</a>
 }
+
+/** De dónde sale una tasa, en palabras. El valor del ambiente de prueba se dice como lo que es: un ejemplo. */
+export const fxSource = (t: T, r: { source: string }) =>
+  r.source === 'synthetic' ? t('valor de ejemplo del ambiente de prueba, no es una tasa real', 'sample value from the test environment, not a real rate') : r.source

@@ -8,7 +8,7 @@ import { AccountMenu, Dock, OfflineBanner, SearchBox, type DockItem } from '@/ui
 import { ToastHost } from '@/ui/complete'
 import { LogHost } from '@/ui/log'
 import { logConfig } from '@/server/sheet'
-import { ROLE_LABEL, isReadOnly } from '@/domain/policy'
+import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
 const initials = (name: string) =>
@@ -46,7 +46,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-full">
       <header className="sticky top-0 z-[36] flex h-[60px] items-center gap-4 border-b border-line bg-surface px-4 md:h-[64px] md:gap-6 md:px-8 desk:h-[72px] desk:px-10" data-testid="topbar">
-        <Link href="/hoy" className="shrink-0" aria-label="axexo CONTIGO">
+        <Link href={homePath(ctx.memberships)} className="shrink-0" aria-label="axexo CONTIGO" data-testid="home-link">
           <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={129} height={32} priority className="h-7 w-auto md:h-8" />
         </Link>
         <SearchBox placeholder={m('top.search')} label={m('top.searchLabel')} />

@@ -36,13 +36,24 @@ export type RepRow = {
   visits_7d: number
   sales_7d: number
   accounts: number
+  team_id: string | null
+  role: 'rep' | 'supervisor' | 'market_lead'
+  /** Ventas de su cartera en los 30 días del archivo de S5 más reciente; null si ningún comercio suyo trae dato. */
+  txn_30d: number | null
+  /** Lo mismo, 30 días antes. null si S5 no trajo ese archivo: no se inventa la comparación. */
+  txn_prev_30d: number | null
+  /** Las ventas de hoy de los mismos comercios que sí tienen dato de 30 días antes: la comparación es entre los mismos comercios. */
+  txn_cmp_30d: number | null
 }
 
 /** CAMPO-04: el tablero es del supervisor; el vendedor no captura nada extra para alimentarlo. */
-export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: string; owner?: string }) {
+export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: string; owner?: string; team?: string }) {
   return withUser(ctx.user.id, async (tx) => {
+    // Todos los que venden en el alcance de quien mira: ventas siempre; supervisión y quien lidera, cuando llevan registros propios.
+    // Las ventas de la cartera vienen del archivo de S5: el más reciente de cada comercio y, si existe, el de 30 días antes (hasta 7 días de tolerancia).
     const reps = await tx<RepRow[]>`
-      select u.id, u.full_name, m.market_code, t.name as team,
+      select distinct on (x.market_code, x.team, x.full_name, x.id) x.* from (
+      select u.id, u.full_name, m.market_code, t.name as team, m.team_id, m.role,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status in ('new','contacted','qualified')) as leads_open,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()) as leads_overdue,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.created_at > now() - interval '14 days' and l.first_touch_at <= l.sla_due_at) as sla_met,
@@ -56,12 +67,26 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
              -- crm.visit_log: visitas de la Sales App y las capturadas a mano; la manual no cuenta si la Sales App trajo la misma (comercio y día).
              (select count(*)::int from crm.visit_log v where v.owner_id = u.id and v.visited_at > now() - interval '9 days' and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7) as visits_7d,
              (select count(*)::int from crm.visit_log v where v.owner_id = u.id and v.visited_at > now() - interval '9 days' and v.business_date > ${marketToday(tx, tx`v.market_code`)} - 7 and v.outcome = 'sale') as sales_7d,
-             (select count(*)::int from crm.accounts a where a.owner_id = u.id and a.archived_at is null) as accounts
-        from crm.users u join crm.memberships m on m.user_id = u.id and m.role = 'rep' and (m.valid_to is null or m.valid_to > now())
+             (select count(*)::int from crm.accounts a where a.owner_id = u.id and a.archived_at is null) as accounts,
+             s5.txn_30d, s5.txn_prev_30d, s5.txn_cmp_30d
+        from crm.users u join crm.memberships m on m.user_id = u.id and m.role in ('rep', 'supervisor', 'market_lead') and (m.valid_to is null or m.valid_to > now())
         left join crm.teams t on t.id = m.team_id
-       where u.is_active and (m.market_code = any(app.full_markets()) or u.id = any(app.supervised_user_ids()))
+        left join lateral (
+          select sum(cur.txn_count_30d)::int as txn_30d, sum(prev.txn_count_30d)::int as txn_prev_30d,
+                 (sum(cur.txn_count_30d) filter (where prev.txn_count_30d is not null))::int as txn_cmp_30d
+            from crm.accounts a
+            join lateral (select mm.as_of, mm.txn_count_30d from crm.merchant_metrics_daily mm where mm.account_id = a.id order by mm.as_of desc limit 1) cur on true
+            left join lateral (select mm.txn_count_30d from crm.merchant_metrics_daily mm
+                                where mm.account_id = a.id and mm.as_of <= cur.as_of - 30 and mm.as_of >= cur.as_of - 37 order by mm.as_of desc limit 1) prev on true
+           where a.owner_id = u.id and a.market_code = m.market_code and a.archived_at is null) s5 on true
+       where u.is_active and not u.is_system and (m.market_code = any(app.full_markets()) or u.id = any(app.supervised_user_ids()))
          ${f.market ? tx`and m.market_code = ${f.market}` : tx``}
-       order by m.market_code, t.name, u.full_name`
+         ${f.team === 'none' ? tx`and m.team_id is null` : isUuid(f.team) ? tx`and m.team_id = ${f.team}` : tx``}
+      ) x
+       where x.role = 'rep' or x.accounts + x.deals_open + x.leads_open > 0
+       order by x.market_code, x.team nulls last, x.full_name, x.id, (x.role = 'rep') desc`
+    const metricsAsOf = await tx<{ as_of: string | null }[]>`
+      select max(mm.as_of)::text as as_of from crm.merchant_metrics_daily mm where true ${f.market ? tx`and mm.market_code = ${f.market}` : tx``}`
     const queue = await tx<ExceptionItem[]>`
       select e.id, e.market_code, e.kind, e.severity, e.account_id, e.deal_id, e.lead_id, e.owner_id, u.full_name as owner_name, e.detail, e.opened_at
         from crm.exceptions e left join crm.users u on u.id = e.owner_id
@@ -74,7 +99,7 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
       select e.kind, count(*)::int as n from crm.exceptions e where e.resolved_at is null
         ${f.market ? tx`and e.market_code = ${f.market}` : tx``} group by e.kind`
     const last = await tx<{ at: string | null }[]>`select value #>> '{}' as at from crm.settings where key = 'rules_last_run'`
-    return { reps: [...reps], queue: [...queue], byKind: Object.fromEntries(byKind.map((k) => [k.kind, k.n])) as Record<string, number>, rulesAt: last[0]?.at ?? null }
+    return { reps: [...reps], queue: [...queue], byKind: Object.fromEntries(byKind.map((k) => [k.kind, k.n])) as Record<string, number>, rulesAt: last[0]?.at ?? null, metricsAsOf: metricsAsOf[0]?.as_of ?? null }
   })
 }
 
