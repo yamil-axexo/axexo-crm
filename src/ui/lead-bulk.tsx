@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { buttonClass } from '@/ui/kit'
-import { offlineBlocked } from '@/ui/complete'
+import { offlineBlocked, showToast } from '@/ui/complete'
 import type { FormAction } from '@/ui/client'
 
 export const BULK_FORM = 'lead-bulk'
@@ -40,6 +40,8 @@ export function LeadBulk({ action, reasons, labels }: { action: FormAction; reas
 
   useEffect(() => {
     if (!state?.ok) return
+    // La confirmación va en el aviso de la pantalla: si se cerraron todos, la lista queda vacía y esta barra desaparece.
+    if (state.message) showToast(state.message)
     for (const b of boxes()) b.checked = false
     // El conteo se actualiza por el mismo camino que un clic: el oyente de "change" del documento.
     document.dispatchEvent(new Event('change'))
@@ -76,7 +78,6 @@ export function LeadBulk({ action, reasons, labels }: { action: FormAction; reas
       </div>
       {count > 0 && <p className="pb-1 text-[13px] text-muted">{labels.hint}</p>}
       {state && !state.ok && <p role="alert" data-testid="lead-bulk-error" className="my-2 rounded-[10px] bg-risk-bg px-3 py-2 text-[13px] font-medium text-red-text">{state.error}</p>}
-      {state?.ok && state.message && <p role="status" data-testid="lead-bulk-ok" className="my-2 rounded-[10px] bg-green-100 px-3 py-2 text-[13px] font-medium text-brand-text">{state.message}</p>}
     </form>
   )
 }
