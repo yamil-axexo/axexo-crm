@@ -56,8 +56,9 @@ export default async function PanelLtPage() {
                   </li>
                 ))}
               </ul>
-              <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-6 sm:grid-cols-4">
-                <div><dt className="text-[12.5px] text-muted">{t('Respuesta a tiempo', 'On-time response')}</dt><dd className="display num mt-1 text-[22px] font-bold text-strong">{pct(m.sla_met, m.sla_judged)}</dd></div>
+              <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-6 sm:grid-cols-3 xl:grid-cols-5">
+                <div><dt className="text-[12.5px] text-muted">{t('Primer intento a tiempo', 'First attempt on time')}</dt><dd className="display num mt-1 text-[22px] font-bold text-strong" data-testid="lt-attempt">{pct(m.sla_met, m.sla_judged)}</dd></div>
+                <div><dt className="text-[12.5px] text-muted">{t('Contacto logrado', 'Reached')}</dt><dd className="display num mt-1 text-[22px] font-bold text-strong" data-testid="lt-reached">{pct(m.reached, m.sla_judged)}</dd></div>
                 <div><dt className="text-[12.5px] text-muted">{t('Días a la primera venta', 'Days to first sale')}</dt><dd className="display num mt-1 text-[22px] font-bold text-strong">{m.days_to_first_txn ?? '—'}</dd></div>
                 <div><dt className="text-[12.5px] text-muted">{t('Revisitas pendientes', 'Pending revisits')}</dt><dd className="display num mt-1 text-[22px] font-bold text-strong">{m.revisits}</dd></div>
                 <div><dt className="text-[12.5px] text-muted">{t('En riesgo / inactivos', 'At risk / inactive')}</dt><dd className="display num mt-1 text-[22px] font-bold text-strong">{m.accounts_at_risk} / {m.accounts_inactive}</dd></div>

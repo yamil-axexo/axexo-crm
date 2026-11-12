@@ -6,7 +6,7 @@ import { Badge, Card, CardTitle, Field, KeyVal, PageHeader } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { ago, dayTime, phoneText } from '@/lib/format'
 import { ACTIVITY, LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
-import { leadStepAction } from '../actions'
+import { leadStepAction, takeLeadAction } from '../actions'
 import { CompleteButton } from '@/ui/complete'
 import { resultOptions, sheetConfig } from '@/server/sheet'
 import { buttonClass } from '@/ui/kit'
@@ -40,7 +40,13 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
       />
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
         <div className="space-y-8 xl:col-span-2">
-          {open && canWork && (
+          {open && canWork && !lead.owner_id && !canAssign && (
+            <Card data-testid="lead-free">
+              <CardTitle title={t('Este lead no tiene dueño', 'This lead has no owner')} hint={t('Tómalo para llamarlo y trabajarlo. Queda a tu nombre.', 'Take it to call and work it. It becomes yours.')} />
+              <ActionForm action={takeLeadAction}><input type="hidden" name="id" value={lead.id} /><Submit testId="lead-take">{t('Tomar este lead', 'Take this lead')}</Submit></ActionForm>
+            </Card>
+          )}
+          {open && canWork && (lead.owner_id || canAssign) && (
             <Card data-testid="lead-steps">
               <CardTitle
                 title={lead.status === 'qualified' ? t('Listo para convertir', 'Ready to convert') : t('Siguiente paso', 'Next step')}

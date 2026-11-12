@@ -41,6 +41,12 @@ An independent committee of four reviewers (functional QA, security and controls
 
 What the committee raised that is a decision, not a fix, is listed in the committee report delivered with the pull request.
 
+### Decisions taken by Yamil on the committee's open points (11-Nov-2026)
+- **Leads with no owner are visible to sellers of their market.** Before, only supervisors, market leads and admins saw them, so "Tomar y llamar" did not exist for a rep. Migration `0008_open_leads` adds that case to the read and update policies. A rep can take one; nobody can work one without taking it (the row that results from an update must be theirs, and the domain says so before the database does). Leads owned by someone else stay hidden from other reps.
+- **An attempt is not a contact.** The first-contact clock still stops at the first logged attempt. Mi equipo and Panel del LT now show two numbers over the same leads: "Primer intento a tiempo" and "Contacto logrado".
+- **The next step is asked every time something is completed.** This keeps the handoff rule over the earlier features-committee position (block only on stage change). The risk the features committee named, filler dates, is to be measured in the pilot.
+- **Won by hand during the pilot.** In the three pipelines that close by first transaction (MX B2B/ISO, MX D2D Store Enrollment, US Dealer Enrollment) the per-pipeline switch is off in staging until the S5 file is connected, because without it nobody could win a deal. This is configuration, not code: the switch is in Administración and each change is audited. A deal won by hand is stored as `closed_by = 'manual'`, creates no handoff to operations and does not change the merchant's health; both still come from the first transaction.
+
 ## Deliberately not built
 - **Terminales tab** in the merchant record. It was not part of this build's data; decided by Yamil on 11-Nov-2026.
 - **Offline reading with data stored on the device.** The no-signal banner and disabled saving are built. The cached read (Hoy queue and the last merchants opened) is not: it stores merchant data on the device, which touches access and retention controls. Turning it on needs an explicit decision from Michael Essiet or Dan Mulligan together with whoever owns the SOX and SOC controls. `[pending: owner of SOX/SOC controls]`

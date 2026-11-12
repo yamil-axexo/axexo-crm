@@ -46,6 +46,14 @@ async function loadLead(tx: Tx, id: string): Promise<LeadRow> {
   return rows[0]
 }
 
+/**
+ * Un lead sin dueño se ve (quien vende ve los de su mercado) pero no se trabaja sin tomarlo:
+ * así cada contacto y cada cambio de estado tiene un responsable. Quien asigna leads sí puede.
+ */
+export function assertOwned(ctx: Ctx, lead: { owner_id: string | null; market_code: string }): void {
+  if (!lead.owner_id && !ctx.can('lead.assign', lead.market_code)) throw invalid('Este lead no tiene dueño: tómalo antes de trabajarlo.', 'This lead has no owner: take it before working it.')
+}
+
 async function insertLead(
   tx: Tx,
   ctx: Ctx,
@@ -135,6 +143,7 @@ export async function markContacted(ctx: Ctx, leadId: string): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.work', lead.market_code)
+    assertOwned(ctx, lead)
     if (!['new', 'contacted'].includes(lead.status)) throw invalid('Este lead ya se trabajó.', 'This lead was already worked.')
     await tx`update crm.leads set status = 'contacted', first_touch_at = coalesce(first_touch_at, now()) where id = ${leadId}`
     await audit(tx, ctx, 'lead.contacted', 'lead', leadId, lead.market_code, { status: lead.status }, { status: 'contacted' })
@@ -145,6 +154,7 @@ export async function qualifyLead(ctx: Ctx, leadId: string): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.work', lead.market_code)
+    assertOwned(ctx, lead)
     if (!['new', 'contacted'].includes(lead.status)) throw invalid('Solo se califica un lead nuevo o contactado.', 'Only a new or contacted lead can be qualified.')
     await tx`update crm.leads set status = 'qualified', first_touch_at = coalesce(first_touch_at, now()) where id = ${leadId}`
     await audit(tx, ctx, 'lead.qualified', 'lead', leadId, lead.market_code, { status: lead.status }, { status: 'qualified' })
@@ -155,6 +165,7 @@ export async function disqualifyLead(ctx: Ctx, leadId: string, reasonCode: strin
   await withUser(ctx.user.id, async (tx) => {
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.work', lead.market_code)
+    assertOwned(ctx, lead)
     if (lead.status === 'converted') throw invalid('Este lead ya se convirtió.', 'This lead was already converted.')
     const reason = await tx`select 1 from crm.loss_reasons where code = ${reasonCode} and kind = 'lost' and is_active`
     if (!reason[0]) throw invalid('Elige un motivo para descartarlo.', 'Pick a reason to disqualify it.')
@@ -196,6 +207,7 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: { linkAccountI
   return withUser(ctx.user.id, async (tx) => {
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.work', lead.market_code)
+    assertOwned(ctx, lead)
     if (lead.status !== 'qualified') throw invalid('Califica el lead antes de convertirlo.', 'Qualify the lead before converting it.')
     const market = ctx.market(lead.market_code)
     const pipes = await tx<{ id: string; stage_id: string }[]>`

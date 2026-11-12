@@ -94,3 +94,25 @@ test('un lead que ya es de otra persona no se puede tomar', async ({ page }) => 
   await expect(row.getByTestId('lead-take-call')).toHaveCount(0)
   await expect(row.getByTestId('lead-call')).toHaveCount(0)
 })
+
+test('quien vende ve un lead sin dueño de su mercado, lo toma desde el detalle y recién entonces lo trabaja', async ({ page }) => {
+  const name = await lead({ owner: null })
+  await loginAs(page, 'marco.pena')
+  await page.goto('/leads?status=new')
+  const row = page.getByTestId('lead-row').filter({ hasText: name })
+  await expect(row.getByTestId('lead-take-call')).toHaveText('Tomar y llamar')
+  await row.getByRole('link', { name }).first().click()
+  await expect(page.getByTestId('lead-free')).toBeVisible()
+  await expect(page.getByTestId('lead-steps')).toHaveCount(0)
+  await page.getByTestId('lead-take').click()
+  await expect(page.getByTestId('lead-steps')).toBeVisible()
+  await expect(page.getByTestId('lead-free')).toHaveCount(0)
+  await expect(page.getByTestId('lead-owner')).toContainText('Marco Peña')
+})
+
+test('quien vende en otro mercado no ve ese lead sin dueño', async ({ page }) => {
+  const name = await lead({ owner: null })
+  await loginAs(page, 'sam.ortiz')
+  await page.goto('/leads?status=new')
+  await expect(page.getByTestId('lead-row').filter({ hasText: name })).toHaveCount(0)
+})

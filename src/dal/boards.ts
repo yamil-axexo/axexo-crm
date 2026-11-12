@@ -26,6 +26,8 @@ export type RepRow = {
   leads_overdue: number
   sla_met: number
   sla_judged: number
+  /** De los leads juzgados, con cuántos se logró hablar. Un intento a tiempo no es un contacto. */
+  reached: number
   deals_open: number
   no_next_step: number
   stalled: number
@@ -45,6 +47,7 @@ export async function getSupervisorBoard(ctx: Ctx, f: { market?: string; kind?: 
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()) as leads_overdue,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.created_at > now() - interval '14 days' and l.first_touch_at <= l.sla_due_at) as sla_met,
              (select count(*)::int from crm.leads l where l.owner_id = u.id and l.created_at > now() - interval '14 days' and (l.first_touch_at is not null or l.sla_due_at < now())) as sla_judged,
+             (select count(*)::int from crm.leads l where l.owner_id = u.id and l.created_at > now() - interval '14 days' and (l.first_touch_at is not null or l.sla_due_at < now()) and (l.status in ('contacted','qualified','converted') or exists (select 1 from crm.activities x where x.lead_id = l.id and x.outcome = 'reached'))) as reached,
              (select count(*)::int from crm.deals d where d.owner_id = u.id and d.status = 'open') as deals_open,
              (select count(*)::int from crm.exceptions e where e.owner_id = u.id and e.resolved_at is null and e.kind = 'no_next_step') as no_next_step,
              (select count(*)::int from crm.exceptions e where e.owner_id = u.id and e.resolved_at is null and e.kind = 'stalled_deal') as stalled,
@@ -82,6 +85,8 @@ export type MarketKpis = {
   leads_qualified_30d: number
   sla_met: number
   sla_judged: number
+  /** De los leads juzgados, con cuántos se logró hablar. Un intento a tiempo no es un contacto. */
+  reached: number
   deals_open: number
   awaiting_txn: number
   won_30d: number
@@ -110,6 +115,7 @@ export async function getLtPanel(ctx: Ctx) {
              (select count(*)::int from crm.leads l where l.market_code = m.code and l.created_at > now() - interval '30 days' and l.status in ('qualified','converted')) as leads_qualified_30d,
              (select count(*)::int from crm.leads l where l.market_code = m.code and l.created_at > now() - interval '30 days' and l.first_touch_at <= l.sla_due_at) as sla_met,
              (select count(*)::int from crm.leads l where l.market_code = m.code and l.created_at > now() - interval '30 days' and (l.first_touch_at is not null or l.sla_due_at < now())) as sla_judged,
+             (select count(*)::int from crm.leads l where l.market_code = m.code and l.created_at > now() - interval '30 days' and (l.first_touch_at is not null or l.sla_due_at < now()) and (l.status in ('contacted','qualified','converted') or exists (select 1 from crm.activities x where x.lead_id = l.id and x.outcome = 'reached'))) as reached,
              (select count(*)::int from crm.deals d where d.market_code = m.code and d.status = 'open') as deals_open,
              (select count(*)::int from crm.deals d join crm.stages s on s.id = d.stage_id where d.market_code = m.code and d.status = 'open' and s.kind = 'awaiting_txn') as awaiting_txn,
              (select count(*)::int from crm.deals d where d.market_code = m.code and d.status = 'won' and d.won_at > now() - interval '30 days') as won_30d,
@@ -149,12 +155,12 @@ export async function track(ctx: Ctx, event: string): Promise<void> {
   })
 }
 
-/** Lo que el dock necesita saber en cada pantalla: cuántos leads propios (o sin dueño, si puede repartir) tienen el reloj de primer contacto corriendo. Los que llegaron de una importación no traen reloj y no cuentan aquí. */
+/** Lo que el dock necesita saber en cada pantalla: cuántos leads propios o sin dueño (los que la persona puede tomar) tienen el reloj de primer contacto corriendo. Los que llegaron de una importación no traen reloj y no cuentan aquí. */
 export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number }> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ n: number }[]>`
       select count(*)::int as n from crm.leads l
-       where l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.assign')}))`
+       where l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null and (l.owner_id = ${ctx.user.id} or (l.owner_id is null and ${ctx.can('lead.work')}))`
     return { leadsWaiting: rows[0]?.n ?? 0 }
   })
 }

@@ -43,16 +43,17 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
         <div className="px-7 pt-7">
           <CardTitle
             title={t('Equipo', 'Team')}
-            hint={t('Respuesta a tiempo: leads de los últimos 14 días atendidos dentro de su plazo. Visitas: últimos 7 días, desde la Sales App.', 'On-time response: leads from the last 14 days worked within their deadline. Visits: last 7 days, from the Sales App.')}
+            hint={t('Leads de los últimos 14 días. Primer intento a tiempo: se intentó el contacto dentro del plazo. Contacto logrado: se habló con la persona. Visitas: últimos 7 días, desde la Sales App.', 'Leads from the last 14 days. First attempt on time: contact was attempted within the deadline. Reached: the person was spoken to. Visits: last 7 days, from the Sales App.')}
           />
         </div>
         {board.reps.length === 0 ? <div className="p-7"><Empty title={t('Sin vendedores en tu alcance', 'No sales reps in your scope')} /></div> : (
-          <Table testId="rep-table" head={<><th>{t('Vendedor', 'Rep')}</th><th>{t('Leads abiertos', 'Open leads')}</th><th>{t('Respuesta a tiempo', 'On-time response')}</th><th>{t('Negocios abiertos', 'Open deals')}</th><th>{t('Sin próximo paso', 'No next step')}</th><th>{t('Revisitas', 'Revisits')}</th><th>{t('Esperando venta', 'Awaiting sale')}</th><th>{t('Visitas / con venta', 'Visits / with sale')}</th><th>{t('Cartera', 'Book')}</th></>}>
+          <Table testId="rep-table" head={<><th>{t('Vendedor', 'Rep')}</th><th>{t('Leads abiertos', 'Open leads')}</th><th>{t('Primer intento a tiempo', 'First attempt on time')}</th><th>{t('Contacto logrado', 'Reached')}</th><th>{t('Negocios abiertos', 'Open deals')}</th><th>{t('Sin próximo paso', 'No next step')}</th><th>{t('Revisitas', 'Revisits')}</th><th>{t('Esperando venta', 'Awaiting sale')}</th><th>{t('Visitas / con venta', 'Visits / with sale')}</th><th>{t('Cartera', 'Book')}</th></>}>
             {board.reps.map((r) => (
               <tr key={`${r.id}-${r.market_code}`} className="table-row" data-testid="rep-row">
                 <td><span className="block font-semibold text-strong">{r.full_name}</span><span className="text-[12.5px] text-muted-2">{[r.team, r.market_code].filter(Boolean).join(' · ')}</span></td>
                 <td className="num">{r.leads_open}{r.leads_overdue > 0 && <span className="ml-2"><Badge tone="bad">{t(`${r.leads_overdue} tarde`, `${r.leads_overdue} late`)}</Badge></span>}</td>
-                <td className="num">{pct(r.sla_met, r.sla_judged)}</td>
+                <td className="num" data-testid="rep-attempt">{pct(r.sla_met, r.sla_judged)}</td>
+                <td className="num" data-testid="rep-reached">{pct(r.reached, r.sla_judged)}</td>
                 <td className="num">{r.deals_open}{r.stalled > 0 && <span className="ml-2"><Badge tone="warn">{t(`${r.stalled} estancados`, `${r.stalled} stalled`)}</Badge></span>}</td>
                 <td className="num">{r.no_next_step > 0 ? <Badge tone="bad">{r.no_next_step}</Badge> : 0}</td>
                 <td className="num">{r.revisits > 0 ? <Badge tone="warn">{r.revisits}</Badge> : 0}</td>

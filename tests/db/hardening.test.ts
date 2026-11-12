@@ -5,7 +5,9 @@ import { addActivity } from '@/domain/activities'
 import { completeItem } from '@/domain/queue'
 import { getQueue } from '@/dal/queue'
 import { listAccounts, listTree, searchAll } from '@/dal/accounts'
-import { createLead, intakeFromForm } from '@/domain/leads'
+import { createLead, intakeFromForm, markContacted, qualifyLead, takeLead } from '@/domain/leads'
+import { listLeads } from '@/dal/leads'
+import { getSupervisorBoard } from '@/dal/boards'
 import { moveDeal, updateDeal } from '@/domain/deals'
 import { evaluateRules } from '@/domain/rules'
 import { assertNoProhibited } from '@/domain/guard'
@@ -162,6 +164,50 @@ describe('hallazgos de QA', () => {
     const after = await listAccounts(marco, { ver: 'sin-paso', q: acc.name })
     expect(after.items.map((a) => a.id)).toContain(d.account_id)
     await admin`update crm.deals set next_step_due = ${m.today}::date + 1 where account_id = ${d.account_id} and status = 'open'`
+  })
+
+  it('QA-04: quien vende ve los leads sin dueño de su mercado y puede tomarlos; no los trabaja sin tomarlos ni ve los de otra persona', async () => {
+    const marco = await ctxFor('marco.pena') // ventas en MX
+    const sam = await ctxFor('sam.ortiz') // ventas en US
+    const lucia = await ctxFor('lucia.vega')
+    const mk = async (owner: string | null) =>
+      (await one(admin<{ id: string }[]>`
+        insert into crm.leads (market_code, source, motor, business_name, contact_name, phone, status, owner_id, sla_due_at)
+        values ('MX', 'manual', 'd2d', ${`Lead Libre ${tag()}`}, 'Persona', ${'+52555' + Math.floor(1000000 + Math.random() * 8999999)}, 'new', ${owner}, now() + interval '30 minutes') returning id`)).id
+    const free = await mk(null)
+    const hers = await mk(lucia.user.id)
+    const seen = async (ctx: typeof marco) => (await listLeads(ctx, { status: 'new' })).items.map((l) => l.id)
+    expect(await seen(marco)).toContain(free)
+    expect(await seen(marco)).not.toContain(hers) // el de otra persona sigue sin verse
+    expect(await seen(sam)).not.toContain(free) // otro mercado
+    // sin tomarlo no se trabaja: ni contacto, ni calificar, ni desde la hoja de resultado
+    await expect(markContacted(marco, free)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(qualifyLead(marco, free)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(completeItem(marco, { type: 'lead', id: free, result: 'reached', next: 'none', when: '' })).rejects.toMatchObject({ code: 'invalid' })
+    // la base tampoco deja editarlo sin que quede a su nombre, ni ponerlo a nombre de otra persona
+    await expect(asPersona('marco.pena', (tx) => tx`update crm.leads set locality = 'Centro' where id = ${free}`)).rejects.toThrow()
+    await expect(asPersona('marco.pena', (tx) => tx`update crm.leads set owner_id = ${lucia.user.id} where id = ${free}`)).rejects.toThrow()
+    await takeLead(marco, free)
+    expect((await one(admin<{ owner_id: string }[]>`select owner_id from crm.leads where id = ${free}`)).owner_id).toBe(marco.user.id)
+    await expect(markContacted(marco, free)).resolves.toBeUndefined()
+    await expect(takeLead(sam, hers)).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('SEG-02: en las métricas un intento a tiempo no es un contacto logrado', async () => {
+    const marco = await ctxFor('marco.pena')
+    const boss = await ctxFor('fernando.ibarra')
+    const row = async () => {
+      const r = (await getSupervisorBoard(boss, {})).reps.find((x) => x.id === marco.user.id)!
+      return { met: r.sla_met, judged: r.sla_judged, reached: r.reached }
+    }
+    const before = await row()
+    const lead = (await one(admin<{ id: string }[]>`
+      insert into crm.leads (market_code, source, motor, business_name, contact_name, phone, status, owner_id, sla_due_at)
+      values ('MX', 'manual', 'd2d', ${`Lead Métrica ${tag()}`}, 'Persona', ${'+52555' + Math.floor(1000000 + Math.random() * 8999999)}, 'new', ${marco.user.id}, now() + interval '30 minutes') returning id`)).id
+    await completeItem(marco, { type: 'lead', id: lead, result: 'no_answer', next: 'task', when: tomorrow })
+    expect(await row()).toEqual({ met: before.met + 1, judged: before.judged + 1, reached: before.reached })
+    await completeItem(marco, { type: 'lead', id: lead, result: 'reached', next: 'none', when: '' })
+    expect(await row()).toEqual({ met: before.met + 1, judged: before.judged + 1, reached: before.reached + 1 })
   })
 
   it('QA-12: atender una sugerencia cierra los demás avisos abiertos del mismo negocio', async () => {

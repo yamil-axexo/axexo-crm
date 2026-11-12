@@ -3,6 +3,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
+import { assertOwned } from '@/domain/leads'
 import type { MessageKey } from '@/lib/messages'
 
 export const RESULTS = ['reached', 'no_answer', 'later', 'done'] as const
@@ -68,11 +69,12 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
         select coalesce((select name from crm.accounts where id = ${accountId}), (select business_name from crm.leads where id = ${leadId})) as name`
       name = names[0]?.name ?? a.subject
     } else if (type === 'lead') {
-      const rows = await tx<{ market_code: string; status: string; business_name: string; first_touch_at: Date | null }[]>`
-        select market_code, status, business_name, first_touch_at from crm.leads where id = ${id} for update`
+      const rows = await tx<{ market_code: string; status: string; business_name: string; first_touch_at: Date | null; owner_id: string | null }[]>`
+        select market_code, status, business_name, first_touch_at, owner_id from crm.leads where id = ${id} for update`
       const l = rows[0]
       if (!l) throw notFound()
       ctx.assert('lead.work', l.market_code)
+      assertOwned(ctx, l)
       if (!['new', 'contacted'].includes(l.status)) throw invalid('Este lead ya se trabajó.', 'This lead was already worked.')
       market = l.market_code
       leadId = id
