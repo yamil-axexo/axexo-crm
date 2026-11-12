@@ -8,11 +8,12 @@ import { CallLink } from '@/ui/log'
 import type { MessageKey } from '@/lib/messages'
 import { fieldDefs } from '@/dal/fields'
 import { CustomFields } from '@/ui/fields'
-import { lossReasons } from '@/dal/leads'
+import { lossReasonsFor } from '@/dal/b2b'
+import { pauseDealAction, resumeDealAction } from '@/app/(app)/b2b-actions'
 import { FIELD_LABEL } from '@/domain/deals'
 import { Badge, Card, CardTitle, Field, KeyVal, LinkButton, PageHeader, buttonClass, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { day, dayTime, daysSince, money } from '@/lib/format'
+import { addDays, day, dayTime, daysSince, isoDay, money } from '@/lib/format'
 import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
 import { moveDealAction, updateDealAction } from '@/app/(app)/pipelines/actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
@@ -25,11 +26,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const data = await getDeal(ctx, id)
   if (!data) notFound()
   const { deal, stages, contacts, events, activities, items, current, next, missingNext } = data
-  const defs = await fieldDefs(ctx, 'deal', deal.market_code)
+  const defs = await fieldDefs(ctx, 'deal', deal.market_code, deal.motor)
   const canEditFields = ctx.can('deal.edit', deal.market_code)
   const market = ctx.market(deal.market_code)
   const canEdit = deal.status === 'open' && ctx.can('deal.edit', deal.market_code)
-  const reasons = canEdit ? await lossReasons(ctx) : []
+  // Cada embudo ofrece los motivos de su tipo de venta, más los que valen para todos.
+  const reasons = canEdit || deal.status === 'lost' ? await lossReasonsFor(ctx, deal.market_code, deal.motor) : []
+  const tomorrow = addDays(isoDay(new Date(), market.timezone), 1)
   const lost = stages.find((s) => s.kind === 'lost')
   const flow = stages.filter((s) => s.kind !== 'lost')
   const prev = current ? stages.find((s) => s.position === current.position - 1 && s.kind === 'open') : undefined
@@ -79,6 +82,20 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </div>
           )}
 
+          {deal.paused_at && deal.status === 'open' && (
+            <div className="rounded-[16px] bg-surface-3 px-6 py-5" data-testid="pause-banner">
+              <p className="text-[15px] font-semibold text-strong">{t('En pausa', 'On hold')}{deal.pause_review_on ? ` · ${t('se revisa el', 'review on')} ${day(deal.pause_review_on, locale)}` : ''}</p>
+              <p className="mt-1 text-[13.5px] text-muted-2 [overflow-wrap:anywhere]">{deal.pause_reason}</p>
+              <p className="mt-1 text-[13px] text-muted">{t('Mientras está en pausa no cuenta como estancado ni sin próximo paso. Vuelve a Hoy el día de la revisión.', 'While on hold it does not count as stalled or as missing a next step. It comes back to Today on the review date.')}</p>
+              {canEdit && (
+                <ActionForm action={resumeDealAction} className="mt-3">
+                  <input type="hidden" name="deal_id" value={deal.id} />
+                  <Submit variant="ghost" size="sm" testId="deal-resume">{t('Retomar el negocio', 'Resume the deal')}</Submit>
+                </ActionForm>
+              )}
+            </div>
+          )}
+
           {deal.status === 'open' && current && (
             <Card data-testid="deal-move">
               <CardTitle
@@ -119,6 +136,17 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                       <Submit variant="ghost" testId="deal-back">{t(`Regresar a "${prev.name_es}"`, `Back to "${prev.name_en}"`)}</Submit>
                     </ActionForm>
                   )}
+                  {!deal.paused_at && (
+                    <Dialog trigger={t('Poner en pausa', 'Put on hold')} title={t('Poner el negocio en pausa', 'Put the deal on hold')} variant="quiet" testId="deal-pause">
+                      <ActionForm action={pauseDealAction} onOk="close">
+                        <input type="hidden" name="deal_id" value={deal.id} />
+                        <p className="mb-4 text-[13.5px] text-muted-2">{t('Úsalo cuando el cliente pide esperar. El negocio sigue abierto, no cuenta como estancado y vuelve a tu lista de Hoy el día que elijas.', 'Use it when the customer asks to wait. The deal stays open, does not count as stalled and comes back to your Today list on the day you choose.')}</p>
+                        <Field label={t('¿Por qué queda en pausa?', 'Why is it on hold?')}><textarea name="reason" rows={2} required minLength={2} maxLength={300} className="input !h-auto py-3" data-testid="pause-reason" /></Field>
+                        <Field label={t('¿Cuándo lo revisas?', 'When will you review it?')} className="mt-4"><input name="review_on" type="date" required min={tomorrow} className="input" data-testid="pause-review" /></Field>
+                        <div className="mt-5 flex justify-end"><Submit testId="pause-save">{t('Poner en pausa', 'Put on hold')}</Submit></div>
+                      </ActionForm>
+                    </Dialog>
+                  )}
                   {lost && (
                     <Dialog trigger={t('Marcar como perdido', 'Mark as lost')} title={t('Cerrar como perdido', 'Close as lost')} variant="quiet" testId="deal-lose">
                       <ActionForm action={moveDealAction} onOk="close">
@@ -140,7 +168,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           {deal.status === 'lost' && (
-            <Card><p className="text-[14.5px]">{t('Motivo: ', 'Reason: ')}<strong>{reasons.find((r) => r.code === deal.loss_reason_code)?.label_es ?? deal.loss_reason_code}</strong>{deal.loss_note ? ` · ${deal.loss_note}` : ''}</p></Card>
+            <Card><p className="text-[14.5px]">{t('Motivo: ', 'Reason: ')}<strong>{(() => { const r = reasons.find((x) => x.code === deal.loss_reason_code); return r ? t(r.label_es, r.label_en) : deal.loss_reason_code })()}</strong>{deal.loss_note ? ` · ${deal.loss_note}` : ''}</p></Card>
           )}
 
           {canEdit && (

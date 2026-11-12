@@ -16,7 +16,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const { id } = await params
   const sp = flat(await searchParams)
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
-  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin' }), listPipelines(ctx)])
+  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin', paused: sp.paso === 'pausa' }), listPipelines(ctx)])
   if (!board) notFound()
   await track(ctx, 'view.pipeline')
   const market = ctx.market(board.pipeline.market_code)
@@ -29,6 +29,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const open = board.totals.reduce((n, x) => n + x.n, 0)
   const noStep = board.totals.reduce((n, x) => n + x.no_step, 0)
   const revisits = board.totals.reduce((n, x) => n + x.revisits, 0)
+  const paused = board.totals.reduce((n, x) => n + x.paused, 0)
   const here = (patch: Record<string, string | undefined>) => qs(`/pipelines/${id}`, { owner: sp.owner, vista: sp.vista, paso: sp.paso, ...patch })
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
@@ -45,6 +46,8 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
     }
   })
   const chip = (d: (typeof board.deals)[number]): BoardCard['chip'] => {
+    // En pausa: no es un negocio sin próximo paso ni vencido; dice cuándo se revisa.
+    if (d.paused_at) return { text: t(`En pausa${d.pause_review_on ? ` · se revisa ${weekday(d.pause_review_on, locale)}` : ''}`, `On hold${d.pause_review_on ? ` · review ${weekday(d.pause_review_on, locale)}` : ''}`), tone: 'ok' }
     if (!d.next_step || !d.next_step_due) return { text: m('deals.chip.none'), tone: 'warn' }
     if (d.next_step_due < today) return { text: m('deals.chip.late', { step: d.next_step }), tone: 'risk', title: d.next_step }
     return { text: `${d.next_step} · ${d.next_step_due === today ? m('complete.when.today').toLowerCase() : weekday(d.next_step_due, locale)}`, tone: 'ok', title: d.next_step }
@@ -77,8 +80,9 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
             <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
           </nav>
           <nav aria-label={m('deals.filter')} className="inline-flex rounded-full border border-line bg-surface p-1">
-            <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' ? 'page' : undefined} className={seg(sp.paso !== 'sin')} data-testid="filter-all">{m('deals.filter.all')}</Link>
+            <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' && sp.paso !== 'pausa' ? 'page' : undefined} className={seg(sp.paso !== 'sin' && sp.paso !== 'pausa')} data-testid="filter-all">{m('deals.filter.all')}</Link>
             <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
+            <Link href={here({ paso: 'pausa' })} aria-current={sp.paso === 'pausa' ? 'page' : undefined} className={seg(sp.paso === 'pausa')} data-testid="filter-paused">{t(`En pausa (${paused})`, `On hold (${paused})`)}</Link>
           </nav>
           <nav aria-label={m('deals.view')} className="inline-flex rounded-full border border-line bg-surface p-1">
             <Link href={here({ vista: undefined })} aria-current={!listView ? 'page' : undefined} className={seg(!listView)} data-testid="view-board">{m('deals.view.board')}</Link>

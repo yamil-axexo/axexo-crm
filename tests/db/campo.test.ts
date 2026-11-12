@@ -276,7 +276,8 @@ describe('la hoja de completar, pensada para la calle', () => {
     expect(await one(admin`select next_step from crm.deals where id = ${store.deal_id}`)).toMatchObject({ next_step: 'Capacitar al encargado en recargas' })
     // sin texto, "Otra tarea" conserva el título de siempre
     const other = await addActivity(marco, { accountId: store.id, kind: 'task', subject: `Otra ${tag()}`, dueAt: today })
-    expect((await completeItem(marco, { type: 'task', id: other, result: 'done', next: 'task', when: tomorrow })).next).toBe(`Dar seguimiento a ${store.name}`)
+    // "Otra tarea" sin texto ya no guarda un seguimiento genérico: pide decir cuál (paquete b2b, 12-nov-2026).
+    await expect(completeItem(marco, { type: 'task', id: other, result: 'done', next: 'task', when: tomorrow })).rejects.toMatchObject({ code: 'invalid' })
     // el texto solo aplica a "Otra tarea"
     const third = await addActivity(marco, { accountId: store.id, kind: 'task', subject: `Tercera ${tag()}`, dueAt: today })
     expect((await completeItem(marco, { type: 'task', id: third, result: 'done', next: 'call', when: tomorrow, nextText: 'No aplica' })).next).toBe(`Llamar a ${store.name}`)
@@ -297,7 +298,11 @@ describe('la hoja de completar, pensada para la calle', () => {
   it('las opciones de próximo paso incluyen "Visitar"; los atajos de fecha van seguidos y no proponen domingo', async () => {
     const marco = await ctxFor('marco.pena')
     const config = sheetConfig(marco, new Date('2026-11-11T18:00:00Z')) // miércoles
-    expect(config.nextOptions.map((o) => o.value)).toEqual(['call', 'visit', 'proposal', 'meeting', 'task', 'none'])
+    // Las opciones dependen del tipo de venta (paquete b2b, 12-nov-2026): las de tienda siguen siendo estas y en este orden;
+    // la venta a cadenas y distribuidores no ofrece "Visitar".
+    const offered = (set: string[]) => config.nextOptions.map((o) => o.value).filter((v) => set.includes(v))
+    expect(offered(config.nextSets.default)).toEqual(['call', 'visit', 'proposal', 'meeting', 'task', 'none'])
+    expect(offered(config.nextSets.b2b)).toEqual(['call', 'proposal', 'meeting', 'contract', 'kickoff', 'testing', 'certification', 'task', 'none'])
     expect(config.nextOptions.find((o) => o.value === 'visit')!.label).toBe('Visitar')
     expect(config.whenOptions.map((o) => o.value)).toEqual(['2026-11-11', '2026-11-12', '2026-11-13', '2026-11-16'])
     // viernes: pasado mañana es domingo y no se ofrece

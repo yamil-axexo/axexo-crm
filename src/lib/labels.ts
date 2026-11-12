@@ -75,6 +75,12 @@ export const CONTACT_ROLE: Record<string, Pair> = {
   manager: ['Encargado', 'Manager'],
   staff: ['Personal', 'Staff'],
   billing: ['Facturación', 'Billing'],
+  executive: ['Dirección', 'Executive'],
+  purchasing: ['Compras', 'Purchasing'],
+  finance: ['Finanzas', 'Finance'],
+  technology: ['Tecnología e integración', 'Technology and integration'],
+  legal: ['Legal', 'Legal'],
+  operations: ['Operación', 'Operations'],
 }
 
 export const ATTRIBUTION_LAYER: Record<string, Pair> = {

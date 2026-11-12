@@ -53,7 +53,7 @@ export const NOT_YET: { group: Pair; items: Pair[] }[] = [
     group: ['Administración', 'Administration'],
     items: [
       // docs/scope.md: DAT-05 "no editor for definitions"; comité 2: Embudos y campos
-      ['Crear embudos, etapas, campos, formularios, turnos o mercados desde la pantalla. Hoy se editan las etapas, la regla de cierre de cada embudo y quién está en cada turno.', 'Creating pipelines, stages, fields, forms, rotations or markets from the screen. Today you can edit stages, each pipeline’s closing rule and who is in each rotation.'],
+      ['Crear formularios web, turnos o mercados desde la pantalla. Hoy se crean embudos, etapas, campos, tipos de cuenta y motivos de pérdida, y de un formulario que ya existe se edita el nombre y qué campos pide.', 'Creating web forms, rotations or markets from the screen. Today you can create pipelines, stages, fields, account types and loss reasons, and for an existing form you can edit its name and which fields it asks for.'],
       // ADR-004: AUTHZ-09 "Deprovisioning by Google Directory sync is not built"
       ['Baja automática cuando alguien sale de Google Workspace. El acceso se quita en Administración o se le pone fecha de vencimiento.', 'Automatic removal when someone leaves Google Workspace. Access is removed in Administration or given an expiry date.'],
       // comité 2: "Ver como"; aviso al dar acceso

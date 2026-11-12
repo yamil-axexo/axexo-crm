@@ -12,6 +12,7 @@ import { resultOptions, sheetConfig } from '@/server/sheet'
 import { buttonClass } from '@/ui/kit'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
+import { LeadAnswers } from '../answers'
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireCtx()
@@ -86,7 +87,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               <div className="flex flex-wrap gap-3">
                 {lead.status === 'new' && (
                   <CompleteButton
-                    item={{ type: 'lead', id: lead.id, title: ctx.m('action.callOf', { name: lead.business_name }), name: lead.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: 'reached' }}
+                    item={{ type: 'lead', id: lead.id, title: ctx.m('action.callOf', { name: lead.business_name }), name: lead.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: 'reached', motor: lead.motor }}
                     config={sheetConfig(ctx)}
                     action={completeItemAction}
                     label={t('Registrar contacto', 'Log contact')}
@@ -198,6 +199,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               </div>
             </Card>
           )}
+          <LeadAnswers ctx={ctx} leadId={lead.id} />
           <Card data-testid="lead-owner">
             <CardTitle title={t('Dueño', 'Owner')} />
             <p className="text-[15px] font-semibold text-strong">{lead.owner_name ?? t('Sin dueño', 'No owner')}</p>

@@ -110,7 +110,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
 
   const view = (r: QueueRow): QueueItem => {
     const name = r.name ?? r.subject
-    const base = { key: `${r.type}:${r.id}`, type: r.type, id: r.id, group: r.group, name, href: href(r), tel: r.phone ? `tel:${r.phone}` : null, wa: r.phone ? `https://wa.me/${r.phone.slice(1)}` : null, clock: null as string | null }
+    const base = { key: `${r.type}:${r.id}`, type: r.type, id: r.id, group: r.group, name, href: href(r), tel: r.phone ? `tel:${r.phone}` : null, wa: r.phone ? `https://wa.me/${r.phone.slice(1)}` : null, clock: null as string | null, motor: r.motor }
     if (r.type === 'lead')
       return {
         ...base,

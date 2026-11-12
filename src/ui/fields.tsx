@@ -19,6 +19,49 @@ export function fieldText(def: Pick<FieldDef, 'data_type'>, v: unknown, t: T, lo
   return String(v)
 }
 
+const SECTION: Record<string, [string, string]> = {
+  qualify: ['Para calificar', 'To qualify'],
+  terms: ['Términos comerciales', 'Commercial terms'],
+  file: ['Expediente', 'Contract file'],
+}
+
+/**
+ * Bloques de la venta B2B (para calificar, términos comerciales y expediente): se ven completos, también lo que falta,
+ * para que el equipo sepa qué le falta a la cuenta. El expediente guarda el estado de cada documento, nunca el documento.
+ */
+export function FieldSections({ defs, values, t, locale }: { defs: FieldDef[]; values: Record<string, unknown>; t: T; locale: Locale }) {
+  const groups = (['qualify', 'terms', 'file'] as const).map((k) => ({ k, items: defs.filter((d) => d.section === k) })).filter((g) => g.items.length > 0)
+  if (groups.length === 0) return null
+  return (
+    <div className="space-y-5" data-testid="field-sections">
+      {groups.map((g) => {
+        const docs = g.k === 'file' ? g.items.filter((d) => d.applies_when) : []
+        const ready = docs.filter((d) => values[d.key] === 'Validado').length
+        return (
+          <section key={g.k} data-testid={`field-section-${g.k}`}>
+            <h4 className="text-[13px] font-semibold text-muted-2">
+              {t(...SECTION[g.k]!)}
+              {g.k === 'file' && docs.length > 0 && <span className="ml-2 font-normal text-muted" data-testid="file-progress">{t(`${ready} de ${docs.length} documentos validados`, `${ready} of ${docs.length} documents validated`)}</span>}
+            </h4>
+            {g.k === 'file' && <p className="text-[13px] text-muted">{t('Aquí va el estado de cada documento. El documento se guarda fuera de CONTIGO.', 'This holds the status of each document. The document itself is kept outside CONTIGO.')}</p>}
+            <dl className="mt-2 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+              {g.items.map((d) => {
+                const text = fieldText(d, values[d.key], t, locale)
+                return (
+                  <div key={d.key} className="min-w-0 border-t border-line pt-2" data-testid="section-field" data-key={d.key}>
+                    <dt className="text-[12.5px] font-medium text-muted">{t(d.label_es, d.label_en)}</dt>
+                    <dd className={text ? 'mt-0.5 text-[14px] break-words text-strong' : 'mt-0.5 text-[14px] text-amber-text'}>{text || (d.applies_when ? t('Pendiente', 'Pending') : t('Falta', 'Missing'))}</dd>
+                  </div>
+                )
+              })}
+            </dl>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
 /** DATA-08: muestra los campos adicionales que tienen valor. Los que no tienen no ocupan pantalla. */
 export function CustomFields({ defs, values, t, locale, action }: { defs: FieldDef[]; values: Record<string, unknown>; t: T; locale: Locale; action?: ReactNode }) {
   const filled = defs.filter((d) => !empty(values[d.key]))

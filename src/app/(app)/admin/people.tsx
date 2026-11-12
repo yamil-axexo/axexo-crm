@@ -10,6 +10,7 @@ import { ago, day } from '@/lib/format'
 import { MOTOR, lab, qs } from '@/lib/labels'
 import { domainList } from '@/lib/domains'
 import { VacantNotice } from './sin-dueno'
+import { teamsWithoutSupervisor } from '@/dal/b2b'
 import { createTeamAction, endMembershipAction, grantMembershipAction, setMembershipExpiryAction } from './actions'
 
 const list = (items: string[], and: string) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} ${and} ${items[items.length - 1]}` : (items[0] ?? ''))
@@ -18,6 +19,7 @@ const list = (items: string[], and: string) => (items.length > 1 ? `${items.slic
 export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: AccessFilter; today: string }) {
   const { t, locale } = ctx
   const d = await getUsers(ctx, access)
+  const unsupervised = await teamsWithoutSupervisor(ctx)
   const live = ctx.markets.filter((m) => m.status === 'live')
   const domains = env().AUTH_ALLOWED_DOMAINS
   const roleText = (m: MembershipRow) => [t(ROLE_LABEL[m.role as Role].es, ROLE_LABEL[m.role as Role].en), m.market_code, m.team].filter(Boolean).join(' · ')
@@ -30,6 +32,21 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
     <NoticeArea closeLabel={t('Cerrar aviso', 'Dismiss notice')}>
       {/* Debajo del aviso de lo que se acaba de hacer: quién tiene cartera sin dueño vigente y el botón para repartirla. */}
       <VacantNotice ctx={ctx} />
+      {/* Un equipo sin nadie en supervisión no queda implícito: se dice quién lo cubre. */}
+      {unsupervised.length > 0 && (
+        <div className="mb-6 rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] text-strong" role="status" data-testid="teams-unsupervised">
+          <ul className="space-y-1">
+            {unsupervised.map((x) => (
+              <li key={x.id} data-testid="team-unsupervised">
+                <strong>{x.market_code} · {x.name}</strong>{': '}
+                {t('Sin supervisión: lo cubre quien lidera el mercado', 'No supervisor: whoever leads the market covers it')}
+                {x.lead ? ` (${x.lead})` : t(' (este mercado todavía no tiene líder con acceso)', ' (this market has no lead with access yet)')}
+                {`. ${t(`${x.members} ${x.members === 1 ? 'persona de ventas' : 'personas de ventas'} en el equipo.`, `${x.members} ${x.members === 1 ? 'salesperson' : 'salespeople'} on the team.`)}`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <Card pad={false} data-testid="admin-people">
         <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-6 md:px-7 md:pt-7">
           <div className="min-w-0 flex-1 basis-64">

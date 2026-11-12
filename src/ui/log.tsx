@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Choices, NextStep, SheetText, VisitorField, fill, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
+import { Choices, NextStep, SheetText, VisitorField, fill, nextFor, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
 import { findAccountsAction, logActivityAction } from '@/app/(app)/actividades/log-actions'
 import type { FoundAccount } from '@/dal/field'
 
 export type LogKind = 'visit' | 'call' | 'note'
-export type LogAccount = { id: string; name: string; market?: string; place?: string | null }
+export type LogAccount = { id: string; name: string; market?: string; place?: string | null; motor?: string | null }
 /** Qué se abre: el tipo, el comercio si ya se sabe (ficha, negocio) y si la hoja llega al volver de una llamada. */
 export type LogTarget = { kind: LogKind; account?: LogAccount; dealId?: string; afterCall?: boolean }
 export type LogConfig = {
@@ -154,7 +154,7 @@ function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; con
             </>
           )}
           <SheetText name="note" label={sheet.labels.note} maxLength={500} testId="log-note" />
-          <NextStep labels={sheet.labels} options={sheet.nextOptions} whenOptions={sheet.whenOptions} minDate={sheet.minDate} next={next} onNext={setNext} when={when} onWhen={setWhen} />
+          <NextStep labels={sheet.labels} options={nextFor(sheet, account?.motor)} whenOptions={sheet.whenOptions} minDate={sheet.minDate} next={next} onNext={setNext} when={when} onWhen={setWhen} />
         </>
       )}
 

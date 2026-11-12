@@ -298,7 +298,7 @@ describe('bitácora que se puede leer', () => {
     const access = await getAudit(nora, { tz, group: 'access' })
     expect(access.items.every((e) => /^(membership|team|user)\./.test(e.action))).toBe(true)
     const config = await getAudit(nora, { tz, group: 'config' })
-    expect(config.items.every((e) => /^(pipeline|stage|routing|api_client|territory)\./.test(e.action))).toBe(true)
+    expect(config.items.every((e) => /^(pipeline|stage|routing|api_client|territory|field|account_type|loss_reason|form)\./.test(e.action))).toBe(true)
     const leads = await getAudit(nora, { tz, object: 'lead', market: 'US' })
     expect(leads.items.length).toBeGreaterThan(0)
     expect(leads.items.every((e) => e.object === 'lead' && e.market_code === 'US')).toBe(true)
@@ -594,7 +594,7 @@ describe('solo lectura que se respeta', () => {
       ['nota', () => addActivity(luis, { accountId: acc.id, kind: 'note', subject: 'C2 nota que no debe existir' })],
       ['completar tarea', () => completeItem(luis, { type: 'task', id: task.id, result: 'done', next: 'none', when: '' })],
       ['completar lead', () => completeItem(luis, { type: 'lead', id: lead.id, result: 'reached', next: 'none', when: '' })],
-      ['atender sugerencia', () => completeItem(luis, { type: 'suggestion', id: exception.id, result: 'done', next: 'task', when: soon })],
+      ['atender sugerencia', () => completeItem(luis, { type: 'suggestion', id: exception.id, result: 'done', next: 'task', when: soon, nextText: 'Revisar con el equipo' })],
       ['descartar aviso', () => resolveException(luis, exception.id, 'no')],
       ['evaluar reglas', () => runRulesNow(luis, sys)],
       ['dar acceso', () => grantMembership(luis, { email: `c2.no.${tag()}@contigo.test`, fullName: 'C2 No', role: 'rep', market: 'MX' }, DOMAINS)],

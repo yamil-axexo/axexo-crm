@@ -30,6 +30,8 @@ export const CAPABILITIES = {
   'account.create': SELLERS,
   'account.edit': [...SELLERS, 'ops'],
   'account.reassign': MANAGERS,
+  // Armar el árbol: quien dirige mueve cualquier cuenta de su alcance; quien vende, solo entre cuentas que son suyas (ver domain/accounts.ts).
+  'account.tree': SELLERS,
   'account.merge': ['admin'],
   'activity.write': [...SELLERS, 'ops'],
   'exception.resolve': [...MANAGERS, 'ops', 'rep'],

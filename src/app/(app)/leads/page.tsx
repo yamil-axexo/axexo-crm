@@ -147,7 +147,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     <div className="mt-3 flex pl-12 @3xl:mt-0 @3xl:justify-end @3xl:pl-0">
                       {canCall && (
                         <LeadCall
-                          item={{ type: 'lead', id: l.id, title: m('action.callOf', { name: l.business_name }), name: l.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: null }}
+                          item={{ type: 'lead', id: l.id, title: m('action.callOf', { name: l.business_name }), name: l.business_name, results: resultOptions(ctx, ['reached', 'no_answer']), defaultResult: null, motor: l.motor }}
                           tel={`tel:${l.phone}`}
                           take={!l.owner_id}
                           label={l.owner_id ? m('action.call') : m('leads.takeAndCall')}
