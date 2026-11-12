@@ -4,7 +4,7 @@ import { getAdoption } from '@/dal/reports'
 import { resolvePeriod } from '@/lib/periods'
 import { track } from '@/dal/boards'
 import { ROLE_LABEL } from '@/domain/policy'
-import { Badge, Card, CardTitle, Empty, PageHeader, Pills } from '@/ui/kit'
+import { Card, CardTitle, Empty, PageHeader, Pills } from '@/ui/kit'
 import { ReportFilters, periodText } from '@/ui/report'
 import { dayTime, isoDay, num } from '@/lib/format'
 import { zoneLabel } from '@/lib/audit'
@@ -69,7 +69,7 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
                 <li key={r.user_id} className={`px-5 py-3.5 @3xl:px-7 ${GRID}`} data-testid="adoption-row">
                   <span className="block text-[15px] font-semibold text-strong [overflow-wrap:anywhere]" data-testid="adoption-name">{r.full_name}</span>
                   <span className="block text-[13.5px] text-muted-2">{[r.roles.map((x) => t(ROLE_LABEL[x].es, ROLE_LABEL[x].en)).join(', '), r.markets.join(', '), r.teams.join(', ')].filter(Boolean).join(' · ')}</span>
-                  <span className="mt-1 block text-[14px] text-strong @3xl:mt-0" data-testid="adoption-last"><span className={lbl}>{t('Último ingreso: ', 'Last sign-in: ')}</span>{r.last_login ? dayTime(r.last_login, locale, tz) : <Badge tone="warn">{t('Nunca ha entrado', 'Never signed in')}</Badge>}</span>
+                  <span className="mt-1 block text-[14px] text-strong @3xl:mt-0" data-testid="adoption-last"><span className={lbl}>{t('Último ingreso: ', 'Last sign-in: ')}</span>{r.last_login ? dayTime(r.last_login, locale, tz) : <span className="font-semibold text-amber-text">{t('Nunca ha entrado', 'Never signed in')}</span>}</span>
                   <span className="num block text-[14px] text-strong" data-testid="adoption-logins"><span className={lbl}>{t('Ingresos en el periodo: ', 'Sign-ins in the period: ')}</span>{num(r.logins, locale)}</span>
                   <span className="num block text-[14px] text-strong" data-testid="adoption-activities"><span className={lbl}>{t('Actividades en el periodo: ', 'Activities in the period: ')}</span>{num(r.activities, locale)}</span>
                 </li>

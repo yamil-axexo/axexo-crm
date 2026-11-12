@@ -74,7 +74,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const cell = (i: number, value: ReactNode, strong = false) => (
     <span className={`num flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-[14px] @5xl:justify-start ${strong ? 'font-semibold' : ''}`}>
       <span className="text-[12.5px] font-normal text-muted @5xl:hidden">{t(COLS[i + 1]![0], COLS[i + 1]![1])}</span>
-      <span className="inline-flex flex-wrap items-baseline gap-1.5">{value}</span>
+      <span className="inline-flex min-w-0 flex-wrap items-baseline gap-1.5">{value}</span>
     </span>
   )
 
