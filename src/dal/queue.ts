@@ -2,6 +2,7 @@ import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import type { ItemType } from '@/domain/queue'
+import { stepSubject } from '@/dal/step-text'
 
 export type QueueGroup = 'late' | 'today' | 'suggested'
 export type QueueRow = {
@@ -55,7 +56,7 @@ export async function getQueue(ctx: Ctx): Promise<Queue> {
        where l.owner_id = ${me} and l.status = 'new' and l.first_touch_at is null and l.sla_due_at is not null
        order by l.sla_due_at limit ${QUEUE_PAGE}`
     const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; created_at: Date; market_code: string; account_id: string | null; deal_id: string | null; lead_id: string | null; name: string | null; phone: string | null; stage: string | null; motor: string | null }[]>`
-      select a.id, a.kind, a.subject, a.due_at, a.created_at, a.market_code, a.account_id, a.deal_id, a.lead_id,
+      select a.id, a.kind, ${stepSubject(tx, ctx.locale)} as subject, a.due_at, a.created_at, a.market_code, a.account_id, a.deal_id, a.lead_id,
              coalesce(ac.name, l.business_name) as name, coalesce(ac.phone, (select c.phone from crm.account_contacts x join crm.contacts c on c.id = x.contact_id
                                  where x.account_id = ac.id and x.valid_to is null and c.phone is not null
                                  order by (x.role = 'decision_maker') desc, (x.role = 'owner') desc, x.valid_from limit 1), l.phone) as phone, ${ctx.locale === 'en' ? tx`s.name_en` : tx`s.name_es`} as stage,

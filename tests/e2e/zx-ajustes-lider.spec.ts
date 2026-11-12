@@ -65,6 +65,9 @@ test.describe('el lead nuevo avisa dentro de CONTIGO', () => {
     await expect(page).toHaveTitle(/^\(1\) Lead nuevo · /)
     await expect(badge).toHaveText(String(before + 1))
     await expect(page.getByText(name).first()).toBeVisible()
+    // El refresco de la pantalla vuelve a escribir el título de la página: el aviso tiene que seguir ahí tres segundos después.
+    await page.waitForTimeout(3000)
+    await expect(page).toHaveTitle(/^\(1\) Lead nuevo · /)
     const notes = await page.evaluate(() => (window as unknown as { __notes: { title: string; body?: string }[] }).__notes)
     expect(notes).toHaveLength(1)
     expect(notes[0]!.title).toBe('Lead nuevo en axexo CONTIGO')
@@ -80,6 +83,8 @@ test.describe('el lead nuevo avisa dentro de CONTIGO', () => {
     await page.keyboard.press('Escape')
     await newLead('diana.cruz', `Cadena Aviso ${tag()}`)
     await page.evaluate(() => window.dispatchEvent(new Event('contigo:poll')))
+    await expect(page).toHaveTitle(/^\(1\) Lead nuevo · /)
+    await page.waitForTimeout(3000)
     await expect(page).toHaveTitle(/^\(1\) Lead nuevo · /)
     expect(await page.evaluate(() => (window as unknown as { __notes: unknown[] }).__notes.length)).toBe(1)
     expect(errors).toEqual([])
@@ -98,10 +103,8 @@ test.describe('el lead nuevo avisa dentro de CONTIGO', () => {
       await expect(page).toHaveURL(/\/supervisor$/)
       const card = page.getByTestId('lead-watch-card')
       await expect(card).toContainText('Guardia de leads')
-      const row = card.getByTestId('watch-row').filter({ hasText: name })
-      await expect(row).toContainText('Diana Cruz')
-      await expect(row.getByTestId('watch-left')).toHaveText(/^Quedan 4[3-5] min hábiles$/)
-
+      // La guardia lista los 25 leads que vencen primero. Con la suite completa hay más de 25 esperando en el mercado, así que
+      // el lead nuevo se comprueba más abajo, en la guardia de su equipo.
       const notice = page.getByTestId('team-uncovered')
       await expect(notice).toContainText('Sin supervisión: lo cubre quien lidera el mercado')
       await expect(notice).toContainText('B2B')
@@ -112,7 +115,10 @@ test.describe('el lead nuevo avisa dentro de CONTIGO', () => {
       const openAll = Number(((await page.getByTestId('exception-open').textContent()) ?? '0').replace(/[^\d]/g, ''))
       await notice.getByTestId('team-uncovered-link').first().click()
       await expect(page).toHaveURL(/equipo=/)
-      await expect(page.getByTestId('lead-watch-card').getByTestId('watch-row').filter({ hasText: name })).toBeVisible()
+      const row = page.getByTestId('lead-watch-card').getByTestId('watch-row').filter({ hasText: name })
+      await expect(row).toContainText('Diana Cruz')
+      await expect(row.getByTestId('watch-left')).toHaveText(/^Quedan 4[3-5] min hábiles$/)
+
       const openTeam = Number(((await page.getByTestId('exception-open').textContent()) ?? '0').replace(/[^\d]/g, ''))
       expect(openTeam).toBeLessThan(openAll)
       await page.setViewportSize({ width: 390, height: 844 })

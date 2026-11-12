@@ -142,3 +142,26 @@ test('Administración: la columna de etapas dice "Para avanzar" y las etapas sem
   for (const row of await page.getByTestId('stage-row').all()) await expect(row).not.toContainText(/decisor/i)
   await expect(page.getByTestId('stage-name').filter({ hasText: 'Interés de quien decide' }).first()).toBeVisible()
 })
+
+test('Hoy de quien supervisa: con pendientes en el equipo no titula "Todo al día"', async ({ page }) => {
+  // La segunda vuelta de aceptación: el cuerpo ya decía cuántos tiene el equipo, pero el título seguía diciendo "Todo al día".
+  let checked = 0
+  for (const [persona, own, team] of [
+    ['fernando.ibarra', 'No tienes pendientes propios', /Tu equipo tiene \d+ pendientes? abiertos?\./],
+    ['paula.mendez', 'No tienes pendientes propios', /Tu equipo tiene \d+ pendientes? abiertos?\./],
+    ['kira.dunn', 'Nothing of your own to do', /Your team has \d+ open alerts?\./],
+  ] as const) {
+    await loginAs(page, persona)
+    await page.goto('/hoy')
+    await expect(page.getByTestId('today-title')).toBeVisible()
+    // Solo aplica a quien no tiene nada propio y sí tiene equipo con pendientes: ahí están la tarjeta vacía y su enlace.
+    if (!(await page.getByTestId('queue-empty-team').count())) continue
+    checked++
+    await expect(page.getByTestId('today-title'), persona).toContainText(own)
+    await expect(page.getByTestId('today-title'), persona).not.toContainText(/Todo al día|All caught up/)
+    await expect(page.getByTestId('queue-empty'), persona).toContainText(own)
+    await expect(page.getByTestId('queue-empty'), persona).toContainText(team)
+    await clean(page, `Hoy de ${persona} sin pendientes propios`)
+  }
+  expect(checked, 'al menos una persona que supervisa sin pendientes propios y con pendientes en su equipo').toBeGreaterThan(0)
+})

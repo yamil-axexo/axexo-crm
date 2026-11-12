@@ -3,6 +3,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { missingForStage, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
+import { dealNextStep, stepSubject } from '@/dal/step-text'
 import { teamFilter } from '@/dal/reports'
 import { gateFields } from '@/dal/ops'
 
@@ -75,7 +76,7 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
     const deals = await tx<BoardDeal[]>`
       select * from (
         select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
-               d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
+               ${dealNextStep(tx, ctx.locale)} as next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
                d.paused_at, d.pause_review_on::text,
                d.owner_id, (select o.full_name from crm.users o where o.id = d.ops_owner_id) as ops_owner_name, d.ops_next_step, d.ops_next_step_due::text,
                row_number() over (partition by d.stage_id order by ${f.noStep ? tx`d.amount_minor desc nulls last, d.created_at desc` : tx`d.revisit_needed desc, d.stage_entered_at`}) as rn
@@ -114,7 +115,7 @@ export async function getDeal(ctx: Ctx, id: string) {
         loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string; custom: Record<string, unknown>; close_by_transaction: boolean;
         motor: string; pause_reason: string | null })[]
     >`select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
-             d.next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
+             ${dealNextStep(tx, ctx.locale)} as next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
              d.owner_id, (select o.full_name from crm.users o where o.id = d.ops_owner_id) as ops_owner_name, d.ops_next_step, d.ops_next_step_due::text,
              d.market_code, d.pipeline_id, p.name as pipeline_name, d.status, d.loss_reason_code, d.loss_note, d.won_at, d.lost_at, d.closed_by,
              d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle, d.custom, p.close_by_transaction, p.motor, d.paused_at, d.pause_review_on::text, d.pause_reason
@@ -133,7 +134,7 @@ export async function getDeal(ctx: Ctx, id: string) {
         left join crm.users u on u.id = e.actor_id where e.deal_id = ${id} order by e.at desc`
     // Lo hecho se ordena y se fecha por el día en que se hizo, no por el día en que se creó la tarea.
     const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; due_at: Date | null; done_at: Date | null; created_at: Date; author: string | null; outcome: string | null; visited_by: string | null }[]>`
-      select a.id, a.kind, a.subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author, coalesce(a.ops_outcome, a.outcome) as outcome, a.visited_by
+      select a.id, a.kind, ${stepSubject(tx, ctx.locale)} as subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author, coalesce(a.ops_outcome, a.outcome) as outcome, a.visited_by
         from crm.activities a left join crm.users u on u.id = a.created_by where a.deal_id = ${id} order by coalesce(a.done_at, a.created_at) desc limit 40`
     const items = await tx<{ id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }[]>`
       select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments from crm.deal_items where deal_id = ${id} order by position, created_at`

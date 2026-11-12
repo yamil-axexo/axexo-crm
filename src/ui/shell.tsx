@@ -249,16 +249,45 @@ export function LeadWatch({ initial, labels, everyMs = 60_000 }: { initial: { le
   const seen = useRef(initial)
   const fresh = useRef(0)
   const baseTitle = useRef<string | null>(null)
-
-  // Al cambiar de pantalla el aviso del título ya cumplió: se quita.
+  const guard = useRef<MutationObserver | null>(null)
+  const labelsRef = useRef(labels)
   useEffect(() => {
+    labelsRef.current = labels
+  }, [labels])
+
+  // Al cambiar de pantalla el aviso del título ya cumplió: se quita, y se deja de vigilar el título.
+  useEffect(() => {
+    guard.current?.disconnect()
+    guard.current = null
     if (fresh.current > 0 && baseTitle.current !== null) document.title = baseTitle.current
     fresh.current = 0
     baseTitle.current = null
   }, [path])
+  useEffect(() => () => guard.current?.disconnect(), [])
 
   useEffect(() => {
     let stop = false
+    /**
+     * Escribe "(n) Lead nuevo · título" y lo sostiene: al refrescar la pantalla, Next vuelve a escribir el título de la página y
+     * el aviso duraba menos de medio segundo. Mientras haya leads nuevos sin ver, si el título cambia y pierde el prefijo, ese
+     * título pasa a ser la base y el prefijo se vuelve a poner.
+     */
+    const holdTitle = () => {
+      const write = () => {
+        const n = fresh.current
+        if (n <= 0) return
+        const prefix = `(${n}) ${n === 1 ? labelsRef.current.one : labelsRef.current.many} · `
+        if (document.title.startsWith(prefix)) return
+        // Un título con el prefijo de un conteo anterior no es la base: la base es lo que escribió la página.
+        if (baseTitle.current === null || !/^\(\d+\) /.test(document.title)) baseTitle.current = document.title
+        document.title = `${prefix}${baseTitle.current}`
+      }
+      write()
+      if (!guard.current) {
+        guard.current = new MutationObserver(write)
+        guard.current.observe(document.head, { childList: true, subtree: true, characterData: true })
+      }
+    }
     const check = async () => {
       if (stop || !navigator.onLine) return
       try {
@@ -271,9 +300,7 @@ export function LeadWatch({ initial, labels, everyMs = 60_000 }: { initial: { le
         seen.current = { leadsWaiting: now.leadsWaiting, latest: now.latest ?? before.latest }
         if (arrived) {
           fresh.current += Math.max(1, now.leadsWaiting - before.leadsWaiting)
-          const n = fresh.current
-          if (baseTitle.current === null) baseTitle.current = document.title
-          document.title = `(${n}) ${n === 1 ? labels.one : labels.many} · ${baseTitle.current}`
+          holdTitle()
           showToast(labels.toast.replace('{name}', now.latestName ?? ''))
           if (alertOn()) {
             try {

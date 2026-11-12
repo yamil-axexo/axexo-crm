@@ -169,6 +169,9 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
   // Quien supervisa y no tiene pendientes propios no lee "Todo al día": se le dice cuántos tiene su equipo, con enlace.
   const teamOpen = total === 0 && q.rows.length === 0 && ctx.memberships.some((x) => x.role === 'supervisor' || x.role === 'market_lead')
     ? Object.values((await getSupervisorBoard(ctx, {})).byKind).reduce((a, b) => a + b, 0) : null
+  // "Todo al día" solo cuando tampoco el equipo tiene pendientes; si los tiene, el título y la tarjeta dicen que lo propio está al día.
+  const teamBusy = teamOpen !== null && teamOpen > 0
+  const ownClear = t('No tienes pendientes propios', 'Nothing of your own to do')
   const shown = { late: 0, today: 0, suggested: 0 }
   for (const i of items) shown[i.group]++
   const more = (g: keyof typeof shown) => (q.counts[g] > shown[g] && shown[g] >= QUEUE_PAGE ? m('today.more', { count: q.counts[g] - shown[g] }) : null)
@@ -184,14 +187,14 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     clock: m('today.leadClock', { time: '%s' }), clockLate: m('today.leadClockLate', { time: '%s' }),
     more: { late: more('late'), today: more('today'), suggested: q.backlog > 0 ? m('today.backlog', { count: q.backlog }) : null },
     groups: { late: m('today.group.late'), today: m('today.group.today'), suggested: m('today.group.suggested') },
-    emptyTitle: teamOpen === null ? m('today.empty.title') : t('No tienes pendientes propios', 'You have nothing pending of your own'),
-    emptyBody: teamOpen === null ? m('today.empty.body') : t(`Tu equipo tiene ${teamOpen} ${teamOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}.`, `Your team has ${teamOpen} open ${teamOpen === 1 ? 'alert' : 'alerts'}.`),
+    emptyTitle: teamBusy ? ownClear : m('today.empty.title'),
+    emptyBody: !teamBusy ? m('today.empty.body') : t(`Tu equipo tiene ${teamOpen} ${teamOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}.`, `Your team has ${teamOpen} open ${teamOpen === 1 ? 'alert' : 'alerts'}.`),
     emptyLink: teamOpen ? { href: '/supervisor', label: t('Ver los pendientes de mi equipo', 'See my team’s alerts') } : null, backlogLink: m('today.backlogLink'),
   }
 
   return (
     <>
-      {header(m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
+      {header(teamBusy ? ownClear : m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
       {!ob.hidden && ob.pending > 0 && (
         <aside className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 pr-3 pl-3.5" data-testid="hoy-onboarding">
           <Ring id="sc-ring-hoy" value={((ob.total - ob.pending) / ob.total) * 100} size={44} stroke={13} track="var(--cg-line-200)" from="#3ddc97" to="#24815f">

@@ -72,11 +72,11 @@ test.describe('la entrada abre en el idioma del navegador', () => {
 test.describe('primeros pasos por rol', () => {
   const ROLES = [
     ['lucia.vega', 'Ventas', 8],
-    ['fernando.ibarra', 'Supervisión', 8],
+    ['fernando.ibarra', 'Supervisión', 9], // ola 4: supervisión suma su número semanal
     ['ana.robles', 'Líder de mercado', 7],
     ['valeria.soto', 'Operaciones', 6],
     ['luis.tovar', 'Leadership', 5],
-    ['nora.salas', 'Administración', 8],
+    ['nora.salas', 'Administración', 9], // ola 4: administración suma la pestaña de Pipedrive
   ] as const
 
   test('cada rol tiene sus pasos, cada paso lleva a una pantalla que abre, y sus dos bloques de hábitos', async ({ page }) => {
@@ -361,8 +361,10 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     await expect(help).toContainText('¿Cómo se reparten los leads del formulario web?')
     expect(await items.count()).toBeLessThan(6)
     await help.getByTestId('help-search').fill('street rep')
-    await expect(items).toHaveCount(1)
-    await expect(items.first()).toContainText('¿Dónde pongo al vendedor de calle?')
+    // ola 4: además de dónde se anota, la ayuda dice cómo se agrega al catálogo
+    await expect(items).toHaveCount(2)
+    await expect(help).toContainText('¿Dónde pongo al vendedor de calle?')
+    await expect(help).toContainText('¿Cómo agrego un vendedor de calle?')
     // sin acentos, y con el botón exacto en la respuesta
     await help.getByTestId('help-search').fill('quien visito')
     await expect(items.first()).toBeVisible()

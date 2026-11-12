@@ -42,8 +42,8 @@ With `DEMO_PERSONAS=1` the login screen lists synthetic personas (admin, leaders
 | Command | What it proves |
 |---|---|
 | `pnpm typecheck` / `pnpm lint` | Types and lint |
-| `pnpm test` | 425 tests in 34 files: unit tests for rules and wording, plus allowed/denied tests per role × object × action and domain tests against a real Postgres (AUTHZ-08). The database is migrated and seeded once per run and kept as a template (`<database>_tpl`); every file of `tests/db` starts from a fresh copy of it, so files do not depend on each other or on their order. The migration user needs the right to create databases |
-| `pnpm build && pnpm e2e` | 303 end-to-end tests in 25 files against the standalone build: the business flows, a full Pipedrive import against a simulated API, and every screen at 1440, 1024 and 390 px with accessibility checks (axe, WCAG 2.2 AA tags) |
+| `pnpm test` | 426 tests in 34 files: unit tests for rules and wording, plus allowed/denied tests per role × object × action and domain tests against a real Postgres (AUTHZ-08). The database is migrated and seeded once per run and kept as a template (`<database>_tpl`); every file of `tests/db` starts from a fresh copy of it, so files do not depend on each other or on their order. The migration user needs the right to create databases |
+| `pnpm build && pnpm e2e` | 304 end-to-end tests in 25 files against the standalone build: the business flows, a full Pipedrive import against a simulated API, and every screen at 1440, 1024 and 390 px with accessibility checks (axe, WCAG 2.2 AA tags) |
 | `pnpm scan:prohibited` | No cards, SSNs, keys or connection strings in the repo; `--db` scans free-text columns (SEC-08) |
 
 ## Changes after committee 2 (waves 1 to 4) / Cambios después del comité 2 (olas 1 a 4)
@@ -68,7 +68,7 @@ The second committee (11-Nov-2026) walked the app as the real teams. Its finding
 
 **Counts on the release candidate:** 383 vitest tests in 30 files (green twice in a row and with shuffled file order), 282 end-to-end tests in 22 files, and the migration cycle `reset`, nine times `down`, `up` on seeded data with the same row counts before and after.
 
-**Wave 4 (acceptance round, 12-Nov-2026), integrated on `design-v1`.** `ajustes-campo`: street seller catalog by market and team with visits by who visited, winning by hand completes what is missing in the same sheet, handover to Operations asks only for what the stage requires, a duplicate Merchant ID warns and asks to confirm, a visit with no sale asks why, loss reasons by market, sellers see their own closed deals. `ajustes-lider`: a new lead is noticed inside CONTIGO (dock counter and tab title every minute, lead watch on Mi equipo), the notice of a team with no supervisor reaches the market lead, Closed deals and its CSV say how each deal was won and who marked it, granting Administration names its scope and asks for confirmation, the audit detail shows readable names. Integration: the US market says its time as Eastern and adds the reader's local time when the browser is in another zone, a converted lead inherits its territory or the sheet asks, "Take this store" on unassigned merchants, the default next step lands on a working day of the market.
+**Wave 4 (acceptance round, 12-Nov-2026), integrated on `design-v1`.** `ajustes-campo`: street seller catalog by market and team with visits by who visited, winning by hand completes what is missing in the same sheet, handover to Operations asks only for what the stage requires, a duplicate Merchant ID warns and asks to confirm, a visit with no sale asks why, loss reasons by market, sellers see their own closed deals. `ajustes-lider`: a new lead is noticed inside CONTIGO (dock counter and tab title every minute, lead watch on Mi equipo), the notice of a team with no supervisor reaches the market lead, Closed deals and its CSV say how each deal was won and who marked it, granting Administration names its scope and asks for confirmation, the audit detail shows readable names. Integration: the US market says its time as Eastern and adds the reader's local time when the browser is in another zone, a converted lead inherits its territory or the sheet asks, "Take this store" on unassigned merchants, the default next step lands on a working day of the market, a return from Operations is read in the reader's language, the "(1) Lead nuevo" tab title survives the screen refresh, and Hoy of a supervisor only says "Todo al día" when the team has nothing open either.
 
 | Migration | What it adds |
 |---|---|
@@ -76,7 +76,7 @@ The second committee (11-Nov-2026) walked the app as the real teams. Its finding
 
 There is no migration 0019: `ajustes-lider` needed none.
 
-**Counts after wave 4:** 425 vitest tests in 34 files (green twice in a row), 303 end-to-end tests in 25 files, and the migration cycle `reset`, ten times `down` (0018 back to 0009), `up` on seeded data.
+**Counts after wave 4:** 426 vitest tests in 34 files (green twice in a row), 304 end-to-end tests in 25 files, and the migration cycle `reset`, ten times `down` (0018 back to 0009), `up` on seeded data.
 
 **Decisions taken by default, to be confirmed by Yamil** (detail in ADR-006): a seller can pass their own lead to a teammate; one next-step sheet and one rule; business hours Monday to Friday 9:00 to 18:00 until administration changes them; a returned deal arrives as a task in Hoy; supervisors and market leads appear in Mi equipo only if they carry records; Operations reads the audit log and the alerts of its markets; anyone with access can report a problem; "s/d" and "n/a" mark a missing value.
 

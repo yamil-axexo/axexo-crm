@@ -139,8 +139,12 @@ Two packages built in parallel after the acceptance round and merged with `--no-
 4. **The default next step skips the days the market does not work** (its business hours; Monday to Friday by default). A date the person picks by hand is not moved.
 5. **The local time is computed in the browser** (`OwnTime`), with no cookie and no page reload, so it also works on screens that never saved the reader's zone.
 
+**Second acceptance round on the integrated build (same day)**
+- The tab title "(1) Lead nuevo" lasted under half a second because the screen refresh rewrote the page title. `LeadWatch` now watches `<head>` while there are unseen leads and puts the prefix back on the new title; it stops on a screen change and on unmount.
+- A return from Operations keeps the reason code, the note and the deal title on the seller's next-step task (`activities.custom.ops_return`, no migration). Hoy, the deal, the board and the threads compose the sentence in the reader's language (`src/dal/step-text.ts`); the free note stays as written. If the seller writes another next step, the mark is removed.
+- Hoy of a supervisor or market lead with nothing of their own says "No tienes pendientes propios" / "Nothing of your own to do" in the title and in the card while the team has open alerts, and "Todo al día" only when the team has none.
+
 **Left open after wave 4**
-- The return from Operations still stores its reason as text in the seller's language; storing the code and showing it in the reader's language needs the reason on the next-step activity and in every place that shows the step.
 - Administration has no screen yet to edit what a stage asks for beyond the fixed list (`field:<key>`), to switch `pipelines.ops_checklist`, or to change who a street seller reports to.
 - First steps for Sales are the same in every market (stores before leads); the US and B2B variants are not written.
 - The no-sale reason "No estaba el decisor" comes from `0004_pipedrive_mirror` and still reads that way; changing it in every environment needs a data migration.
@@ -148,8 +152,8 @@ Two packages built in parallel after the acceptance round and merged with `--no-
 ### Verification after wave 4 (12-Nov-2026)
 Run on `design-v1` with the integrator's databases (`contigo_unit`, `contigo_test`, `contigo_cycle`) and default ports:
 - `pnpm typecheck`, `pnpm lint`, `pnpm scan:prohibited`: clean.
-- `pnpm test`: 425 tests in 34 files, green twice in a row.
-- `pnpm build` and `pnpm e2e`: 303 end-to-end tests in 25 files against the standalone build.
+- `pnpm test`: 426 tests in 34 files, green twice in a row.
+- `pnpm build` and `pnpm e2e`: 304 end-to-end tests in 25 files against the standalone build.
 - Migration cycle on seeded data: `reset`, ten times `down` (0018 back to 0009), `up`.
 - Walked with Playwright at 1440 and 390 px, in Spanish and in English: winning by hand from the card, the visit sheet, the field report and its two CSV files, Mi equipo with the lead watch and street sellers, closed deals, granting Administration. No overflow and no console errors.
 

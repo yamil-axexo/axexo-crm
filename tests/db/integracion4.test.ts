@@ -4,6 +4,12 @@ import { convertLead, createLead, qualifyLead } from '@/domain/leads'
 import { createAccount } from '@/domain/accounts'
 import { takeAccount } from '@/domain/reparto'
 import { getAccount } from '@/dal/accounts'
+import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
+import { takeDeal } from '@/domain/ops'
+import { updateCustom } from '@/domain/custom'
+import { getQueue } from '@/dal/queue'
+import { getDeal } from '@/dal/pipelines'
+import { loadCtx } from '@/server/context'
 
 // Ola 4, integración: territorio al convertir un lead, "Tomar esta tienda" y próximo paso por defecto en día hábil.
 const admin = owner()
@@ -78,5 +84,41 @@ describe('tomar una tienda sin asignar', () => {
     const ana = await ctxFor('ana.robles')
     await takeAccount(ana, other)
     expect((await one(admin<{ owner_id: string }[]>`select owner_id from crm.accounts where id = ${other}`)).owner_id).toBe(ana.user.id)
+  })
+})
+
+describe('la devolución de Operaciones se lee en el idioma de quien la lee', () => {
+  it('guarda el código del motivo; Hoy, el negocio y el hilo componen el texto en español o en inglés, y la nota libre no cambia', async () => {
+    const jade = await ctxFor('jade.kim')
+    const tom = await ctxFor('tom.reyes')
+    const stage = async (code: string) => (await one(admin<{ id: string }[]>`select s.id from crm.stages s where s.pipeline_id = md5('contigo:p-us-dealer')::uuid and s.code = ${code}`)).id
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Return Wireless ${tag()}`, segment: 'dealer', force: true })
+    const contact = await one(admin<{ id: string }[]>`insert into crm.contacts (market_code, full_name) values ('US', 'Dana Fox') returning id`)
+    await admin`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${acc.id!}, ${contact.id}, 'US', 'decision_maker')`
+    const today = (await one(admin<{ d: string }[]>`select (now() at time zone 'America/New_York')::date::text as d`)).d
+    const id = await createDeal(jade, { accountId: acc.id!, pipelineId: (await one(admin<{ id: string }[]>`select md5('contigo:p-us-dealer')::uuid as id`)).id, title: `Devolución ${tag()}`, nextStep: 'Reunir documentos', nextStepDue: today })
+    await updateDeal(jade, id, { decisionMakerId: contact.id, decisionMakerMet: true, amount: 1200 })
+    await updateCustom(jade, 'deal', id, { account_funding: 'ACH' })
+    await moveDeal(jade, id, await stage('application'))
+    await moveDeal(jade, id, await stage('carrier'))
+    await takeDeal(tom, id)
+    await moveDeal(tom, id, await stage('application'), undefined, undefined, { ret: { reasonCode: 'data_incomplete', note: 'Falta el EIN' } })
+
+    const task = await one(admin<{ custom: { ops_return?: { code: string; note: string } } }[]>`select custom from crm.activities where deal_id = ${id} and deal_step = 'sales' and done_at is null`)
+    expect(task.custom.ops_return).toMatchObject({ code: 'data_incomplete', note: 'Falta el EIN' })
+    const title = (await one(admin<{ title: string }[]>`select title from crm.deals where id = ${id}`)).title
+    const es = `Operaciones devolvió ${title}: Datos incompletos o incorrectos. Falta el EIN`
+    const en = `Operations sent back ${title}: Details are incomplete or wrong. Falta el EIN`
+    expect((await getQueue(jade)).rows.find((r) => r.dealId === id)?.subject).toBe(es)
+    expect((await getDeal(jade, id))?.deal.next_step).toBe(es)
+    const jadeEn = (await loadCtx(jade.user.id, 'en'))!
+    expect((await getQueue(jadeEn)).rows.find((r) => r.dealId === id)?.subject).toBe(en)
+    expect((await getDeal(jadeEn, id))?.deal.next_step).toBe(en)
+    expect((await getAccount(jadeEn, acc.id!))?.tasks.find((t) => t.subject === en)).toBeTruthy()
+
+    // Si la vendedora escribe otro próximo paso, deja de ser la devolución: se muestra lo que ella escribió
+    await updateDeal(jade, id, { nextStep: 'Pedir el EIN al dueño', nextStepDue: today })
+    expect((await getQueue(jadeEn)).rows.find((r) => r.dealId === id)?.subject).toBe('Pedir el EIN al dueño')
+    expect((await getDeal(jadeEn, id))?.deal.next_step).toBe('Pedir el EIN al dueño')
   })
 })

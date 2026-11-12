@@ -102,7 +102,8 @@ export async function syncDealStep(tx: Tx, ctx: Ctx, d: { id: string; market_cod
   }
   const at = `${due}T15:00:00Z`
   if (open[0]) {
-    await tx`update crm.activities set subject = ${step}, due_at = ${at}, owner_id = ${ownerId} where id = ${open[0].id}`
+    // Si el paso cambia de texto deja de ser la devolución de Operaciones: se quita la marca que la traduce al mostrar.
+    await tx`update crm.activities set custom = case when subject is distinct from ${step} then custom - 'ops_return' else custom end, subject = ${step}, due_at = ${at}, owner_id = ${ownerId} where id = ${open[0].id}`
     if (open.length > 1) await tx`update crm.activities set deal_step = null where id = any(${open.slice(1).map((o) => o.id)}::uuid[])`
     return
   }
@@ -324,6 +325,10 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       await tx`update crm.deals set next_step = ${step}, next_step_due = ${today}, ops_next_step = null, ops_next_step_due = null where id = ${dealId}`
       await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and deal_step = 'ops' and done_at is null`
       await syncDealStep(tx, ctx, d, 'sales', step, today, d.owner_id)
+      // El texto guardado queda en el idioma de quien lleva el negocio; el código del motivo va en la tarea para componerlo
+      // al mostrar en el idioma de quien lee (dal/step-text.ts). La nota libre se queda como se escribió.
+      await tx`update crm.activities set custom = custom || ${tx.json({ ops_return: { code: extra!.ret!.reasonCode, note: note ?? '', title: d.title } } as never)}
+                where deal_id = ${dealId} and deal_step = 'sales' and done_at is null`
       await audit(tx, ctx, 'deal.returned_to_sales', 'deal', dealId, d.market_code, { stage_id: d.stage_id }, { stage_id: toStageId, reason: extra!.ret!.reasonCode, note })
     }
     if (stage.kind === 'won' || stage.kind === 'lost') {

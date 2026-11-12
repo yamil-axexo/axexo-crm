@@ -2,6 +2,7 @@ import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { isUuid } from '@/lib/ids'
+import { stepSubject } from '@/dal/step-text'
 import { accountFilter, type AccountFilters } from '@/server/account-filter'
 
 export type AccountListItem = {
@@ -174,7 +175,7 @@ export async function getAccount(ctx: Ctx, id: string) {
        where m.account_id = ${id} order by m.as_of desc limit 1`
     // `motor`: el tipo de venta del embudo del negocio al que pertenece la tarea; sin negocio, vale el segmento del comercio.
     const tasks = await tx<{ id: string; kind: string; subject: string; due_at: Date | null; owner_name: string | null; motor: string | null }[]>`
-      select a.id, a.kind, a.subject, a.due_at, u.full_name as owner_name,
+      select a.id, a.kind, ${stepSubject(tx, ctx.locale)} as subject, a.due_at, u.full_name as owner_name,
              (select p.motor from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where d.id = a.deal_id) as motor
         from crm.activities a left join crm.users u on u.id = a.owner_id
        where a.account_id = ${id} and a.kind in ('task', 'handoff', 'call', 'meeting', 'email', 'visit') and a.done_at is null order by a.due_at nulls last limit 10`
@@ -182,7 +183,7 @@ export async function getAccount(ctx: Ctx, id: string) {
     const timeline = await tx<TimelineItem[]>`
       select * from (
         -- Lo hecho se fecha con el día en que se hizo, no con el día en que se creó la tarea.
-        select coalesce(a.done_at, a.created_at) as at, a.kind, a.subject as title, a.body, u.full_name as actor,
+        select coalesce(a.done_at, a.created_at) as at, a.kind, ${stepSubject(tx, ctx.locale)} as title, a.body, u.full_name as actor,
                jsonb_build_object('done', a.done_at is not null, 'source', a.source, 'outcome', a.outcome, 'visited_by', a.visited_by,
                                   'origin', case when a.kind = 'visit' then 'manual' end, 'type_label', a.type_label,
                                   'rejection', a.no_sale_code, 'rejection_es', nr.label_es, 'rejection_en', nr.label_en) as meta

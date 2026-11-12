@@ -159,7 +159,7 @@ describe('entrega de Ventas a Operaciones, cola y devolución', () => {
     expect(d.stage_id).toBe(application)
     expect(d.next_step).toBe(`Operations sent back ${d.title}: Documents are missing. Falta el permiso`)
     const row = (await getQueue(jade)).rows.find((r) => r.dealId === id)
-    expect(row?.subject).toContain('Operations sent back')
+    expect(row?.subject).toContain('Operaciones devolvió') // quien lee en español lo ve en español (ola 4); el texto guardado sigue en el idioma de la vendedora
     expect((await one(admin<{ after: { reason: string } }[]>`select after from crm.audit_events where object_id = ${id} and action = 'deal.returned_to_sales'`)).after.reason).toBe('docs_missing')
   })
 

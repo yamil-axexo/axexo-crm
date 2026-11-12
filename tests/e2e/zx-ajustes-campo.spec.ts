@@ -95,7 +95,7 @@ test('Operaciones no ve "Marcar como ganado" en un negocio que Ventas no ha entr
   await sql`update crm.pipelines set close_by_transaction = false where id = ${pipe}`
   const name = `Ajuste Wireless ${tag()}`
   const acc = (await sql<{ id: string }[]>`insert into crm.accounts (market_code, kind, name, segment, owner_id, country, created_by) values ('US', 'store', ${name}, 'dealer', ${jade}, 'US', ${jade}) returning id`)[0]!
-  const contact = (await sql<{ id: string }[]>`insert into crm.contacts (market_code, full_name) values ('US', 'Adjust Test Owner') returning id`)[0]!
+  const contact = (await sql<{ id: string }[]>`insert into crm.contacts (market_code, full_name) values ('US', 'Dana Fox Ajuste') returning id`)[0]!
   await sql`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${acc.id}, ${contact.id}, 'US', 'owner')`
   const deal = (await sql<{ id: string }[]>`
     insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, next_step, next_step_due, decision_maker_id, decision_maker_met, created_by)

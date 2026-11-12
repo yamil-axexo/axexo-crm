@@ -160,7 +160,8 @@ describe('entrega a Operaciones, devolución y ganado a mano en los reportes', (
     await expect(moveDeal(tom, a, captured)).rejects.toMatchObject({ code: 'return_reason_required' })
     await moveDeal(tom, a, captured, undefined, undefined, { ret: { reasonCode: 'docs_missing', note: 'Falta el permiso' } })
     const row = (await getQueue(jade)).rows.find((r) => r.dealId === a)
-    expect(row?.subject).toMatch(/^Operations sent back Pedido A .*: Documents are missing\. Falta el permiso$/)
+    // ola 4: el motivo se guarda por código y el texto se compone en el idioma de quien lee (aquí, Jade en español)
+    expect(row?.subject).toMatch(/^Operaciones devolvió Pedido A .*: Faltan documentos\. Falta el permiso$/)
     expect(row?.group).toBe('today')
     expect((await getOpsQueue(tom, { view: 'all' })).rows.some((r) => r.id === a)).toBe(false)
 
