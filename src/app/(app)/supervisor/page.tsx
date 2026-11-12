@@ -143,7 +143,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                 <li key={l.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-line py-3 first:border-t-0" data-testid="watch-row" data-late={l.late ? '1' : '0'}>
                   <Link href={`/leads/${l.id}`} className="min-w-0 flex-1 basis-[240px]">
                     <span className="block text-[14.5px] font-semibold text-strong [overflow-wrap:anywhere]">{l.business_name}</span>
-                    <span className="mt-0.5 block text-[13px] text-muted-2">{[l.owner_name ?? t('Sin dueño: lo puede tomar cualquiera que venda', 'No owner: anyone who sells can take it'), lab(t, MOTOR[l.motor]) || null, live.length > 1 ? l.market_code : null, t(`llegó ${ago(l.created_at, locale)}`, `arrived ${ago(l.created_at, locale)}`)].filter(Boolean).join(' · ')}</span>
+                    <span className="mt-0.5 block text-[13px] text-muted-2">{[l.owner_name ?? t('Sin asignar: lo puede tomar cualquiera que venda', 'No owner: anyone who sells can take it'), lab(t, MOTOR[l.motor]) || null, live.length > 1 ? l.market_code : null, t(`llegó ${ago(l.created_at, locale)}`, `arrived ${ago(l.created_at, locale)}`)].filter(Boolean).join(' · ')}</span>
                   </Link>
                   <span className={`${CHIP} ${l.late ? 'bg-risk-bg text-red-text' : 'bg-warn-bg text-amber-text'}`} data-testid="watch-left">{l.late ? t('Pasó la meta', 'Past the goal') : left(l.minutes_left)}</span>
                 </li>
