@@ -1,6 +1,7 @@
 'use server'
 
 import { createHash } from 'node:crypto'
+import { runVia } from '@/server/db'
 import { headers } from 'next/headers'
 import { guardPublicSubmit } from '@/domain/form-guard'
 import { clientIp } from '@/server/protect'
@@ -28,7 +29,8 @@ export async function submitPublicForm(_: R | null, fd: FormData): Promise<R> {
     // negocio capturado en la misma pantalla (una tablet en mostrador, un dueño con dos tiendas) sea otro lead.
     const body = Object.fromEntries([...fd.entries()].filter(([, v]) => typeof v === 'string')) as Record<string, string>
     const print = createHash('sha256').update([body.business_name, body.contact_name, body.phone, body.email].map((v) => (v ?? '').trim().toLowerCase()).join('|')).digest('hex').slice(0, 16)
-    await intakeFromForm(await systemCtx(), slug, body, `form:${key}:${print}`)
+    // SEG-03: lo que entra por un formulario público queda en la bitácora de la base con la vía "formulario web".
+    await runVia('form', async () => intakeFromForm(await systemCtx(), slug, body, `form:${key}:${print}`))
     return { ok: true, message: t('Recibimos tus datos. Alguien del equipo te va a contactar.', 'We got your details. Someone from the team will reach out.') }
   } catch (e) {
     if (e instanceof DomainError) return { ok: false, code: e.code, error: t(e.es, e.en) }

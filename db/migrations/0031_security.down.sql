@@ -35,10 +35,12 @@ drop trigger if exists accounts_stamp_agency on crm.accounts;
 drop trigger if exists leads_stamp_agency on crm.leads;
 drop trigger if exists deals_stamp_agency on crm.deals;
 drop trigger if exists leads_consent_row on crm.leads;
+drop trigger if exists leads_consent_to_contact on crm.leads;
 drop trigger if exists audit_events_stamp on crm.audit_events;
 drop trigger if exists audit_events_export_read on crm.audit_events;
 drop function if exists crm.stamp_agency();
 drop function if exists crm.lead_consent_row();
+drop function if exists crm.lead_consent_to_contact();
 drop function if exists crm.audit_events_stamp();
 drop function if exists crm.audit_events_export_read();
 
@@ -56,6 +58,8 @@ drop policy accounts_team_upd on crm.accounts;
 drop policy accounts_agency_read on crm.accounts;
 drop policy accounts_partner_read on crm.accounts;
 drop policy accounts_entity_scope on crm.accounts;
+drop policy accounts_agency_wall on crm.accounts;
+drop policy leads_agency_wall on crm.leads;
 drop policy leads_agency_read on crm.leads;
 
 drop schema audit cascade;

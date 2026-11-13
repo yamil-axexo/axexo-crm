@@ -120,7 +120,7 @@ describe('SEG-03: la bitácora la escribe la base', () => {
       select kind, row_count, object, via from audit.read_log where actor_id = ${ana.user.id} and kind = 'export' order by id desc limit 1`)
     expect(read).toMatchObject({ kind: 'export', row_count: out.rows, object: 'closed_deals' })
 
-    await setThresholds(nora, { exports_per_day: 1, export_rows_per_day: 5000, searches_per_hour: 120, reveals_per_day: 20, api_calls_per_hour: 2000, key_unused_days: 90, key_expiring_days: 14 })
+    await setThresholds(nora, { exports_per_day: 1, export_rows_per_day: 5000, searches_per_hour: 120, reveals_per_day: 20, api_calls_per_hour: 2000, api_rows_per_day: 50000, key_unused_days: 90, key_expiring_days: 14 })
     await exportClosedDeals(ana, marketPeriods(ana, 'mes'), { market: 'MX' }, 'Segundo corte del mismo cierre')
     expect(await runSecurityScan(nora)).toBeGreaterThan(0)
     const before = (await getMonitoring(nora)).alerts.filter((a) => a.kind === 'exports_per_day' && a.subject === 'Ana Robles')
@@ -158,6 +158,22 @@ describe('SEG-03: la bitácora la escribe la base', () => {
     }
     // Sin filas nuevas no hay lote nuevo (salvo las que dejó esta misma corrida en configuración).
     expect(await code(admin`delete from audit.archive_batches`)).toBe('42501')
+  })
+
+  it('lo que cambia una tarea programada queda con la vía "job", y una lectura con llave queda por llave', async () => {
+    const { runJob } = await import('@/server/jobs/runner')
+    const out = await runJob({ key: 'seguridad.prueba_via', everyMinutes: 1, description: { es: 'Prueba', en: 'Test' }, run: async (tx) => {
+      await tx`update crm.settings set value = '31'::jsonb where key = 'security.unused_days'`
+      return { done: 1 }
+    } }, 'manual', { force: true })
+    expect(out.status).toBe('ok')
+    expect((await one(admin<{ via: string }[]>`select via from audit.config_log where table_name = 'settings' and row_id = 'security.unused_days' order by id desc limit 1`)).via).toBe('job')
+    const nora = await ctxFor('nora.salas')
+    const key = await createApiClient(nora, `Llave lectura ${tag()}`, ['forms:write'])
+    await withoutUser((tx) => tx`select app.log_read('api', 'accounts:read', 60000, 'MX', null, ${key.id})`)
+    expect(await one(admin<{ via: string; actor_id: string | null; row_count: number }[]>`select via, actor_id, row_count from audit.read_log where key_id = ${key.id}`)).toEqual({ via: 'api', actor_id: null, row_count: 60000 })
+    await runSecurityScan(nora)
+    expect((await getMonitoring(nora)).alerts.find((a) => a.kind === 'api_rows_per_day')).toMatchObject({ observed: 60000, threshold: 50000 })
   })
 
   it('los jobs del paquete están en el registro y se pueden correr dos veces', async () => {
@@ -308,8 +324,19 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
         values ('MX', ${acc[0]!.id}, ${otherPipeline.id}, ${st[0]!.id}, 'Fuera de su embudo', ${userId}, 'MXN')`)).toBe('42501')
     })
     expect((await one(admin<{ n: number }[]>`select count(*)::int as n from crm.accounts where recruited_agency_id = ${agencyId}`)).n).toBe(1)
-    // Otra persona que vende sigue sin ver lo de la agencia salvo por su propio alcance; quien lidera el mercado sí lo ve.
-    expect((await withUser(await personaId('ana.robles'), (tx) => tx`select 1 from crm.leads where id = ${leadId}`)).length).toBe(1)
+    // La venta directa del mismo mercado (supervisión y ventas) no ve lo que reclutó la agencia; quien lidera el mercado y Operaciones sí.
+    const agencyAccount = await one(admin<{ id: string }[]>`select id from crm.accounts where recruited_agency_id = ${agencyId}`)
+    for (const k of ['fernando.ibarra', 'paula.mendez', 'marco.pena']) {
+      const id = await personaId(k)
+      expect((await withUser(id, (tx) => tx`select 1 from crm.leads where id = ${leadId}`)).length, k).toBe(0)
+      expect((await withUser(id, (tx) => tx`select 1 from crm.accounts where id = ${agencyAccount.id}`)).length, k).toBe(0)
+      expect((await one(await withUser(id, (tx) => tx<{ ok: boolean }[]>`select app.can_see_account(${agencyAccount.id}) as ok`).then((r) => [...r]))).ok, k).toBe(false)
+    }
+    for (const k of ['ana.robles', 'valeria.soto', 'luis.tovar']) {
+      const id = await personaId(k)
+      expect((await withUser(id, (tx) => tx`select 1 from crm.leads where id = ${leadId}`)).length, k).toBe(1)
+      expect((await withUser(id, (tx) => tx`select 1 from crm.accounts where id = ${agencyAccount.id}`)).length, k).toBe(1)
+    }
     // Una persona de agencia no combina su rol con otro.
     await expect(grantAgencyAccess(nora, { email: 'diana.cruz@contigo.test', fullName: 'Diana Cruz', agencyId }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
   })
@@ -434,6 +461,16 @@ describe('SEG-04: consentimiento, baja y retención', () => {
     const list = await withUser(ana.user.id, (tx) => deadLeadsForMailing(tx, 'MX', 'America/Mexico_City', 500))
     expect(list.some((l) => l.email === `si-${t}@ejemplo.test`)).toBe(true)
     expect(list.some((l) => l.email === `no-${t}@ejemplo.test`)).toBe(false)
+  })
+
+  it('al convertir un lead, su consentimiento vigente pasa al contacto que es esa misma persona', async () => {
+    const a = await account('diana.cruz')
+    const lead = await one(admin<{ id: string }[]>`
+      insert into crm.leads (market_code, motor, business_name, contact_name, phone, source, consent_at, consent_text, owner_id)
+      values ('MX', 'b2b', ${`Lead a convertir ${tag()}`}, 'Persona Convertida', ${a.phone}, 'web_form', now(), 'Acepto que me contacten', ${await personaId('diana.cruz')}) returning id`)
+    await admin`update crm.leads set status = 'converted', account_id = ${a.id} where id = ${lead.id}`
+    const c = await admin<{ channel: string; category: string; source: string }[]>`select channel, category, source from crm.consents where contact_id = ${a.contactId}`
+    expect(c).toMatchObject([{ channel: 'email', category: 'marketing', source: 'web_form' }])
   })
 
   it('el consentimiento de un formulario web queda como registro propio', async () => {

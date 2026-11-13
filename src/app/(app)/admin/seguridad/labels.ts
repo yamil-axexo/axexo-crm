@@ -6,6 +6,7 @@ export const ALERT_KIND: Record<string, Pair> = {
   searches_per_hour: ['Muchas búsquedas en una hora', 'Many searches in one hour'],
   reveals_per_day: ['Muchos datos reservados revelados en un día', 'Many restricted values revealed in one day'],
   api_calls_per_hour: ['Muchas llamadas con una llave en una hora', 'Many calls with one key in an hour'],
+  api_rows_per_day: ['Muchas filas leídas con una llave en un día', 'Many rows read with one key in one day'],
   key_expiring: ['Llave por vencer', 'Key about to expire'],
   key_unused: ['Llave sin uso', 'Unused key'],
   secret_rotation_due: ['Rotación de un secreto vencida', 'Secret rotation overdue'],
@@ -18,6 +19,7 @@ export const THRESHOLD_LABEL: Record<string, Pair> = {
   searches_per_hour: ['Búsquedas por persona por hora', 'Searches per person per hour'],
   reveals_per_day: ['Datos reservados revelados por persona al día', 'Restricted values revealed per person per day'],
   api_calls_per_hour: ['Llamadas por llave por hora', 'Calls per key per hour'],
+  api_rows_per_day: ['Filas leídas por llave al día', 'Rows read per key per day'],
   key_unused_days: ['Días sin uso para avisar de una llave', 'Days unused before flagging a key'],
   key_expiring_days: ['Días antes del vencimiento para avisar', 'Days before expiry to flag'],
 }

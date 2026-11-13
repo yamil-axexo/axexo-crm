@@ -234,7 +234,8 @@ returns void
 language plpgsql security definer set search_path = audit, crm, app, pg_catalog as $$
 begin
   insert into audit.read_log (actor_id, key_id, via, kind, object, row_count, market_code, detail)
-  values (app.current_user_id(), p_key, coalesce(nullif(current_setting('app.via', true), ''), 'screen'), p_kind, p_object, coalesce(p_rows, 0), p_market, p_detail);
+  values (app.current_user_id(), p_key, case when p_key is not null then 'api' else coalesce(nullif(current_setting('app.via', true), ''), 'screen') end,
+          p_kind, p_object, coalesce(p_rows, 0), p_market, p_detail);
 end $$;
 
 -- Toda exportación deja evento en la bitácora de la aplicación (`*.exported`). La base copia ese hecho al registro de lecturas,
@@ -405,6 +406,22 @@ create policy accounts_partner_read on crm.accounts for select to contigo_app
   using (id = any((select app.partner_root_ids())::uuid[]) or ancestor_ids && (select app.partner_root_ids())::uuid[]);
 create policy leads_agency_read on crm.leads for select to contigo_app
   using (recruited_agency_id = any((select app.my_agency_ids())::uuid[]));
+-- Lo que reclutó una agencia no lo ve la venta directa del mismo mercado (supervisión y ventas), salvo quien lo lleva o está
+-- en su equipo de cuenta. Quien lidera u opera el mercado, Leadership y Administración lo siguen viendo, igual que la propia agencia.
+create policy accounts_agency_wall on crm.accounts as restrictive for select to contigo_app using (
+  recruited_agency_id is null
+  or market_code = any((select app.full_markets())::text[])
+  or recruited_agency_id = any((select app.my_agency_ids())::uuid[])
+  or owner_id = (select app.current_user_id())
+  or id = any((select app.team_account_ids(false))::uuid[])
+  or id = any((select app.partner_root_ids())::uuid[]) or ancestor_ids && (select app.partner_root_ids())::uuid[]
+);
+create policy leads_agency_wall on crm.leads as restrictive for select to contigo_app using (
+  recruited_agency_id is null
+  or market_code = any((select app.full_markets())::text[])
+  or recruited_agency_id = any((select app.my_agency_ids())::uuid[])
+  or owner_id = (select app.current_user_id())
+);
 -- Alcance por entidad legal: se suma con AND a todo lo anterior. Un comercio sin entidad legal no queda escondido.
 create policy accounts_entity_scope on crm.accounts as restrictive for select to contigo_app using (
   legal_entity_id is null
@@ -429,6 +446,9 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
             or a.recruited_agency_id = any(app.my_agency_ids())
             or a.id = any(app.partner_root_ids()) or a.ancestor_ids && app.partner_root_ids())
        and (a.legal_entity_id is null or a.market_code = any(app.entity_open_markets()) or a.legal_entity_id = any(app.my_entity_ids()))
+       and (a.recruited_agency_id is null or a.market_code = any(app.full_markets()) or a.recruited_agency_id = any(app.my_agency_ids())
+            or a.owner_id = app.current_user_id() or a.id = any(app.team_account_ids(false))
+            or a.id = any(app.partner_root_ids()) or a.ancestor_ids && app.partner_root_ids())
   )
 $$;
 
@@ -649,6 +669,24 @@ end $$;
 create trigger leads_consent_row after insert or update of consent_at on crm.leads for each row execute function crm.lead_consent_row();
 insert into crm.consents (market_code, lead_id, channel, category, source, evidence, granted_at)
   select l.market_code, l.id, 'email', 'marketing', 'web_form', left(l.consent_text, 500), l.consent_at from crm.leads l where l.consent_at is not null;
+
+-- Al convertir un lead, su consentimiento vigente pasa al contacto del comercio que es esa misma persona (mismo correo o teléfono).
+create or replace function crm.lead_consent_to_contact() returns trigger
+language plpgsql security definer set search_path = crm, app, pg_catalog as $$
+begin
+  if new.status = 'converted' and old.status is distinct from 'converted' and new.account_id is not null then
+    insert into crm.consents (market_code, contact_id, channel, category, source, evidence, granted_at, recorded_by)
+    select c.market_code, ct.id, c.channel, c.category, c.source, c.evidence, c.granted_at, c.recorded_by
+      from crm.consents c
+      join crm.account_contacts ac on ac.account_id = new.account_id and ac.valid_to is null
+      join crm.contacts ct on ct.id = ac.contact_id
+     where c.lead_id = new.id and c.revoked_at is null
+       and ((new.email is not null and lower(ct.email::text) = lower(new.email::text)) or (new.phone is not null and ct.phone = new.phone))
+       and not exists (select 1 from crm.consents x where x.contact_id = ct.id and x.channel = c.channel and x.category = c.category and x.revoked_at is null);
+  end if;
+  return null;
+end $$;
+create trigger leads_consent_to_contact after update of status on crm.leads for each row execute function crm.lead_consent_to_contact();
 
 create table crm.retention_rules (
   key           text primary key,
@@ -965,7 +1003,7 @@ insert into crm.secret_inventory (key, label_es, label_en, system_name) values
 create table crm.security_alerts (
   id            uuid primary key default app.uuid_v7(),
   at            timestamptz not null default now(),
-  kind          text not null check (kind in ('exports_per_day','export_rows_per_day','searches_per_hour','reveals_per_day','api_calls_per_hour','key_expiring','key_unused','secret_rotation_due','direct_sql_change')),
+  kind          text not null check (kind in ('exports_per_day','export_rows_per_day','searches_per_hour','reveals_per_day','api_calls_per_hour','key_expiring','key_unused','secret_rotation_due','direct_sql_change','api_rows_per_day')),
   subject_key   text not null,                   -- persona, llave o secreto al que se refiere
   actor_id      uuid references crm.users(id),
   key_id        uuid references crm.api_clients(id),
@@ -979,7 +1017,7 @@ create table crm.security_alerts (
   unique (kind, subject_key, period)
 );
 insert into crm.settings (key, value) values
-  ('security.thresholds', '{"exports_per_day":5,"export_rows_per_day":5000,"searches_per_hour":120,"reveals_per_day":20,"api_calls_per_hour":2000,"key_unused_days":90,"key_expiring_days":14}'::jsonb),
+  ('security.thresholds', '{"exports_per_day":5,"export_rows_per_day":5000,"searches_per_hour":120,"reveals_per_day":20,"api_calls_per_hour":2000,"api_rows_per_day":50000,"key_unused_days":90,"key_expiring_days":14}'::jsonb),
   ('security.search_per_minute', '30'::jsonb),
   ('security.unused_days', '30'::jsonb),
   ('security.review_every_days', '90'::jsonb)
@@ -1019,6 +1057,15 @@ begin
    where r.window_start > now() - interval '1 day'
    group by c.id, to_char(r.window_start, 'YYYY-MM-DD HH24')
   having (th ->> 'api_calls_per_hour') is not null and sum(r.hits) > (th ->> 'api_calls_per_hour')::int
+  on conflict (kind, subject_key, period) do update set observed = excluded.observed where crm.security_alerts.status = 'open';
+  get diagnostics k = row_count; n := n + k;
+
+  -- Filas leídas por llave y día en la API de lectura (lectura masiva por una integración).
+  insert into crm.security_alerts (kind, subject_key, key_id, period, observed, threshold)
+  select 'api_rows_per_day', r.key_id::text, r.key_id, to_char(r.at, 'YYYY-MM-DD'), sum(r.row_count)::int, (th ->> 'api_rows_per_day')::int
+    from audit.read_log r where r.kind = 'api' and r.key_id is not null and r.at > now() - interval '2 days'
+   group by r.key_id, to_char(r.at, 'YYYY-MM-DD')
+  having (th ->> 'api_rows_per_day') is not null and sum(r.row_count) > (th ->> 'api_rows_per_day')::int
   on conflict (kind, subject_key, period) do update set observed = excluded.observed where crm.security_alerts.status = 'open';
   get diagnostics k = row_count; n := n + k;
 

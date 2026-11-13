@@ -538,7 +538,7 @@ export async function setSecretMeta(ctx: Ctx, key: string, input: z.input<typeof
 }
 
 // ------------------------------------------------------------ SEG-03: alertas, umbrales y copia
-export const THRESHOLD_KEYS = ['exports_per_day', 'export_rows_per_day', 'searches_per_hour', 'reveals_per_day', 'api_calls_per_hour', 'key_unused_days', 'key_expiring_days'] as const
+export const THRESHOLD_KEYS = ['exports_per_day', 'export_rows_per_day', 'searches_per_hour', 'reveals_per_day', 'api_calls_per_hour', 'api_rows_per_day', 'key_unused_days', 'key_expiring_days'] as const
 export type Thresholds = Record<(typeof THRESHOLD_KEYS)[number], number>
 
 export async function setThresholds(ctx: Ctx, input: Record<string, number>): Promise<void> {

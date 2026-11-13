@@ -1,6 +1,6 @@
 import 'server-only'
 import { timingSafeEqual } from 'node:crypto'
-import { withSystem } from '@/server/db'
+import { runVia, withSystem } from '@/server/db'
 import { env } from '@/env'
 import { JOBS } from './registry'
 import type { Job } from './types'
@@ -29,7 +29,8 @@ const safeError = (e: unknown): string => {
 export async function runJob(job: Job, trigger: Trigger, opts: { force?: boolean; actorId?: string | null } = {}): Promise<RunOutcome> {
   const t0 = Date.now()
   try {
-    return await withSystem(async (tx) => {
+    // SEG-03: lo que cambie una tarea programada queda en la bitácora de la base con la vía "tarea programada".
+    return await runVia('job', () => withSystem(async (tx) => {
       const lock = await tx<{ ok: boolean }[]>`select pg_try_advisory_xact_lock(hashtext(${'contigo.job:' + job.key})) as ok`
       if (!lock[0]?.ok) return { key: job.key, status: 'busy' as const }
       if (!opts.force) {
@@ -43,7 +44,7 @@ export async function runJob(job: Job, trigger: Trigger, opts: { force?: boolean
       await tx`insert into crm.job_runs (job_key, trigger, actor_id, status, started_at, finished_at, duration_ms, done, note)
                values (${job.key}, ${trigger}, ${opts.actorId ?? null}, 'ok', ${started}, clock_timestamp(), ${ms}, ${out.done}, ${out.note?.slice(0, 500) ?? null})`
       return { key: job.key, status: 'ok' as const, done: out.done, note: out.note, ms }
-    })
+    }))
   } catch (e) {
     const ms = Date.now() - t0
     const error = safeError(e)
