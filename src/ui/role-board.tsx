@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Badge, NoData } from '@/ui/kit'
+import { NoData } from '@/ui/kit'
 import { Metric } from '@/ui/report'
 import { money, num } from '@/lib/format'
 import type { T } from '@/lib/format'
@@ -20,7 +20,7 @@ export function RoleBoard({ t, locale, items, values, owners, money: moneyKeys =
     <section aria-label={t('Indicadores del rol', 'Role indicators')} data-testid={testId}>
       {pending.length > 0 && (
         <p className="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-muted" data-testid={`${testId}-proposed`}>
-          <Badge tone="warn">{t('Valor propuesto', 'Proposed value')}</Badge>
+          <ProposedTag>{t('Valor propuesto', 'Proposed value')}</ProposedTag>
           {t(`Esta lista de indicadores es una propuesta. [pendiente: ${pending[0]!.pendingOwner}] la confirma en Administración.`, `This list of indicators is a proposal. [pending: ${pending[0]!.pendingOwner}] confirms it in Administration.`)}
         </p>
       )}
@@ -43,4 +43,9 @@ export function RoleBoard({ t, locale, items, values, owners, money: moneyKeys =
       </div>
     </section>
   )
+}
+
+/** "Valor propuesto, [pendiente: dueño]": como una insignia de aviso, pero el texto largo se parte en pantallas angostas. */
+export function ProposedTag({ children, testId }: { children: ReactNode; testId?: string }) {
+  return <span className="inline-block max-w-full rounded-[12px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text [overflow-wrap:anywhere]" data-testid={testId}>{children}</span>
 }

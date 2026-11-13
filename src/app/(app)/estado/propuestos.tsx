@@ -1,3 +1,4 @@
+import { ProposedTag } from '@/ui/role-board'
 import Link from 'next/link'
 import type { Ctx } from '@/server/context'
 import { pendingDecisions } from '@/dal/reportes2'
@@ -16,7 +17,7 @@ export async function ProposedCard({ ctx }: { ctx: Ctx }) {
           {items.map((u) => (
             <li key={u.key} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid="status-proposed-row">
               <span className="min-w-0 flex-1 basis-48 text-[14px] font-medium text-strong">{t(...u.label)}</span>
-              <Badge tone="warn">{t(`Valor propuesto, [pendiente: ${u.pending}]`, `Proposed value, [pending: ${u.pending}]`)}</Badge>
+              <ProposedTag>{t(`Valor propuesto, [pendiente: ${u.pending}]`, `Proposed value, [pending: ${u.pending}]`)}</ProposedTag>
             </li>
           ))}
         </ul>

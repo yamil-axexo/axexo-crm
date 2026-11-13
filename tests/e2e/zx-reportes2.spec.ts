@@ -104,7 +104,7 @@ test.describe('tableros de Operaciones y del partner, y Panel del LT por tipo de
     const n = await page.getByTestId('partner-board').locator('[data-testid^="rb-partner"]').count()
     expect(n).toBeGreaterThanOrEqual(5)
     expect(n).toBeLessThanOrEqual(7)
-    await expect(page.getByTestId('rb-partnerPoints')).toContainText('How it is calculated')
+    await expect(page.getByTestId("rb-partnerPoints")).toContainText(/Cómo se calcula|How it is calculated/)
     await both(page, 'partner', async () => { await expect(page.getByTestId('partner-board')).toBeVisible() })
   })
   test('el Panel del LT corta por tipo de venta', async ({ page }) => {

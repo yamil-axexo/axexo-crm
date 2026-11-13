@@ -1,3 +1,4 @@
+import { ProposedTag } from '@/ui/role-board'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { withUser } from '@/server/db'
@@ -32,7 +33,7 @@ export default async function BoardsAdminPage() {
   if (!ctx.can('metric.owner') && !ctx.can('config.manage') && !ctx.can('user_alias.manage')) notFound()
   const { t, locale } = ctx
   const [boards, proposed, people] = await Promise.all([allBoards(ctx), withUser(ctx.user.id, (tx) => proposedValues(tx)), ctx.can('user_alias.manage') ? peopleAliases(ctx) : Promise.resolve([])])
-  const pendingBadge = (pending: string) => <Badge tone="warn">{t(`Valor propuesto, [pendiente: ${pending}]`, `Proposed value, [pending: ${pending}]`)}</Badge>
+  const pendingBadge = (pending: string) => <ProposedTag>{t(`Valor propuesto, [pendiente: ${pending}]`, `Proposed value, [pending: ${pending}]`)}</ProposedTag>
   const setBadge = <Badge tone="good">{t('Fijado', 'Set')}</Badge>
   const pv = (k: ProposedKey) => proposed[k] ?? null
 
