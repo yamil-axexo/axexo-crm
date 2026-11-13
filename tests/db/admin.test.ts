@@ -116,24 +116,33 @@ describe('quitar el acceso bien hecho', () => {
     expect(shown.members.find((m) => m.id === other.id)).toMatchObject({ active: true })
   })
 
-  it('si en el turno no queda nadie con acceso, el lead queda sin dueño y lo ve quien vende en ese mercado', async () => {
+  it('si en el turno no queda nadie con acceso, el lead va a quien lidera el mercado; sin nadie que lo lidere, queda sin dueño y lo ve quien vende ahí', async () => {
     const lapsed = await person('rep')
     const fallback = await person('market_lead')
     await setTurn([lapsed.id], fallback.id)
     await expire(lapsed.membershipId)
     // Con respaldo vigente, el lead va al respaldo.
     expect((await webLead()).owner_id).toBe(fallback.id)
-    // Sin respaldo vigente, queda sin dueño.
+    // Sin respaldo vigente ya no queda sin dueño (E3.F10, paquete embudo): antes le toca a quien lidera el mercado.
     await expire(fallback.membershipId)
-    const lead = await webLead()
-    expect(lead.owner_id).toBeNull()
-    const sam = await ctxFor('sam.ortiz')
-    expect((await listLeads(sam, { owner: 'none', status: 'new' })).items.some((l) => l.id === lead.id)).toBe(true)
-    const marco = await ctxFor('marco.pena')
-    expect((await listLeads(marco, {})).items.some((l) => l.id === lead.id)).toBe(false)
-    // Y un turno vacío hace lo mismo.
-    await setTurn([], null)
-    expect((await webLead()).owner_id).toBeNull()
+    const robert = (await one(admin<{ id: string }[]>`select md5('contigo:robert.hale')::uuid as id`)).id
+    expect((await webLead()).owner_id).toBe(robert)
+    // Solo si el mercado tampoco tiene quien lo lidere, el lead queda sin dueño y lo ve quien vende en ese mercado.
+    const leaders = await admin<{ id: string }[]>`update crm.memberships set valid_to = now() - interval '1 minute'
+      where market_code = 'US' and role = 'market_lead' and (valid_to is null or valid_to > now()) returning id`
+    try {
+      const lead = await webLead()
+      expect(lead.owner_id).toBeNull()
+      const sam = await ctxFor('sam.ortiz')
+      expect((await listLeads(sam, { owner: 'none', status: 'new' })).items.some((l) => l.id === lead.id)).toBe(true)
+      const marco = await ctxFor('marco.pena')
+      expect((await listLeads(marco, {})).items.some((l) => l.id === lead.id)).toBe(false)
+      // Y un turno vacío hace lo mismo.
+      await setTurn([], null)
+      expect((await webLead()).owner_id).toBeNull()
+    } finally {
+      await admin`update crm.memberships set valid_to = null where id = any(${leaders.map((l) => l.id)}::uuid[])`
+    }
   })
 
   it('quien conserva otro rol de ventas en el mercado se queda en el turno; el respaldo que pierde el acceso deja de serlo', async () => {
