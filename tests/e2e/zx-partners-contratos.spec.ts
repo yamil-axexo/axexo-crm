@@ -32,7 +32,7 @@ test.describe('Paquete partners-contratos', () => {
   test('PIPE-07: quien lidera captura términos, sale la propuesta y el contrato se firma a mano (inglés)', async ({ page }) => {
     const errors = pageErrors(page)
     await loginAs(page, 'robert.hale')
-    await page.goto(`/comercios/${AGENT}`)
+    await page.goto(`/comercios/${AGENT}?tab=datos`)
     await page.getByTestId('account-contracts-open').click()
     await expect(page).toHaveURL(new RegExp(`/comercios/${AGENT}/contratos$`))
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Terms and contracts')
