@@ -505,6 +505,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </section>
 
           {a.kind === 'store' && <StoreSalesSection ctx={ctx} accountId={a.id} />}
+          <section className={section} data-testid="account-documents">
+            <h3 className={h3}>{t('Documentos', 'Documents')}</h3>
+            <p className="mt-1 text-[14px] text-muted">{t('Pedido, propuesta o carta con los datos del comercio, para imprimir, bajar en PDF o mandar por correo.', 'Order, proposal or letter with the merchant’s data, to print, download as PDF or email.')}</p>
+            <Link href={`/comercios/${a.id}/documentos`} className="mt-2 inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="account-documents-link">{t('Abrir documentos', 'Open documents')}</Link>
+          </section>
 
           {deals.length > 0 && (
             <section className={section} data-testid="account-deals">
