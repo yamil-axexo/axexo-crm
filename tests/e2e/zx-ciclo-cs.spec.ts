@@ -7,8 +7,6 @@ import { loginAs, pageErrors, testDb, WIDTHS } from './helpers'
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()
 
 async function check(page: Page, what: string) {
-  const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && getComputedStyle(e).position !== 'fixed').slice(-4).map((e) => `${e.tagName}.${(e.getAttribute('data-testid') ?? '')}.${(e.className || '').toString().slice(0, 60)}:${Math.round(e.getBoundingClientRect().right)}:${(e.textContent ?? '').slice(0, 40)}`))
-  if (wide.length) console.log('WIDE', what, JSON.stringify(wide))
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${what}: se sale del ancho`).toBeLessThanOrEqual(0)
   const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
   const bad = axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')

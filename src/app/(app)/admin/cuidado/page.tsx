@@ -31,7 +31,7 @@ export default async function CareAdminPage({ searchParams }: { searchParams: Pr
   const mk = <input type="hidden" name="market" value={market.code} />
   const win = (line: string) => c.windows.find((w) => w.product_line === line) ?? (line === 'general' ? null : c.windows.find((w) => w.product_line === 'general')) ?? null
   const runNow = (what: string, label: string, testId: string, extra?: React.ReactNode) => (
-    <ActionForm action={runNowAction} className="flex flex-wrap items-end gap-3">
+    <ActionForm action={runNowAction} className="flex min-w-0 max-w-full flex-wrap items-end gap-3">
       {mk}<input type="hidden" name="what" value={what} />{extra}
       <Submit variant="ghost" testId={testId}>{label}</Submit>
     </ActionForm>
@@ -78,7 +78,7 @@ export default async function CareAdminPage({ searchParams }: { searchParams: Pr
             )
           })}
         </div>
-        <div className="mt-5 border-t border-line pt-4">{runNow('lifecycle', t('Recalcular etapas ahora', 'Recalculate stages now'), 'run-lifecycle')}</div>
+        <div className="mt-5 border-t border-line pt-4">{runNow('lifecycle', t('Recalcular etapas', 'Recalculate stages'), 'run-lifecycle')}</div>
       </Card>
 
       {/* ------------------------------------------------ alertas */}
@@ -170,7 +170,7 @@ export default async function CareAdminPage({ searchParams }: { searchParams: Pr
             </ul>
           )}
           <div className="mt-3 flex flex-wrap items-end gap-3">
-            {runNow('health', t('Calcular el puntaje de hoy', 'Calculate today’s score'), 'run-health')}
+            {runNow('health', t('Calcular puntaje de hoy', 'Score today'), 'run-health')}
             {runNow('validate', t('Validar', 'Validate'), 'run-validate', <Field label={t('A cuántos días', 'At how many days')}><input type="number" name="horizon" min={0} max={90} defaultValue={30} className="input w-28" data-testid="validate-horizon" /></Field>)}
             {ctx.can('health.publish', market.code) && (
               <ActionForm action={healthPublishAction}>
@@ -195,7 +195,7 @@ export default async function CareAdminPage({ searchParams }: { searchParams: Pr
           <Field label={t('Margen para no brincar de nivel (%)', 'Margin so the level does not jump (%)')} hint={t('Para bajar de nivel hay que caer este porcentaje por debajo del umbral.', 'To go down a level it must fall this far below the threshold.')}><input type="number" name="hysteresisPct" min={0} max={50} required className="input" defaultValue={s.tier_hysteresis_pct} /></Field>
           <div className="flex items-end justify-end"><Submit variant="ghost" testId="tier-save">{t('Guardar reglas', 'Save rules')}</Submit></div>
         </ActionForm>
-        <div className="mt-4 border-t border-line pt-4">{runNow('tiers', t('Recalcular el modelo de atención ahora', 'Recalculate the service model now'), 'run-tiers')}</div>
+        <div className="mt-4 border-t border-line pt-4">{runNow('tiers', t('Recalcular ahora', 'Recalculate now'), 'run-tiers')}</div>
       </Card>
 
       {/* ------------------------------------------------ expansión */}
@@ -225,7 +225,7 @@ export default async function CareAdminPage({ searchParams }: { searchParams: Pr
             <Submit variant="ghost" testId="rule-save">{t('Guardar regla', 'Save rule')}</Submit>
           </div>
         </ActionForm>
-        <div className="mt-4 border-t border-line pt-4">{runNow('expansion', t('Buscar oportunidades ahora', 'Look for opportunities now'), 'run-expansion')}</div>
+        <div className="mt-4 border-t border-line pt-4">{runNow('expansion', t('Buscar oportunidades', 'Find opportunities'), 'run-expansion')}</div>
       </Card>
 
       {/* ------------------------------------------------ conexiones */}
