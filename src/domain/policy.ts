@@ -176,6 +176,14 @@ export const CAPABILITIES = {
   'gov.manage': ['admin'],
   // Pedir un cambio de configuración (un campo, una opción, un embudo): cualquier persona con acceso. Decidir es de administración.
   'config.request': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  // Paquete ia (0044): asistencia por reglas y el marco de AI. Ver sugerencias y borradores: quien vende o dirige, y leadership en
+  // solo lectura. Aceptarlas, descartarlas o aprobar un borrador: quien vende o dirige. Preguntar por las cifras definidas: quien
+  // dirige y leadership. Nivel de autonomía, pesos, control y evaluación: administración (parte Embudos y campos).
+  'ia.read': [...SELLERS, 'lt'],
+  'ia.act': SELLERS,
+  'ia.ask': ['admin', 'lt', 'market_lead', 'supervisor'],
+  'ia.oversee': ['admin', 'lt'],
+  'ia.manage': ['admin'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
@@ -204,6 +212,10 @@ export const CAP_AREA: Partial<Record<Capability, AdminArea | 'any'>> = {
   'automation.read': 'config',
   'metric.owner': 'config',
   'job.run': 'integrations',
+  'ia.manage': 'config',
+  'ia.oversee': 'any',
+  'ia.ask': 'any',
+  'ia.read': 'any',
 }
 
 const grants = (m: Membership, cap: Capability): boolean => {
@@ -221,7 +233,9 @@ export function can(memberships: Membership[], cap: Capability, market?: string 
 /** Capacidades que solo leen: son las únicas que quedan vivas mientras alguien "ve como" otra persona. */
 export const READ_CAPS: readonly Capability[] = ['board.supervisor', 'exception.read', 'board.lt', 'audit.read', 'report.view', 'report.own', 'adoption.read', 'status.read', 'security.read',
   // Ola 1: pantallas de lectura que la persona ya ve. Guardar, exportar o correr algo desde ellas sigue cortado (son acciones).
-  'report.gallery', 'report.finance', 'report.reconcile', 'report.carry', 'adoption.team', 'automation.read', 'rollout.read', 'data.quality']
+  'report.gallery', 'report.finance', 'report.reconcile', 'report.carry', 'adoption.team', 'automation.read', 'rollout.read', 'data.quality',
+  // Paquete ia: ver sugerencias, preguntar por cifras y la pantalla de evaluación son lecturas.
+  'ia.read', 'ia.ask', 'ia.oversee']
 
 /** Solo lectura: la persona ve, pero ninguno de sus roles vigentes le deja cambiar nada (Leadership, o un usuario de partner). */
 export function isReadOnly(memberships: Membership[]): boolean {
