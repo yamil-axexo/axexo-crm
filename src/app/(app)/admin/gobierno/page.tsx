@@ -233,7 +233,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
             ))}
           </Table>
           <div className="border-t border-line px-5 py-6 md:px-7" data-testid="restore-tests">
-            <CardTitle title={t('Pruebas de restauración', 'Restore tests')} hint={t('La prueba la hace quien opera la plataforma, con el procedimiento de docs/runbooks/respaldo-y-restauracion.md. Administración anota aquí el resultado y dónde está la evidencia.', 'Whoever operates the platform runs the test, following docs/runbooks/respaldo-y-restauracion.md. Administration records the result and where the evidence is here.')}
+            <CardTitle title={t('Pruebas de restauración', 'Restore tests')} hint={t('La prueba la hace quien opera la plataforma, con el procedimiento escrito de respaldo y restauración (carpeta docs/runbooks del repositorio). Administración anota aquí el resultado y dónde está la evidencia.', 'Whoever operates the platform runs the test, following the written backup and restore procedure (docs/runbooks folder of the repository). Administration records the result and where the evidence is here.')}
               right={manage && (
                 <Dialog trigger={t('Anotar una prueba', 'Record a test')} title={t('Anotar una prueba de restauración', 'Record a restore test')} testId="restore-new">
                   <ActionForm action={recordRestoreTestAction} onOk="close" className="grid grid-cols-2 gap-4 text-left">
