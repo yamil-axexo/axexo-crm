@@ -143,7 +143,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                   ))}
                 </div>
               )}
-              {(ctx.can('ia.read') || ctx.can('ia.ask')) && <Link href="/asistencia" role="menuitem" className={menuLink} data-testid="nav-assist"><Lightbulb size={20} strokeWidth={1.75} aria-hidden />{t('Asistencia', 'Assistance')}</Link>}
+              {/* Quien administra llega a Asistencia desde Administración, IA y asistencia (y desde la paleta): su menú ya no cabe en un teléfono. */}
+              {!ctx.can('config.manage') && (ctx.can('ia.read') || ctx.can('ia.ask')) && <Link href="/asistencia" role="menuitem" className={menuLink} data-testid="nav-assist"><Lightbulb size={20} strokeWidth={1.75} aria-hidden />{t('Asistencia', 'Assistance')}</Link>}
               {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {/* Quien administra llega a estas dos pantallas desde Administración: su menú ya no cabe en un teléfono con más entradas. */}

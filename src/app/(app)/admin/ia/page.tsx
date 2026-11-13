@@ -53,6 +53,7 @@ export default async function IaAdminPage({ searchParams }: { searchParams: Prom
         title={t('IA y asistencia', 'AI and assistance')}
         desc={t('Ningún modelo de IA está conectado. Las sugerencias, la calificación de leads y las preguntas sobre cifras funcionan con reglas. Aquí se decide qué tanto hace cada mercado y se prueba cada función antes de encender nada.', 'No AI model is connected. Suggestions, lead scoring and questions about figures work with rules. Here you decide how much each market does and each feature is tested before anything is turned on.')}
       />
+      <p className="mb-4 text-[14px]"><a href="/asistencia" className="font-medium text-blue-text underline" data-testid="ia-open-assist">{t('Abrir Asistencia', 'Open Assistance')}</a></p>
       <p role="status" className="mb-6 rounded-[14px] bg-surface-3 px-5 py-4 text-[14px] text-muted-2" data-testid="ia-adapter">
         <Badge tone={d.adapter.mode === 'off' ? 'neutral' : 'warn'}>{d.adapter.mode === 'off' ? t('IA apagada', 'AI off') : t('Simulada (solo pruebas)', 'Simulated (tests only)')}</Badge>{' '}
         {t(`Para encenderla hace falta el proveedor aprobado en la revisión de tecnología, la variable ${AI_ENV}, la lista de dominios de salida (${AI_EGRESS_ENV}, hoy ${d.adapter.egress.length === 0 ? 'vacía: no sale nada' : d.adapter.egress.join(', ')}) y que la función pase su evaluación.`,
