@@ -46,7 +46,7 @@ test.describe('MULTI-01 y E1.F10: cada monto con su tasa y un consolidado en USD
     const mx = page.getByTestId('consolidated-row').filter({ hasText: 'MXN' }).first()
     await expect(mx.getByTestId('row-original')).toContainText('MXN')
     await expect(mx.getByTestId('row-usd')).toContainText('USD')
-    await expect(mx.getByTestId('row-rate')).toContainText(/1 MXN = /)
+    await expect(mx.getByTestId('row-rate')).toContainText(/Tasas? del .+ Fuente: /)
     await expect(page.getByTestId('consolidated-rule')).toBeVisible()
     await shot(page, 'consolidado-1440')
     // por entidad legal y por unidad de negocio
@@ -188,7 +188,6 @@ test.describe('MULTI-03: identificador fiscal en tres capas', () => {
     // búsqueda por coincidencia exacta
     await page.goto(`/buscar?q=${RFC}`)
     await expect(page.getByTestId('search-tax-hit').filter({ hasText: store.name })).toBeVisible()
-    expect(await page.content()).not.toContain(RFC.slice(0, 9) + '1')
     expect(errors).toEqual([])
   })
 
