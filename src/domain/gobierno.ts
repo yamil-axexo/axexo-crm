@@ -79,7 +79,8 @@ export async function updateField(ctx: Ctx, id: string, input: z.input<typeof fi
 }
 
 const proposal = z.object({
-  object: z.enum(['account', 'deal', 'lead']),
+  // DAT-05 (datos2): también campos de contacto y de actividad.
+  object: z.enum(['account', 'deal', 'lead', 'contact', 'activity']),
   market: z.string().length(2),
   motor: z.enum(MOTORS).or(z.literal('')).optional().default(''),
   labelEs: label,

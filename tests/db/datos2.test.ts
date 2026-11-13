@@ -2,7 +2,10 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { ctxFor, owner, personaId } from './helpers'
 import { withSystem } from '@/server/db'
 import { addContactLinked, createAccount, setParent } from '@/domain/accounts'
-import { nodeTotals } from '@/dal/datos'
+import { fieldRegistry, nodeTotals } from '@/dal/datos'
+import { decideField, proposeField } from '@/domain/gobierno'
+import { updateCustom } from '@/domain/custom'
+import { requestPromotion, setFieldSchema } from '@/domain/fields2'
 import { convertLead, createLead, qualifyLead } from '@/domain/leads'
 import { dismissContactPair, mergeContacts, resolveContact, undoContactMerge } from '@/domain/contacts-dedup'
 import { decisionValue, DECISIONS, setDecision } from '@/domain/decisions'
@@ -256,5 +259,67 @@ describe('DAT-01 · árbol a una fecha, comisión por nodo y dueño al mover', (
     } finally {
       await setDecision(nora, { key: 'tree.reparent_owner', market: 'MX', value: 'keep', confirmed: false })
     }
+  })
+})
+
+describe('DAT-05 · reglas de valor, campos de contacto y actividad, paso a columna y plazo medido', () => {
+  const future = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+
+  it('un mercado propone un campo de contacto; aprobado, se llena en el contacto y respeta sus reglas', async () => {
+    const ana = await ctxFor('ana.robles')
+    const nora = await ctxFor('nora.salas')
+    const diana = await ctxFor('diana.cruz')
+    const gov = { ownerId: ana.user.id, purpose: 'Saber cuántos años lleva', decision: 'Decide el trato del contacto en la visita', reviewOn: future(90), piiClass: 'none' as const }
+    const id = await proposeField(ana, { object: 'contact', market: 'MX', labelEs: `Años en el negocio ${tag()}`, labelEn: `Years in business ${tag()}`, dataType: 'number', ...gov })
+    await decideField(nora, id, true, '')
+    const key = (await one(admin<{ key: string }[]>`select key from crm.field_definitions where id = ${id}`)).key
+    await expect(setFieldSchema(ana, id, { minimum: '0' })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(setFieldSchema(nora, id, { minimum: '10', maximum: '2' })).rejects.toMatchObject({ code: 'invalid' })
+    expect(await setFieldSchema(nora, id, { minimum: '0', maximum: '80' })).toEqual({ minimum: 0, maximum: 80 })
+    const acc = await rawAccount('MX', 'diana.cruz')
+    const c = await addContactLinked(diana, acc, { fullName: 'Contacto Campos', role: 'owner' })
+    await expect(updateCustom(diana, 'contact', c.id, { [key]: '120' })).rejects.toMatchObject({ code: 'invalid' })
+    expect(await updateCustom(diana, 'contact', c.id, { [key]: '12' })).toBe(1)
+    expect((await one(admin<{ v: number }[]>`select (custom ->> ${key})::int as v from crm.contacts where id = ${c.id}`)).v).toBe(12)
+    expect((await admin`select 1 from crm.audit_events where action = 'contact.custom_updated' and object_id = ${c.id}`).length).toBe(1)
+    // y de actividad
+    const act = await proposeField(ana, { object: 'activity', market: 'MX', labelEs: `Resultado corto ${tag()}`, labelEn: `Short outcome ${tag()}`, dataType: 'text', ...gov })
+    expect((await one(admin<{ object: string }[]>`select object from crm.field_definitions where id = ${act}`)).object).toBe('activity')
+  })
+
+  it('pasar un campo a columna arma el cambio y se marca hecho cuando la columna existe', async () => {
+    const ana = await ctxFor('ana.robles')
+    const nora = await ctxFor('nora.salas')
+    const gov = { ownerId: ana.user.id, purpose: 'Filtrar por nivel', decision: 'Decide a quién se visita primero', reviewOn: future(90), piiClass: 'none' as const }
+    const id = await proposeField(ana, { object: 'account', market: 'MX', labelEs: `Nivel de tienda ${tag()}`, labelEn: `Store level ${tag()}`, dataType: 'number', ...gov })
+    await expect(requestPromotion(ana, id, 'Se filtra en la cola de visitas')).rejects.toMatchObject({ code: 'invalid' })
+    await decideField(nora, id, true, '')
+    await expect(requestPromotion(ana, id, 'corto')).rejects.toMatchObject({ code: 'invalid' })
+    const pid = await requestPromotion(ana, id, 'Se filtra en la cola de visitas')
+    const p = await one(admin<{ column_name: string; migration_sql: string; status: string }[]>`select column_name, migration_sql, status from crm.field_promotions where id = ${pid}`)
+    expect(p.status).toBe('requested')
+    expect(p.migration_sql).toContain(`alter table crm.accounts add column ${p.column_name} numeric;`)
+    await expect(requestPromotion(ana, id, 'Se filtra en la cola de visitas')).rejects.toMatchObject({ code: 'invalid' })
+    await admin.unsafe(`alter table crm.accounts add column ${p.column_name} numeric`)
+    const reg = await fieldRegistry(nora, 'vigentes')
+    expect(reg.promotions.find((x) => x.id === pid)?.status).toBe('done')
+    await admin.unsafe(`alter table crm.accounts drop column ${p.column_name}`)
+  })
+
+  it('el plazo para decidir propuestas se mide y sale de Decisiones de negocio', async () => {
+    const ana = await ctxFor('ana.robles')
+    const nora = await ctxFor('nora.salas')
+    const gov = { ownerId: ana.user.id, purpose: 'Medir el plazo', decision: 'Decide si la propuesta llega a tiempo', reviewOn: future(90), piiClass: 'none' as const }
+    const late = await proposeField(ana, { object: 'deal', market: 'MX', labelEs: `Tarde ${tag()}`, labelEn: `Late ${tag()}`, dataType: 'text', ...gov })
+    await admin`update crm.field_definitions set proposed_at = now() - interval '10 days' where id = ${late}`
+    await decideField(nora, late, true, '')
+    const quick = await proposeField(ana, { object: 'deal', market: 'MX', labelEs: `Rápido ${tag()}`, labelEn: `Quick ${tag()}`, dataType: 'text', ...gov })
+    await decideField(nora, quick, true, '')
+    const r = await fieldRegistry(nora, 'propuestos')
+    expect(r.sla).toBe(3)
+    expect(r.slaStats.decided).toBeGreaterThanOrEqual(2)
+    expect(r.slaStats.on_time).toBeLessThan(r.slaStats.decided)
+    await setDecision(nora, { key: 'field.approval_sla_days', market: null, value: '5', confirmed: false })
+    expect((await fieldRegistry(nora, 'propuestos')).sla).toBe(5)
   })
 })

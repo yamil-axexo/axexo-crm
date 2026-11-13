@@ -1,4 +1,10 @@
 -- 0040_datos2 (down)
+drop function if exists app.column_exists(text, text);
+drop table if exists crm.field_promotions;
+insert into crm.settings (key, value)
+select 'field_approval_sla_days', to_jsonb((coalesce((select value #>> '{}' from crm.decision_settings where key = 'field.approval_sla_days' and market_code is null), '3'))::int)
+on conflict (key) do nothing;
+alter table crm.field_definitions drop column value_schema;
 drop function if exists app.node_totals(uuid, date);
 drop function if exists app.subtree_at(uuid, timestamptz);
 drop table if exists crm.decision_settings;

@@ -1,4 +1,6 @@
 import 'server-only'
+import { decisionValue } from '@/domain/decisions'
+import { syncPromotions } from '@/domain/fields2'
 import { marketToday, withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import type { ProcessAttr, ProcessStatus } from '@/domain/gobierno'
@@ -133,16 +135,17 @@ export async function duplicateQueue(ctx: Ctx, market: string | null, pairId: st
 export type RegistryField = { id: string; object: string; key: string; label_es: string; label_en: string; data_type: string; options: string[]; market_code: string | null; motor: string | null;
   is_active: boolean; source: string; status: string; owner_id: string | null; owner_name: string | null; purpose: string | null; decision: string | null; review_on: string | null; review_due: boolean;
   pii_class: string; data_class: string; untrusted: boolean; origin: string | null; used_by: string | null; proposed_by: string | null; proposed_at: Date | null; overdue: boolean; decision_note: string | null;
-  filled: number; total: number; stages: string[] }
+  filled: number; total: number; stages: string[]; mapped_to: string | null; value_schema: Record<string, unknown> }
 
 export async function fieldRegistry(ctx: Ctx, view: 'vigentes' | 'propuestos' | 'archivados' | 'sin-decision') {
   return withUser(ctx.user.id, async (tx) => {
-    const sla = Number((await tx<{ value: unknown }[]>`select value from crm.settings where key = 'field_approval_sla_days'`)[0]?.value ?? 3)
+    // DAT-05 (datos2): el plazo vive en Decisiones de negocio.
+    const sla = Number((await decisionValue(tx, 'field.approval_sla_days', null)).value)
     const fields = await tx<RegistryField[]>`
       select f.id, f.object, f.key, f.label_es, f.label_en, f.data_type, f.options, f.market_code, f.motor, f.is_active, f.source, f.status, f.owner_id, o.full_name as owner_name,
              f.purpose, f.decision, f.review_on::text, (f.review_on is not null and f.review_on < ${marketToday(tx, tx`f.market_code`)}) as review_due, f.pii_class, f.data_class, f.untrusted, f.origin, f.used_by,
              p.full_name as proposed_by, f.proposed_at, (f.status = 'proposed' and f.proposed_at < now() - make_interval(days => ${sla})) as overdue, f.decision_note,
-             coalesce(us.filled, 0) as filled, coalesce(us.total, 0) as total,
+             coalesce(us.filled, 0) as filled, coalesce(us.total, 0) as total, f.mapped_to, f.value_schema,
              array(select coalesce(s.name_es, '') || ' | ' || coalesce(s.name_en, '') from crm.stages s where ('field:' || f.key) = any(s.required_fields) and f.object = 'deal') as stages
         from crm.field_definitions f left join crm.users o on o.id = f.owner_id left join crm.users p on p.id = f.proposed_by
         left join app.field_usage() us on us.field_id = f.id
@@ -157,7 +160,19 @@ export async function fieldRegistry(ctx: Ctx, view: 'vigentes' | 'propuestos' | 
              (count(*) filter (where status = 'approved' and is_active and (decision is null or owner_id is null or review_on is null or review_on < ${marketToday(tx, tx`market_code`)})))::int as sin_decision
         from crm.field_definitions where market_code is null or market_code = any(${ctx.markets.map((m) => m.code)}::text[])`
     const people = await tx<{ id: string; full_name: string }[]>`select id, full_name from crm.users where is_active and not is_system order by full_name limit 300`
-    return { sla, fields: [...fields], counts: counts[0]!, people: [...people] }
+    // DAT-05 (datos2): el plazo se mide. De las propuestas decididas en 90 días, cuántas a tiempo y la mediana en días.
+    const slaStats = (await tx<{ decided: number; on_time: number; median_days: string | null; open_late: number }[]>`
+      select count(*) filter (where status in ('approved','rejected') and decided_at > now() - interval '90 days')::int as decided,
+             count(*) filter (where status in ('approved','rejected') and decided_at > now() - interval '90 days' and decided_at <= proposed_at + make_interval(days => ${sla}))::int as on_time,
+             (percentile_cont(0.5) within group (order by extract(epoch from decided_at - proposed_at) / 86400) filter (where status in ('approved','rejected') and decided_at > now() - interval '90 days'))::numeric(10,1)::text as median_days,
+             count(*) filter (where status = 'proposed' and proposed_at < now() - make_interval(days => ${sla}))::int as open_late
+        from crm.field_definitions where proposed_at is not null and (market_code is null or market_code = any(${ctx.markets.map((m) => m.code)}::text[]))`)[0]!
+    await syncPromotions(tx)
+    const promotions = await tx<{ id: string; field_id: string; label_es: string; label_en: string; object: string; column_name: string; reason: string; migration_sql: string; status: string; requested_by: string | null; requested_at: Date; close_note: string | null }[]>`
+      select p.id, p.field_id, f.label_es, f.label_en, f.object, p.column_name, p.reason, p.migration_sql, p.status, u.full_name as requested_by, p.requested_at, p.close_note
+        from crm.field_promotions p join crm.field_definitions f on f.id = p.field_id left join crm.users u on u.id = p.requested_by
+       order by (p.status = 'requested') desc, p.requested_at desc limit 20`
+    return { sla, fields: [...fields], counts: counts[0]!, people: [...people], slaStats, promotions: [...promotions] }
   })
 }
 

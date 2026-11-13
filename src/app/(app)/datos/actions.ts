@@ -6,6 +6,7 @@ import { createMarket, createProcessList, createRoutingRule, createWebForm, deci
   saveQualitySnapshot, setProviderSla, setQualityRule, setRoutingRuleActive, setTypeDepth, setWebFormActive, updateField, updateMarket, type GovernanceInput } from '@/domain/gobierno'
 import { setParent } from '@/domain/accounts'
 import { dismissContactPair, mergeContacts, undoContactMerge } from '@/domain/contacts-dedup'
+import { closePromotion, requestPromotion, setFieldSchema } from '@/domain/fields2'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -293,5 +294,28 @@ export async function undoContactMergeAction(_: R | null, fd: FormData): Promise
   return runAction(async (ctx) => {
     await undoContactMerge(ctx, str(fd, 'event_id'), str(fd, 'reason'))
     return { message: ['Fusión deshecha: los dos contactos vuelven a existir por separado.', 'Merge undone: the two contacts exist separately again.'] }
+  })
+}
+
+// ---------------------------------------------------------------- DAT-05 reglas de valor y paso a columna (paquete datos2)
+
+export async function setFieldSchemaAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setFieldSchema(ctx, str(fd, 'id'), { minimum: str(fd, 'minimum'), maximum: str(fd, 'maximum'), minLength: str(fd, 'min_length'), maxLength: str(fd, 'max_length'), pattern: str(fd, 'pattern') })
+    return { message: ['Reglas guardadas. Desde ahora, un valor que no las cumple no se guarda.', 'Rules saved. From now on, a value that breaks them is not saved.'] }
+  })
+}
+
+export async function requestPromotionAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await requestPromotion(ctx, str(fd, 'id'), str(fd, 'reason'))
+    return { message: ['Pedido guardado con el cambio listo. Lo aplica una migración con revisión técnica; cuando la columna exista, se marca hecho solo.', 'Request saved with the change ready. A migration with technical review applies it; once the column exists, it is marked done automatically.'] }
+  })
+}
+
+export async function closePromotionAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await closePromotion(ctx, str(fd, 'id'), str(fd, 'note'))
+    return { message: ['Pedido cerrado.', 'Request closed.'] }
   })
 }

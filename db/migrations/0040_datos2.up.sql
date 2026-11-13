@@ -340,3 +340,48 @@ language sql stable set search_path = crm, app, pg_catalog as $$
          p_day::text
 $$;
 grant execute on function app.node_totals(uuid, date) to contigo_app;
+
+-- ================================================================ DAT-05 reglas de valor, campos de contacto y actividad, paso a columna, plazo medido
+-- Reglas del valor de un campo, con las palabras de JSON Schema (minimum, maximum, minLength, maxLength, pattern). El dominio
+-- las aplica al guardar; un valor que no cumple no entra.
+alter table crm.field_definitions add column value_schema jsonb not null default '{}'::jsonb
+  check (jsonb_typeof(value_schema) = 'object' and value_schema - array['minimum','maximum','minLength','maxLength','pattern'] = '{}'::jsonb);
+
+-- El plazo para decidir un campo propuesto vive ahora en Decisiones de negocio (field.approval_sla_days), en un solo lugar.
+insert into crm.decision_settings (key, value, proposed, owner_label)
+select 'field.approval_sla_days', to_jsonb((value #>> '{}')), true, 'Dan Mulligan o Michael Essiet'
+  from crm.settings where key = 'field_approval_sla_days' and (value #>> '{}') in ('2','3','5');
+delete from crm.settings where key = 'field_approval_sla_days';
+
+-- Pedido de pasar un campo a columna real (porque entra a un filtro, a RLS o a una métrica). CONTIGO arma el cambio; lo aplica
+-- una migración revisada (revisión técnica), no la pantalla. Cuando la columna existe, el pedido se marca hecho solo.
+create table crm.field_promotions (
+  id            uuid primary key default app.uuid_v7(),
+  field_id      uuid not null references crm.field_definitions(id),
+  market_code   text references crm.markets(code),
+  reason        text not null check (char_length(btrim(reason)) between 10 and 400),
+  column_name   text not null check (column_name ~ '^[a-z][a-z0-9_]{1,40}$'),
+  migration_sql text not null,
+  status        text not null default 'requested' check (status in ('requested','done','rejected')),
+  requested_by  uuid not null references crm.users(id),
+  requested_at  timestamptz not null default now(),
+  closed_by     uuid references crm.users(id),
+  closed_at     timestamptz,
+  close_note    text
+);
+create unique index field_promotions_open_uq on crm.field_promotions (field_id) where status = 'requested';
+alter table crm.field_promotions enable row level security;
+alter table crm.field_promotions force row level security;   -- AUTHZ-03
+revoke all on crm.field_promotions from contigo_app;
+grant select, insert, update on crm.field_promotions to contigo_app;
+create policy field_promotions_read on crm.field_promotions for select to contigo_app using ((select app.current_user_id()) is not null);
+create policy field_promotions_ins on crm.field_promotions for insert to contigo_app
+  with check ((select app.is_admin()) or market_code = any((select app.lead_markets())::text[]));
+create policy field_promotions_upd on crm.field_promotions for update to contigo_app using ((select app.is_admin())) with check ((select app.is_admin()));
+
+-- ¿Ya existe la columna? Para cerrar solo el pedido cuando la migración se aplicó.
+create or replace function app.column_exists(p_table text, p_column text) returns boolean
+language sql stable security definer set search_path = pg_catalog as $$
+  select exists (select 1 from information_schema.columns where table_schema = 'crm' and table_name = p_table and column_name = p_column)
+$$;
+grant execute on function app.column_exists(text, text) to contigo_app;

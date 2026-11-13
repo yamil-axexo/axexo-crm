@@ -8,6 +8,7 @@ import { UntrustedTag } from '@/ui/untrusted'
 import { getAccount } from '@/dal/accounts'
 import { sellers } from '@/dal/leads'
 import { fieldDefs, fieldApplies } from '@/dal/fields'
+import { isEditable } from '@/domain/custom'
 import { accountTypes, parentChoices } from '@/dal/b2b'
 import { setAccountTypeAction, setPrimaryContactAction } from '@/app/(app)/b2b-actions'
 import { sheetConfig, taskItem } from '@/server/sheet'
@@ -183,6 +184,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
   // y lo que suma el nodo con todo lo que cuelga de él.
   const identity = tab === 'datos' || tab === 'arbol' ? await accountIdentity(ctx, a.id, a.market_code) : null
   const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id, asOf) : null
+  // DAT-05 (datos2): si el mercado tiene campos de contacto aprobados, cada contacto lleva su enlace para llenarlos.
+  const contactFields = tab === 'datos' ? (await fieldDefs(ctx, 'contact', a.market_code)).filter(isEditable).length : 0
   const canAlias = !a.archived_at && ctx.can('alias.manage', a.market_code)
   const canProducts = !a.archived_at && ctx.can('account.products', a.market_code)
   // E9: en un mercado con ficha de dealer (US), la ficha abre con ventas e identificadores y lleva los datos de la tienda y sus carriers.
@@ -586,6 +589,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
                     </ActionForm>
                   )}
                   {identity && <ContactTools ctx={ctx} accountId={a.id} segment={a.segment} contact={c} others={identity.otherAccounts.get(c.id) ?? []} canEdit={canEdit} />}
+                  {canEdit && contactFields > 0 && <Link href={`/comercios/${a.id}/contactos/${c.id}`} className="inline-flex min-h-11 items-center text-[13px] font-medium text-blue-text underline" data-testid="contact-fields">{t('Campos del contacto', 'Contact fields')}</Link>}
                 </li>
               ))}
               {contacts.length === 0 && <li className="text-[15px] text-muted">{t('Sin contactos todavía.', 'No contacts yet.')}</li>}
