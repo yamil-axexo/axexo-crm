@@ -11,7 +11,7 @@ const phone = () => `55${String(Math.floor(Math.random() * 1e8)).padStart(8, '0'
 const uid = async (key: string) => (await sql<{ id: string }[]>`select md5(${'contigo:' + key})::uuid as id`)[0]!.id
 const at = async (page: Page, name: 'desktop' | 'movil') => page.setViewportSize(WIDTHS.find((w) => w.name === name)!)
 const setLocale = async (page: Page, locale: 'es' | 'en') => {
-  await page.context().addCookies([{ name: 'contigo_locale', value: locale, url: page.url() }])
+  await page.context().addCookies([{ name: 'contigo_locale', value: locale, url: new URL('/', page.url()).href }])
   await page.reload()
 }
 
