@@ -179,7 +179,7 @@ test.describe('ficha de la tienda de US (E9)', () => {
     const id = await store(name, 'system')
     const deal = (await sql<{ id: string }[]>`
       insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, next_step, next_step_due, created_by)
-      values ('US', ${await uid('p-us-dealer')}, ${await uid('s-us-dealer-lead')}, ${id}, ${await uid('jade.kim')}, ${`Onboarding: ${name}`}, 'USD', 'Call the owner', (now() at time zone 'America/New_York')::date + 1, ${await uid('jade.kim')}) returning id`)[0]!.id
+      values ('US', ${await uid('p-us-dealer')}, ${await uid('s-us-dealer-lead')}, ${id}, ${await uid('jade.kim')}, ${`Onboarding: ${name}`}, 'USD', 'Call the store manager', (now() at time zone 'America/New_York')::date + 1, ${await uid('jade.kim')}) returning id`)[0]!.id
     await loginAs(page, 'robert.hale', { stay: true })
     await page.goto('/datos?tab=catalogos')
     const card = page.getByTestId('agencies-card')
