@@ -87,7 +87,7 @@ export default async function AutomationPage({ params, searchParams }: { params:
               <div><dt className="text-[12.5px] font-semibold uppercase tracking-wide text-muted-2">{t('Entonces', 'Then')}</dt>
                 <dd data-testid="auto-then"><ul className="list-disc pl-5">{d.then.map((x, i) => <li key={i}>{t(x.es, x.en)}</li>)}</ul></dd></div>
             </dl>
-            <p className="mt-4 text-[13px] text-muted-2" data-testid="auto-meta">{[a.owner_name ? t(`Responde por ella: ${a.owner_name}`, `Owner: ${a.owner_name}`) : t('Sin dueño: ponle uno al guardar', 'No owner: set one when saving'), a.updated_by_name ? t(`último cambio de ${a.updated_by_name}, ${dayTime(a.updated_at, locale, tz)}`, `last changed by ${a.updated_by_name}, ${dayTime(a.updated_at, locale, tz)}`) : t('creada con el mercado, sin cambios', 'created with the market, unchanged')].join(' · ')}</p>
+            <p className="mt-4 text-[13px] text-muted-2" data-testid="auto-meta">{[a.owner_name ? t(`Responde por ella: ${a.owner_name}`, `Owner: ${a.owner_name}`) : t('Sin responsable: ponle uno al guardar', 'No one answers for it: set someone when saving'), a.updated_by_name ? t(`último cambio de ${a.updated_by_name}, ${dayTime(a.updated_at, locale, tz)}`, `last changed by ${a.updated_by_name}, ${dayTime(a.updated_at, locale, tz)}`) : t('creada con el mercado, sin cambios', 'created with the market, unchanged')].join(' · ')}</p>
             {manage && (
               <ActionForm action={toggleAutomationAction} className="mt-4" testId="auto-toggle">
                 <input type="hidden" name="id" value={a.id} />
@@ -109,7 +109,7 @@ export default async function AutomationPage({ params, searchParams }: { params:
                     <select name="motor" className="input" defaultValue={a.motor ?? ''}><option value="">{t('Todos los de este mercado', 'All in this market')}</option>{motors.map((m) => <option key={m} value={m}>{lab(t, MOTOR[m]) || m}</option>)}</select>
                   </Field>
                   <Field label={t('Quién responde por ella', 'Who owns it')}>
-                    <select name="owner_id" className="input" defaultValue={a.owner_id ?? ''} data-testid="auto-owner"><option value="">{t('Sin dueño', 'No owner')}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
+                    <select name="owner_id" className="input" defaultValue={a.owner_id ?? ''} data-testid="auto-owner"><option value="">{t('Sin responsable', 'Nobody yet')}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select>
                   </Field>
                 </div>
                 <AutomationFields

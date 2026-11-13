@@ -42,7 +42,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
       <PageHeader
         eyebrow={t('Administración', 'Administration')}
         title={t('Automatizaciones', 'Automations')}
-        desc={t('Lo que CONTIGO hace solo: qué revisa, cuándo, y qué hace cuando lo encuentra. Cada automatización es de un mercado, tiene dueño y deja su propia bitácora.', 'What CONTIGO does on its own: what it checks, when, and what it does when it finds it. Each automation belongs to one market, has an owner and keeps its own log.')}
+        desc={t('Lo que CONTIGO hace solo: qué revisa, cuándo, y qué hace cuando lo encuentra. Cada automatización es de un mercado, tiene responsable y deja su propia bitácora.', 'What CONTIGO does on its own: what it checks, when, and what it does when it finds it. Each automation belongs to one market, has an owner and keeps its own log.')}
         actions={<Link href="/admin" className="text-[13.5px] font-medium text-blue-text underline">{t('Volver a Administración', 'Back to Administration')}</Link>}
       />
       <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={view} items={allowed.map((k) => ({ key: k, href: qs('/admin/automatizaciones', { v: k === 'reglas' ? undefined : k }), label: labels[k] }))} /></div>
@@ -86,7 +86,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                       <tr key={r.id} className="table-row" data-testid="auto-row" data-key={r.key} data-active={r.is_active ? '1' : '0'}>
                         <td>
                           <Link href={`/admin/automatizaciones/${r.id}`} className="font-semibold text-strong underline" data-testid="auto-open">{t(r.name_es, r.name_en)}</Link>
-                          <span className="mt-0.5 block text-[12.5px] text-muted-2">{[t(SOURCE_LABEL[r.source].es, SOURCE_LABEL[r.source].en), r.motor ? lab(t, MOTOR[r.motor]) || r.motor : t('todos los tipos de venta', 'all sales types'), t(`versión ${r.version}`, `version ${r.version}`), r.owner_name ? t(`la lleva ${r.owner_name}`, `owned by ${r.owner_name}`) : t('sin dueño', 'no owner')].join(' · ')}</span>
+                          <span className="mt-0.5 block text-[12.5px] text-muted-2">{[t(SOURCE_LABEL[r.source].es, SOURCE_LABEL[r.source].en), r.motor ? lab(t, MOTOR[r.motor]) || r.motor : t('todos los tipos de venta', 'all sales types'), t(`versión ${r.version}`, `version ${r.version}`), r.owner_name ? t(`la lleva ${r.owner_name}`, `owned by ${r.owner_name}`) : t('sin responsable', 'nobody answers for it yet')].join(' · ')}</span>
                         </td>
                         <td className="text-[13.5px] text-muted-2">{d.then.map((x) => t(x.es, x.en)).join('. ')}</td>
                         <td>{r.is_active ? <Badge tone="good">{t('Activa', 'On')}</Badge> : <Badge tone="warn">{t('En pausa', 'Paused')}</Badge>}</td>
