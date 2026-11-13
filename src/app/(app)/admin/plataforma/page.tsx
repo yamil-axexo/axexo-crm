@@ -109,7 +109,7 @@ export default async function PlatformPage() {
                 <li key={r.id} className={row} data-testid={`rule-${r.event_type}`}>
                   <div className="min-w-0 flex-1 basis-[240px]">
                     <p className="text-[15px] font-semibold text-strong">{t(r.title_es, r.title_en)}</p>
-                    <p className={small}>{t(...AUDIENCE[r.audience])}</p>
+                    <p className={small}>{t(AUDIENCE[r.audience][0], AUDIENCE[r.audience][1])}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={r.is_active ? 'good' : 'neutral'}>{r.is_active ? t('Encendida', 'On') : t('Apagada, propuesta', 'Off, proposed')}</Badge>
@@ -128,7 +128,7 @@ export default async function PlatformPage() {
           <ul className="mt-4 border-t border-line pt-3" data-testid="consumers">
             {data.lag.map((c) => (
               <li key={c.consumer} className="flex flex-wrap justify-between gap-2 py-1.5 text-[13.5px]" data-testid={`consumer-${c.consumer}`}>
-                <span className="text-strong">{CONSUMER[c.consumer] ? t(...CONSUMER[c.consumer]!) : c.consumer}</span>
+                <span className="text-strong">{CONSUMER[c.consumer] ? t(CONSUMER[c.consumer]![0], CONSUMER[c.consumer]![1]) : c.consumer}</span>
                 <span className="text-muted-2">{t(`${num(c.pending, locale)} por leer · ${num(c.taken, locale)} leídos`, `${num(c.pending, locale)} to read · ${num(c.taken, locale)} read`)}</span>
               </li>
             ))}
@@ -144,7 +144,7 @@ export default async function PlatformPage() {
                 return (
                   <li key={a.key} className={row} data-testid={`redteam-${a.key}`}>
                     <div className="min-w-0 flex-1 basis-[240px]">
-                      <p className="text-[15px] font-semibold text-strong">{t(...a.name)}</p>
+                      <p className="text-[15px] font-semibold text-strong">{t(a.name[0], a.name[1])}</p>
                       <p className={small}>{last ? t(`Última revisión: ${day(last.reviewed_at, locale)}${last.reviewer ? `, ${last.reviewer}` : ''}`, `Last review: ${day(last.reviewed_at, locale)}${last.reviewer ? `, ${last.reviewer}` : ''}`) : t('Sin revisión', 'No review')}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -154,7 +154,7 @@ export default async function PlatformPage() {
                           <ActionForm action={A.redteamAction} onOk="close">
                             <input type="hidden" name="agent" value={a.key} />
                             <ul className="space-y-1">
-                              {REDTEAM_CHECKLIST.map((c) => <li key={c.key}><label className="flex min-h-11 items-start gap-3 py-1 text-[14px]"><input type="checkbox" name="checked" value={c.key} className="mt-0.5 size-5 shrink-0" data-testid={`redteam-item-${c.key}`} />{t(...c.label)}</label></li>)}
+                              {REDTEAM_CHECKLIST.map((c) => <li key={c.key}><label className="flex min-h-11 items-start gap-3 py-1 text-[14px]"><input type="checkbox" name="checked" value={c.key} className="mt-0.5 size-5 shrink-0" data-testid={`redteam-item-${c.key}`} />{t(c.label[0], c.label[1])}</label></li>)}
                             </ul>
                             <Field label={t('Cómo lo probaste', 'How you tested it')} className="mt-3"><textarea name="notes" className="input min-h-20" required minLength={10} maxLength={2000} data-testid="redteam-notes" /></Field>
                             <div className="mt-4"><Submit testId="redteam-save">{t('Guardar revisión', 'Save review')}</Submit></div>

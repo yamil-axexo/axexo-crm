@@ -46,12 +46,20 @@ create policy outbox_consumers_read on crm.outbox_consumers for select to contig
 create or replace function app.outbox_take(p_consumer text, p_limit int)
 returns table (id uuid, event_type text, aggregate text, aggregate_id uuid, market_code text, payload jsonb, version int, created_at timestamptz)
 language plpgsql volatile security definer set search_path = crm, app, pg_catalog as $$
-declare v_h xid8; v_x xid8; v_n int;
+declare v_h xid8; v_x xid8; v_n int; v_snap pg_snapshot; v_open xid8; v_own xid8;
 begin
   if app.current_user_id() is distinct from app.system_user_id() then
     raise exception 'not allowed' using errcode = '42501';
   end if;
-  v_x := pg_snapshot_xmin(pg_current_snapshot());
+  -- El punto seguro: la transacción abierta más vieja DE ESTA BASE (las de otras bases del servidor nunca escriben esta cola),
+  -- incluidas las preparadas, y nunca más allá de la propia transacción (lo que el consumidor emita al procesar se toma en la
+  -- pasada siguiente, no se salta). Sin transacciones abiertas: el siguiente id que se va a asignar.
+  v_snap := pg_current_snapshot();
+  select min(x) into v_open from pg_snapshot_xip(v_snap) as x
+   where exists (select 1 from pg_stat_activity a where a.datname = current_database() and a.backend_xid = xid(x))
+      or exists (select 1 from pg_prepared_xacts p where p.database = current_database() and p.transaction = xid(x));
+  v_own := pg_current_xact_id_if_assigned();
+  v_x := least(pg_snapshot_xmax(v_snap), coalesce(v_open, pg_snapshot_xmax(v_snap)), coalesce(v_own, pg_snapshot_xmax(v_snap)));
   select c.horizon into v_h from crm.outbox_consumers c where c.consumer = p_consumer for update;
   if v_h is null then
     insert into crm.outbox_consumers (consumer, horizon) values (p_consumer, v_x) on conflict do nothing;
