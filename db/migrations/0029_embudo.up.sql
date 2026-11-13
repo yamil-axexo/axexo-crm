@@ -227,8 +227,9 @@ create policy unknown_reason_codes_upd on crm.unknown_reason_codes for update to
 
 -- El motivo es obligatorio también en la base: una visita sin venta y un lead descartado llevan su código.
 -- (not valid: vale para todo lo que se escriba desde hoy; lo histórico importado no se toca.)
+-- Una visita que llega importada (las hojas de visitas de MX, E17.F4) trae el resultado sin motivo: no se inventa uno.
 alter table crm.activities add constraint activities_no_sale_reason
-  check (not (kind = 'visit' and outcome = 'no_sale') or no_sale_code is not null) not valid;
+  check (not (kind = 'visit' and outcome = 'no_sale') or no_sale_code is not null or source = 'import') not valid;
 alter table crm.leads add constraint leads_disqualify_reason
   check (status <> 'disqualified' or disqualify_code is not null) not valid;
 
@@ -314,8 +315,9 @@ create table crm.source_touches (
   landing_page  text, referrer text,
   referral_account_id uuid references crm.accounts(id),
   -- De qué plataforma de anuncios vino el clic, calculado: es lo que se filtra y se reporta.
-  platform      text generated always as (case when gclid is not null then 'google' when fbclid is not null or ctwa_clid is not null then 'meta' when ttclid is not null then 'tiktok'
-                                                when li_fat_id is not null then 'linkedin' when twclid is not null then 'x' end) stored,
+  -- El clic de WhatsApp desde un anuncio (ctwa_clid, de mx) cuenta como Meta solo si no vino otro identificador de clic.
+  platform      text generated always as (case when gclid is not null then 'google' when fbclid is not null then 'meta' when ttclid is not null then 'tiktok'
+                                                when li_fat_id is not null then 'linkedin' when twclid is not null then 'x' when ctwa_clid is not null then 'meta' end) stored,
   created_at    timestamptz not null default now(),
   check (lead_id is not null or account_id is not null or deal_id is not null)
 );

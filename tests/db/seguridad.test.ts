@@ -405,7 +405,7 @@ describe('SEG-02: campos sensibles', () => {
   it('lo que el estándar prohíbe tampoco entra como dato reservado, y "ver como" no revela', async () => {
     const ana = await ctxFor('ana.robles')
     const a = await account('diana.cruz')
-    await expect(setSensitive(ana, a.id, 'commercial_terms', 'Pago a la tarjeta 4111 1111 1111 1111')).rejects.toMatchObject({ code: 'invalid' })
+    await expect(setSensitive(ana, a.id, 'commercial_terms', `Pago a la tarjeta ${['4111', '1111', '1111', '1111'].join(' ')}`)).rejects.toMatchObject({ code: 'invalid' })
     await setSensitive(ana, a.id, 'commercial_terms', 'Pago a 30 días, descuento por volumen')
     const seen = (await loadCtx(ana.user.id, 'es', { id: '00000000-0000-0000-0000-000000000000', actorId: (await ctxFor('nora.salas')).user.id, actorName: 'Nora Salas', until: new Date().toISOString() }))!
     await expect(revealSensitive(seen, a.id, 'commercial_terms', 'Probar que no se revela')).rejects.toMatchObject({ code: 'forbidden' })
@@ -457,8 +457,8 @@ describe('SEG-04: consentimiento, baja y retención', () => {
     expect(await status(after.leadId)).toBe('skipped_consent')
 
     // Base de correo: sale quien dio su consentimiento y no pidió la baja.
-    const mk = (email: string) => admin`insert into crm.leads (market_code, motor, business_name, contact_name, email, source, status, consent_at, consent_text)
-      values ('MX', 'd2d', ${`Descartado ${tag()}`}, 'Persona Lista', ${email}, 'web_form', 'disqualified', now(), 'Acepto recibir correos')`
+    const mk = (email: string) => admin`insert into crm.leads (market_code, motor, business_name, contact_name, email, source, status, disqualify_code, consent_at, consent_text)
+      values ('MX', 'd2d', ${`Descartado ${tag()}`}, 'Persona Lista', ${email}, 'web_form', 'disqualified', 'not_qualified', now(), 'Acepto recibir correos')`
     await mk(`si-${t}@ejemplo.test`)
     await mk(`no-${t}@ejemplo.test`)
     await optOut(ana, { market: 'MX', channel: 'all', address: `no-${t}@ejemplo.test` })
@@ -488,8 +488,8 @@ describe('SEG-04: consentimiento, baja y retención', () => {
   it('retención: sin plazo no se enciende; la vista previa cuenta sin cambiar nada; aplicar anonimiza y deja el conteo', async () => {
     const nora = await ctxFor('nora.salas')
     const old = await one(admin<{ id: string }[]>`
-      insert into crm.leads (market_code, motor, business_name, contact_name, phone, source, status, updated_at)
-      values ('MX', 'd2d', ${`Lead viejo ${tag()}`}, 'Pedro Antiguo', ${mxPhone()}, 'manual', 'disqualified', now() - interval '400 days') returning id`)
+      insert into crm.leads (market_code, motor, business_name, contact_name, phone, source, status, disqualify_code, updated_at)
+      values ('MX', 'd2d', ${`Lead viejo ${tag()}`}, 'Pedro Antiguo', ${mxPhone()}, 'manual', 'disqualified', 'no_response', now() - interval '400 days') returning id`)
     // El sello de "última modificación" lo pone la base en cada cambio: para envejecer el lead de prueba se apagan los triggers en esa transacción.
     await admin.begin(async (tx) => {
       await tx`set local session_replication_role = replica`

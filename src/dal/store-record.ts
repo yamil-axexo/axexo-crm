@@ -1,7 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
-import { protectedDataAdapter } from '@/server/adapters/protected-data'
+import { protectedDataAdapter } from '@/server/adapters/markets'
 
 export type Carrier = {
   provider_id: string; label_es: string; label_en: string; ref_label: string | null; is_active: boolean; sla_days: number | null
@@ -104,6 +104,6 @@ export async function dealRecruiter(ctx: Ctx, dealId: string): Promise<{ recruit
 export async function documentTaxId(ctx: Ctx, accountId: string): Promise<{ text: string; complete: boolean } | null> {
   const last4 = await withUser(ctx.user.id, async (tx) => (await tx<{ tax_id_last4: string | null }[]>`select tax_id_last4 from crm.accounts where id = ${accountId}`)[0]?.tax_id_last4 ?? null)
   if (!last4) return null
-  const full = await protectedDataAdapter().readTaxId(accountId)
+  const full = await protectedDataAdapter().read({ kind: 'tax_id', accountId })
   return full ? { text: full, complete: true } : { text: `•••••${last4}`, complete: false }
 }

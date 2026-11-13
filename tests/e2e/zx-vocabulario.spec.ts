@@ -101,6 +101,8 @@ async function sweep(page: Page, r: (typeof ROLES)[number], locale: Locale): Pro
   const look = async (path: string) => {
     const res = await page.goto(path)
     if ((res?.status() ?? 200) >= 400) return
+    // Los diálogos ponen su "Cerrar" en el idioma del documento al hidratarse: se lee la pantalla ya hidratada.
+    await page.waitForLoadState('networkidle')
     await expect(page.locator('html'), path).toHaveAttribute('lang', locale)
     for (const f of findings(await visible(page), locale)) bad.push(`${path} → ${f}`)
     // La marca de sin dato siempre va con su explicación, para el cursor y para el lector de pantalla.

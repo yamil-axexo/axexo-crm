@@ -306,5 +306,7 @@ test('administración cambia el horario hábil del mercado en Formularios y turn
   await sql`update crm.market_hours set days = '{1,2,3,4,5}', closes = '18:00' where market_code = 'MX'`
   await sql.end()
   await noSideScroll(page)
+  // Con más secciones en Administración la página se desplaza al guardar: arriba, el encabezado fijo no tapa ningún botón.
+  await page.evaluate(() => window.scrollTo(0, 0))
   await axe(page, 'admin horario')
 })

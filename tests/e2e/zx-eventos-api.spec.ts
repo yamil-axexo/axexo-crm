@@ -203,7 +203,7 @@ test.describe('CAMPO-01 · contrato con la Sales App', () => {
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto('/admin/integraciones?tab=sales-app')
     await expect(page.getByTestId('salesapp-status')).toContainText('sin conexión real todavía')
-    await expect(page.getByTestId('matrix-row')).toHaveCount(10)
+    await expect(page.getByTestId('matrix-row')).toHaveCount(11) // mercados (0026) agregó la ubicación de la tienda
     await expect(page.getByTestId('matrix-row').filter({ hasText: 'Merchant ID' }).first()).toContainText('merchant.approved')
     await expect(page.getByTestId('inbound-def')).toHaveCount(4)
 

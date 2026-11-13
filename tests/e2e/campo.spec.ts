@@ -435,7 +435,7 @@ test.describe('Trabajo de campo en inglés y en teléfono (equipo US)', () => {
     await page.goto(`/comercios/${store.id}`)
     const visit = page.getByTestId('tl-visit').first()
     await expect(visit).toContainText(/^Today, .+ · Logged in CONTIGO · Jade Kim/)
-    await expect(visit).toContainText('Visit · No sale')
+    await expect(visit).toContainText('Visit · Prospecting or first visit · No sale') // US pide el propósito de la visita (us-embudo)
     await expect(page.getByTestId('action-sms')).toHaveText('Text')
     await expect(page.getByTestId('thread-next').first()).toContainText(/^Next · due [A-Z][a-z]{2}, [A-Z][a-z]{2} \d/) // el día y el mes conservan su mayúscula
     await noSideScroll(page)

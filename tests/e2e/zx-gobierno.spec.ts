@@ -2,6 +2,14 @@ import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { loginAs, openMenu, pageErrors, testDb } from './helpers'
 
+// La versión de prueba se anuncia a todo el equipo: al terminar se retira, para que las pantallas de las pruebas que siguen
+// (el teléfono arriba en un lead, por ejemplo) no la tengan encima.
+test.afterAll(async () => {
+  const db = testDb()
+  await db`update crm.announcements set status = 'withdrawn' where status = 'published' and (title like '%9.%.0%' or title_other like '%Governance package test release%' or body like '%La pantalla de Hoy ordena las tareas por hora%')`
+  await db.end()
+})
+
 // Paquete gobierno: GOB-07 (servicio, incidentes, restauración), GOB-04 (responsables, versiones, despliegues),
 // GOB-09 (costo unitario), GOB-08 (datos de prueba) y E7 (pedir un cambio, quién hace qué, motivo de cada cambio).
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()

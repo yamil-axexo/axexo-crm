@@ -5,8 +5,8 @@ import { audit, clean, newId } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 import { assertNoProhibited } from '@/domain/guard'
 import { PRODUCT_STATUSES, setAccountProduct } from '@/domain/gobierno'
-import { protectedDataAdapter } from '@/server/adapters/protected-data'
 import { captureTaxId } from '@/domain/markets'
+import { protectedDataAdapter } from '@/server/adapters/markets'
 
 // Ficha de la tienda de un mercado con ficha de dealer (épica E9): número de sitio, tipo de negocio, origen del comercio,
 // reclutado por, Tax ID (últimos 4) y el portafolio de carriers. La base repite cada regla (0030_us_ficha).
