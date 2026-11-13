@@ -5,7 +5,7 @@ self.addEventListener('push', (event) => {
   const title = typeof data.title === 'string' ? data.title.slice(0, 120) : 'CONTIGO'
   const body = typeof data.body === 'string' ? data.body.slice(0, 300) : ''
   const link = typeof data.link === 'string' && data.link.startsWith('/') ? data.link : '/avisos'
-  event.waitUntil(self.registration.showNotification(title, { body, data: { link }, icon: '/icon-192.png' }))
+  event.waitUntil(self.registration.showNotification(title, { body, data: { link }, icon: '/contigo-mark-on-light.png' }))
 })
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()

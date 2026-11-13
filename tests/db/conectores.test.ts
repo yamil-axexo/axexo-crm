@@ -471,7 +471,7 @@ describe('base y dominio', () => {
     })
   })
   it('"Probar conexión" apagado explica qué falta, queda en la bitácora y solo administración lo usa', async () => {
-    const ctx = await ctxFor('yamil')
+    const ctx = await ctxFor('nora.salas')
     const r = await testConnection(ctx, 'email')
     expect(r.ok).toBe(false)
     expect(r.mode).toBe('off')
@@ -486,7 +486,7 @@ describe('base y dominio', () => {
   it('"Probar conexión" encendido corre la prueba del proveedor', async () => {
     turnOn(def('slack'), { SLACK_BOT_TOKEN: 'xoxb' })
     route(/slack\.com\/api\/auth\.test/, () => ({ body: { ok: true, team: 'axexo' } }))
-    const r = await testConnection(await ctxFor('yamil'), 'slack')
+    const r = await testConnection(await ctxFor('nora.salas'), 'slack')
     expect(r).toMatchObject({ ok: true, mode: 'live' })
     expect(r.detail).toContain('axexo')
   })
@@ -514,7 +514,7 @@ describe('base y dominio', () => {
     turnOn(def('email'), { EMAIL_SENDER: 'avisos@axexo.com' })
     googleToken()
     route(/messages\/send/, () => ({ body: { id: 'm9' } }))
-    const ctx = await ctxFor('yamil')
+    const ctx = await ctxFor('nora.salas')
     const to = (await admin<{ id: string }[]>`select id from crm.users where email = 'marco.pena@axexo.com' or full_name ilike 'Marco%' limit 1`)[0]!.id
     await admin`insert into crm.notification_prefs (user_id, prefs) values (${to}, ${admin.json({ mention: { email: true } })}) on conflict (user_id) do update set prefs = excluded.prefs`
     const r = await withUser(ctx.user.id, (tx) => notify(tx, ctx, { to, kind: 'mention', market: null, title: ['Te mencionaron', 'You were mentioned'], body: ['Texto', 'Text'] }))
