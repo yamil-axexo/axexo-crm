@@ -488,6 +488,21 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             <h3 className={h3}>{isParent ? t('Ventas de su red', 'Network sales') : t('Ventas', 'Sales')}</h3>
             <dl className="mt-2">
               <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde', 'since')} {day(a.lifecycle_at, locale, tz)}</KeyVal>
+              {/* reportes2 (REP-04): de dónde sale el estado. Si el archivo de ventas lo trae, manda el archivo; si no, se dice que es la regla de respaldo. */}
+              {!isParent && ['active', 'at_risk', 'inactive'].includes(a.lifecycle) && (
+                <p className="-mt-1 mb-2 text-[13px] text-muted" data-testid="ficha-status-source">
+                  {metrics?.status
+                    ? t(`Estado según el archivo de ventas, con corte al ${day(metrics.as_of, locale)}.`, `Status from the sales file, as of ${day(metrics.as_of, locale)}.`)
+                    : t('Estado calculado por CONTIGO con su regla de respaldo: el archivo de ventas todavía no trae el estado. [pendiente: Roxanna Quintero (S5)]', 'Status worked out by CONTIGO with its fallback rule: the sales file does not carry the status yet. [pending: Roxanna Quintero (S5)]')}
+                  {' '}<Def t={t} k={a.lifecycle === 'active' ? 'active' : 'risk'} />
+                </p>
+              )}
+              {!isParent && metrics && (metrics.tpv_by_product?.length || metrics.commission_minor_30d) ? (
+                <KeyVal k={t('Por producto y comisión, 30 días', 'By product and commission, 30 days')}><span data-testid="fact-tpv-products">
+                  {(metrics.tpv_by_product ?? []).map((x) => `${x.product}: ${money(x.volume_minor_30d, metrics.currency, locale, true)}`).join(' · ')}
+                  {metrics.commission_minor_30d ? ` · ${t('Comisión', 'Commission')}: ${money(Number(metrics.commission_minor_30d), metrics.currency, locale, true)}` : ''}
+                </span></KeyVal>
+              ) : null}
               <KeyVal k={t('Después de la venta', 'After the sale')}><Link href={`/comercios/${a.id}/cuidado`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="ficha-care">{t('Cuidado del comercio', 'Merchant care')}</Link></KeyVal>
               {isParent ? (
                 <KeyVal k={t('Ventas, 30 días', 'Sales, 30 days')}>{num(rollup.txn_30d, locale)}{rollup.volume_30d ? ` · ${money(Number(rollup.volume_30d), rollup.currency ?? market.currency, locale, true)}` : ''}</KeyVal>

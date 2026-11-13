@@ -85,3 +85,27 @@ export async function peopleAliases(ctx: Ctx): Promise<{ id: string; full_name: 
        and exists (select 1 from crm.memberships m where m.user_id = u.id and m.role = any(app.owner_roles()) and (m.valid_to is null or m.valid_to > now()))
      order by u.full_name limit 300`)
 }
+
+// ------------------------------------------------------------------ GOB-03: colas atendidas y 1:1 con el tablero
+export type UsageExtra = { user_id: string; queue_done: number; one_on_ones: number }
+/** Por persona: avisos de su cola que atendió a mano (4 semanas) y 1:1 hechas con el tablero (30 días, como quien supervisa o como persona). */
+export async function usageExtra(ctx: Ctx, userIds: string[]): Promise<UsageExtra[]> {
+  if (!userIds.length) return []
+  return withUser(ctx.user.id, (tx) => tx<UsageExtra[]>`
+    select u.id as user_id,
+           (select count(*)::int from crm.exceptions e where e.resolved_by = u.id and e.resolved_at > now() - interval '28 days' and coalesce(e.resolution, '') not in ('auto', 'auto_cleared', 'merged')) as queue_done,
+           (select count(*)::int from crm.one_on_ones o where (o.person_id = u.id or o.supervisor_id = u.id) and o.created_at > now() - interval '30 days') as one_on_ones
+      from crm.users u where u.id = any(${userIds}::uuid[])`)
+}
+export async function rolloutRule(ctx: Ctx): Promise<{ supervisor_weeks: number; one_on_ones_min: number; result: string; proposed: boolean; pending: string }> {
+  return withUser(ctx.user.id, async (tx) => {
+    const r = await tx<{ value: Record<string, unknown> }[]>`select value from crm.settings where key = 'adoption.rollout_rule'`
+    const v = r[0]?.value ?? {}
+    return { supervisor_weeks: Number(v.supervisor_weeks ?? 3), one_on_ones_min: Number(v.one_on_ones_min ?? 1), result: String(v.result ?? 'active_30d'), proposed: v.proposed !== false, pending: String(v.pending ?? '') }
+  })
+}
+/** Personas que quien supervisa puede anotar en una 1:1 (su equipo, sin incluirse). */
+export async function oneOnOnePeople(ctx: Ctx): Promise<{ id: string; full_name: string }[]> {
+  return withUser(ctx.user.id, (tx) => tx<{ id: string; full_name: string }[]>`
+    select u.id, u.full_name from crm.users u where u.id = any(app.supervised_user_ids()) and u.id <> app.current_user_id() and u.is_active order by u.full_name`)
+}

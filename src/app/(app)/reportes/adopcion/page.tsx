@@ -2,6 +2,10 @@ import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getReportOptions } from '@/dal/reports'
 import { USAGE_WEEKS, getUsage, metricOwners } from '@/dal/reportes'
+import { oneOnOnePeople, rolloutRule, usageExtra } from '@/dal/reportes2'
+import { ActionForm, Submit } from '@/ui/client'
+import { Field } from '@/ui/kit'
+import { oneOnOneAction } from '../kam/actions'
 import { track } from '@/dal/boards'
 import { Badge, Card, CardTitle, Empty, PageHeader } from '@/ui/kit'
 import { Def, Metric, ReportFilters } from '@/ui/report'
@@ -33,6 +37,10 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
   const open = d.rows.reduce((n, r) => n + r.open_deals, 0), ok = d.rows.reduce((n, r) => n + r.step_ok, 0)
   const judged = d.rows.reduce((n, r) => n + r.leads_judged, 0), onTime = d.rows.reduce((n, r) => n + r.leads_on_time, 0)
   const teams = [...new Map(d.rows.filter((r) => r.team_id).map((r) => [r.team_id!, r])).values()]
+  // reportes2 (GOB-03): colas atendidas y 1:1 con el tablero, y la regla de paso a despliegue como dato (propuesta hasta que la fijen).
+  const [extra, rule, oooPeople] = await Promise.all([usageExtra(ctx, [...new Set(d.rows.map((r) => r.user_id))]), rolloutRule(ctx), ctx.can('one_on_one.record') ? oneOnOnePeople(ctx) : Promise.resolve([])])
+  const ex = (id: string) => extra.find((x) => x.user_id === id)
+  const todayIso = new Intl.DateTimeFormat('en-CA', { timeZone: ctx.markets[0]?.timezone ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const trend = (w: number[]) => t(`Últimas ${USAGE_WEEKS} semanas: ${w.join(', ')}`, `Last ${USAGE_WEEKS} weeks: ${w.join(', ')}`)
   return (
     <>
@@ -73,16 +81,30 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
         </Card>
       )}
 
+      <Card className="mt-6" data-testid="usage-rollout-rule">
+        <CardTitle title={t('Regla de paso a despliegue', 'Rollout readiness rule')} right={rule.proposed ? <Badge tone="warn">{t(`Valor propuesto, [pendiente: ${rule.pending}]`, `Proposed value, [pending: ${rule.pending}]`)}</Badge> : <Badge tone="good">{t('Fijada', 'Set')}</Badge>}
+          hint={t(`Quien supervisa abre el tablero ${rule.supervisor_weeks} semanas seguidas, hace al menos ${rule.one_on_ones_min} 1:1 con el tablero en 30 días y el equipo tiene ${rule.result === 'active_30d' ? 'comercios activos a 30 días' : 'visitas por alta'}. Entrar a CONTIGO no cuenta.`, `The supervisor opens the board ${rule.supervisor_weeks} weeks in a row, holds at least ${rule.one_on_ones_min} 1:1 with the board in 30 days and the team has ${rule.result === 'active_30d' ? 'merchants active at 30 days' : 'visits per enrollment'}. Signing in does not count.`)} />
+        {oooPeople.length > 0 && (
+          <ActionForm action={oneOnOneAction} className="flex flex-wrap items-end gap-3" onOk="reset" testId="one-on-one-form">
+            <Field label={t('1:1 con', '1:1 with')}><select name="person" className="input !h-11 !w-auto" required data-testid="one-on-one-person">{oooPeople.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field>
+            <Field label={t('Fecha', 'Date')}><input type="date" name="held_on" className="input !h-11" defaultValue={todayIso} required data-testid="one-on-one-date" /></Field>
+            <Field label={t('Nota (opcional)', 'Note (optional)')}><input name="note" className="input !h-11 !w-56" maxLength={300} /></Field>
+            <Submit size="sm" testId="one-on-one-save">{t('Anotar 1:1 con el tablero', 'Log a 1:1 with the board')}</Submit>
+          </ActionForm>
+        )}
+      </Card>
+
       <Card className="mt-6" pad={false} data-testid="adoption-list">
         <div className="px-5 pt-5 md:px-7 md:pt-6"><CardTitle title={t('Por persona', 'By person')} hint={<span>{t('Personas de ventas y supervisión: ', 'Sales and supervisor people: ')}<span className="num font-semibold text-strong" data-testid="adoption-people">{num(d.rows.length, locale)}</span></span>} /></div>
         <DataTable testId="usage-table" label={t('Uso por persona', 'Use by person')}
           empty={<div className="p-7 pt-0"><Empty title={t('Nadie con estos filtros', 'No one with these filters')} hint={t('Quita un filtro para ver a todo el equipo.', 'Remove a filter to see the whole team.')} /></div>}
-          head={[{ label: t('Persona', 'Person') }, { label: t('Actividades, tendencia', 'Activities, trend') }, { label: t('Esta semana', 'This week'), num: true }, { label: t('Próximo paso al día', 'Next step up to date'), num: true }, { label: t('Leads a tiempo', 'Leads on time'), num: true }]}
+          head={[{ label: t('Persona', 'Person') }, { label: t('Actividades, tendencia', 'Activities, trend') }, { label: t('Esta semana', 'This week'), num: true }, { label: t('Próximo paso al día', 'Next step up to date'), num: true }, { label: t('Leads a tiempo', 'Leads on time'), num: true }, { label: t('Avisos atendidos, 4 semanas', 'Notices handled, 4 weeks'), num: true }, { label: t('1:1 con el tablero, 30 días', '1:1s with the board, 30 days'), num: true }]}
           rows={d.rows.map((r) => ({ key: `${r.user_id}${r.market_code}`, testId: 'adoption-row', cells: [
             <span key="p"><span className="font-semibold">{r.full_name}</span><span className="block text-[12.5px] text-muted">{r.team_name ?? t('Sin equipo', 'No team')}{multi ? ` · ${r.market_code}` : ''}</span></span>,
             <Spark key="s" values={r.weeks} label={trend(r.weeks)} />, <span key="w" data-testid="adoption-week">{num(r.weeks[r.weeks.length - 1] ?? 0, locale)}</span>,
             r.open_deals > 0 ? `${pct(r.step_ok, r.open_deals, locale)} · ${r.step_ok}/${r.open_deals}` : t('Sin negocios abiertos', 'No open deals'),
             r.leads_judged > 0 ? `${pct(r.leads_on_time, r.leads_judged, locale)} · ${r.leads_on_time}/${r.leads_judged}` : t('Sin leads', 'No leads'),
+            <span key="q" data-testid="adoption-queue">{num(ex(r.user_id)?.queue_done ?? 0, locale)}</span>, <span key="o" data-testid="adoption-1on1">{num(ex(r.user_id)?.one_on_ones ?? 0, locale)}</span>,
           ] }))} />
       </Card>
       <p className="mt-4 text-[13px] text-muted" data-testid="adoption-note">{t('Esta pantalla sirve para acompañar, no para señalar: si un número está bajo, primero pregunta qué le estorba a la persona. Aquí no se cuentan ingresos a CONTIGO ni se ve lo que cada quien escribió.', 'This screen is for coaching, not for pointing fingers: if a number is low, first ask what is getting in the person’s way. Sign-ins to CONTIGO are not counted here, and nothing anyone wrote is shown.')}</p>
