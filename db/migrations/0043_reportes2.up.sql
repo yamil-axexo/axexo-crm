@@ -334,3 +334,81 @@ alter table crm.saved_views add constraint saved_views_object_check check (objec
 insert into crm.settings (key, value) values
   ('orders.brand', '{"US": {"company": "Empower Retailer Solutions", "tagline": null, "logo_svg": null}, "proposed": true, "pending": "Marketing"}'::jsonb)
 on conflict (key) do nothing;
+
+-- ============================================================ 11) GOB-02: las diferencias con el archivo de ventas como regla de calidad con dueño
+insert into crm.quality_rules (code, label_es, label_en, fix_es, fix_en, owner_role, position)
+values ('s5_diff', 'Diferencias con el archivo de ventas', 'Differences with the sales file',
+        'Revisa la conciliación: ganado sin primera venta, primera venta sin ganado, fecha o estado distintos.', 'Check the reconciliation: won with no first sale, first sale with no win, different date or status.',
+        'market_lead', 99)
+on conflict (code) do nothing;
+CREATE OR REPLACE FUNCTION app.quality_measure()
+ RETURNS TABLE(market_code text, team_id uuid, rule_code text, total integer, failing integer)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'crm', 'app', 'public', 'pg_catalog'
+AS $function$
+  with acct as (
+    select a.id, a.market_code, a.kind, a.owner_id, a.parent_id, a.phone, a.address_line, a.locality, a.latitude, a.lifecycle, a.merchant_ref, a.updated_at,
+           app.user_team(a.owner_id, a.market_code) as team_id
+      from crm.accounts a where a.archived_at is null
+  ), cfg as (
+    select coalesce((select threshold from crm.quality_rules where code = 'stale'), 180) as stale_days
+  )
+  select x.market_code, x.team_id, 'no_owner', count(*)::int, (count(*) filter (where x.owner_id is null and x.parent_id is null))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_phone', count(*)::int, (count(*) filter (where x.phone is null))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_contact', count(*)::int,
+         (count(*) filter (where not exists (select 1 from crm.account_contacts ac where ac.account_id = x.id and ac.valid_to is null)))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_address', count(*)::int, (count(*) filter (where x.address_line is null or x.locality is null))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_coords', count(*)::int, (count(*) filter (where x.latitude is null))::int from acct x where x.kind = 'store' group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_alias', count(*)::int,
+         (count(*) filter (where x.merchant_ref is null and not exists (select 1 from crm.account_aliases al where al.account_id = x.id and al.valid_to is null)))::int
+    from acct x where x.lifecycle <> 'prospect' group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'stale', count(*)::int,
+         (count(*) filter (where x.updated_at < now() - make_interval(days => cfg.stale_days)
+            and not exists (select 1 from crm.activities ac where ac.account_id = x.id and ac.created_at > now() - make_interval(days => cfg.stale_days))
+            and not exists (select 1 from crm.visits v where v.account_id = x.id and v.checked_in_at > now() - make_interval(days => cfg.stale_days))))::int
+    from acct x cross join cfg group by 1, 2
+  union all
+  select mk.code, null::uuid, 'duplicate', (select count(*)::int from acct x where x.market_code = mk.code),
+         (select count(*)::int from crm.duplicate_pairs p where p.market_code = mk.code and p.status = 'open')
+    from crm.markets mk where mk.status = 'live' and mk.code = any(app.my_markets())
+  union all
+  select b.market_code, app.user_team(b.actor_id, b.market_code), 'bypass', count(*)::int, (count(*) filter (where b.reviewed_at is null))::int
+    from crm.duplicate_bypasses b group by 1, 2
+  union all
+  select d.market_code, app.user_team(d.owner_id, d.market_code), 'deal_no_step', count(*)::int, (count(*) filter (where d.next_step is null or d.next_step_due is null))::int
+    from crm.deals d where d.status = 'open' group by 1, 2
+  union all
+  select p.market_code, null::uuid, 'provider_late', count(*)::int,
+         (count(*) filter (where k.sla_days is not null and p.submitted_at < now() - make_interval(days => k.sla_days)))::int
+    from crm.account_products p left join crm.ops_catalog k on k.id = p.provider_id where p.status = 'submitted' group by 1
+  union all
+  select d.market_code, app.user_team(d.owner_id, d.market_code), 'stage_fields', count(*)::int,
+         (count(*) filter (where exists (select 1 from crm.stages st, unnest(st.required_fields) tk where st.id = d.stage_id and tk like 'field:%' and not (d.custom ? substr(tk, 7)))))::int
+    from crm.deals d where d.status = 'open' group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'attribution_gap', count(*)::int,
+         (count(*) filter (where not exists (select 1 from crm.account_attributions t where t.account_id = x.id and t.layer = 'owner' and t.effective_to is null and t.party_ref = x.owner_id::text)))::int
+    from acct x where x.owner_id is not null group by 1, 2
+  union all
+  select mk.code, null::uuid, 'sales_unmatched', (select count(*)::int from crm.exceptions e where e.market_code = mk.code and e.kind = 'unmatched_event'),
+         (select count(*)::int from crm.exceptions e where e.market_code = mk.code and e.kind = 'unmatched_event' and e.resolved_at is null)
+    from crm.markets mk where mk.status = 'live' and mk.code = any(app.my_markets())
+  union all
+  select mk.code, null::uuid, 'field_review', count(f.id)::int,
+         (count(f.id) filter (where f.decision is null or f.owner_id is null or f.review_on is null or f.review_on < (now() at time zone mk.timezone)::date))::int
+    from crm.markets mk join crm.field_definitions f on f.is_active and (f.market_code is null or f.market_code = mk.code)
+   where mk.status = 'live' and mk.code = any(app.my_markets()) group by mk.code
+  union all
+  -- reportes2 (GOB-02): diferencias con el archivo de ventas (S5) como regla, por equipo de quien lleva el comercio.
+  select r.market_code, app.user_team(r.owner_id, r.market_code), 's5_diff',
+         (select count(*)::int from crm.accounts a2 where a2.market_code = r.market_code and a2.archived_at is null and a2.kind = 'store' and a2.lifecycle <> 'prospect'),
+         count(*)::int
+    from crm.reconciliation_diffs r where r.kind is not null group by r.market_code, app.user_team(r.owner_id, r.market_code)
+$function$;
