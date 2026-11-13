@@ -75,7 +75,7 @@ export async function saveTemplate(ctx: Ctx, raw: z.input<typeof templateInput>)
 const optional = (max: number) => z.string().trim().max(max)
 const commsInput = z.object({
   market: z.string().length(2),
-  ordersMailbox: optional(160), senderAddress: optional(160), walkthroughUrl: optional(500), supportWhatsapp: optional(20),
+  orderHeader: optional(80), ordersMailbox: optional(160), senderAddress: optional(160), walkthroughUrl: optional(500), supportWhatsapp: optional(20),
   whatsappDailyLimit: optional(8), emailUnitCost: optional(12), whatsappUnitCost: optional(12),
   supportHoursHigh: optional(4), supportHoursNormal: optional(4), supportHoursLow: optional(4),
 })
@@ -96,11 +96,11 @@ export async function saveComms(ctx: Ctx, raw: z.input<typeof commsInput>): Prom
   const costs = [costOrNull(v.emailUnitCost), costOrNull(v.whatsappUnitCost)]
   if (limit === undefined || hours.includes(undefined) || costs.includes(undefined)) throw invalid('Los límites, plazos y costos son números. Deja vacío lo que no se ha definido.', 'Limits, deadlines and costs are numbers. Leave empty what has not been defined.')
   await withUser(ctx.user.id, async (tx) => {
-    await tx`insert into crm.market_comms (market_code, orders_mailbox, sender_address, walkthrough_url, support_whatsapp, whatsapp_daily_limit, email_unit_cost, whatsapp_unit_cost,
+    await tx`insert into crm.market_comms (market_code, order_header, orders_mailbox, sender_address, walkthrough_url, support_whatsapp, whatsapp_daily_limit, email_unit_cost, whatsapp_unit_cost,
                                            support_hours_high, support_hours_normal, support_hours_low, updated_by)
-             values (${v.market}, ${v.ordersMailbox || null}, ${v.senderAddress || null}, ${v.walkthroughUrl || null}, ${v.supportWhatsapp || null}, ${limit ?? null},
+             values (${v.market}, ${v.orderHeader || null}, ${v.ordersMailbox || null}, ${v.senderAddress || null}, ${v.walkthroughUrl || null}, ${v.supportWhatsapp || null}, ${limit ?? null},
                      ${costs[0] ?? null}, ${costs[1] ?? null}, ${hours[0] ?? null}, ${hours[1] ?? null}, ${hours[2] ?? null}, ${ctx.user.id})
-             on conflict (market_code) do update set orders_mailbox = excluded.orders_mailbox, sender_address = excluded.sender_address, walkthrough_url = excluded.walkthrough_url,
+             on conflict (market_code) do update set order_header = excluded.order_header, orders_mailbox = excluded.orders_mailbox, sender_address = excluded.sender_address, walkthrough_url = excluded.walkthrough_url,
                support_whatsapp = excluded.support_whatsapp, whatsapp_daily_limit = excluded.whatsapp_daily_limit, email_unit_cost = excluded.email_unit_cost,
                whatsapp_unit_cost = excluded.whatsapp_unit_cost, support_hours_high = excluded.support_hours_high, support_hours_normal = excluded.support_hours_normal,
                support_hours_low = excluded.support_hours_low, updated_by = excluded.updated_by, updated_at = now()`

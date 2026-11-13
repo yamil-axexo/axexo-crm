@@ -40,6 +40,7 @@ create table crm.notification_prefs (
 -- 3) Configuración de avisos por mercado. Nada trae valor por defecto: lo que no se ha definido queda vacío.
 create table crm.market_comms (
   market_code          text primary key references crm.markets(code),
+  order_header         text check (order_header is null or length(order_header) between 2 and 80),   -- nombre que encabeza el pedido impreso
   orders_mailbox       text check (orders_mailbox is null or (orders_mailbox ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' and length(orders_mailbox) <= 160)),
   sender_address       text check (sender_address is null or (sender_address ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' and length(sender_address) <= 160)),
   walkthrough_url      text check (walkthrough_url is null or (walkthrough_url ~ '^https://' and length(walkthrough_url) <= 500)),

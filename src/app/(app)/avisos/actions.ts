@@ -38,7 +38,7 @@ export async function saveTemplateAction(_: unknown, fd: FormData): Promise<Acti
 export async function saveCommsAction(_: unknown, fd: FormData): Promise<ActionResult> {
   return runAction(async (ctx) => {
     await saveComms(ctx, {
-      market: str(fd, 'market'), ordersMailbox: str(fd, 'orders_mailbox'), senderAddress: str(fd, 'sender_address'), walkthroughUrl: str(fd, 'walkthrough_url'),
+      market: str(fd, 'market'), orderHeader: str(fd, 'order_header'), ordersMailbox: str(fd, 'orders_mailbox'), senderAddress: str(fd, 'sender_address'), walkthroughUrl: str(fd, 'walkthrough_url'),
       supportWhatsapp: str(fd, 'support_whatsapp'), whatsappDailyLimit: str(fd, 'whatsapp_daily_limit'), emailUnitCost: str(fd, 'email_unit_cost'), whatsappUnitCost: str(fd, 'whatsapp_unit_cost'),
       supportHoursHigh: str(fd, 'support_hours_high'), supportHoursNormal: str(fd, 'support_hours_normal'), supportHoursLow: str(fd, 'support_hours_low'),
     })

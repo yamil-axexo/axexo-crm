@@ -13,7 +13,10 @@ import { opsWaiting } from '@/dal/ops'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 import { unreadNotices } from '@/dal/notices'
-import { ScreenHelpFooter } from '@/ui/notices'
+import { HideOn, ScreenHelpFooter } from '@/ui/notices'
+import { pendingAnnouncements } from '@/dal/announcements'
+import { markAnnouncementAction } from '@/app/(app)/anuncios/actions'
+import { ActionForm, Submit } from '@/ui/client'
 
 const initials = (name: string) =>
   name
@@ -33,6 +36,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const counts = await dockCounts(ctx)
   // La campana: cuántos avisos sin leer tiene la persona (AUT-05).
   const unread = ctx.user.isSystem ? 0 : await unreadNotices(ctx)
+  // Anuncios vigentes que la persona no ha leído o que piden acuse: los ve al entrar, en cualquier pantalla (GOB-06).
+  const announcements = ctx.user.isSystem ? [] : await pendingAnnouncements(ctx)
+  const first = announcements[0]
+  const firstText = first ? (first.locale === ctx.locale || !first.title_other || !first.body_other ? { title: first.title, body: first.body } : { title: first.title_other, body: first.body_other }) : null
   const bellLabel = unread > 0 ? t(`Avisos: ${unread} sin leer`, `Notices: ${unread} unread`) : t('Avisos', 'Notices')
   // Quien trabaja o reparte leads: con la app abierta, el contador se actualiza solo y la pestaña avisa cuando llega uno.
   const watchLeads = !ctx.user.isSystem && (ctx.can('lead.work') || ctx.can('lead.assign'))
@@ -127,7 +134,26 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
-      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}<ScreenHelpFooter label={t('¿Cómo se usa esto?', 'How do I use this?')} /></main>
+      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">
+        {first && firstText && (
+          <HideOn prefixes={['/anuncios']}>
+            <aside aria-label={t('Anuncio', 'Announcement')} className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-l-4 border-l-[#24815f] px-4 py-3.5 md:px-5 print:hidden" data-testid="announce-banner">
+              <p className="min-w-[220px] flex-1 text-[14.5px] text-strong">
+                <span className="mr-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-brand-text"><Megaphone size={16} strokeWidth={1.75} aria-hidden />{first.topic === 'release' ? t('Novedades de CONTIGO', 'What is new in CONTIGO') : t('Anuncio', 'Announcement')}</span>
+                <span className="font-semibold [overflow-wrap:anywhere]" data-testid="announce-banner-title">{firstText.title}</span>
+                <span className="line-clamp-2 block text-[14px] text-muted-2 [overflow-wrap:anywhere]">{firstText.body}</span>
+              </p>
+              <Link href={`/anuncios#${first.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="announce-banner-open">
+                {announcements.length > 1 ? t(`Ver los ${announcements.length} anuncios`, `See all ${announcements.length} announcements`) : t('Leer completo', 'Read in full')}
+              </Link>
+              <ActionForm action={markAnnouncementAction}>
+                <input type="hidden" name="announcement_id" value={first.id} /><input type="hidden" name="ack" value={first.requires_ack ? '1' : '0'} />
+                <Submit variant={first.requires_ack ? 'primary' : 'ghost'} size="sm" testId="announce-banner-ack">{first.requires_ack ? t('Enterado', 'Got it') : t('Marcar leído', 'Mark as read')}</Submit>
+              </ActionForm>
+            </aside>
+          </HideOn>
+        )}
+        {children}<ScreenHelpFooter label={t('¿Cómo se usa esto?', 'How do I use this?')} /></main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} logLabel={canLog ? t('Registrar actividad', 'Log activity') : undefined} />
       {watchLeads && (
         <LeadWatch

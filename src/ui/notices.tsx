@@ -17,6 +17,13 @@ export function ScreenHelpLink({ label, className, testId, role }: { label: stri
   )
 }
 
+/** Muestra su contenido salvo en las pantallas indicadas (el anuncio no se repite dentro de Anuncios). */
+export function HideOn({ prefixes, children }: { prefixes: string[]; children: ReactNode }) {
+  const path = usePathname() ?? ''
+  if (prefixes.some((p) => path === p || path.startsWith(`${p}/`))) return null
+  return <>{children}</>
+}
+
 /** Pie de cada pantalla con la ayuda contextual. No se imprime. */
 export function ScreenHelpFooter({ label, children }: { label: string; children?: ReactNode }) {
   const path = usePathname()

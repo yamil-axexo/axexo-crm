@@ -71,6 +71,9 @@ export const CAPABILITIES = {
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // Anuncios a la red con acuse (0020): publica administración o quien lidera (su mercado; supervisión, su equipo). Leerlos y dar
+  // acuse lo hace cualquier persona de la audiencia, también quien solo lee: el acuse es suyo (domain/announcements.ts).
+  'announcement.publish': MANAGERS,
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

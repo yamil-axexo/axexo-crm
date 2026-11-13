@@ -178,6 +178,7 @@ export default async function NoticeAdminPage({ searchParams }: { searchParams: 
             <ActionForm action={saveCommsAction}>
               <input type="hidden" name="market" value={c.market_code} />
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label={t('Nombre que encabeza el pedido impreso', 'Name at the top of the printed order')} hint={t('Por ejemplo, la marca con la que el mercado atiende a sus dealers.', 'For example, the brand the market uses with its dealers.')}><input name="order_header" defaultValue={v(c.order_header)} maxLength={80} className="input" data-testid="comms-header" /></Field>
                 <Field label={t('Buzón de pedidos de Operaciones', 'Operations order mailbox')} hint={t('A dónde iría el correo de cada pedido enviado.', 'Where the email for each sent order would go.')}><input name="orders_mailbox" type="email" defaultValue={v(c.orders_mailbox)} className="input" data-testid="comms-mailbox" /></Field>
                 <Field label={t('Dirección de salida de los correos', 'Sender address for emails')}><input name="sender_address" type="email" defaultValue={v(c.sender_address)} className="input" /></Field>
                 <Field label={t('Video de recorrido del portal', 'Portal walkthrough video')} hint={t('Enlace que se comparte al agendar la capacitación de un dealer.', 'Link shared when a dealer’s training is scheduled.')}><input name="walkthrough_url" type="url" defaultValue={v(c.walkthrough_url)} className="input" data-testid="comms-video" /></Field>

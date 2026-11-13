@@ -53,7 +53,7 @@ describe('AUT-05: un solo servicio de avisos', () => {
     for (const c of channelStatus()) expect(c.needs[0].length).toBeGreaterThan(20)
     await alwaysOpen()
     const nora = await ctxFor('nora.salas')
-    await saveComms(nora, { market: 'US', ordersMailbox: '', senderAddress: '', walkthroughUrl: '', supportWhatsapp: '', whatsappDailyLimit: '', emailUnitCost: '0.0125', whatsappUnitCost: '', supportHoursHigh: '', supportHoursNormal: '', supportHoursLow: '' })
+    await saveComms(nora, { market: 'US', orderHeader: '', ordersMailbox: '', senderAddress: '', walkthroughUrl: '', supportWhatsapp: '', whatsappDailyLimit: '', emailUnitCost: '0.0125', whatsappUnitCost: '', supportHoursHigh: '', supportHoursNormal: '', supportHoursLow: '' })
     process.env.EMAIL_ADAPTER = 'simulated'
     try {
       const jade = await ctxFor('jade.kim')

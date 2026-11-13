@@ -20,6 +20,7 @@ import { gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
 import { GateFields } from '@/ui/ops'
 import { getDealOps, notifyOptions } from '@/dal/ops'
 import { DealItems, DealOpsCard } from './ops'
+import { TrainingAgenda } from './training'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
@@ -256,6 +257,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           {(ops.pipelineHasOps || ops.is_ops || ops.merchant_ref || ctx.can('deal.ops', deal.market_code)) && (
             <DealOpsCard ctx={ctx} dealId={deal.id} open={deal.status === 'open'} title={deal.title} ops={ops} today={today} />
           )}
+          {ops.checklist && <TrainingAgenda ctx={ctx} dealId={deal.id} market={deal.market_code} open={deal.status !== 'lost'} today={today} />}
 
           {defs.length > 0 && (
             <Card data-testid="deal-custom">

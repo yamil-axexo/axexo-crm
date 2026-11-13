@@ -6,7 +6,8 @@ import { dayTime } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { screenLabel } from '@/lib/screens'
 import { readerTimeZone } from '@/server/timezone'
-import { answerReportAction } from '@/app/(app)/reportar/actions'
+import { answerReportAction, takeReportAction } from '@/app/(app)/reportar/actions'
+import { ReportTimes } from '@/ui/report-times'
 
 const FILTERS = ['open', 'answered', 'all'] as const
 type Filter = (typeof FILTERS)[number]
@@ -22,7 +23,7 @@ export async function ReportesTab({ ctx, filter }: { ctx: Ctx; filter: Filter })
     <Card data-testid="admin-reports">
       <CardTitle
         title={t('Problemas reportados', 'Reported problems')}
-        hint={t('Lo que cada persona manda desde "Reportar un problema". Al responder, queda atendido y la persona ve tu respuesta en esa misma pantalla. CONTIGO no le manda aviso.', 'What each person sends from "Report a problem". Once you answer, it is handled and the person sees your answer on that same screen. CONTIGO does not notify them.')}
+        hint={t('Lo que cada persona manda desde "Reportar un problema". Al responder, queda atendido y la persona ve tu respuesta en esa misma pantalla y en su campana de avisos.', 'What each person sends from "Report a problem". Once you answer, it is handled and the person sees your answer on that same screen and in their notice bell.')}
       />
       <div className="mb-6">
         <Pills
@@ -47,6 +48,13 @@ export async function ReportesTab({ ctx, filter }: { ctx: Ctx; filter: Filter })
                 <span className="text-[13px] text-muted">{kind[r.kind]} · {screenLabel(t, r.screen)} · {dayTime(r.created_at, locale, tz)}</span>
               </div>
               <p className="mt-2 text-[15px] leading-6 whitespace-pre-wrap text-strong" data-testid="admin-report-body">{r.body}</p>
+              <ReportTimes t={t} locale={locale} tz={tz} r={r} />
+              {r.status === 'open' && !r.taken_at && (
+                <ActionForm action={takeReportAction} className="mt-2">
+                  <input type="hidden" name="id" value={r.id} />
+                  <Submit variant="quiet" size="sm" testId="admin-report-take">{t('Empezar a revisar', 'Start reviewing')}</Submit>
+                </ActionForm>
+              )}
               {r.answer ? (
                 <div className="mt-3 rounded-[14px] bg-green-50 px-4 py-3">
                   <p className="text-[12.5px] font-semibold text-brand-text">{t(`Respondió ${r.answered_by_name ?? ''}`, `Answered by ${r.answered_by_name ?? ''}`)}{r.answered_at ? ` · ${dayTime(r.answered_at, locale, tz)}` : ''}</p>

@@ -47,6 +47,11 @@ export function DealItems({ ctx, dealId, open, items, ops, currency }: { ctx: Ct
           <span>{t('Total', 'Total')}</span><span className="num">{money(total, currency, locale)}</span>
         </p>
       )}
+      {ops.has_items && items.length > 0 && (
+        <p className="mt-3 text-[14px]">
+          <a href={`/deals/${dealId}/pedido`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="order-print-link">{t('Ver el pedido para imprimir o enviarlo a Operaciones', 'Open the order to print it or send it to Operations')}</a>
+        </p>
+      )}
       {canEdit && (ops.products.length > 0 ? (
         <ActionForm action={addItemAction} onOk="reset" className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
           <input type="hidden" name="deal_id" value={dealId} />
