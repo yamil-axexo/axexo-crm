@@ -16,6 +16,8 @@ export const AUDIT_ARCHIVE_GATE = { envVar: AUDIT_ARCHIVE_ENV, credentials: [...
 export function auditArchiveMode(): ArchiveMode {
   return gate(AUDIT_ARCHIVE_GATE).mode
 }
+/** Encendida: la tarea conectores.copia_bitacora sube los lotes en cola. */
+export const auditArchiveLive = (): boolean => auditArchiveMode() === 'live'
 
 /** Estado con el que nace un lote según el adaptador. Encendido, nace en cola y la tarea lo sube enseguida. */
 export const archiveBatchStatus = (): 'channel_off' | 'simulated' => (auditArchiveMode() === 'simulated' ? 'simulated' : 'channel_off')

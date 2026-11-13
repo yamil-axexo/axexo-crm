@@ -93,6 +93,8 @@ export async function http(opts: HttpOptions): Promise<HttpResult> {
   }
   // Pruebas: el mismo camino y consulta, en el servidor falso local. El host original viaja en un encabezado para revisarlo.
   const base = testBase()
+  // En pruebas automáticas nunca se sale a internet: sin servidor falso local, la llamada no sale.
+  if (!base && process.env.APP_ENV === 'test') throw new ConnectorError(opts.connector, 'egress_blocked')
   if (base) {
     headers['x-contigo-original-host'] = url.hostname
     url = new URL(`${url.pathname}${url.search}`, base)

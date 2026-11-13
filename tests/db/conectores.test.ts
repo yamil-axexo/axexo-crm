@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { asPersona, attempt, ctxFor, owner, systemContext } from './helpers'
 import { withUser } from '@/server/db'
 import { gate } from '@/server/adapters/live/gate'
-import { ConnectorError, http } from '@/server/adapters/live/http'
+import { ConnectorError, http, testBase } from '@/server/adapters/live/http'
 import { resetGoogleTokens } from '@/server/adapters/live/google'
 import { encryptPush, resetAdTokens, resetZohoToken } from '@/server/adapters/live/providers'
 import { parseWhatsappWebhook, verifyMetaSignature } from '@/server/adapters/live/messaging'
@@ -46,6 +46,7 @@ type Handler = (r: Req) => { status?: number; body?: unknown; headers?: Record<s
 let routes: [RegExp, Handler][] = []
 const route = (re: RegExp, h: Handler) => routes.unshift([re, h])
 const admin = owner()
+const SAVED: Record<string, string | undefined> = { ...process.env }
 const sha = (s: string) => createHash('sha256').update(s).digest('hex')
 
 beforeAll(async () => {
@@ -64,6 +65,7 @@ beforeAll(async () => {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
   const port = (server.address() as { port: number }).port
   process.env.CONNECTOR_TEST_BASE_URL = `http://127.0.0.1:${port}`
+  SAVED.CONNECTOR_TEST_BASE_URL = process.env.CONNECTOR_TEST_BASE_URL
 })
 afterAll(async () => {
   await new Promise<void>((r) => server.close(() => r()))
@@ -71,7 +73,6 @@ afterAll(async () => {
   await admin.end()
 })
 
-const SAVED = { ...process.env }
 afterEach(() => {
   for (const k of Object.keys(process.env)) if (!(k in SAVED)) delete process.env[k]
   Object.assign(process.env, SAVED)
@@ -226,10 +227,12 @@ describe('cliente HTTP: errores, reintento, límite de tasa y lista de salida', 
     await expect(http({ ...base, url: 'http://api.example.com/x' })).rejects.toMatchObject({ code: 'egress_blocked' })
     expect(seen.length).toBe(0)
   })
-  it('en staging la base de pruebas no se usa', async () => {
+  it('en staging la base de pruebas no se usa; en pruebas sin servidor falso no sale nada', async () => {
     process.env.APP_ENV = 'staging'
-    route(/.*/, () => ({ body: {} }))
-    await expect(http({ ...base, url: 'https://api.example.com/x', attempts: 1, timeoutMs: 300 })).rejects.toBeInstanceOf(ConnectorError)
+    expect(testBase()).toBeNull()
+    process.env.APP_ENV = 'test'
+    delete process.env.CONNECTOR_TEST_BASE_URL
+    await expect(http({ ...base, url: 'https://api.example.com/x' })).rejects.toMatchObject({ code: 'egress_blocked' })
     expect(seen.length).toBe(0)
   })
 })
