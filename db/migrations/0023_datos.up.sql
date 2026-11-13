@@ -290,17 +290,12 @@ create policy account_aliases_steward_upd on crm.account_aliases for update to c
   with check (market_code = any((select app.steward_markets())::text[]));
 
 -- ================================================================ DAT-05 / GOB-01 campos
--- [pkg/embudo, arreglo TEMPORAL de la base a1ae00c] 0021 ya creó `untrusted` como columna generada (texto = sin validar) y aquí
--- se agrega otra vez como columna normal: la cadena no migraba desde cero. Se quita la generada y se conserva su lectura con
--- un backfill. La costura definitiva ("rate limit y untrusted: una implementación") es del integrador: al integrar, manda su versión.
-alter table crm.field_definitions drop column if exists untrusted;
 alter table crm.field_definitions
   add column owner_id     uuid references crm.users(id),
   add column purpose      text check (purpose is null or char_length(purpose) <= 400),
   add column decision     text check (decision is null or char_length(decision) <= 400),
   add column review_on    date,
   add column pii_class    text not null default 'none' check (pii_class in ('none','personal','sensitive')),
-  add column untrusted    boolean not null default false,
   add column origin       text check (origin is null or char_length(origin) <= 200),
   add column used_by      text check (used_by is null or char_length(used_by) <= 200),
   add column status       text not null default 'approved' check (status in ('proposed','approved','rejected')),
@@ -309,9 +304,9 @@ alter table crm.field_definitions
   add column decided_by   uuid references crm.users(id),
   add column decided_at   timestamptz,
   add column decision_note text check (decision_note is null or char_length(decision_note) <= 400);
--- Lo que llegó de Pipedrive entró sin revisión: se marca como dato de origen externo sin validar.
+-- La marca "llega de fuera sin validar" es la columna untrusted de 0021_events_api (una sola marca por campo): aquí se le
+-- suma el origen. Lo que llegó de Pipedrive entró sin revisión: se marca como dato de origen externo sin validar.
 update crm.field_definitions set untrusted = true, origin = 'Pipedrive' where source = 'pipedrive';
-update crm.field_definitions set untrusted = true where data_type = 'text';   -- [pkg/embudo, temporal] lo que 0021 calculaba
 -- Y lo que llegue después por la importación entra igual: marcado, sin decisión, a la vista de "sin decisión documentada".
 create or replace function crm.field_imported_flag() returns trigger
 language plpgsql set search_path = pg_catalog as $$

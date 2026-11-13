@@ -345,8 +345,18 @@ create policy export_log_ins on crm.export_log for insert to contigo_app
 
 -- ---------------------------------------------------------------- 6) IA-07: texto que llega de fuera
 -- Todo campo de texto libre es no confiable: lo puede haber escrito alguien de fuera. Ninguna función lo interpreta.
--- La marca se calcula sola: un campo de texto libre nace y queda marcado, también los que se creen después.
-alter table crm.field_definitions add column untrusted boolean generated always as (data_type = 'text') stored;
+-- La marca es UNA columna: un campo de texto libre nace y queda marcado siempre (también los que se creen después, y nadie
+-- se la quita); en los demás tipos la pone quien gobierna el campo o la importación que lo trajo (0023_datos).
+alter table crm.field_definitions add column untrusted boolean not null default false;
+update crm.field_definitions set untrusted = true where data_type = 'text';
+create function crm.field_text_untrusted() returns trigger
+language plpgsql set search_path = pg_catalog as $$
+begin
+  if new.data_type = 'text' then new.untrusted := true; end if;
+  return new;
+end $$;
+create trigger field_definitions_text_untrusted before insert or update on crm.field_definitions
+  for each row execute function crm.field_text_untrusted();
 
 -- Marca por registro: de dónde llegó el texto y en qué campos. Se muestra como texto plano, con su origen a la vista.
 create table crm.untrusted_marks (

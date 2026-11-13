@@ -17,7 +17,7 @@ drop table crm.rollout_steps;
 drop table crm.rollout_key_people;
 drop table crm.market_rollout;
 drop function app.rollout_people(text);
-drop function app.lead_markets();
+-- app.lead_markets() es de 0023_datos: se queda.
 
 drop table crm.sheet_rows;
 drop table crm.sheet_loads;
