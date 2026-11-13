@@ -47,7 +47,7 @@ export async function CampaignConfig({ ctx }: { ctx: Ctx }) {
         </ul>
       </Card>
       <Card data-testid="mx-campaigns">
-        <CardTitle title={t('Formularios de campaña', 'Campaign forms')} hint={t('Un formulario de campaña deja en cada lead su embudo de campaña, su canal y el origen "Campaña web". Los tipos de empresa que marques se preguntan en la página del formulario.', 'A campaign form leaves its campaign funnel, its channel and the "Web campaign" source on every lead. The company types you tick are asked on the form page.')} />
+        <CardTitle title={t('Formularios de campaña', 'Campaign forms')} hint={t('Un formulario de campaña deja en cada lead su embudo de campaña, su canal y el origen "Campaña web". Los tipos de empresa que marques se preguntan en la página del formulario.', 'A campaign form leaves its campaign group, its channel and the "Web campaign" source on every lead. The company types you tick are asked on the form page.')} />
         <ul>
           {d.forms.map((f) => {
             const types = d.types.filter((x) => x.market_code === null || x.market_code === f.market_code)
@@ -61,7 +61,7 @@ export async function CampaignConfig({ ctx }: { ctx: Ctx }) {
                     <span className="text-[13px] text-muted">{lab(t, MOTOR[f.motor]) || f.motor} · /f/{f.slug}</span>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[160px_minmax(0,1fr)_auto]">
-                    <Field label={t('Embudo de campaña', 'Campaign funnel')} hint={t('Por ejemplo F1 o F2.', 'For example F1 or F2.')}><input name="funnel" className="input" maxLength={20} defaultValue={f.funnel ?? ''} data-testid="campaign-funnel" /></Field>
+                    <Field label={t('Embudo de campaña', 'Campaign group')} hint={t('Por ejemplo F1 o F2.', 'For example F1 or F2.')}><input name="funnel" className="input" maxLength={20} defaultValue={f.funnel ?? ''} data-testid="campaign-funnel" /></Field>
                     <Field label={t('Identificador de canal', 'Channel identifier')} hint={t('Minúsculas, números y guiones.', 'Lowercase letters, digits and dashes.')}><input name="channel_id" className="input" maxLength={60} defaultValue={f.channel_id ?? ''} data-testid="campaign-channel" /></Field>
                     <label className="flex min-h-11 cursor-pointer items-center gap-3 self-end text-[14px] text-strong">
                       <input type="checkbox" name="is_campaign" defaultChecked={f.is_campaign} className="h-5 w-5 shrink-0" data-testid="campaign-on" />
@@ -96,7 +96,7 @@ export async function TerritoryManagers({ ctx }: { ctx: Ctx }) {
   const [rows, people] = await Promise.all([getTerritoryManagers(ctx), sellers(ctx)])
   return (
     <Card className="mt-8" data-testid="mx-managers">
-      <CardTitle title={t('Gerente de cada territorio', 'Manager of each territory')} hint={t('Las tiendas de venta puerta a puerta son de la persona que dirige su territorio: una tienda nueva en ese territorio nace con esa persona como dueña, y las que nadie llevaba pasan a ella. Un territorio sin gerente no cambia nada.', 'Door-to-door stores belong to the person who manages their territory: a new store in that territory starts with that person as its owner, and the ones nobody had move over. A territory with no manager changes nothing.')} />
+      <CardTitle title={t('Gerente de cada territorio', 'Manager of each territory')} hint={t('Las tiendas de venta puerta a puerta son de la persona que dirige su territorio: una tienda nueva en ese territorio la lleva esa persona desde que nace, y las que nadie llevaba pasan a ella. Un territorio sin gerente no cambia nada.', 'Door-to-door stores belong to the person who manages their territory: a new store in that territory starts with that person as its owner, and the ones nobody had move over. A territory with no manager changes nothing.')} />
       {rows.length === 0 ? (
         <Empty title={t('Todavía no hay territorios', 'No territories yet')} hint={t('Agrega el primero arriba y vuelve para elegir a su gerente.', 'Add the first one above and come back to pick its manager.')} />
       ) : (

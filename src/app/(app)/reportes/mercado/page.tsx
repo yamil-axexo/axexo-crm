@@ -34,7 +34,8 @@ export default async function MarketReportPage({ searchParams }: { searchParams:
   const canExport = ctx.can('report.export', market.code)
   const canMail = ctx.can('lead.mailing_export', market.code)
   const monthName = (m: string) => monthYear(`${m}-15T12:00:00Z`, locale)
-  const lastDay = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10)
+  // Último día del mes 'YYYY-MM' (el día 0 del mes siguiente): es aritmética de calendario, no depende de la hora.
+  const lastDay = (m: string) => `${m}-${String(new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).getUTCDate()).padStart(2, '0')}`
   const maxLeads = Math.max(1, ...data.monthly.map((r) => r.leads))
   const maxWon = Math.max(1, ...data.monthly.map((r) => r.won))
   const maxStage = Math.max(1, ...data.stages.map((r) => r.deals))
@@ -109,7 +110,7 @@ export default async function MarketReportPage({ searchParams }: { searchParams:
         {data.types.length === 0 ? (
           <div className="p-6"><Empty title={t('Sin leads en este periodo', 'No leads in this period')} hint={t('Prueba con más meses.', 'Try more months.')} /></div>
         ) : (
-          <Table testId="types-table" label={t('Leads por tipo de empresa', 'Leads by company type')} head={<><th>{t('Embudo de campaña', 'Campaign funnel')}</th><th>{t('Tipo de empresa', 'Company type')}</th><th>{t('Número de tiendas', 'Number of stores')}</th><th>{t('Leads', 'Leads')}</th><th>{t('Convertidos', 'Converted')}</th></>}>
+          <Table testId="types-table" label={t('Leads por tipo de empresa', 'Leads by company type')} head={<><th>{t('Embudo de campaña', 'Campaign group')}</th><th>{t('Tipo de empresa', 'Company type')}</th><th>{t('Número de tiendas', 'Number of stores')}</th><th>{t('Leads', 'Leads')}</th><th>{t('Convertidos', 'Converted')}</th></>}>
             {data.types.map((r) => (
               <tr key={`${r.funnel}:${r.account_type}:${r.bucket}`} className="table-row" data-testid="type-row">
                 <td>{r.funnel ?? none}</td>

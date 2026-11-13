@@ -265,7 +265,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 <KeyVal k={t('También escribió', 'Also wrote in')}><span data-testid="lead-extra">{lead.extra_contacts.map((c) => [c.name, c.phone ? phoneText(c.phone) : c.email].filter(Boolean).join(' · ')).join('; ')}</span></KeyVal>
               )}
               <KeyVal k={t('Origen', 'Source')}><span data-testid="lead-source-text">{[lab(t, SOURCE[lead.source]), lead.form_name].filter(Boolean).join(' · ')}</span></KeyVal>
-              {lead.funnel && <KeyVal k={t('Embudo de campaña', 'Campaign funnel')}><span data-testid="lead-funnel">{lead.funnel}</span></KeyVal>}
+              {lead.funnel && <KeyVal k={t('Embudo de campaña', 'Campaign group')}><span data-testid="lead-funnel">{lead.funnel}</span></KeyVal>}
               {lead.channel_id && <KeyVal k={t('Canal de origen', 'Source channel')}><span data-testid="lead-channel">{lead.channel_id}</span></KeyVal>}
               {lead.store_count !== null && <KeyVal k={t('Número de tiendas', 'Number of stores')}><span data-testid="lead-stores">{num(Number(lead.store_count), locale)}</span></KeyVal>}
               <KeyVal k={t('Llegó', 'Arrived')}><span data-testid="lead-arrived">{marketTime(lead.created_at, locale, market)}<OwnTime at={new Date(lead.created_at).toISOString()} zone={market.timezone} locale={locale} /></span></KeyVal>

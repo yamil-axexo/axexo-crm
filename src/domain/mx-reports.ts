@@ -28,7 +28,7 @@ export async function exportMarketReport(ctx: Ctx, market: string, months: numbe
       : what === 'etapas'
         ? [[t('Embudo', 'Pipeline'), t('Etapa', 'Stage'), t('Negocios abiertos', 'Open deals'), t('Monto', 'Amount'), t('Moneda', 'Currency')],
             data.stages.map((r) => [r.pipeline, t(r.stage_es, r.stage_en), r.deals, r.amount === null ? '' : (Number(r.amount) / 100).toFixed(2), r.amount === null ? '' : r.currency])]
-        : [[t('Embudo de campaña', 'Campaign funnel'), t('Tipo de empresa', 'Company type'), t('Número de tiendas', 'Number of stores'), t('Leads', 'Leads'), t('Convertidos', 'Converted'), t('Tiendas (suma)', 'Stores (sum)')],
+        : [[t('Embudo de campaña', 'Campaign group'), t('Tipo de empresa', 'Company type'), t('Número de tiendas', 'Number of stores'), t('Leads', 'Leads'), t('Convertidos', 'Converted'), t('Tiendas (suma)', 'Stores (sum)')],
             data.types.map((r) => [r.funnel ?? none, r.type_es ? t(r.type_es, r.type_en ?? r.type_es) : none, r.bucket === 'none' ? none : r.bucket, r.leads, r.converted, r.stores ?? ''])]
   await withUser(ctx.user.id, (tx) => audit(tx, ctx, 'report.exported', 'report', null, market, null, { report: `market_${what}`, rows: rows.length, truncated: false, filters: { market, months: data.months, from: data.from } }))
   return { csv: toCsv(head, rows), rows: rows.length, fileName: `contigo-${market.toLowerCase()}-${what}-desde-${data.from}.csv` }
@@ -46,7 +46,7 @@ export async function exportDeadLeads(ctx: Ctx, market: string): Promise<Out> {
     const all = await deadLeadsForMailing(tx, market, mk.timezone, MAILING_MAX + 1)
     const rows = all.slice(0, MAILING_MAX)
     const csv = toCsv(
-      [t('Negocio', 'Business'), t('Persona', 'Person'), t('Correo', 'Email'), t('Ciudad', 'City'), t('Motivo del descarte', 'Reason it was closed'), t('Origen', 'Source'), t('Embudo de campaña', 'Campaign funnel'), t('Aceptó recibir correos el', 'Agreed to emails on'), t('Llegó el', 'Arrived on')],
+      [t('Negocio', 'Business'), t('Persona', 'Person'), t('Correo', 'Email'), t('Ciudad', 'City'), t('Motivo del descarte', 'Reason it was closed'), t('Origen', 'Source'), t('Embudo de campaña', 'Campaign group'), t('Aceptó recibir correos el', 'Agreed to emails on'), t('Llegó el', 'Arrived on')],
       rows.map((r) => [safe(r.business_name), safe(r.contact_name), r.email, safe(r.locality), r.reason_es ? t(r.reason_es, r.reason_en ?? r.reason_es) : '', SOURCE[r.source] ? t(...SOURCE[r.source]!) : r.source, r.funnel ?? '', r.consent_on, r.created_on]))
     await audit(tx, ctx, 'report.exported', 'report', null, market, null, { report: 'dead_leads_mailing', rows: rows.length, truncated: all.length > MAILING_MAX, filters: { market, consent: true } })
     return { csv, rows: rows.length, fileName: `contigo-${market.toLowerCase()}-leads-descartados-base-de-correo.csv` }

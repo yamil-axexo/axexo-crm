@@ -215,7 +215,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </Field>
         )}
         {facets.funnels.length > 0 && (
-          <Field label={t('Embudo de campaña', 'Campaign funnel')}>
+          <Field label={t('Embudo de campaña', 'Campaign group')}>
             <select name="embudo" className="input" defaultValue={embudo ?? ''} data-testid="lead-f-funnel">
               <option value="">{t('Todos', 'All')}</option>
               {facets.funnels.map((x) => <option key={x} value={x}>{x}</option>)}
@@ -303,7 +303,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                         <Link href={`/leads/${l.id}`} className="block truncate text-[15px] leading-6 font-medium text-strong after:absolute after:inset-0">{l.business_name}</Link>
                         <span className="block truncate text-[13px] text-muted">{[l.contact_name, l.locality, ctx.markets.length > 1 ? l.market_code : null, lab(t, MOTOR[l.motor]) || null, lab(t, SOURCE[l.source])].filter(Boolean).join(' · ')}</span>
                         {(l.funnel || l.store_count !== null || (l.account_type && l.account_type !== 'store')) && (
-                          <span className="block truncate text-[13px] text-muted" data-testid="lead-fields">{[l.account_type && l.account_type !== 'store' ? typeName(l.account_type) : null, l.store_count !== null ? m('leads.stores', { count: Number(l.store_count) }) : null, l.funnel ? t(`Embudo ${l.funnel}`, `Funnel ${l.funnel}`) : null].filter(Boolean).join(' · ')}</span>
+                          <span className="block truncate text-[13px] text-muted" data-testid="lead-fields">{[l.account_type && l.account_type !== 'store' ? typeName(l.account_type) : null, l.store_count !== null ? m('leads.stores', { count: Number(l.store_count) }) : null, l.funnel ? t(`Embudo ${l.funnel}`, `Group ${l.funnel}`) : null].filter(Boolean).join(' · ')}</span>
                         )}
                         <span className={cx('block truncate text-[13px] @3xl:hidden', l.owner_name ? 'text-muted' : 'font-medium text-amber-text')} data-testid="lead-owner-small">{l.owner_name ?? m('leads.noOwner')}</span>
                       </span>

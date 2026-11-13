@@ -27,7 +27,7 @@ export async function setFormCampaign(ctx: Ctx, formId: string, input: z.input<t
   const parsed = campaign.safeParse(input)
   if (!parsed.success) {
     throw invalid('El embudo lleva hasta 20 letras o números (por ejemplo F1) y el canal, minúsculas, números, puntos y guiones (por ejemplo mx-web-tiendas).',
-      'The funnel takes up to 20 letters or digits (for example F1) and the channel takes lowercase letters, digits, dots and dashes (for example mx-web-stores).')
+      'The campaign group takes up to 20 letters or digits (for example F1) and the channel takes lowercase letters, digits, dots and dashes (for example mx-web-stores).')
   }
   const v = parsed.data
   await withUser(ctx.user.id, async (tx) => {

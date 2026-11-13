@@ -59,7 +59,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'lead.repeat_request': ['Llegó otra solicitud web de la misma empresa', 'Another web request came in from the same business'],
   'routing.hours_updated': ['Cambió el horario hábil de un mercado', 'Changed a market’s business hours'],
   'routing.target_set': ['Cambió la meta de respuesta de un turno', 'Changed a rotation’s response target'],
-  'form.campaign_set': ['Cambió el embudo de campaña, el canal o los tipos de empresa de un formulario', 'Changed a form’s campaign funnel, channel or company types'],
+  'form.campaign_set': ['Cambió el embudo de campaña, el canal o los tipos de empresa de un formulario', 'Changed a form’s campaign group, channel or company types'],
   'territory.manager_set': ['Cambió el gerente de un territorio', 'Changed a territory’s manager'],
   'account.owner_by_territory': ['Una tienda pasó al gerente de su territorio', 'A store went to its territory manager'],
   'pipeline.win_rule_set': ['Cambió la regla para ganar de un embudo', 'Changed a pipeline’s win rule'],
