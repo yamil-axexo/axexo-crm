@@ -32,6 +32,7 @@ import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
 import { storeRecord } from '@/dal/store-record'
+import { StoreSalesSection } from './ventas-tienda'
 import { CarrierPortfolio, SalesFirst, StoreKeptFields, StoreProfileSection } from './tienda-us'
 import { resolveKept } from '@/lib/store-labels'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
@@ -502,6 +503,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </dl>
             {metrics && <p className="mt-2 text-[13px] text-muted" data-testid="metrics-asof">{t(`Datos de ventas con corte al ${day(metrics.as_of, locale)}.`, `Sales data as of ${day(metrics.as_of, locale)}.`)}</p>}
           </section>
+
+          {a.kind === 'store' && <StoreSalesSection ctx={ctx} accountId={a.id} />}
 
           {deals.length > 0 && (
             <section className={section} data-testid="account-deals">

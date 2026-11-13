@@ -70,11 +70,11 @@ delete from crm.inbound_events where source = 'route_tool';
 alter table crm.inbound_events drop constraint if exists inbound_events_source_check;
 alter table crm.inbound_events add constraint inbound_events_source_check check (source in ('sales_app','s5','web_form'));
 
-drop function if exists app.can_import_any();
-drop function if exists app.in_maintenance(text, timestamptz);
-drop table if exists crm.maintenance_windows;
+drop table if exists crm.load_windows;
 drop table if exists crm.load_runs;
 drop table if exists crm.data_loads;
+drop function if exists app.can_import_any();
+drop function if exists app.in_maintenance(text, timestamptz);
 
 drop table if exists crm.store_sales_lines;
 delete from crm.ingest_batches where source = 's5_store_sales';

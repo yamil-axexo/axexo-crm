@@ -3,8 +3,8 @@
 --    mes anterior y 90 días) que llegan cada noche en su propio archivo (docs/contracts/store-sales-daily-v1.md).
 --    Sin actividad = null (la pantalla lo muestra vacío, nunca en cero).
 -- 2) E5.F3/F4/F5: cargas visibles. Cada carga (Pipedrive, datos de ventas, Sales App, importaciones) deja inicio y fin en
---    crm.load_runs, tiene responsable y hora esperada (crm.data_loads), respeta la ventana de mantenimiento de su mercado
---    (crm.maintenance_windows) y nunca corre junto con otra (índice único: una sola carga "running" a la vez).
+--    crm.load_runs, tiene responsable y hora esperada (crm.data_loads), respeta la ventana diaria sin cargas de su mercado
+--    (crm.load_windows) y el calendario de mantenimiento (crm.maintenance_windows), y nunca corre junto con otra (índice único: una sola carga "running" a la vez).
 -- 3) E5.F6: el check-in que devuelve la herramienta de rutas entra como visita (fuente "route_tool").
 -- 4) E5.F9: documentos generados (pedido, propuesta, carta) con su estado en la bóveda (apagada).
 -- 5) E6.F4: respaldos de lo importado de Pipedrive, auditados. E6.F8: recargas de un mercado en ambiente de prueba.
@@ -97,7 +97,7 @@ create policy load_runs_read on crm.load_runs for select to contigo_app using ((
 create policy load_runs_ins on crm.load_runs for insert to contigo_app with check ((select app.is_admin()) or (select app.can_import_any()));
 create policy load_runs_upd on crm.load_runs for update to contigo_app using ((select app.is_admin()) or (select app.can_import_any())) with check ((select app.is_admin()) or (select app.can_import_any()));
 
-create table crm.maintenance_windows (
+create table crm.load_windows (
   market_code  text primary key references crm.markets(code),
   starts_local time not null,
   ends_local   time not null,
@@ -106,22 +106,27 @@ create table crm.maintenance_windows (
   updated_at   timestamptz not null default now(),
   check (starts_local <> ends_local)
 );
-alter table crm.maintenance_windows enable row level security;
-alter table crm.maintenance_windows force row level security;   -- AUTHZ-03
-revoke all on crm.maintenance_windows from contigo_app;
-grant select, insert, update, delete on crm.maintenance_windows to contigo_app;
-create policy maintenance_windows_read on crm.maintenance_windows for select to contigo_app using ((select app.current_user_id()) is not null);
-create policy maintenance_windows_write on crm.maintenance_windows for all to contigo_app using ((select app.is_admin())) with check ((select app.is_admin()));
+alter table crm.load_windows enable row level security;
+alter table crm.load_windows force row level security;   -- AUTHZ-03
+revoke all on crm.load_windows from contigo_app;
+grant select, insert, update, delete on crm.load_windows to contigo_app;
+create policy load_windows_read on crm.load_windows for select to contigo_app using ((select app.current_user_id()) is not null);
+create policy load_windows_write on crm.load_windows for all to contigo_app using ((select app.is_admin())) with check ((select app.is_admin()));
 
--- ¿El mercado está ahora dentro de su ventana? La ventana puede cruzar la medianoche (22:00 a 02:00).
+-- ¿El mercado está ahora en mantenimiento? Dos fuentes: su ventana diaria sin cargas (crm.load_windows, puede cruzar la
+-- medianoche: 22:00 a 02:00) y el calendario de mantenimiento de gobierno (crm.maintenance_windows, 0028): una ventana
+-- planeada de ese mercado o de todos los mercados.
 create or replace function app.in_maintenance(p_market text, p_at timestamptz default now()) returns boolean
 language sql stable security definer set search_path = pg_catalog, crm, app as $$
   select coalesce((
     select case when w.starts_local < w.ends_local then t >= w.starts_local and t < w.ends_local
                 else t >= w.starts_local or t < w.ends_local end
-      from crm.maintenance_windows w join crm.markets m on m.code = w.market_code,
+      from crm.load_windows w join crm.markets m on m.code = w.market_code,
            lateral (select (p_at at time zone m.timezone)::time as t) x
      where w.market_code = p_market and w.is_active), false)
+  or exists (select 1 from crm.maintenance_windows mw
+              where mw.status = 'planned' and p_at >= mw.starts_at and p_at < mw.ends_at
+                and (mw.market_code is null or mw.market_code = p_market))
 $$;
 revoke all on function app.in_maintenance(text, timestamptz) from public;
 grant execute on function app.in_maintenance(text, timestamptz) to contigo_app;

@@ -22,6 +22,7 @@ import { dismissExceptionAction } from '@/app/(app)/actividades/log-actions'
 import { ConfirmButton } from '@/ui/confirm'
 import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
 import { flat } from '@/server/params'
+import { TeamStoreSales } from './ventas-equipo'
 
 /** Columnas de la tabla del equipo. En pantallas angostas cada persona se lee como tarjeta, con el nombre arriba y cada cifra con su etiqueta. */
 const COLS: [es: string, en: string][] = [
@@ -228,6 +229,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           </div>
         )}
       </Card>}
+
+      {teamView && board.reps.length > 0 && <TeamStoreSales ctx={ctx} reps={board.reps} />}
 
       {canReport && (
         <Card className="mt-8 @container" pad={false} data-testid="team-weeks">

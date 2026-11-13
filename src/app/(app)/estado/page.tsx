@@ -31,6 +31,7 @@ import { gobiernoAdapterStatus } from '@/server/gobierno-status'
 import { tracesAdapter } from '@/server/adapters/traces'
 import { billingAdapter } from '@/server/adapters/billing'
 import { OBJECTIVE_LABEL, msText } from '@/lib/gobierno-labels'
+import { LoadsCard } from './cargas'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,6 +138,13 @@ export default async function StatusPage() {
       what: t('Primer fondeo y método, primera transacción, hábito y correcciones', 'First funding and method, first transaction, habit and corrections'),
       state: salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`Hoy el archivo entra cuando alguien lo entrega por la API. Para que CONTIGO vaya por él hace falta que Data y Reportería confirme el contrato con fondeo y método y dónde deja el archivo, la aprobación de tecnología y la variable ${salesFile.envVar}.`, `Today the file comes in when someone delivers it through the API. For CONTIGO to fetch it, Data and Reporting must confirm the contract with funding and method and where the file is left, plus technology approval and the ${salesFile.envVar} variable.`),
+    },
+    {
+      key: 'store_sales',
+      name: t('Cifras de ventas por tienda', 'Store sales figures'),
+      what: t('Activaciones por carrier y volumen de pago por Merchant ID, cada noche', 'Activations by carrier and payment volume by Merchant ID, every night'),
+      state: salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`Hoy entra cuando alguien lo entrega por la API (POST /api/v1/metrics/stores, contrato store_sales_daily v1, propuesta). Para que CONTIGO vaya por él cada noche hace falta que Data y Reportería confirme el contrato y dónde deja el archivo, la aprobación de tecnología y la variable ${salesFile.envVar}.`, `Today it comes in when someone delivers it through the API (POST /api/v1/metrics/stores, store_sales_daily v1 contract, proposed). For CONTIGO to fetch it every night, Data and Reporting must confirm the contract and where the file is left, plus technology approval and the ${salesFile.envVar} variable.`),
     },
     {
       key: 'ad_conversions',
@@ -287,6 +295,7 @@ export default async function StatusPage() {
             ))}
           </ul>
         </Card>
+        <LoadsCard ctx={ctx} tz={tz} />
         <Card pad={false} data-testid="status-integrations">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Datos e integraciones', 'Data and integrations')} hint={t('De dónde llegan los datos, si la conexión está viva y cuándo llegó lo último.', 'Where the data comes from, whether the connection is live and when the latest arrived.')} /></div>
           <ul className="border-t border-line">
