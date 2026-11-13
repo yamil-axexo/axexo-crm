@@ -31,7 +31,6 @@ alter table crm.field_definitions
   drop column if exists pii_class, drop column if exists origin, drop column if exists used_by,
   drop column if exists status, drop column if exists proposed_by, drop column if exists proposed_at, drop column if exists decided_by,
   drop column if exists decided_at, drop column if exists decision_note;
-alter table crm.field_definitions add column untrusted boolean generated always as (data_type = 'text') stored;
 
 drop policy if exists account_aliases_steward_ins on crm.account_aliases;
 drop policy if exists account_aliases_steward_upd on crm.account_aliases;
