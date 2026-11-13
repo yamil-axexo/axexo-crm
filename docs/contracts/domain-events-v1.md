@@ -24,6 +24,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 - At-least-once: a subscriber can receive the same event twice and must discard repeats by `id`.
 
 ## Catalog (153 events)
+## Catalog (143 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -45,6 +46,8 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `account.profile_set` | 1 | Changed a merchant’s entity, business unit or time zone. | `changed` (string[]), `actor_id` (uuid) |
 | `account.reassigned` | 1 | Merchants were moved to another person. The record is whoever receives them. | `count` (integer) |
 | `account.taken` | 1 | Took a store with no owner. | `changed` (string[]), `actor_id` (uuid) |
+| `account.team_added` | 1 | Added someone to the account team. | `changed` (string[]), `actor_id` (uuid) |
+| `account.team_removed` | 1 | Removed someone from the account team. | `changed` (string[]), `actor_id` (uuid) |
 | `account.territory_set` | 1 | Changed the territory of merchants. | `changed` (string[]), `actor_id` (uuid) |
 | `account.type_changed` | 1 | Changed a merchant’s account type. | `changed` (string[]), `actor_id` (uuid) |
 | `account.unmerged` | 1 | Undid a merchant merge. | `changed` (string[]), `actor_id` (uuid) |
@@ -52,6 +55,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `account.whatsapp_window` | 1 | Noted that the merchant wrote on WhatsApp. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.added` | 1 | Logged an activity. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.completed` | 1 | Completed an activity. | `changed` (string[]), `actor_id` (uuid) |
+| `agency.created` | 1 | Created an agency. | `changed` (string[]), `actor_id` (uuid) |
 | `agency.labels_set` | 1 | Changed who counts as an agency. | `changed` (string[]), `actor_id` (uuid) |
 | `alias_system.created` | 1 | Added a source system for identifiers. | `changed` (string[]), `actor_id` (uuid) |
 | `alias.added` | 1 | Added an ID from another system to a merchant. | `changed` (string[]), `actor_id` (uuid) |
@@ -125,7 +129,10 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `market.holiday_added` | 1 | Added a holiday. | `changed` (string[]), `actor_id` (uuid) |
 | `market.holiday_removed` | 1 | Removed a holiday. | `changed` (string[]), `actor_id` (uuid) |
 | `market.updated` | 1 | Edited a market. | `changed` (string[]), `actor_id` (uuid) |
+| `membership.areas_changed` | 1 | Changed which parts a person administers. | `changed` (string[]), `actor_id` (uuid) |
 | `membership.ended` | 1 | Removed access. | `changed` (string[]), `actor_id` (uuid) |
+| `membership.ended_by_directory` | 1 | Removed access because the Google account no longer exists. | `changed` (string[]), `actor_id` (uuid) |
+| `membership.entity_changed` | 1 | Limited an access to a legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `membership.expiry_changed` | 1 | Changed when an access expires. | `changed` (string[]), `actor_id` (uuid) |
 | `membership.granted` | 1 | Granted access. | `changed` (string[]), `actor_id` (uuid) |
 | `order.received` | 1 | Received an order in Operations. | `changed` (string[]), `actor_id` (uuid) |
@@ -164,6 +171,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `taxid.captured` | 1 | Captured a tax ID. | `changed` (string[]), `actor_id` (uuid) |
 | `taxid.reviewed` | 1 | Reviewed a tax ID. | `changed` (string[]), `actor_id` (uuid) |
 | `team.created` | 1 | Created a team. | `changed` (string[]), `actor_id` (uuid) |
+| `team.parent_changed` | 1 | Changed which team a team reports to. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.archived` | 1 | Archived a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.created` | 1 | Created a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.manager_set` | 1 | Changed a territory’s manager. | `changed` (string[]), `actor_id` (uuid) |
@@ -387,6 +395,9 @@ One explicit event and one audit-driven event, in full. Every other event follow
 
 | Audit action | Meaning | Why it is not published |
 | --- | --- | --- |
+| `access_review.closed` | Closed an access review | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `access_review.decided` | Decided an access in the review | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `access_review.opened` | Opened an access review | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `activity.notice_seen` | Marked a notice as seen | It is a notice between people inside CONTIGO, not a change to the record. |
 | `activity.notice_sent` | Notified someone from a note | It is a notice between people inside CONTIGO, not a change to the record. |
 | `announcement.acknowledged` | Acknowledged an announcement | It is a notice between people inside CONTIGO, not a change to the record. |
@@ -397,9 +408,14 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `api_client.created` | Created an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `api_client.revoked` | Revoked an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `api_client.rotated` | Rotated an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
+| `api_client.updated` | Changed the owner or expiry of an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `automation.notified` | An automation notified a person | It is a notice between people inside CONTIGO, not a change to the record. |
 | `automation.task_created` | An automation created a task | It is a notice between people inside CONTIGO, not a change to the record. |
 | `comms.saved` | Changed a market’s notice settings | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `consent.opt_out_lifted` | Lifted an opt-out | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `consent.opted_out` | Recorded an opt-out | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `consent.recorded` | Recorded a consent | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `consent.revoked` | Withdrew a consent | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `csv_import.completed` | Imported a file | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `csv_import.undone` | Undid an import | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `duplicate.bypass_reviewed` | Reviewed a skipped duplicate warning | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
@@ -438,6 +454,8 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `report.created` | Reported a problem or asked for something | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `report.exported` | Exported a report | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `report.taken` | Started reviewing a team report | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `retention.applied` | Applied a retention rule | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `retention.rule_changed` | Changed a retention rule | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `rollout.key_person_added` | Added a key person to the rollout | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `rollout.key_person_removed` | Removed a key person from the rollout | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `rollout.leaders_first_set` | Changed the leaders-first rule | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
@@ -452,9 +470,25 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `saved_view.pinned` | Pinned a view as a queue | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `saved_view.saved` | Saved a view | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `saved_view.unpinned` | Removed a queue from the menu | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `seat.approved` | Recorded who approved a seat | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `secret.updated` | Updated a connection’s inventory entry | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `security.alert_acknowledged` | Reviewed a security alert | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `security.due_days_changed` | Changed the response period for data requests | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `security.thresholds_changed` | Changed the alert thresholds | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `sensitive.revealed` | Revealed restricted data | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `sensitive.updated` | Saved restricted data | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `sensitive_field.created` | Created a restricted field | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `sensitive_field.updated` | Changed who sees a restricted field | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `session.ended` | Signed out | Sign-ins and sign-outs do not change business data. |
 | `session.started` | Signed in | Sign-ins and sign-outs do not change business data. |
 | `sheet.migrated_loaded` | Loaded migrated stores from the sheet | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `sheet.visits_loaded` | Loaded visits from the sheet | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `snapshot.taken` | Took the daily snapshot | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `subject_request.anonymized` | Anonymized a person’s data | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `subject_request.closed` | Closed a personal data request | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `subject_request.created` | Recorded a person’s request about their data | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `subject_request.exported` | Pulled a person’s data to hand it over | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `subject_request.updated` | Updated a personal data request | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `template.saved` | Saved a new version of a template | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `view_as.ended` | Stopped viewing as someone else | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `view_as.started` | Started viewing CONTIGO as someone else | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |

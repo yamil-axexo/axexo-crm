@@ -1,7 +1,7 @@
 import 'server-only'
 import { NextResponse, type NextRequest } from 'next/server'
 import { ZodError } from 'zod'
-import { withoutUser } from '@/server/db'
+import { runVia, withoutUser } from '@/server/db'
 import { hashKey } from '@/domain/admin'
 import { DomainError } from '@/lib/errors'
 import { LIMITS, clientIp, ipHash, rateHit } from '@/server/protect'
@@ -57,7 +57,7 @@ export async function apiHandler(request: NextRequest, scope: string, fn: (body:
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
   }
   try {
-    return NextResponse.json(await fn(body, request.headers.get('idempotency-key')))
+    return NextResponse.json(await runVia('api', () => fn(body, request.headers.get('idempotency-key'))))
   } catch (e) {
     return failure(e, scope)
   }
@@ -68,7 +68,11 @@ export async function apiRead(request: NextRequest, scope: string, fn: (key: Api
   const auth = await authenticate(request, scope)
   if ('response' in auth) return auth.response
   try {
-    return NextResponse.json(await fn(auth.key, request.nextUrl.searchParams), {
+    const out = await fn(auth.key, request.nextUrl.searchParams)
+    // SEG-03: cada lectura con una llave queda en el registro de lecturas de la base, con cuántas filas salieron (los datos de prueba no cuentan).
+    const rows = Array.isArray((out as { data?: unknown } | null)?.data) ? (out as { data: unknown[] }).data.length : 0
+    if (auth.key.mode === 'live') await withoutUser((tx) => tx`select app.log_read('api', ${scope}, ${rows}, ${auth.key.market}, null, ${auth.key.id})`)
+    return NextResponse.json(out, {
       headers: { 'cache-control': 'no-store', 'x-ratelimit-limit': String(auth.key.ratePerMinute), 'x-contigo-data': auth.key.mode === 'test' ? 'synthetic' : 'live' },
     })
   } catch (e) {

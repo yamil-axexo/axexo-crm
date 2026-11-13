@@ -250,30 +250,38 @@ export async function parentOptions(ctx: Ctx, market: string) {
 /** UX-02: búsqueda global por nombre, teléfono o alias externo. */
 export async function searchAll(ctx: Ctx, q: string) {
   const term = q.trim()
-  if (term.length < 2) return { accounts: [], leads: [], deals: [], others: [] }
+  const nothing = { accounts: [], leads: [], deals: [], others: [], limited: false }
+  if (term.length < 2) return nothing
   return withUser(ctx.user.id, async (tx) => {
+    // UX-02: quien busca muchas veces seguidas espera un minuto. La base cuenta las búsquedas de la persona.
+    const allowed = await tx<{ ok: boolean }[]>`select app.search_allowed() as ok`
+    if (allowed[0]?.ok === false) return { ...nothing, limited: true }
+    // Teléfono y alias no se buscan por pedazo (eso deja recorrerlos uno por uno): el teléfono, por su número completo
+    // con o sin código de país (7 dígitos o más, comparado contra el final); el alias, por el identificador exacto.
     const digits = term.replace(/[^\d]/g, '')
+    const phone = digits.length >= 7 && digits.length <= 15 ? digits : ''
+    const alias = term.toUpperCase()
     const accounts = await tx<{ id: string; name: string; market_code: string; lifecycle: string; locality: string | null; via: string | null; has_deal: boolean }[]>`
       select a.id, a.name, a.market_code, a.lifecycle, a.locality,
              exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open') as has_deal,
              (select al.system || ' ' || al.external_id from crm.account_aliases al where al.account_id = a.id and al.valid_to is null
-               and upper(al.external_id) like ${'%' + term.toUpperCase() + '%'} limit 1) as via
+               and upper(al.external_id) = ${alias} limit 1) as via
         from crm.accounts a
        where a.archived_at is null and a.market_code = any(${ctx.markets.map((m) => m.code)}::text[])
          and (a.name_norm like ${'%'} || app.norm(${term}) || ${'%'} or a.name_norm % app.norm(${term})
              -- E2.F1: también por dirección (calle, colonia o código postal).
              ${term.length >= 4 ? tx`or a.address_norm like ${'%'} || app.norm(${term}) || ${'%'}` : tx``}
-             ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
+             ${phone ? tx`or a.phone like ${'%' + phone}` : tx``}
              ${/^[0-9a-f]{8}(-[0-9a-f-]{0,28})?$/i.test(term) ? tx`or a.id::text like ${term.toLowerCase() + '%'}` : tx``}
              or exists (select 1 from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
                          where ac.account_id = a.id and ac.valid_to is null
-                           and (app.norm(c.full_name) like ${'%'} || app.norm(${term}) || ${'%'} ${digits.length >= 4 ? tx`or c.phone like ${'%' + digits + '%'}` : tx``}))
-             or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) like ${'%' + term.toUpperCase() + '%'}))
+                           and (app.norm(c.full_name) like ${'%'} || app.norm(${term}) || ${'%'} ${phone ? tx`or c.phone like ${'%' + phone}` : tx``}))
+             or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) = ${alias}))
        order by similarity(a.name_norm, app.norm(${term})) desc limit 12`
     const leads = await tx<{ id: string; business_name: string; market_code: string; status: string }[]>`
       select id, business_name, market_code, status from crm.leads
        where app.norm(business_name) like ${'%'} || app.norm(${term}) || ${'%'} or app.norm(contact_name) like ${'%'} || app.norm(${term}) || ${'%'}
-          ${digits.length >= 4 ? tx`or phone like ${'%' + digits + '%'}` : tx``}
+          ${phone ? tx`or phone like ${'%' + phone}` : tx``}
        order by created_at desc limit 8`
     const deals = await tx<{ id: string; title: string; market_code: string; status: string }[]>`
       select id, title, market_code, status from crm.deals where app.norm(title) like ${'%'} || app.norm(${term}) || ${'%'} order by created_at desc limit 8`
@@ -286,6 +294,7 @@ export async function searchAll(ctx: Ctx, q: string) {
       select id from crm.accounts where id = any(${ids}::uuid[]) union all select id from crm.leads where id = any(${ids}::uuid[])`
     const visible = new Set(mine.map((r) => r.id))
     const others = found.filter((o) => !visible.has(o.id)).map(({ kind, name, locality, owner_name, market_code }) => ({ kind, name, locality, owner_name, market_code }))
-    return { accounts: [...accounts], leads: [...leads], deals: [...deals], others }
+    await tx`select app.log_read('search', 'search', ${accounts.length + leads.length + deals.length + others.length}, null, ${tx.json({ shape: phone ? 'phone' : 'text' })})`
+    return { accounts: [...accounts], leads: [...leads], deals: [...deals], others, limited: false }
   })
 }

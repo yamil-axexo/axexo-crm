@@ -577,6 +577,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={identity} canManage={canProducts} />}
           {identity && <ProcessSection ctx={ctx} accountId={a.id} identity={identity} canEdit={canEdit} />}
           {identity && <MergeSection ctx={ctx} accountId={a.id} identity={identity} tz={tz} />}
+          <section className={section} data-testid="account-security">
+            <h3 className={cx(h3, 'mb-2')}>{t('Equipo y datos reservados', 'Team and restricted data')}</h3>
+            <p className="mb-3 text-[13px] text-muted">{t('Quién más trabaja esta cuenta, sus datos reservados y el consentimiento de sus contactos.', 'Who else works this account, its restricted data and its contacts’ consent.')}</p>
+            <LinkButton href={`/comercios/${a.id}/equipo`} size="sm" testId="account-security-open">{t('Abrir', 'Open')}</LinkButton>
+          </section>
 
           {defs.length > 0 && (
             <section className={section} data-testid="account-custom">

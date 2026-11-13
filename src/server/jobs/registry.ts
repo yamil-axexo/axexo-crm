@@ -5,6 +5,7 @@ import { eventosApiJobs } from './eventos-api'
 import { reportesJobs } from './reportes'
 import { datosJobs } from './datos'
 import { mercadosJobs } from './mercados'
+import { seguridadJobs } from './seguridad'
 
 /** Every scheduled job of the app. One line per package: `...packageJobs`. */
 export const JOBS: Job[] = [
@@ -14,4 +15,5 @@ export const JOBS: Job[] = [
   ...reportesJobs,
   ...datosJobs,
   ...mercadosJobs,
+  ...seguridadJobs,
 ]

@@ -693,3 +693,16 @@ update crm.accounts a set latitude = 25.6714 + (pg_temp.h(a.id::text) % 40) / 10
  where a.address_line = 'Av. Principal 120, Centro';
 update crm.accounts set business_unit = 'mexico' where market_code = 'MX' and kind <> 'store';
 update crm.accounts set business_unit = 'usa' where market_code = 'US' and kind <> 'store';
+
+-- seguridad
+-- El consentimiento que el seed puso en leads con los triggers apagados queda también como registro propio (canal correo, promociones).
+insert into crm.consents (market_code, lead_id, channel, category, source, evidence, granted_at)
+select l.market_code, l.id, 'email', 'marketing', 'web_form', left(l.consent_text, 500), l.consent_at
+  from crm.leads l where l.consent_at is not null and not exists (select 1 from crm.consents c where c.lead_id = l.id);
+-- Una agencia de ejemplo en México, sin personas todavía, confinada al embudo de tiendas (nombre inventado).
+insert into crm.agencies (id, market_code, name, pipeline_id) values (pg_temp.uid('ag-mx-demo'), 'MX', 'Agencia Demo (sintética)', pg_temp.uid('p-mx-d2d'));
+-- Un dato reservado de ejemplo en una cadena de México, para que el revelado con motivo se pueda probar (texto inventado).
+insert into crm.account_sensitive (account_id, field_key, market_code, value)
+select a.id, 'commercial_terms', a.market_code, 'Pago a 30 días. Descuento por volumen desde 50 puntos de venta. Revisión anual.'
+  from crm.accounts a where a.market_code = 'MX' and a.segment = 'b2b' and a.owner_id = pg_temp.uid('diana.cruz') and a.archived_at is null
+ order by a.name, a.id limit 1;

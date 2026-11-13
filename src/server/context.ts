@@ -4,13 +4,17 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createHash, randomBytes } from 'node:crypto'
 import { withUser, withoutUser, systemUserId } from '@/server/db'
-import { can, type Capability, type Membership, type Role } from '@/domain/policy'
+import { can, isFullAdmin, READ_CAPS, type AdminArea, type Capability, type Membership, type Role } from '@/domain/policy'
 import { translator, type Locale, type T } from '@/lib/format'
 import { messages, type M } from '@/lib/messages'
 import { forbidden } from '@/lib/errors'
 
 export const SESSION_COOKIE = 'contigo_session'
 export const LOCALE_COOKIE = 'contigo_locale'
+export const VIEW_AS_COOKIE = 'contigo_view_as'
+
+/** SEG-07: quien administra accesos está viendo CONTIGO como otra persona, en solo lectura y por tiempo limitado. */
+export type ViewAs = { id: string; actorId: string; actorName: string; until: string }
 
 export type Market = {
   code: string
@@ -38,25 +42,29 @@ export type Ctx = {
   can: (cap: Capability, market?: string | null) => boolean
   assert: (cap: Capability, market?: string | null) => void
   market: (code: string) => Market
+  /** Presente solo mientras alguien "ve como" esta persona: nada se puede cambiar. */
+  viewAs?: ViewAs
 }
 
 const hash = (token: string) => createHash('sha256').update(token).digest('hex')
 
-export async function loadCtx(userId: string, localeOverride?: Locale): Promise<Ctx | null> {
+export async function loadCtx(userId: string, localeOverride?: Locale, viewAs?: ViewAs): Promise<Ctx | null> {
   return withUser(userId, async (tx) => {
     const users = await tx<{ id: string; full_name: string; email: string; locale: Locale; is_system: boolean }[]>`
       select id, full_name, email::text, locale, is_system from crm.users where id = ${userId} and is_active`
     const u = users[0]
     if (!u) return null
-    const ms = await tx<{ market_code: string | null; role: Role; team_id: string | null }[]>`
-      select market_code, role, team_id from app.active_memberships()`
+    const ms = await tx<{ market_code: string | null; role: Role; team_id: string | null; admin_areas: AdminArea[] | null }[]>`
+      select market_code, role, team_id, admin_areas from app.active_memberships_x()`
     if (ms.length === 0) return null
     const markets = await tx<
       { code: string; name: string; currency: string; default_locale: Locale; timezone: string; phone_cc: string; status: 'live' | 'planned'; flags: Record<string, unknown>; workdays: number[] | null }[]
     >`select code, name, currency, default_locale, timezone, phone_cc, status, flags,
              (select h.days from crm.market_hours h where h.market_code = crm.markets.code) as workdays
         from crm.markets where code = any(app.my_markets()) order by status, code`
-    const memberships: Membership[] = ms.map((m) => ({ market: m.market_code, role: m.role, teamId: m.team_id }))
+    const memberships: Membership[] = ms.map((m) => ({ market: m.market_code, role: m.role, teamId: m.team_id, areas: m.admin_areas }))
+    // Mientras alguien ve como otra persona solo quedan vivas las capacidades de lectura: no cambia, no exporta, no revela.
+    const allowed = (cap: Capability, market?: string | null) => (!viewAs || READ_CAPS.includes(cap)) && can(memberships, cap, market)
     const locale = localeOverride ?? u.locale
     const list: Market[] = markets.map((m) => ({
       code: m.code,
@@ -76,17 +84,18 @@ export async function loadCtx(userId: string, localeOverride?: Locale): Promise<
       locale,
       t: translator(locale),
       m: messages(locale),
-      isAdmin: memberships.some((m) => m.role === 'admin'),
+      isAdmin: isFullAdmin(memberships),
       isGlobal: memberships.some((m) => m.role === 'admin' || m.role === 'lt'),
-      can: (cap, market) => can(memberships, cap, market),
+      can: allowed,
       assert: (cap, market) => {
-        if (!can(memberships, cap, market)) throw forbidden()
+        if (!allowed(cap, market)) throw forbidden()
       },
       market: (code) => {
         const m = list.find((x) => x.code === code)
         if (!m) throw forbidden()
         return m
       },
+      viewAs,
     }
     return ctx
   })
@@ -100,8 +109,31 @@ export const getCtx = cache(async (): Promise<Ctx | null> => {
   const rows = await withoutUser((tx) => tx<{ id: string | null }[]>`select app.session_user(${hash(token)}) as id`)
   const userId = rows[0]?.id
   if (!userId) return null
+  const viewId = jar.get(VIEW_AS_COOKIE)?.value
+  if (viewId && /^[0-9a-f-]{36}$/i.test(viewId)) {
+    // La base decide si la sesión de "ver como" sigue viva: de quien la abrió, sin terminar, sin vencer y con su permiso vigente.
+    const v = await withoutUser((tx) => tx<{ target_id: string; expires_at: Date; actor_name: string }[]>`
+      select target_id, expires_at, actor_name from app.view_as_current(${viewId}, ${userId})`)
+    if (v[0]) {
+      const seen = await loadCtx(v[0].target_id, await sessionLocale(), { id: viewId, actorId: userId, actorName: v[0].actor_name, until: v[0].expires_at.toISOString() })
+      if (seen) return seen
+    }
+  }
   return loadCtx(userId, await sessionLocale())
 })
+
+/** La persona real detrás de la sesión, sin importar si está viendo como otra. */
+export async function sessionUserId(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  if (!token) return null
+  const rows = await withoutUser((tx) => tx<{ id: string | null }[]>`select app.session_user(${hash(token)}) as id`)
+  return rows[0]?.id ?? null
+}
+
+/** En modo "ver como" nada cambia: lo usan las acciones que no pasan por runAction. */
+export function assertNotViewAs(ctx: Ctx): void {
+  if (ctx.viewAs) throw forbidden()
+}
 
 /**
  * Idioma de una persona con sesión. Manda lo que eligió con el interruptor (la cookie). Si todavía no ha elegido,

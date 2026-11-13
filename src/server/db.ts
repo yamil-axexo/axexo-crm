@@ -1,6 +1,18 @@
 import 'server-only'
 import postgres from 'postgres'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { randomUUID } from 'node:crypto'
 import { env } from '@/env'
+
+/**
+ * SEG-03: por dónde entra cada cambio. La bitácora que escribe la base lo guarda en cada fila (app.via).
+ * Sin declarar, un cambio con identidad es de la pantalla; uno del usuario de sistema, de una integración o tarea.
+ */
+export type Via = 'screen' | 'api' | 'form' | 'import' | 'job'
+const viaStore = new AsyncLocalStorage<{ via: Via; requestId: string }>()
+export function runVia<T>(via: Via, fn: () => Promise<T>): Promise<T> {
+  return viaStore.run({ via, requestId: randomUUID() }, fn)
+}
 
 // PORT-01 / PORT-02: este es el único punto de conexión a la base y solo corre en el servidor.
 // PERF-04: compatible con pooler en modo transacción (sin prepared statements; la identidad viaja con set_config local).
@@ -28,7 +40,8 @@ function client(): Sql {
 /** AUTHZ-04: toda consulta de negocio corre dentro de una transacción con la identidad fijada. */
 export function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return client().begin(async (tx) => {
-    await tx`select set_config('app.user_id', ${userId}, true)`
+    const v = viaStore.getStore()
+    await tx`select set_config('app.user_id', ${userId}, true), set_config('app.via', ${v?.via ?? ''}, true), set_config('app.request_id', ${v?.requestId ?? ''}, true)`
     return fn(tx)
   }) as Promise<T>
 }

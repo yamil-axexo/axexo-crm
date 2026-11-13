@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Horario } from './horario'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { env } from '@/env'
 import { getConfig, getDataQuality, getIntake, getIntegrations } from '@/dal/admin'
@@ -38,10 +38,20 @@ type Tab = (typeof TABS)[number]
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; acceso?: string; reportes?: string } & AuditParams> }) {
   const ctx = await requireCtx()
   const admin = ctx.can('config.manage')
-  if (!admin && !ctx.can('audit.read')) notFound()
+  // SEG-01: Administración por partes. Cada sección la abre la parte que le toca; la administración completa las abre todas.
+  const sees: Record<Tab, boolean> = {
+    personas: ctx.can('access.manage'), territorios: admin, mercados: admin, embudos: admin || ctx.can('audit.read'), entrada: admin,
+    integraciones: ctx.can('integration.operate'), pipedrive: ctx.can('integration.operate'), calidad: admin,
+    reportes: ctx.can('report.manage'), auditoria: ctx.can('audit.read'),
+  }
+  const security = ctx.can('security.read') || ctx.can('access.manage') || ctx.can('integration.operate') || ctx.can('access.review')
+  const allowed: Tab[] = TABS.filter((k) => sees[k])
+  if (allowed.length === 0) {
+    if (security) redirect('/admin/seguridad')
+    notFound()
+  }
   const { t, locale } = ctx
   const sp = flat(await searchParams)
-  const allowed: Tab[] = admin ? [...TABS] : ['embudos', 'auditoria']
   const tab: Tab = allowed.includes(sp.tab as Tab) ? (sp.tab as Tab) : allowed[0]!
   // Pedir una sección que el rol no ve (por un enlace que alguien compartió) lo dice, en vez de abrir otra en silencio.
   const hidden = TABS.includes(sp.tab as Tab) && !allowed.includes(sp.tab as Tab) ? (sp.tab as Tab) : null
@@ -84,7 +94,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           tabItem('mercados'),
           { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : [] },
         { key: 'control', label: t('Control', 'Oversight'), items: [tabItem('auditoria'),
-          ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : [])] },
+          ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : []),
+          // Seguridad y privacidad: alertas, accesos, datos reservados, llaves y la bitácora que escribe la base.
+          ...(security ? [{ key: 'seguridad', href: '/admin/seguridad', label: t('Seguridad', 'Security') }] : [])] },
       ].map((g) => ({ ...g, items: g.items.filter((x): x is AdminNavItem => x !== null) }))} />
       {hidden && (
         <p role="status" className="mb-6 rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] font-medium text-amber-text" data-testid="tab-hidden">

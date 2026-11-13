@@ -4,7 +4,7 @@ Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 11-Nov-2
 
 **Met** = implemented and covered by a test or a file you can open. **Partial** = part of the rule is in place; the gap is stated. **Not yet** = not in this PR. **Open** = needs a decision or an owner outside this repository. **N/A** = the thing the rule governs does not exist here yet.
 
-Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
+Summary: 29 Met, 22 Partial, 10 Not yet, 19 Open, 6 N/A, out of 86 rules.
 
 ## Portability
 | Rule | Level | Status | Evidence or gap |
@@ -44,7 +44,7 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 | AUTHZ-06 | MUST | Met | Scope functions wrapped in `(select …)`; indexes on `owner_id`, `territory_id`, `market_code`, GIN on `ancestor_ids` |
 | AUTHZ-07 | MUST | Partial | Lists and search filter by market explicitly; detail pages rely on RLS plus the record ID |
 | AUTHZ-08 | MUST | Met | `tests/db/permissions.test.ts`: 21 tests, allowed and denied per role × object × action, as the app role |
-| AUTHZ-09 | MUST | Not yet | No Google Directory sync. Today: end the membership; sessions expire within 12 h |
+| AUTHZ-09 | MUST | Partial | Directory sync is built as an adapter and off (`DIRECTORY_ADAPTER`, job `seguridad.directorio`): it needs a read-only directory service account and its approval. Meanwhile: unused access report, periodic access review signed off by the market lead, expiry dates, and sessions that expire within 12 h (ADR-008) |
 | AUTHZ-10 | MUST | Met | No external users |
 
 ## Application security
@@ -100,7 +100,7 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 |---|---|---|---|
 | OBS-01 | MUST | Partial | Errors are logged as JSON without PII or payloads. No request-wide structured log with pseudonymous user and market |
 | OBS-02 | SHOULD | Not yet | No tracing |
-| OBS-03 | MUST | Partial | Append-only `audit_events` for business changes, access changes and admin actions (DB test). Reads of PII are not logged; no export to object storage |
+| OBS-03 | MUST | Partial | The database writes the log: a trigger on every `crm` table copies each change to the `audit` schema with who, channel and request id; nobody can edit it (DB test). Exports, searches, reveals of restricted data and reads with an API key are counted in `audit.read_log` with alerts. The copy outside the database is built and off (`AUDIT_ARCHIVE_ADAPTER`); list views of personal data are not logged (ADR-008) |
 | OBS-04 | SHOULD | N/A | Applies to Option 3 |
 | OBS-05 | MUST | Partial | Active days and actions per person, on-time lead response, days to first sale. No weekly series |
 | OBS-06 | SHOULD | Open | `[pending: Legal]` |
@@ -122,7 +122,7 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 | Rule | Level | Status | Evidence or gap |
 |---|---|---|---|
 | COMP-01, COMP-03, COMP-04 | MUST | Open | Residency opinion, subprocessor register, incident matrix `[pending: Legal]` |
-| COMP-02 | MUST | Not yet | No consent records |
+| COMP-02 | MUST | Partial | `crm.consents` per contact or lead, channel and purpose, with evidence and date; opt-outs in `crm.contact_suppressions`; every outside send asks `app.may_contact` (DB test). The privacy notice version per market is still empty `[pending: Legal]` |
 | COMP-05 | MUST | Open | SOX scope depends on whether the CRM feeds commissions |
 | COMP-06 | SHOULD | Not yet | |
 | AI-01 | MUST | N/A | No model calls |
