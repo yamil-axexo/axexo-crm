@@ -161,3 +161,21 @@ export async function agentsWithoutRedteam(tx: Tx, agentKeys: readonly string[])
 }
 
 
+
+// ================================================================ SEG-04: versión del aviso de privacidad por mercado
+export async function privacyNotices(ctx: Ctx): Promise<{ code: string; name: string; version: string | null }[]> {
+  return withUser(ctx.user.id, (tx) => tx<{ code: string; name: string; version: string | null }[]>`select code, name, privacy_notice_version as version from crm.markets order by code`)
+}
+
+/** El texto y la versión los da Legal; aquí solo se anota qué versión rige en el mercado. Vacío: sin aviso vigente (pendiente). */
+export async function setPrivacyNotice(ctx: Ctx, market: string, version: string): Promise<void> {
+  ctx.assert('security.manage')
+  const v = version.trim()
+  if (v && !/^[A-Za-z0-9 ._-]{1,40}$/.test(v)) throw invalid('Escribe la versión como la da Legal (hasta 40 letras, números, punto o guion).', 'Write the version as Legal gives it (up to 40 letters, numbers, dot or dash).')
+  await withUser(ctx.user.id, async (tx) => {
+    const before = (await tx<{ v: string | null }[]>`select privacy_notice_version as v from crm.markets where code = ${market} for update`)[0]
+    if (!before) throw notFound()
+    await tx`update crm.markets set privacy_notice_version = ${v || null} where code = ${market}`
+    await audit(tx, ctx, 'platform_value.changed', 'platform_value', null, market, { key: 'privacy_notice_version', value: before.v }, { key: 'privacy_notice_version', value: v || null })
+  })
+}

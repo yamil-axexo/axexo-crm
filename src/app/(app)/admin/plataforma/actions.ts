@@ -2,7 +2,7 @@
 import { runAction, str } from '@/server/action'
 import type { ActionResult } from '@/lib/errors'
 import { withUser } from '@/server/db'
-import { recordRedteam, setFlag, setPlatformValue, setSecretBackup } from '@/domain/plataforma/admin'
+import { recordRedteam, setFlag, setPlatformValue, setPrivacyNotice, setSecretBackup } from '@/domain/plataforma/admin'
 import { setNoticeRule } from '@/domain/plataforma/feed'
 import { createMcpClient, revokeMcpClient } from '@/domain/plataforma/mcp-oauth'
 
@@ -60,5 +60,12 @@ export async function setSecretBackupAction(_: R | null, fd: FormData): Promise<
   return runAction(async (ctx) => {
     await setSecretBackup(ctx, str(fd, 'key'), str(fd, 'backup_id') || null)
     return { message: ['Suplente guardado.', 'Backup saved.'], revalidate: [P] }
+  })
+}
+
+export async function setPrivacyNoticeAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setPrivacyNotice(ctx, str(fd, 'market'), str(fd, 'version'))
+    return { message: ['Versión del aviso guardada.', 'Notice version saved.'], revalidate: [P] }
   })
 }

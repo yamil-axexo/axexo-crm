@@ -304,6 +304,18 @@ describe('SEG-04: el DLP tapa y avisa; solo una tarjeta válida bloquea', () => 
   })
 })
 
+describe('SEG-04: versión del aviso de privacidad por mercado', () => {
+  it('nace vacía (pendiente de Legal); la anota quien lleva privacidad y queda en la bitácora', async () => {
+    const { privacyNotices, setPrivacyNotice } = await import('@/domain/plataforma/admin')
+    const nora = await ctxFor('nora.salas')
+    expect((await privacyNotices(nora)).find((m) => m.code === 'MX')?.version).toBeNull()
+    await expect(setPrivacyNotice(await ctxFor('ana.robles'), 'MX', 'v1')).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(setPrivacyNotice(nora, 'MX', 'v1; drop')).rejects.toMatchObject({ code: 'invalid' })
+    await setPrivacyNotice(nora, 'MX', 'MX-2026.1')
+    expect((await privacyNotices(nora)).find((m) => m.code === 'MX')?.version).toBe('MX-2026.1')
+  })
+})
+
 describe('SEG-08: suplente y rotación programada', () => {
   it('el suplente es otra persona; la rotación vencida avisa una vez al día al responsable', async () => {
     const nora = await ctxFor('nora.salas')

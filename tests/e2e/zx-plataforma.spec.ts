@@ -52,6 +52,8 @@ test.describe('Plataforma en Administración', () => {
     await expect(page.getByTestId('value-audit_retention_days').getByTestId('value-current')).toHaveText('400 días')
     await expect(page.getByTestId('value-audit_retention_days')).toContainText('Valor propuesto, pendiente: Legal y Seguridad')
 
+    await expect(page.getByTestId('privacy-MX')).toContainText('pendiente: Legal')
+
     const rule = page.getByTestId('rule-deal.won')
     await expect(rule).toContainText('Apagada, propuesta')
     await rule.getByTestId('rule-toggle').click()
@@ -183,6 +185,39 @@ test.describe('Datos reservados del negocio (SEG-02) y acciones rápidas (UX-02)
     await page.getByTestId('lead-qualify').click()
     await expect(page.getByTestId('lead-qualify-error')).toBeVisible()
     await expect(page.getByTestId('lead-qualify')).toHaveText('Calificar')
+    await sql.end()
+  })
+
+  test('UX-04: quien supervisa aprueba un paso de etapa de un toque desde el teléfono (390 px)', async ({ page }) => {
+    const sql = testDb()
+    const diana = await uid('diana.cruz')
+    const title = `Zx Aprobación ${tag()}`
+    const acc = (await sql<{ id: string }[]>`insert into crm.accounts (market_code, kind, name, segment, owner_id, country, created_by)
+      values ('MX', 'chain', ${title}, 'b2b', ${diana}, 'MX', ${diana}) returning id`)[0]!.id
+    const stages = await sql<{ id: string; code: string }[]>`select id, code from crm.stages where pipeline_id = md5('contigo:p-mx-b2b')::uuid and code in ('calificacion', 'propuesta')`
+    const from = stages.find((x) => x.code === 'calificacion')!.id
+    const to = stages.find((x) => x.code === 'propuesta')!.id
+    const dealId = (await sql<{ id: string }[]>`
+      insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, amount_minor, currency, next_step, next_step_due, created_by)
+      values ('MX', md5('contigo:p-mx-b2b')::uuid, ${from}, ${acc}, ${diana}, ${title}, 1000000, 'MXN', 'Enviar propuesta', (now() at time zone 'America/Mexico_City')::date + 1, ${diana}) returning id`)[0]!.id
+    const tr = (await sql<{ id: string }[]>`insert into crm.stage_transitions (pipeline_id, from_stage_id, to_stage_id, needs_approval, approver_role)
+      values (md5('contigo:p-mx-b2b')::uuid, ${from}, ${to}, true, 'supervisor')
+      on conflict (pipeline_id, coalesce(from_stage_id, '00000000-0000-0000-0000-000000000000'::uuid), to_stage_id) do update set needs_approval = true, approver_role = 'supervisor', approver_id = null, requires_evidence = false, is_active = true
+      returning id`)[0]!.id
+    await sql`insert into crm.approvals (market_code, deal_id, transition_id, from_stage_id, to_stage_id, requested_by, approver_role, due_at)
+      values ('MX', ${dealId}, ${tr}, ${from}, ${to}, ${diana}, 'supervisor', now() + interval '8 hours')`
+    await loginAs(page, 'paula.mendez')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`/deals/${dealId}`)
+    await expect(page.getByTestId('approval-waiting')).toBeVisible()
+    await noOverflow(page, 'Aprobación 390')
+    await axeClean(page, 'Aprobación 390')
+    const box = await page.getByTestId('approval-approve-btn').boundingBox()
+    expect(box!.height).toBeGreaterThanOrEqual(44) // objetivo táctil de 44 px
+    await page.getByTestId('approval-approve-btn').click()
+    await expect(page.getByTestId('approval-pending')).toHaveCount(0)
+    expect((await sql<{ code: string }[]>`select s.code from crm.deals d join crm.stages s on s.id = d.stage_id where d.id = ${dealId}`)[0]!.code).toBe('propuesta')
+    await sql`update crm.stage_transitions set is_active = false where id = ${tr}`
     await sql.end()
   })
 

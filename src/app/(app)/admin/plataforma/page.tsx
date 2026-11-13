@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
-import { flags, platformValues, redteamReviews, REDTEAM_CHECKLIST } from '@/domain/plataforma/admin'
+import { flags, platformValues, privacyNotices, redteamReviews, REDTEAM_CHECKLIST } from '@/domain/plataforma/admin'
 import { mcpClients } from '@/domain/plataforma/mcp-oauth'
 import { platformAdmin } from '@/dal/plataforma'
 import { AGENTS } from '@/domain/ia/agents'
@@ -29,7 +29,7 @@ export default async function PlatformPage() {
   if (!ctx.can('platform.manage') && !ctx.can('gov.read')) notFound()
   const { t, locale } = ctx
   const manage = ctx.can('platform.manage')
-  const [fl, values, data, reviews, clients] = await Promise.all([flags(ctx), platformValues(ctx), platformAdmin(ctx), ctx.can('ia.oversee') ? redteamReviews(ctx) : Promise.resolve([]), mcpClients(ctx)])
+  const [fl, values, data, reviews, clients, notices] = await Promise.all([flags(ctx), platformValues(ctx), platformAdmin(ctx), ctx.can('ia.oversee') ? redteamReviews(ctx) : Promise.resolve([]), mcpClients(ctx), privacyNotices(ctx)])
   const valueText = (v: (typeof values)[number]) =>
     v.kind === 'boolean' ? (v.value === true ? t('Encendido', 'On') : t('Apagado', 'Off')) : v.value === null || v.value === undefined ? t('Sin valor', 'No value') : v.kind === 'days' ? t(`${v.value} días`, `${v.value} days`) : String(v.value)
   return (
@@ -92,6 +92,29 @@ export default async function PlatformPage() {
                         )}
                         <label className="mt-3 flex min-h-11 items-center gap-3 text-[14px]"><input type="checkbox" name="confirmed" className="size-5" data-testid="value-confirmed" />{t(`Lo confirmó ${v.owner_label}`, `Confirmed by ${v.owner_label}`)}</label>
                         <div className="mt-4"><Submit testId="value-save">{t('Guardar', 'Save')}</Submit></div>
+                      </ActionForm>
+                    </Dialog>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card data-testid="privacy-card">
+          <CardTitle title={t('Aviso de privacidad por mercado', 'Privacy notice by market')} hint={t('El texto lo da Legal. Aquí se anota qué versión rige en cada mercado; los consentimientos nuevos guardan esa versión.', 'Legal provides the text. Here you record which version applies in each market; new consents keep that version.')} />
+          <ul>
+            {notices.map((n) => (
+              <li key={n.code} className={row} data-testid={`privacy-${n.code}`}>
+                <div className="min-w-0 flex-1 basis-[200px]"><p className="text-[15px] font-semibold text-strong">{n.name}</p></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {n.version ? <Badge tone="good">{t(`Versión ${n.version}`, `Version ${n.version}`)}</Badge> : <Badge tone="warn">{t('Sin aviso vigente, pendiente: Legal', 'No notice in force, pending: Legal')}</Badge>}
+                  {ctx.can('security.manage') && (
+                    <Dialog trigger={t('Cambiar', 'Change')} title={t(`Aviso de privacidad, ${n.name}`, `Privacy notice, ${n.name}`)} variant="quiet" size="sm" testId={`privacy-edit-${n.code}`}>
+                      <ActionForm action={A.setPrivacyNoticeAction} onOk="close">
+                        <input type="hidden" name="market" value={n.code} />
+                        <Field label={t('Versión que dio Legal', 'Version given by Legal')} hint={t('Vacío: sin aviso vigente.', 'Empty: no notice in force.')}><input name="version" className="input" maxLength={40} defaultValue={n.version ?? ''} data-testid="privacy-version" /></Field>
+                        <div className="mt-4"><Submit testId="privacy-save">{t('Guardar', 'Save')}</Submit></div>
                       </ActionForm>
                     </Dialog>
                   )}
