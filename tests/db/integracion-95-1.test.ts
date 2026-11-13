@@ -10,6 +10,7 @@ import { saveLeadEscalation } from '@/domain/automation/lead-escalation'
 import { addDealItem, saveOrderDetails, setOpsCheck } from '@/domain/ops'
 import { setAccountProduct } from '@/domain/gobierno'
 import { reassignDeals } from '@/domain/reparto'
+import { sendOrderToOps } from '@/domain/orders'
 import { exportAccounts, exportLeads } from '@/domain/exports'
 import { exportClosedDeals, exportFieldReport } from '@/domain/reports'
 import { exportReport, saveView } from '@/domain/reportes'
@@ -193,6 +194,12 @@ describe('un solo portafolio por tienda (datos DAT-07 y us-embudo E10.F2), pedid
     const print = (await orderPrint(jade, id))!
     expect(print.shipping).toMatchObject({ carrier: 'FedEx', customer_number: 'C-10293', due_on: due, po_number: 'PO-7781', ship_to: '100 Main Street, Baltimore', terms: 'Net 15' })
     expect(Number(print.items[0]!.discount_pct)).toBe(10)
+    // y el mensaje al buzón de pedidos (correo apagado: queda en la cola) dice lo mismo que la hoja
+    await admin`insert into crm.market_comms (market_code, orders_mailbox) values ('US', 'pedidos@ejemplo.test') on conflict (market_code) do update set orders_mailbox = excluded.orders_mailbox`
+    await sendOrderToOps(jade, id)
+    const mail = await one(admin<{ body: string; status: string }[]>`select body, status from crm.notifications where deal_id = ${id} and recipient_kind = 'mailbox'`)
+    for (const part of ['(less 10% discount)', 'Carrier: FedEx', 'PO number: PO-7781', 'Shipping address: 100 Main Street, Baltimore', 'Terms: Net 15']) expect(mail.body).toContain(part)
+    expect(mail.status).not.toBe('delivered')
   })
 })
 
