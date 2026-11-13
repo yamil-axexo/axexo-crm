@@ -83,8 +83,8 @@ export async function getUsers(ctx: Ctx, access: AccessFilter = 'con') {
 
 export async function getConfig(ctx: Ctx) {
   return withUser(ctx.user.id, async (tx) => {
-    const pipelines = await tx<{ id: string; market_code: string; motor: string; name: string; close_by_transaction: boolean; open_deals: number }[]>`
-      select p.id, p.market_code, p.motor, p.name, p.close_by_transaction,
+    const pipelines = await tx<{ id: string; market_code: string; motor: string; name: string; close_by_transaction: boolean; txn_also_wins: boolean; open_deals: number }[]>`
+      select p.id, p.market_code, p.motor, p.name, p.close_by_transaction, p.txn_also_wins,
              (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'open') as open_deals
         from crm.pipelines p where p.is_active order by p.market_code, p.position`
     const stages = await tx<{ id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; probability: number; rot_days: number; required_fields: string[]; highlight_fields: string[]; exit_es: string; exit_en: string; edited_at: Date | null }[]>`
@@ -109,9 +109,9 @@ export async function getIntake(ctx: Ctx) {
       select f.id, f.slug, f.name, f.market_code, f.motor, f.locale, f.is_active, r.name as rule,
              (select count(*)::int from crm.leads l where l.form_id = f.id and l.created_at > now() - interval '30 days') as leads_30d
         from crm.web_forms f left join crm.routing_rules r on r.id = f.routing_rule_id order by f.market_code, f.name`
-    const rules = await tx<{ id: string; market_code: string; name: string; strategy: string; member_ids: string[]; cursor: number; fallback: string | null; fallback_active: boolean; sla_minutes: number; members: { id: string; full_name: string; active: boolean }[] }[]>`
+    const rules = await tx<{ id: string; market_code: string; name: string; strategy: string; member_ids: string[]; cursor: number; fallback: string | null; fallback_active: boolean; sla_minutes: number; sla_business_days: number | null; members: { id: string; full_name: string; active: boolean }[] }[]>`
       select r.id, r.market_code, r.name, r.strategy, r.member_ids, r.cursor, u.full_name as fallback,
-             (r.fallback_id is not null and app.can_sell_in(r.fallback_id, r.market_code)) as fallback_active, r.sla_minutes,
+             (r.fallback_id is not null and app.can_sell_in(r.fallback_id, r.market_code)) as fallback_active, r.sla_minutes, r.sla_business_days,
              coalesce((select jsonb_agg(jsonb_build_object('id', x.id, 'full_name', mu.full_name, 'active', app.can_sell_in(x.id, r.market_code)) order by x.ord)
                          from unnest(r.member_ids) with ordinality as x(id, ord) join crm.users mu on mu.id = x.id), '[]'::jsonb) as members
         from crm.routing_rules r left join crm.users u on u.id = r.fallback_id where r.is_active order by r.market_code, r.name`
@@ -139,7 +139,7 @@ export async function getIntegrations(ctx: Ctx) {
         from crm.deals d join crm.stages s on s.id = d.stage_id and s.kind = 'awaiting_txn' join crm.accounts a on a.id = d.account_id
         join crm.markets mk on mk.code = a.market_code
         join crm.account_aliases al on al.account_id = a.id and al.valid_to is null and al.system in ('s5','sales_core')
-       where d.status = 'open' order by d.stage_entered_at limit 6`
+       where d.status = 'open' order by d.stage_entered_at, a.market_code, a.name, al.external_id limit 6` // el desempate deja el orden fijo: varios negocios entran a la etapa el mismo día
     const visitable = await tx<{ account_id: string; name: string; alias: string; market_code: string }[]>`
       select a.id as account_id, a.name, al.external_id as alias, a.market_code
         from crm.deals d join crm.stages s on s.id = d.stage_id and s.kind = 'open' join crm.accounts a on a.id = d.account_id

@@ -649,6 +649,32 @@ select d.id, 'US', 'FedEx', 'C-' || lpad((pg_temp.h('cn' || d.account_id::text) 
   from crm.deals d join crm.accounts a on a.id = d.account_id where d.pipeline_id = pg_temp.uid('p-us-orders') and d.status = 'won';
 insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause, at)
 select d.id, 'US', null, d.stage_id, d.owner_id, 'user', d.won_at from crm.deals d where d.pipeline_id = pg_temp.uid('p-us-orders') and d.status = 'won';
+-- mx
+-- México como lo describe el documento de requerimientos (épicas E14 a E18).
+-- Etapas de los dos embudos: en una base nueva las etapas nacen en este archivo, así que la plantilla se aplica aquí
+-- (en una base que ya las tenía, la aplicó la migración 0025).
+select crm.apply_mx_stage_template();
+-- Los dos formularios de México son los embudos de campaña: tiendas independientes (F1) y cadenas y distribuidores (F2).
+-- Cada uno lleva su identificador de canal y deja el origen "Campaña web". El de cadenas y distribuidores pregunta el tipo de empresa.
+update crm.web_forms set funnel = 'F1', channel_id = 'mx-web-tiendas', is_campaign = true where id = pg_temp.uid('f-mx-d2d');
+update crm.web_forms set funnel = 'F2', channel_id = 'mx-web-cadenas', is_campaign = true, offer_types = '{distributor,chain}' where id = pg_temp.uid('f-mx-b2b');
+alter table crm.leads disable trigger user;
+update crm.leads l set source = 'web_campaign', funnel = f.funnel, channel_id = f.channel_id
+  from crm.web_forms f where f.id = l.form_id and f.is_campaign;
+-- Los leads de cadenas y distribuidores traen tipo de empresa y número de tiendas como campos (datos inventados).
+update crm.leads l set account_type = case when pg_temp.h('ct' || l.id::text) % 2 = 0 then 'chain' else 'distributor' end,
+       custom = l.custom || jsonb_build_object('b2b_points_of_sale', 3 + pg_temp.h('pv' || l.id::text) % 58)
+ where l.form_id = pg_temp.uid('f-mx-b2b');
+alter table crm.leads enable trigger user;
+-- Meta de respuesta: una hora hábil para cadenas y distribuidores, un día hábil para tiendas (E15.F9).
+update crm.routing_rules set sla_minutes = 60, sla_business_days = null where id = pg_temp.uid('rr-mx-b2b');
+update crm.routing_rules set sla_business_days = 1 where id = pg_temp.uid('rr-mx-d2d');
+-- Algunos leads descartados de México dejaron correo y aceptaron recibir correos: son la base de correo (correos inventados).
+alter table crm.leads disable trigger user;
+update crm.leads l set email = 'contacto' || (pg_temp.h('em' || l.id::text) % 9000 + 1000)::text || '@ejemplo.test',
+       consent_at = l.created_at, consent_text = 'Acepto que axexo me escriba por correo sobre sus productos y novedades.'
+ where l.market_code = 'MX' and l.status = 'disqualified' and pg_temp.h('cs' || l.id::text) % 2 = 0;
+alter table crm.leads enable trigger user;
 -- mercados
 -- Las entidades sintéticas quedan como las de por defecto de su mercado; la provisional que crea la migración 0032 para
 -- MX y US se retira (El Salvador conserva la suya, "por confirmar", para que se vea ese caso). Una tasa MXN antigua deja

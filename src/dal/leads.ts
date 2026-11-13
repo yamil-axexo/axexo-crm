@@ -20,10 +20,15 @@ export type LeadListItem = {
   created_at: Date
   duplicate_of: string | null
   phone: string | null
+  /** Tipo de empresa (catálogo de tipos de cuenta), embudo de campaña y número de tiendas: campos del lead (E15.F5). */
+  account_type: string | null
+  funnel: string | null
+  store_count: string | null
 }
 
-export type LeadFilters = { /** Tipo de venta y equipo de quien lo lleva. */ motor?: string; team?: string; market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; /** Día en que llegó el lead (zona del mercado), para abrir desde el Panel del LT los leads de un periodo. */ from?: string; to?: string }
+export type LeadFilters = { /** Tipo de venta y equipo de quien lo lleva. */ motor?: string; team?: string; market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; /** Tipo de empresa, embudo de campaña y número de tiendas (mínimo y máximo). */ tipo?: string; embudo?: string; tiendas_min?: string; tiendas_max?: string; /** Día en que llegó el lead (zona del mercado), para abrir desde el Panel del LT los leads de un periodo. */ from?: string; to?: string }
 const isDay = (v: string | undefined): v is string => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
+const isCount = (v: string | undefined): v is string => /^\d{1,7}$/.test(v ?? '')
 export const LEAD_PAGE = 40
 export const LEAD_SORTS = ['recent', 'oldest', 'due'] as const
 export type LeadSort = (typeof LEAD_SORTS)[number]
@@ -52,6 +57,10 @@ export async function listLeads(ctx: Ctx, f: LeadFilters, pageSize: number = LEA
       ${f.owner === 'me' ? tx`and l.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and l.owner_id is null` : isUuid(f.owner) ? tx`and l.owner_id = ${f.owner}` : tx``}
       ${f.source ? tx`and l.source = ${f.source}` : tx``}
       ${f.motor ? tx`and l.motor = ${f.motor}` : tx``}
+      ${f.tipo && /^[a-z][a-z0-9_]{1,40}$/.test(f.tipo) ? tx`and l.account_type = ${f.tipo}` : tx``}
+      ${f.embudo && /^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/.test(f.embudo) ? tx`and l.funnel = ${f.embudo}` : tx``}
+      ${isCount(f.tiendas_min) ? tx`and app.store_count(l.custom) >= ${Number(f.tiendas_min)}` : tx``}
+      ${isCount(f.tiendas_max) ? tx`and app.store_count(l.custom) <= ${Number(f.tiendas_max)}` : tx``}
       ${f.team === 'none'
         ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = l.owner_id and mm.market_code = l.market_code and mm.team_id is null and mm.role in ('rep', 'supervisor', 'market_lead') and (mm.valid_to is null or mm.valid_to > now()))`
         : isUuid(f.team) ? tx`and exists (select 1 from crm.memberships mm where mm.user_id = l.owner_id and mm.team_id = ${f.team!} and (mm.valid_to is null or mm.valid_to > now()))` : tx``}
@@ -67,7 +76,7 @@ export async function listLeads(ctx: Ctx, f: LeadFilters, pageSize: number = LEA
     const order = sort === 'recent' ? tx`l.created_at desc, l.id desc` : sort === 'oldest' ? tx`l.created_at, l.id` : tx`l.sla_due_at, l.id`
     const rows = await tx<LeadListItem[]>`
       select l.id, l.market_code, l.business_name, l.contact_name, l.locality, l.motor, l.source, l.status, l.owner_id, u.full_name as owner_name,
-             l.sla_due_at, l.first_touch_at, l.created_at, l.duplicate_of, l.phone
+             l.sla_due_at, l.first_touch_at, l.created_at, l.duplicate_of, l.phone, l.account_type, l.funnel, app.store_count(l.custom)::text as store_count
         from crm.leads l left join crm.users u on u.id = l.owner_id
        where true ${base} ${status} ${cursor}
        order by ${order} limit ${pageSize + 1}`
@@ -135,6 +144,7 @@ export type LeadDetail = LeadListItem & {
   email: string | null
   message: string | null
   form_name: string | null
+  channel_id: string | null
   disqualify_code: string | null
   account_id: string | null
   assigned_at: Date | null
@@ -159,6 +169,7 @@ export async function getLead(ctx: Ctx, id: string) {
     const rows = await tx<LeadDetail[]>`
       select l.id, l.market_code, l.business_name, l.contact_name, l.locality, l.motor, l.source, l.status, l.owner_id, u.full_name as owner_name,
              l.sla_due_at, l.first_touch_at, l.created_at, l.duplicate_of, l.phone, l.email::text, l.message, f.name as form_name,
+             l.funnel, l.channel_id, app.store_count(l.custom)::text as store_count,
              l.disqualify_code, l.account_id, l.assigned_at,
              l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid, l.consent_at, l.consent_text,
              (l.owner_id is null or app.works_in(l.owner_id, l.market_code)) as owner_active,
@@ -196,5 +207,18 @@ export async function lossReasons(ctx: Ctx, kind: 'lost' | 'no_sale' = 'lost') {
     const rows = await tx<{ code: string; label_es: string; label_en: string }[]>`
       select code, label_es, label_en from crm.loss_reasons where kind = ${kind} and is_active and motors is null order by position, label_es`
     return [...rows]
+  })
+}
+
+/** Tipos de empresa y embudos de campaña que de verdad aparecen en los leads que la persona ve: las opciones de esos filtros. */
+export async function leadFacets(ctx: Ctx): Promise<{ types: { code: string; label_es: string; label_en: string }[]; funnels: string[] }> {
+  return withUser(ctx.user.id, async (tx) => {
+    const scope = ctx.markets.map((m) => m.code)
+    const types = await tx<{ code: string; label_es: string; label_en: string }[]>`
+      select distinct on (t.code) t.code, t.label_es, t.label_en from crm.account_types t
+       where t.is_active and exists (select 1 from crm.leads l where l.account_type = t.code and l.market_code = any(${scope}::text[]))
+       order by t.code, t.market_code nulls last`
+    const funnels = await tx<{ funnel: string }[]>`select distinct funnel from crm.leads where funnel is not null and market_code = any(${scope}::text[]) order by funnel`
+    return { types: [...types], funnels: funnels.map((f) => f.funnel) }
   })
 }

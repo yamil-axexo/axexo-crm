@@ -2,7 +2,7 @@ import { ViewsSection } from '../views-section'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { requireCtx } from '@/server/context'
-import { leadSources, listLeads, lossReasons, marketPipelines, sellers, type LeadListItem } from '@/dal/leads'
+import { leadFacets, leadSources, listLeads, lossReasons, marketPipelines, sellers, type LeadListItem } from '@/dal/leads'
 import { MANUAL_SOURCES, CONTACT_ROLES } from '@/domain/leads'
 import { BULK_FORM, LeadBulk } from '@/ui/lead-bulk'
 import { track } from '@/dal/boards'
@@ -34,7 +34,7 @@ function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'o
   )
 }
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string; motor?: string; equipo?: string; cola?: string }> }) {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string; motor?: string; equipo?: string; cola?: string; tipo?: string; embudo?: string; tiendas_min?: string; tiendas_max?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
   const sp = flat(await searchParams)
@@ -48,9 +48,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   // El alta ofrece solo los mercados donde la persona puede crear leads y los tipos de venta que tienen embudo ahí.
   const live = ctx.markets.filter((x) => x.status === 'live' && ctx.can('lead.create', x.code))
   const manages = ctx.can('lead.assign')
-  const [pipes, sources, reasons, people] = await Promise.all([
-    marketPipelines(ctx), leadSources(ctx), ctx.can('lead.work') ? lossReasons(ctx) : Promise.resolve([]), manages ? sellers(ctx) : Promise.resolve([]),
+  const [pipes, sources, reasons, people, facets] = await Promise.all([
+    marketPipelines(ctx), leadSources(ctx), ctx.can('lead.work') ? lossReasons(ctx) : Promise.resolve([]), manages ? sellers(ctx) : Promise.resolve([]), leadFacets(ctx),
   ])
+  // Tipo de empresa, embudo de campaña y número de tiendas son campos del lead: se filtran aquí y se cuentan en el reporte por mercado (E15.F5).
+  const tipo = facets.types.some((x) => x.code === sp.tipo) ? sp.tipo : undefined
+  const embudo = facets.funnels.includes(sp.embudo ?? '') ? sp.embudo : undefined
+  const isCount = (v: string | undefined) => /^\d{1,7}$/.test(v ?? '')
+  const tiendasMin = isCount(sp.tiendas_min) ? sp.tiendas_min : undefined
+  const tiendasMax = isCount(sp.tiendas_max) ? sp.tiendas_max : undefined
+  const typeName = (code: string | null) => ((x) => (x ? t(x.label_es, x.label_en) : null))(facets.types.find((x) => x.code === code))
   const motors = [...new Set(pipes.filter((x) => live.some((mk) => mk.code === x.market_code)).map((x) => x.motor))]
   // Tipos de venta del filtro: los de los embudos activos de los mercados que la persona ve (no solo donde puede crear).
   const motorOptions = [...new Set(pipes.filter((x) => !sp.market || x.market_code === sp.market).map((x) => x.motor))]
@@ -60,9 +67,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const isDay = (v: string | undefined) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
   const from = isDay(sp.from) ? sp.from : undefined
   const to = isDay(sp.to) ? sp.to : undefined
-  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, from, to, motor, equipo: team }
+  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, from, to, motor, equipo: team, tipo, embudo, tiendas_min: tiendasMin, tiendas_max: tiendasMax }
   const link = (patch: Record<string, string | undefined>) => qs('/leads', { ...keep, ...patch, before: undefined })
-  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || from || to || motor || team || (sp.owner && sp.owner !== 'me'))
+  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || from || to || motor || team || tipo || embudo || tiendasMin || tiendasMax || (sp.owner && sp.owner !== 'me'))
   const now = new Date()
   const config = sheetConfig(ctx, now)
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
@@ -204,6 +211,28 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             </select>
           </Field>
         )}
+        {facets.types.length > 0 && (
+          <Field label={t('Tipo de empresa', 'Company type')}>
+            <select name="tipo" className="input" defaultValue={tipo ?? ''} data-testid="lead-f-type">
+              <option value="">{t('Todos', 'All')}</option>
+              {facets.types.map((x) => <option key={x.code} value={x.code}>{t(x.label_es, x.label_en)}</option>)}
+            </select>
+          </Field>
+        )}
+        {facets.funnels.length > 0 && (
+          <Field label={t('Embudo de campaña', 'Campaign group')}>
+            <select name="embudo" className="input" defaultValue={embudo ?? ''} data-testid="lead-f-funnel">
+              <option value="">{t('Todos', 'All')}</option>
+              {facets.funnels.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </Field>
+        )}
+        <Field label={t('Tiendas, desde', 'Stores, from')}>
+          <input name="tiendas_min" type="number" min={0} step={1} inputMode="numeric" defaultValue={tiendasMin ?? ''} className="input @3xl:w-[120px]" data-testid="lead-f-stores-min" />
+        </Field>
+        <Field label={t('Tiendas, hasta', 'Stores, up to')}>
+          <input name="tiendas_max" type="number" min={0} step={1} inputMode="numeric" defaultValue={tiendasMax ?? ''} className="input @3xl:w-[120px]" data-testid="lead-f-stores-max" />
+        </Field>
         {byTeam && teams.length > 0 && (
           <Field label={t('Equipo', 'Team')}>
             <select name="equipo" className="input" defaultValue={team ?? ''} data-testid="lead-f-team">
@@ -278,6 +307,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                       <span className="min-w-0">
                         <Link href={`/leads/${l.id}`} className="block truncate text-[15px] leading-6 font-medium text-strong after:absolute after:inset-0">{l.business_name}</Link>
                         <span className="block truncate text-[13px] text-muted">{[l.contact_name, l.locality, ctx.markets.length > 1 ? l.market_code : null, lab(t, MOTOR[l.motor]) || null, lab(t, SOURCE[l.source])].filter(Boolean).join(' · ')}</span>
+                        {(l.funnel || l.store_count !== null || (l.account_type && l.account_type !== 'store')) && (
+                          <span className="block truncate text-[13px] text-muted" data-testid="lead-fields">{[l.account_type && l.account_type !== 'store' ? typeName(l.account_type) : null, l.store_count !== null ? m('leads.stores', { count: Number(l.store_count) }) : null, l.funnel ? t(`Embudo ${l.funnel}`, `Group ${l.funnel}`) : null].filter(Boolean).join(' · ')}</span>
+                        )}
                         <span className={cx('block truncate text-[13px] @3xl:hidden', l.owner_name ? 'text-muted' : 'font-medium text-amber-text')} data-testid="lead-owner-small">{l.owner_name ?? m('leads.noOwner')}</span>
                       </span>
                     </div>

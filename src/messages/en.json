@@ -265,6 +265,7 @@
   "leads.minutes": "{count} min",
   "leads.hours": "{count} h",
   "leads.days": "{count, plural, one {# day} other {# days}}",
+  "leads.stores": "{count, plural, one {# store} other {# stores}}",
   "offline.banner": "No signal. What is already on screen can be read; to save or open something else, reconnect.",
   "offline.tag": "no signal",
   "today.backlog": "{count, plural, one {# more record needs attention.} other {# more records need attention.}} The most important ones are here.",

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { after } from 'next/server'
 import { tickJobs } from '@/server/jobs/runner'
-import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -125,6 +125,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               )}
               {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
+              {/* Quien administra llega a estas dos pantallas desde Administración: su menú ya no cabe en un teléfono con más entradas. */}
+              {!ctx.can('config.manage') && ctx.can('report.view') && <Link href="/reportes/mercado" role="menuitem" className={menuLink} data-testid="nav-market-report"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reporte del mercado', 'Market report')}</Link>}
+              {!ctx.can('config.manage') && (ctx.can('rollout.read') || ctx.can('visit.sheet_load')) && <Link href="/arranque" role="menuitem" className={menuLink} data-testid="nav-rollout"><Rocket size={20} strokeWidth={1.75} aria-hidden />{t('Arranque y hojas', 'Rollout and sheets')}</Link>}
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
               {(ctx.can('data.quality') || ctx.isGlobal) && <Link href="/datos" role="menuitem" className={menuLink} data-testid="nav-data"><Database size={20} strokeWidth={1.75} aria-hidden />{t('Datos', 'Data')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}

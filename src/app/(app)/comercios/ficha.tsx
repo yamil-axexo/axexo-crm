@@ -150,7 +150,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   }
   const threadWho = (it: Item) =>
     it.kind === 'stage' && meta(it).cause === 'transaction' ? t('Primera transacción', 'First transaction')
-      : manualVisit(it) ? [t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
+      // Una visita que llegó de la hoja del equipo de campo lo dice (paquete mx): no se confunde con una capturada en la pantalla.
+      : manualVisit(it) ? [(meta(it) as { source?: string }).source === 'import' ? t('Cargada de la hoja', 'Loaded from the sheet') : t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
         : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}`
           : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
   // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.

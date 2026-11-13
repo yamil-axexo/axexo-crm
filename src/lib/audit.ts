@@ -113,6 +113,19 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'lead.released': ['Soltó un lead', 'Released a lead'],
   'lead.repeat_request': ['Llegó otra solicitud web de la misma empresa', 'Another web request came in from the same business'],
   'routing.hours_updated': ['Cambió el horario hábil de un mercado', 'Changed a market’s business hours'],
+  'routing.target_set': ['Cambió la meta de respuesta de un turno', 'Changed a rotation’s response target'],
+  'form.campaign_set': ['Cambió el embudo de campaña, el canal o los tipos de empresa de un formulario', 'Changed a form’s campaign group, channel or company types'],
+  'territory.manager_set': ['Cambió el gerente de un territorio', 'Changed a territory’s manager'],
+  'account.owner_by_territory': ['Una tienda pasó al gerente de su territorio', 'A store went to its territory manager'],
+  'pipeline.win_rule_set': ['Cambió la regla para ganar de un embudo', 'Changed a pipeline’s win rule'],
+  'sheet.visits_loaded': ['Cargó visitas desde la hoja', 'Loaded visits from the sheet'],
+  'sheet.migrated_loaded': ['Cargó tiendas migradas desde la hoja', 'Loaded migrated stores from the sheet'],
+  'deal.won_on_migration': ['Negocio ganado en la fecha real de migración', 'Deal won on the real migration date'],
+  'rollout.step_set': ['Cambió un paso del arranque del mercado', 'Changed a market rollout step'],
+  'rollout.leaders_first_set': ['Cambió la regla de primero quienes lideran', 'Changed the leaders-first rule'],
+  'rollout.team_opened': ['Abrió el mercado al equipo de campo', 'Opened the market to the field team'],
+  'rollout.key_person_added': ['Agregó una persona clave al arranque', 'Added a key person to the rollout'],
+  'rollout.key_person_removed': ['Quitó una persona clave del arranque', 'Removed a key person from the rollout'],
   'routing.escalation_updated': ['Cambió el escalamiento del primer contacto de un mercado', 'Changed a market’s first-contact escalation'],
   'lead.escalated': ['Escaló un lead sin primer contacto', 'Escalated a lead with no first contact'],
   'deal.approval_requested': ['Pidió la aprobación de un paso', 'Asked for approval of a step'],
@@ -230,11 +243,11 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'rollout.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%'], not: null },
   notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported', 'export.%'], not: null },
-  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%'], not: null },
+  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
@@ -292,6 +305,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   whatsapp_rate: ['Costo de WhatsApp', 'WhatsApp cost'],
   ficha_layout: ['Datos de arriba de la ficha', 'Top facts of the merchant page'],
   field_section: ['Sección de campos', 'Field section'],
+  sheet_load: ['Carga desde la hoja', 'Load from the sheet'],
 }
 
 /** Los reportes que se pueden exportar, con su nombre. */

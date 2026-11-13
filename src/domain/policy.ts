@@ -112,6 +112,17 @@ export const CAPABILITIES = {
   'data.quality': [...MANAGERS, 'ops'],
   // Matriz de productos por comercio y su estado con cada proveedor: la mantiene Operaciones.
   'account.products': ['admin', 'ops'],
+  // México (paquete mx). Mientras las hojas se retiran, quien dirige un equipo carga las visitas que el campo sigue anotando
+  // ahí; las tiendas ya migradas (un negocio ganado en su fecha real) las carga quien lidera el mercado o administración.
+  'visit.sheet_load': MANAGERS,
+  'deal.migrated_load': ['admin', 'market_lead'],
+  // Arranque del mercado (primero quienes lideran, pasos de capacitación): lo ve quien dirige y leadership; lo cambia
+  // administración y quien lidera el mercado.
+  'rollout.read': ['admin', 'lt', 'market_lead', 'supervisor'],
+  'rollout.manage': ['admin', 'market_lead'],
+  // Los leads descartados como base de correo: la descarga lleva correos, así que es de quien lidera el mercado y de
+  // administración, y solo trae a quien dio su consentimiento (domain/mx-reports.ts).
+  'lead.mailing_export': ['admin', 'market_lead'],
   // Paquete de mercados. Capturar el identificador fiscal lo hace quien lleva la cuenta u Operaciones; revisarlo contra el
   // documento (la capa humana) es de quien lidera el mercado, Operaciones o administración. Cambiar la entidad legal de un
   // comercio es de quien lidera el mercado o de administración. El consolidado en USD lo lee quien ya lee el panel.
