@@ -440,6 +440,39 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `api_client.updated` | Changed the owner or expiry of an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `automation.notified` | An automation notified a person | It is a notice between people inside CONTIGO, not a change to the record. |
 | `automation.task_created` | An automation created a task | It is a notice between people inside CONTIGO, not a change to the record. |
+| `care.alert_dismissed` | Dismissed a merchant alert | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.alert_done` | Handled a merchant alert | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.alerts_run` | Evaluated a market’s alerts | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.expansion_dismissed` | Dismissed an expansion opportunity | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.expansion_lost` | Closed an expansion opportunity: the merchant declined | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.expansion_rule_saved` | Changed an expansion rule | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.expansion_run` | Looked for expansion opportunities in a market | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.expansion_taken` | Took an expansion opportunity | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.expansion_won` | Closed an expansion opportunity: the merchant accepted | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.feedback_added` | Logged product feedback | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.feedback_status_set` | Answered product feedback | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.handoff_acknowledged` | Acknowledged a handoff | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.handoff_checked` | Ticked an item on a handoff list | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.handoff_created` | Handed a merchant off to another team | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.handoff_returned` | Sent a handoff back | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.health_published` | Published the health score to the team | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.health_run` | Calculated a market’s health score | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.health_unpublished` | Stopped publishing the health score | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.health_validated` | Validated the health score against what happened | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.health_weights_saved` | Changed the health score weights | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.lifecycle_run` | Recalculated a market’s lifecycle stages | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.manager_changed` | Recorded a manager change | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.plan_saved` | Changed an account plan | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.playbook_saved` | Changed a playbook | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.product_line_set` | Changed a merchant’s product line | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.relationship_saved` | Changed an account’s relationship by product | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.review_added` | Recorded an account review with its minutes | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.settings_saved` | Changed a market’s alert settings | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.stage_set` | Changed a merchant’s lifecycle stage by hand | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.tier_rules_saved` | Changed the service model rules | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.tiers_run` | Recalculated a market’s service model | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.training_recorded` | Recorded a training completion | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `care.window_set` | Changed a lifecycle window | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `champion.reviewed` | Recorded the monthly review with a champion | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `champion.set` | Changed a team’s champion | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `change.reason_added` | Recorded why a configuration change was made | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
