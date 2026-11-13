@@ -262,7 +262,7 @@ describe('CS-01 · entregas con dueño, fecha, lista y acuse', () => {
     await expect(createHandoff(a.ctx, { accountId: a.id, toRole: 'ops', toUserId: await uid('tom.reyes'), dueOn: due })).rejects.toMatchObject({ code: 'invalid' }) // otra persona de otro mercado
     await expect(createHandoff(a.ctx, { accountId: a.id, toRole: 'ops', toUserId: valeria.user.id, dueOn: addDays(today, -1) })).rejects.toMatchObject({ code: 'invalid' })
     await expect(createHandoff(a.ctx, { accountId: a.id, toRole: 'sales', toUserId: valeria.user.id, dueOn: due })).rejects.toMatchObject({ code: 'invalid' }) // mismo equipo
-    const attributions = () => admin`select layer, party_ref, effective_to from crm.account_attributions where account_id = ${a.id} order by layer, created_at`
+    const attributions = () => admin`select layer, party_ref, effective_to from crm.account_attributions where account_id = ${a.id} order by layer, effective_from`
     const before = await attributions()
     const id = await createHandoff(a.ctx, { accountId: a.id, toRole: 'ops', toUserId: valeria.user.id, dueOn: due, note: 'Prometimos visita de arranque' })
     const h = await one(admin<{ from_role: string; to_role: string; status: string; due_on: string; n: number; activity_id: string }[]>`select from_role, to_role, status, due_on::text, jsonb_array_length(checklist) as n, activity_id from crm.handoffs where id = ${id}`)
