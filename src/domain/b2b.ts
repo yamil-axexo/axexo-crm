@@ -338,15 +338,25 @@ const fieldInput = z.object({
   dataType: z.enum(FIELD_TYPES),
   options: z.array(z.string().trim().min(1).max(60)).max(30).optional().default([]),
   inIntake: z.boolean().optional().default(false),
+  // E7.F6: un campo se crea con su para qué. Si nació de una solicitud aprobada, va su identificador.
+  purpose: z.string().trim().min(10).max(1000),
+  requestId: z.string().regex(/^[0-9a-f-]{36}$/i).or(z.literal('')).optional().default(''),
 })
 
-/** Un campo nuevo para comercio, negocio o lead, por mercado y tipo de venta. Aparece en la ficha y, si se marca, en el alta. */
+/**
+ * Un campo nuevo para comercio, negocio o lead, por mercado y tipo de venta. Aparece en la ficha y, si se marca, en el alta.
+ * Lleva escrito para qué sirve (E7.F6); ese porqué queda como el motivo del cambio en la bitácora (E7.F7).
+ */
 export async function createField(ctx: Ctx, input: z.input<typeof fieldInput>): Promise<string> {
   ctx.assert('config.manage')
   const parsed = fieldInput.safeParse(input)
-  if (!parsed.success) throw invalid('El campo lleva nombre en español y en inglés (de 2 a 60 letras) y su tipo.', 'A field needs a name in Spanish and in English (2 to 60 characters) and its type.')
+  if (!parsed.success) {
+    if (parsed.error.issues.some((i) => i.path[0] === 'purpose')) throw invalid('Escribe para qué sirve el campo (al menos una frase). Un campo no se crea sin su porqué.', 'Write what the field is for (at least a sentence). A field is not created without its purpose.')
+    throw invalid('El campo lleva nombre en español y en inglés (de 2 a 60 letras) y su tipo.', 'A field needs a name in Spanish and in English (2 to 60 characters) and its type.')
+  }
   const v = parsed.data
   assertAllowedLabel(v.labelEs, v.labelEn, ...v.options)
+  assertNoProhibited(v.purpose)
   const options = v.dataType === 'select' ? [...new Set(v.options)] : []
   if (v.dataType === 'select' && options.length < 2) throw invalid('Una lista lleva al menos dos opciones, una por renglón.', 'A list needs at least two options, one per line.')
   return withUser(ctx.user.id, async (tx) => {
@@ -357,12 +367,22 @@ export async function createField(ctx: Ctx, input: z.input<typeof fieldInput>): 
       and (motor is null or ${v.motor || null}::text is null or motor = ${v.motor || null})
       and (lower(label_es) = lower(${v.labelEs}) or lower(label_en) = lower(${v.labelEn}))`
     if (clash[0]) throw invalid('Ya hay un campo con ese nombre.', 'There is already a field with that name.')
+    // Si nace de una solicitud, tiene que ser una de campo, aprobada y todavía sin crear.
+    if (v.requestId) {
+      const req = (await tx<{ kind: string; status: string; field_id: string | null }[]>`select kind, status, field_id from crm.config_requests where id = ${v.requestId} for update`)[0]
+      if (!req || req.kind !== 'field' || req.status !== 'approved' || req.field_id) throw invalid('Esa solicitud no está aprobada o ya tiene su campo.', 'That request is not approved or already has its field.')
+    }
     const key = await freeCode(slug(v.labelEn), async (k) => !!(await tx`select 1 from crm.field_definitions where object = ${v.object} and key = ${k}`)[0])
     const id = await newId(tx)
-    await tx`insert into crm.field_definitions (id, object, key, label_es, label_en, data_type, options, market_code, motor, in_intake, position)
+    await tx`insert into crm.field_definitions (id, object, key, label_es, label_en, data_type, options, market_code, motor, in_intake, position, purpose, request_id)
              values (${id}, ${v.object}, ${key}, ${v.labelEs}, ${v.labelEn}, ${v.dataType}, ${tx.json(options)}, ${market}, ${v.motor || null}, ${v.inIntake && v.object === 'account'},
-                     (select coalesce(max(position), 0) + 1 from crm.field_definitions where object = ${v.object}))`
-    await audit(tx, ctx, 'field.created', 'field', id, market, null, { object: v.object, key, label_es: v.labelEs, data_type: v.dataType, motor: v.motor || null })
+                     (select coalesce(max(position), 0) + 1 from crm.field_definitions where object = ${v.object}), ${v.purpose}, ${v.requestId || null})`
+    const eventId = await newId(tx)
+    await tx`insert into crm.audit_events (id, actor_id, action, object, object_id, market_code, after)
+             values (${eventId}, ${ctx.user.id}, 'field.created', 'field', ${id}, ${market},
+                     ${tx.json({ object: v.object, key, label_es: v.labelEs, data_type: v.dataType, motor: v.motor || null, shared: market === null, from_request: !!v.requestId })})`
+    await tx`insert into crm.change_reasons (event_id, reason, created_by) values (${eventId}, ${v.purpose}, ${ctx.user.id})`
+    if (v.requestId) await tx`update crm.config_requests set status = 'done', field_id = ${id}, decided_by = ${ctx.user.id}, decided_at = now() where id = ${v.requestId}`
     return id
   })
 }

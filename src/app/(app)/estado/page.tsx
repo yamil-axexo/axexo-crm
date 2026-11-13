@@ -10,6 +10,10 @@ import { TimezoneSync } from '@/ui/admin'
 import { day, dayTime, num } from '@/lib/format'
 import { zoneLabel } from '@/lib/audit'
 import { NOT_YET, UNDEFINED_ITEMS } from '@/content/status'
+import Link from 'next/link'
+import { serviceBoard } from '@/dal/gobierno'
+import { gobiernoAdapterStatus } from '@/server/adapters/gobierno'
+import { OBJECTIVE_LABEL, msText } from '@/lib/gobierno-labels'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +32,8 @@ export default async function StatusPage() {
   // Cómo se gana cada embudo y quién cambió esa regla por última vez (queda en la bitácora con cuántos negocios abiertos tocó).
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
+  // GOB-07: objetivos de servicio medidos, de los últimos 30 días. El detalle y los registros viven en Administración, Gobierno.
+  const board = ctx.can('gov.read') ? await serviceBoard(ctx, 30) : null
   const version = deployedVersion()
   const when = (d: string | null | undefined) => (d ? dayTime(d, locale, tz) : null)
   const envName: Record<string, [string, string]> = {
@@ -128,6 +134,39 @@ export default async function StatusPage() {
       <p className="mt-3 text-[13px] text-muted-2" data-testid="status-zone">{t(`Las horas están en ${zoneLabel(tz, locale)}.`, `Times are in ${zoneLabel(tz, locale)}.`)}</p>
 
       <div className="mt-8 space-y-8">
+        {board && (
+          <Card data-testid="status-slo">
+            <CardTitle title={t('Objetivos de servicio, últimos 30 días', 'Service objectives, last 30 days')} hint={t('Medido por CONTIGO: pantallas abiertas, cambios guardados y llamadas a la API. El objetivo lo fija una persona; sin objetivo dice "Por definir".', 'Measured by CONTIGO: screens opened, changes saved and API calls. A person sets the objective; with none it says "To be defined".')}
+              right={<Link href="/admin/gobierno" className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="status-gov-link">{t('Abrir Gobierno', 'Open Governance')}</Link>} />
+            <ul>
+              {board.objectives.filter((o) => o.kind === 'slo').map((o) => {
+                const m = o.key === 'latency_page' ? board.page : o.key === 'latency_action' ? board.action : board.api
+                const value = o.key === 'availability' ? (board.availability === null ? t('Sin mediciones todavía', 'No measurements yet') : `${board.availability}%`) : msText(t, m.p95)
+                const ok = o.target === null ? null : o.key === 'availability' ? (board.availability === null ? null : board.availability >= o.target) : m.p95 === null ? null : m.p95 <= o.target
+                return (
+                  <li key={o.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid={`status-slo-${o.key}`}>
+                    <span className="min-w-0 flex-1 basis-48"><span className="block text-[14px] font-medium text-strong">{t(...OBJECTIVE_LABEL[o.key]!.label)}</span><span className="text-[12.5px] text-muted-2">{t(...OBJECTIVE_LABEL[o.key]!.hint)}</span></span>
+                    <span className="flex flex-wrap items-center gap-2 text-[14px]"><span className="font-semibold text-strong" data-testid="status-slo-value">{value}</span>
+                      {o.target === null ? <Badge tone="warn">{t('Objetivo por definir', 'Objective to be defined')}</Badge> : ok === null ? <Badge>{t('Sin mediciones', 'No measurements')}</Badge> : ok ? <Badge tone="good">{t('Se cumple', 'Met')}</Badge> : <Badge tone="bad">{t('No se cumple', 'Not met')}</Badge>}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-3 text-[13px] text-muted-2" data-testid="status-slo-errors">{t(`${num(board.errorCount, locale)} ${board.errorCount === 1 ? 'error inesperado' : 'errores inesperados'} en 30 días. Cada uno tiene su referencia en Gobierno.`, `${num(board.errorCount, locale)} unexpected ${board.errorCount === 1 ? 'error' : 'errors'} in 30 days. Each has its reference in Governance.`)}</p>
+          </Card>
+        )}
+        <Card data-testid="status-gov-adapters">
+          <CardTitle title={t('Conexiones de operación, apagadas', 'Operating connections, turned off')} hint={t('Están construidas y no llaman a nada. Cada una dice qué falta para encenderla.', 'They are built and call nothing. Each one says what is missing to turn it on.')} />
+          <ul>
+            {gobiernoAdapterStatus().map((a) => (
+              <li key={a.key} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid={`status-adapter-${a.key}`}>
+                <span className="min-w-0 flex-1 basis-60"><span className="block text-[14px] font-medium text-strong">{t(...a.name)}</span><span className="text-[12.5px] text-muted-2">{t(...a.needs)}</span></span>
+                <Badge>{a.mode === 'off' ? t('Apagado', 'Off') : t('Simulado (pruebas)', 'Simulated (tests)')}</Badge>
+              </li>
+            ))}
+          </ul>
+        </Card>
         <Card pad={false} data-testid="status-integrations">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Datos e integraciones', 'Data and integrations')} hint={t('De dónde llegan los datos, si la conexión está viva y cuándo llegó lo último.', 'Where the data comes from, whether the connection is live and when the latest arrived.')} /></div>
           <ul className="border-t border-line">

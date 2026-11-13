@@ -71,6 +71,12 @@ export const CAPABILITIES = {
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // Gobierno (paquete gobierno): objetivos de servicio, incidentes, pruebas de restauración, dueños por componente, versiones,
+  // despliegues, costos y datos de prueba. Lo lee quien responde por los controles; lo escribe administración.
+  'gov.read': ['admin', 'lt'],
+  'gov.manage': ['admin'],
+  // Pedir un cambio de configuración (un campo, una opción, un embudo): cualquier persona con acceso. Decidir es de administración.
+  'config.request': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

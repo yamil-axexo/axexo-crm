@@ -1,8 +1,12 @@
 import 'server-only'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { ZodError } from 'zod'
 import { requireCtx, type Ctx } from '@/server/context'
 import { DomainError, type ActionResult } from '@/lib/errors'
+import { cleanRequestId, shortRef, withRequestId } from '@/server/request-id'
+import { recordError, recordRequest } from '@/server/telemetry'
+import { screenKey } from '@/lib/screen-key'
 
 type Outcome<T> = { data?: T; message?: [es: string, en: string]; revalidate?: string[] } | void
 
@@ -12,8 +16,14 @@ type Outcome<T> = { data?: T; message?: [es: string, en: string]; revalidate?: s
  */
 export async function runAction<T = undefined>(fn: (ctx: Ctx) => Promise<Outcome<T>>): Promise<ActionResult<T>> {
   const ctx = await requireCtx()
+  // GOB-07: la acción corre con el identificador de su petición (queda en la bitácora) y suma a la medición de su pantalla.
+  const h = await headers()
+  const requestId = cleanRequestId(h.get('x-request-id'))
+  const screen = screenKey(h.get('referer'))
+  const started = Date.now()
+  let failed = false
   try {
-    const out = (await fn(ctx)) ?? {}
+    const out = (await withRequestId(requestId, () => fn(ctx))) ?? {}
     for (const p of out.revalidate ?? ['/', 'layout']) {
       if (p === 'layout') revalidatePath('/', 'layout')
       else revalidatePath(p)
@@ -25,8 +35,13 @@ export async function runAction<T = undefined>(fn: (ctx: Ctx) => Promise<Outcome
     const pg = e as { code?: string; name?: string }
     if (pg?.code === '42501') return { ok: false, code: 'forbidden', error: ctx.t('No tienes permiso para hacer esto.', 'You do not have permission to do this.') }
     if (pg?.code === '23505') return { ok: false, code: 'conflict', error: ctx.t('Ese registro ya existe.', 'That record already exists.') }
-    console.error(JSON.stringify({ level: 'error', msg: 'action_failed', code: pg?.code ?? null, name: pg?.name ?? 'Error' }))
-    return { ok: false, code: 'error', error: ctx.t('Algo falló de nuestro lado. Intenta otra vez.', 'Something failed on our side. Try again.') }
+    failed = true
+    console.error(JSON.stringify({ level: 'error', msg: 'action_failed', code: pg?.code ?? null, name: pg?.name ?? 'Error', request_id: requestId, screen }))
+    await recordError('action', screen, requestId, pg?.name ?? 'Error', pg?.code ?? null)
+    // La referencia es el inicio del identificador de la petición: con ella administración encuentra el error en Estado de CONTIGO.
+    return { ok: false, code: 'error', error: ctx.t(`Algo falló de nuestro lado. Intenta otra vez. Referencia: ${shortRef(requestId)}`, `Something failed on our side. Try again. Reference: ${shortRef(requestId)}`) }
+  } finally {
+    await recordRequest('action', screen, Date.now() - started, failed, requestId)
   }
 }
 

@@ -1,4 +1,5 @@
 import type { Job } from './types'
+import { gobiernoJobs } from './gobierno'
 
 /** Every scheduled job of the app. One line per package: `...packageJobs`. */
-export const JOBS: Job[] = []
+export const JOBS: Job[] = [...gobiernoJobs]

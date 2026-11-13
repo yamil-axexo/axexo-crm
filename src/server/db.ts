@@ -1,6 +1,7 @@
 import 'server-only'
 import postgres from 'postgres'
 import { env } from '@/env'
+import { currentRequestId } from '@/server/request-id'
 
 // PORT-01 / PORT-02: este es el único punto de conexión a la base y solo corre en el servidor.
 // PERF-04: compatible con pooler en modo transacción (sin prepared statements; la identidad viaja con set_config local).
@@ -26,9 +27,11 @@ function client(): Sql {
 }
 
 /** AUTHZ-04: toda consulta de negocio corre dentro de una transacción con la identidad fijada. */
-export function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  // GOB-07: el identificador de la petición viaja con la transacción y queda en cada evento de la bitácora.
+  const requestId = await currentRequestId()
   return client().begin(async (tx) => {
-    await tx`select set_config('app.user_id', ${userId}, true)`
+    await tx`select set_config('app.user_id', ${userId}, true), set_config('app.request_id', ${requestId}, true)`
     return fn(tx)
   }) as Promise<T>
 }
