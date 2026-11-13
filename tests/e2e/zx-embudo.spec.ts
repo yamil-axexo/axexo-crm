@@ -178,10 +178,13 @@ test.describe('paquete embudo', () => {
     await clean(page, 'hilo completo 1440')
 
     // Una cadena con sucursales: el hilo completo trae lo de sus tiendas, cada entrada con el nombre de la sucursal.
-    const parent = (await sql<{ id: string }[]>`
-      select p.id from crm.accounts p where p.archived_at is null and p.market_code = 'MX'
-         and exists (select 1 from crm.accounts c join crm.visits v on v.account_id = c.id where p.id = any(c.ancestor_ids) and c.archived_at is null) limit 1`)[0]
-    expect(parent, 'el seed trae una cadena con sucursales visitadas').toBeTruthy()
+    // Los datos sintéticos no traen visitas en sucursales: la prueba deja una nota en una sucursal de una cadena de México.
+    const parent = (await sql<{ id: string; child: string; owner_id: string }[]>`
+      select p.id, c.id as child, coalesce(c.owner_id, p.owner_id) as owner_id from crm.accounts p join crm.accounts c on p.id = any(c.ancestor_ids)
+       where p.archived_at is null and c.archived_at is null and p.market_code = 'MX' and coalesce(c.owner_id, p.owner_id) is not null order by p.id, c.id limit 1`)[0]
+    expect(parent, 'el seed trae una cadena de México con sucursales').toBeTruthy()
+    await sql`insert into crm.activities (market_code, account_id, kind, subject, done_at, owner_id, created_by)
+              values ('MX', ${parent!.child}, 'note', 'Nota en la sucursal (prueba del hilo completo)', now(), ${parent!.owner_id}, ${parent!.owner_id})`
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto(`/comercios/${parent!.id}/hilo?sucursales=1`)
     await expect(page.getByTestId('thread-branch').first()).toBeVisible()
