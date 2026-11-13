@@ -4,6 +4,7 @@ import { deployedVersion, env, ssoEnabled } from '@/env'
 import { getStatus, getConfig } from '@/dal/admin'
 import { closeRuleChanges } from '@/dal/b2b'
 import { pipedriveConfigured } from '@/server/adapters/pipedrive'
+import { routesAdapter } from '@/server/adapters/routes'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
@@ -28,6 +29,7 @@ export default async function StatusPage() {
   // Cómo se gana cada embudo y quién cambió esa regla por última vez (queda en la bitácora con cuántos negocios abiertos tocó).
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
+  const routes = routesAdapter()
   const version = deployedVersion()
   const when = (d: string | null | undefined) => (d ? dayTime(d, locale, tz) : null)
   const envName: Record<string, [string, string]> = {
@@ -87,6 +89,13 @@ export default async function StatusPage() {
       what: t(`${s.forms} ${s.forms === 1 ? 'formulario activo' : 'formularios activos'}`, `${s.forms} active ${s.forms === 1 ? 'form' : 'forms'}`),
       state: s.forms > 0 ? { tone: 'good', text: (s.keys['forms:write'] ?? 0) > 0 ? t('Página y API listas', 'Page and API ready') : t('Página lista; API sin llave', 'Page ready; API has no key') } : { tone: 'neutral', text: t('Sin formularios', 'No forms') },
       last: s.web_forms ? t(`Último lead web: ${when(s.web_forms.received_at)}`, `Last web lead: ${when(s.web_forms.received_at)}`) : t('No ha llegado ningún lead web', 'No web lead has arrived'),
+    },
+    {
+      key: 'routes',
+      name: t('Herramienta de rutas', 'Route tool'),
+      what: t('Tiendas de cada persona para planear su ruta', 'Each person’s stores to plan their route'),
+      state: routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`La lista de tiendas por persona ya se arma dentro de CONTIGO. Para encenderlo hace falta elegir la herramienta, su aprobación de tecnología y la variable ${routes.envVar}.`, `The store list per person is already built inside CONTIGO. Turning it on needs the tool chosen, its technology approval and the ${routes.envVar} variable.`),
     },
     {
       key: 'outbox',

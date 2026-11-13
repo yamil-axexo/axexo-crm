@@ -44,7 +44,9 @@ export async function logActivityAction(_: ActionResult<Done> | null, fd: FormDa
     })
     const saved = kind === 'visit' ? ctx.t(`Visita guardada en ${out.name}.`, `Visit saved on ${out.name}.`) : kind === 'call' ? ctx.t(`Llamada guardada en ${out.name}.`, `Call saved on ${out.name}.`) : ctx.t(`Nota guardada en ${out.name}.`, `Note saved on ${out.name}.`)
     const next = out.next ? ` ${ctx.t(`Próximo paso: ${out.next}, ${weekday(out.due, 'es')}.`, `Next step: ${out.next}, ${weekday(out.due, 'en')}.`)}` : ''
-    return { data: { toast: saved + next } }
+    // E12.F3: si la nota traía datos con nombre de campo, se dice cuáles pasaron a sus campos.
+    const moved = out.moved && out.moved.length > 0 ? ` ${ctx.t(`Lo que escribiste en la nota quedó en sus campos: ${out.moved.map((x) => x.label_es).join(', ')}.`, `What you wrote in the note is now in its fields: ${out.moved.map((x) => x.label_en).join(', ')}.`)}` : ''
+    return { data: { toast: saved + moved + next } }
   })
 }
 
@@ -127,4 +129,17 @@ export async function visitReasonsAction(where: { market?: string; activityId?: 
   const ctx = await requireCtx()
   const rows = await visitReasons(ctx, { market: typeof where?.market === 'string' ? where.market : undefined, activityId: typeof where?.activityId === 'string' ? where.activityId : undefined })
   return rows.map((r) => ({ value: r.code, label: ctx.t(r.label_es, r.label_en) }))
+}
+
+/**
+ * Negocios abiertos de un comercio, para decir a cuál pertenece una visita o una llamada cuando hay más de uno
+ * (E10.F3: cada servicio vendido es su propio negocio y lo que se averigua en la visita queda en ese negocio).
+ */
+export async function openDealsAction(accountId: string): Promise<{ id: string; label: string }[]> {
+  const ctx = await requireCtx()
+  if (!isUuid(accountId)) return []
+  const rows = await withUser(ctx.user.id, (tx) => tx<{ id: string; title: string; stage_es: string; stage_en: string }[]>`
+    select d.id, d.title, s.name_es as stage_es, s.name_en as stage_en from crm.deals d join crm.stages s on s.id = d.stage_id
+     where d.account_id = ${accountId} and d.status = 'open' order by d.created_at desc limit 12`)
+  return rows.map((r) => ({ id: r.id, label: `${r.title} · ${ctx.t(r.stage_es, r.stage_en)}` }))
 }

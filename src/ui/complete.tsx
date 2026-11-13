@@ -55,6 +55,9 @@ export type SheetConfig = {
     /** Propósito de la visita (E12.F1): se pregunta cuando el mercado tiene lista. */
     visitReason: string
     pickVisitReason: string
+    /** A cuál negocio pertenece la visita cuando el comercio tiene más de uno abierto (E10.F3). */
+    whichDeal: string
+    noDeal: string
   }
   nextOptions: { value: string; label: string }[]
   nextSets: { default: string[]; b2b: string[]; ops: string[] }

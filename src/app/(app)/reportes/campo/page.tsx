@@ -52,6 +52,7 @@ export default async function FieldReportPage({ searchParams }: { searchParams: 
         actions={canExport ? <>
           <ExportLink href={exportHref('comercios')} testId="export-stores">{t('Exportar altas y ganados', 'Export enrollments and wins')}</ExportLink>
           <ExportLink href={exportHref('visitas')} testId="export-visits">{t('Exportar visitas', 'Export visits')}</ExportLink>
+          <ExportLink href={qs('/reportes/visitas/export', { mercado: f.market })} testId="export-visit-detail">{t('Detalle de visitas, 31 días (reembolsos)', 'Visit detail, 31 days (reimbursements)')}</ExportLink>
         </> : undefined}
       />
       <ReportFilters t={t} locale={locale} base="/reportes/campo" params={params} selects={[sel.market, sel.team, sel.owner]} />

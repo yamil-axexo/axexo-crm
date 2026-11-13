@@ -6,6 +6,8 @@ import { audit, newId, clean } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { assertNoProhibited } from '@/domain/guard'
 import { notifyFromNote } from '@/domain/ops'
+import { updateCustomTx } from '@/domain/custom'
+import { extractNoteFields, purposeFromNote, type NoteFieldDef } from '@/domain/note-fields'
 import { NEXTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, assertNoSaleReason, assertVisitReason, closePlannedVisits, isOneOf, nextText, scheduleNext, visitorName } from '@/domain/followup'
 
 const input = z.object({
@@ -35,7 +37,7 @@ const input = z.object({
   notify: z.guid().or(z.literal('')).optional().default(''),
 })
 export type ActivityInput = z.input<typeof input>
-export type Recorded = { id: string; kind: string; name: string; next: string | null; due: string | null }
+export type Recorded = { id: string; kind: string; name: string; next: string | null; due: string | null; /** Campos del negocio que se llenaron con lo escrito en la nota (E12.F3). */ moved?: { key: string; label_es: string; label_en: string }[] }
 
 /** Hasta cuántos días atrás se puede fechar una visita o una llamada que se captura después. */
 export const BACKDATE_DAYS = 31
@@ -121,7 +123,35 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
     }
     const when = next ? await assertNextDate(tx, tz, v.nextWhen) : null
     const noSale = v.kind === 'visit' && v.outcome === 'no_sale' ? await assertNoSaleReason(tx, market!, v.noSaleReason) : null
-    const purpose = v.kind === 'visit' && !planned ? await assertVisitReason(tx, market!, v.visitReason) : null
+    // E12.F3: lo que en el teléfono no tiene campo va en la nota, un dato por renglón ("Campo: valor"), y aquí pasa a su campo.
+    // El propósito también se puede escribir en la nota ("Purpose: Training") cuando no se eligió de la lista.
+    let body = clean(v.body)
+    let visitReason = v.visitReason
+    let moved: Recorded['moved'] = []
+    if (v.kind === 'visit' && !planned && body) {
+      if (!visitReason) {
+        const reasons = await tx<{ code: string; label_es: string; label_en: string }[]>`select code, label_es, label_en from crm.visit_reasons where is_active and (market_code is null or market_code = ${market!})`
+        const found = purposeFromNote(body, [...reasons])
+        if (found) {
+          visitReason = found.code
+          body = found.rest || null
+        }
+      }
+      if (dealId && body && ctx.can('deal.edit', market)) {
+        const defs = await tx<NoteFieldDef[]>`
+          select f.key, f.label_es, f.label_en, f.data_type, f.options from crm.field_definitions f
+           where f.object = 'deal' and f.is_active and f.mapped_to is null and f.data_class <> 'confidential' and (f.market_code is null or f.market_code = ${market!})
+             and (f.motor is null or f.motor = (select p.motor from crm.pipelines p join crm.deals d on d.pipeline_id = p.id where d.id = ${dealId} and d.status = 'open'))`
+        const found = extractNoteFields(body, defs.map((d) => ({ ...d, options: Array.isArray(d.options) ? d.options.map(String) : [] })))
+        const open = await tx`select 1 from crm.deals where id = ${dealId} and status = 'open'`
+        if (found.moved.length > 0 && open[0]) {
+          await updateCustomTx(tx, ctx, 'deal', dealId, found.values)
+          moved = found.moved
+          body = found.rest || null
+        }
+      }
+    }
+    const purpose = v.kind === 'visit' && !planned ? await assertVisitReason(tx, market!, visitReason) : null
 
     const id = await newId(tx)
     const subject = v.subject || ctx.m(v.kind === 'visit' ? (planned ? 'complete.nextTitle.visit' : 'log.subject.visit') : 'log.subject.call', { name })
@@ -129,11 +159,11 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
     // Lo que ya pasó queda con su fecha: ahora, o el mediodía del día elegido en la zona del mercado (no tiene hora).
     const done = v.kind === 'task' || planned ? null : v.on ? tx`case when ${v.on}::date = (now() at time zone ${tz})::date then now() else (${v.on}::date + time '12:00') at time zone ${tz} end` : tx`now()`
     await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, body, due_at, done_at, outcome, visited_by, no_sale_code, visit_reason, owner_id, created_by)
-             values (${id}, ${market!}, ${accountId}, ${dealId}, ${v.leadId ?? null}, ${v.kind}, ${subject}, ${clean(v.body)},
+             values (${id}, ${market!}, ${accountId}, ${dealId}, ${v.leadId ?? null}, ${v.kind}, ${subject}, ${v.kind === 'visit' && !planned ? body : clean(v.body)},
                      ${due}, ${done}, ${v.outcome || null}, ${visitor}, ${noSale}, ${purpose}, ${ctx.user.id}, ${ctx.user.id})`
     if (v.kind === 'visit' && !planned) await closePlannedVisits(tx, accountId, ctx.user.id, id)
     await audit(tx, ctx, 'activity.added', 'activity', id, market!, null, {
-      kind: v.kind, account_id: accountId, ...(v.outcome ? { outcome: v.outcome } : {}), ...(v.kind === 'visit' && !planned ? { origin: 'manual', on: v.on || null, visited_by: visitor, ...(noSale ? { no_sale_reason: noSale } : {}), ...(purpose ? { visit_reason: purpose } : {}) } : {}),
+      kind: v.kind, account_id: accountId, ...(v.outcome ? { outcome: v.outcome } : {}), ...(v.kind === 'visit' && !planned ? { origin: 'manual', on: v.on || null, visited_by: visitor, ...(noSale ? { no_sale_reason: noSale } : {}), ...(purpose ? { visit_reason: purpose } : {}), ...(moved && moved.length > 0 ? { note_to_fields: moved.map((m) => m.key) } : {}) } : {}),
     })
     if (v.kind === 'visit' && isOneOf(VISIT_RESULTS, v.outcome)) await applyVisitOutcome(tx, ctx, { market: market!, accountId, outcome: v.outcome, day: v.on || null, returnOn: when })
     if (v.notify) {
@@ -141,8 +171,8 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
       await notifyFromNote(tx, ctx, { market: market!, userId: v.notify, accountId, dealId, activityId: id, body: [subject, clean(v.body)].filter(Boolean).join('. ') })
     }
 
-    if (!next || !when) return { id, kind: v.kind, name, next: null, due: null }
+    if (!next || !when) return { id, kind: v.kind, name, next: null, due: null, moved }
     const step = await scheduleNext(tx, ctx, { market: market!, accountId, dealId, leadId: v.leadId ?? null, name, next, when, text, follows: id })
-    return { id, kind: v.kind, name, next: step, due: when }
+    return { id, kind: v.kind, name, next: step, due: when, moved }
   })
 }
