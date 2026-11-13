@@ -733,3 +733,16 @@ update crm.ops_catalog set ref_label = 'North dealer code' where market_code = '
 insert into crm.agencies (id, market_code, kind, name) values
   (pg_temp.uid('ag-us-1'), 'US', 'agency', 'Agencia Ejemplo Uno (sintética)'),
   (pg_temp.uid('ag-us-2'), 'US', 'partner', 'Socio Ejemplo (sintético)');
+
+-- partners-contratos
+-- Una persona de prueba con rol de partner sobre el ISO sintético de US (ve el ISO, su agente y sus puntos de venta), el ISO
+-- registrado como partner y niveles con criterios publicados en US y México. Nombres y cifras inventados.
+insert into crm.users (id, email, full_name, locale, is_synthetic)
+values (pg_temp.uid('iso.partner'), 'iso.partner@contigo.test', 'Partner ISO de prueba', 'en', true);
+insert into crm.memberships (user_id, market_code, role, scope_account_id, valid_from)
+values (pg_temp.uid('iso.partner'), 'US', 'partner', pg_temp.uid('dat-us-iso'), now() - interval '30 days');
+insert into crm.partner_profiles (account_id, market_code, since, created_by)
+values (pg_temp.uid('dat-us-iso'), 'US', current_date - 120, pg_temp.uid('robert.hale'));
+insert into crm.partner_tiers (market_code, code, name_es, name_en, rank, min_active, min_quality_pct, min_compliance_pct) values
+  ('US', 'base', 'Base', 'Base', 1, 0, 0, 0), ('US', 'silver', 'Plata', 'Silver', 2, 1, 30, 50), ('US', 'gold', 'Oro', 'Gold', 3, 25, 60, 80),
+  ('MX', 'base', 'Base', 'Base', 1, 0, 0, 0), ('MX', 'silver', 'Plata', 'Silver', 2, 10, 40, 60);

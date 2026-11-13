@@ -603,6 +603,16 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             <p className="mb-3 text-[13px] text-muted">{t('Quién más trabaja esta cuenta, sus datos reservados y el consentimiento de sus contactos.', 'Who else works this account, its restricted data and its contacts’ consent.')}</p>
             <LinkButton href={`/comercios/${a.id}/equipo`} size="sm" testId="account-security-open">{t('Abrir', 'Open')}</LinkButton>
           </section>
+          {/* Paquete partners-contratos: términos y contratos, plan de integración y comunicaciones registradas. */}
+          <section className={section} data-testid="account-partners">
+            <h3 className={cx(h3, 'mb-2')}>{t('Contratos, plan y comunicaciones', 'Contracts, plan and communications')}</h3>
+            <p className="mb-3 text-[13px] text-muted">{t('Términos comerciales, propuesta y contrato; el plan de integración con el cliente; correos, reuniones y mensajes.', 'Commercial terms, proposal and contract; the integration plan with the client; emails, meetings and messages.')}</p>
+            <div className="flex flex-wrap gap-2">
+              <LinkButton href={`/comercios/${a.id}/contratos`} size="sm" testId="account-contracts-open">{t('Términos y contratos', 'Terms and contracts')}</LinkButton>
+              <LinkButton href={`/comercios/${a.id}/plan`} size="sm" testId="account-plan-open">{t('Plan de integración', 'Integration plan')}</LinkButton>
+              <LinkButton href={`/comercios/${a.id}/comunicaciones`} size="sm" testId="account-comms-open">{t('Comunicaciones', 'Communications')}</LinkButton>
+            </div>
+          </section>
 
           {store && <StoreKeptFields ctx={ctx} groups={kept} values={a.custom}
             action={canEdit ? <LinkButton href={`/comercios/${a.id}/campos`} size="sm" testId="kept-edit">{t('Editar', 'Edit')}</LinkButton> : undefined} />}
