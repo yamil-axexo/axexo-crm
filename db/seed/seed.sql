@@ -442,7 +442,7 @@ insert into crm.saved_reports (user_id, report, name, params, is_shared, market_
 insert into crm.pipeline_snapshots (snapshot_date, market_code, pipeline_id, stage_id, deals, no_next_step, amount_minor, currency)
 select (now() at time zone mk.timezone)::date - g.n, p.market_code, p.id, s.id,
        greatest(0, count(d.id)::int + (pg_temp.h('snap' || s.id::text || g.n::text) % 5) - 2),
-       count(d.id) filter (where d.next_step_due is null)::int, coalesce(sum(d.amount_minor), 0), mk.currency
+       count(d.id) filter (where d.next_step is null or d.next_step_due is null)::int, coalesce(sum(d.amount_minor), 0), mk.currency
   from crm.pipelines p join crm.stages s on s.pipeline_id = p.id and s.kind in ('open', 'awaiting_txn')
   join crm.markets mk on mk.code = p.market_code and mk.status = 'live'
   cross join generate_series(1, 14) g(n)

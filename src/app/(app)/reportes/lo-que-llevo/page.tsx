@@ -2,7 +2,6 @@ import { getCarry } from '@/dal/reportes'
 import { isUuid } from '@/lib/ids'
 import { Card, CardTitle, NoData } from '@/ui/kit'
 import { Def, Metric, ReportFilters } from '@/ui/report'
-import { qs } from '@/lib/labels'
 import { day, num, pct } from '@/lib/format'
 import { loadReport, type ReportSp } from '../load'
 import { ReportHeader } from '../shell'
@@ -26,7 +25,7 @@ export default async function CarryPage({ searchParams }: { searchParams: Promis
       <ReportHeader r={{ ...r, params }} desc={who ? t(`Lo que lleva ${who}: altas, primeras ventas y tiendas que siguen vendiendo.`, `What ${who} is carrying: enrolled stores, first sales and stores still selling.`) : undefined} />
       <ReportFilters t={t} locale={locale} base="/reportes/lo-que-llevo" params={params} period={period.first} selects={ctx.can('report.view') ? [{ ...sel.owner, all: t('Yo', 'Me'), options: sel.owner.options.filter((o) => o.value !== 'none') }] : []} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="carry-top">
-        <Metric t={t} k="carryStores" value={num(c.stores, locale)} owners={owners} testId="carry-stores" href={picked ? undefined : qs('/comercios', { owner: 'me', kind: 'store' })} />
+        <Metric t={t} k="carryStores" value={num(c.stores, locale)} owners={owners} testId="carry-stores" />
         <Metric t={t} k="carryFirstSales" value={num(c.first_sales, locale)} tone="good" owners={owners} testId="carry-first" />
       </div>
       <Card className="mt-6" data-testid="carry-active">

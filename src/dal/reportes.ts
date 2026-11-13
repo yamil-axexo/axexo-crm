@@ -79,7 +79,7 @@ export async function getStagesReport(ctx: Ctx, f: Filters): Promise<StageRow[]>
     const rows = await tx<StageRow[]>`
       select p.id as pipeline_id, p.name as pipeline_name, p.market_code, p.motor, s.id as stage_id, s.position, s.name_es, s.name_en, s.rot_days,
              count(d.id)::int as deals,
-             count(d.id) filter (where d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`p.market_code`)})::int as no_step,
+             count(d.id) filter (where d.next_step is null or d.next_step_due is null)::int as no_step,
              count(d.id) filter (where now() - d.stage_entered_at > make_interval(days => s.rot_days))::int as long,
              round((percentile_cont(0.5) within group (order by extract(epoch from (now() - d.stage_entered_at)) / 86400) filter (where d.id is not null))::numeric)::int as median_days,
              floor(max(extract(epoch from (now() - d.stage_entered_at)) / 86400))::int as max_days,
@@ -511,7 +511,7 @@ export async function pinnedQueues(ctx: Ctx): Promise<(SavedView & { count: numb
           select count(*)::int as n from crm.deals d where d.status = 'open'
             ${isUuid(f.pipeline) ? tx`and d.pipeline_id = ${f.pipeline}` : tx``}
             ${f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and d.owner_id is null` : isUuid(f.owner) ? tx`and d.owner_id = ${f.owner}` : tx``}
-            ${f.paso === 'sin' ? tx`and (d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)})` : tx``}`
+            ${f.paso === 'sin' ? tx`and (d.next_step is null or d.next_step_due is null)` : tx``}`
         return rows[0]?.n ?? 0
       })
     } else if (f.view !== 'done') {

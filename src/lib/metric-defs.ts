@@ -147,7 +147,7 @@ export const METRICS = {
   },
   noNextStep: {
     label: ['Sin próximo paso', 'No next step'],
-    what: ['Negocios abiertos que hoy no tienen próximo paso con fecha, o lo tienen vencido.', 'Open deals that have no dated next step today, or have one that is overdue.'],
+    what: ['Negocios abiertos que hoy no tienen próximo paso, o lo tienen sin fecha. Es la misma cuenta del filtro "Sin próximo paso" del tablero de Negocios.', 'Open deals that have no next step today, or have one with no date. It is the same count as the "No next step" filter on the Deals board.'],
     owner: SALES, window: TODAY, source: CONTIGO,
   },
   agency: {

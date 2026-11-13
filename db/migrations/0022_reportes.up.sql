@@ -134,7 +134,7 @@ begin
   end if;
   insert into crm.pipeline_snapshots (snapshot_date, market_code, pipeline_id, stage_id, deals, no_next_step, amount_minor, currency)
   select (now() at time zone mk.timezone)::date, s_mk.market_code, s_mk.pipeline_id, s_mk.stage_id,
-         count(d.id)::int, count(d.id) filter (where d.next_step_due is null or d.next_step_due < (now() at time zone mk.timezone)::date)::int,
+         count(d.id)::int, count(d.id) filter (where d.next_step is null or d.next_step_due is null)::int,
          coalesce(sum(d.amount_minor), 0), mk.currency
     from (select p.market_code, p.id as pipeline_id, s.id as stage_id from crm.pipelines p join crm.stages s on s.pipeline_id = p.id where s.kind in ('open','awaiting_txn')) s_mk
     join crm.markets mk on mk.code = s_mk.market_code and mk.status = 'live'

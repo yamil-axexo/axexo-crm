@@ -28,8 +28,9 @@ export default async function ReportsPage() {
     return def ? (sp ? `${def.path}?${sp}` : def.path) : '/reportes'
   }
   const unseen = deliveries.filter((d) => !d.seen_at).length
+  const canOpen = (key: string) => visible.some((r) => r.key === key)
   const mine = saved.filter((s) => s.mine)
-  const shared = saved.filter((s) => !s.mine)
+  const shared = saved.filter((s) => !s.mine && canOpen(s.report))
   const when: Record<string, string> = { daily: t('Cada día', 'Every day'), weekly: t('Cada semana', 'Every week') }
 
   return (
