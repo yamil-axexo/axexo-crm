@@ -5,7 +5,7 @@ import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
 import { invalid, notFound } from '@/lib/errors'
-import { ACTION_TYPES, OPS, SOURCES, TEMPLATES, DEFAULTS, problemIn, type Action, type Condition, type Definition } from '@/domain/automation/catalog'
+import { ALL_ACTION_TYPES, OPS, SOURCES, TEMPLATES, DEFAULTS, problemIn, type Action, type Condition, type Definition } from '@/domain/automation/catalog'
 import { ensureDefaults, explain, insertDefinition, type Automation } from '@/domain/automation/engine'
 import { findJob, runJob, type RunOutcome } from '@/server/jobs/runner'
 
@@ -13,7 +13,7 @@ import { findJob, runJob, type RunOutcome } from '@/server/jobs/runner'
 // la versión y queda en la bitácora con el antes y el después. Una automatización es de un mercado: no se puede mover a otro.
 
 const condition = z.object({ field: z.string().max(40), op: z.enum(OPS), value: z.union([z.string().max(60), z.number()]).nullable().optional() })
-const action = z.object({ type: z.enum(ACTION_TYPES) }).passthrough()
+const action = z.object({ type: z.enum(ALL_ACTION_TYPES) }).passthrough()
 const input = z.object({
   nameEs: z.string().trim().min(3).max(120),
   nameEn: z.string().trim().min(3).max(120),
@@ -95,7 +95,7 @@ export async function saveAutomation(ctx: Ctx, id: string, raw: AutomationInput)
       if (!ok[0]?.ok) throw invalid('Quien responde por la automatización tiene que trabajar en ese mercado.', 'The automation’s owner must work in that market.')
     }
     await tx`update crm.automations set name_es = ${v.nameEs}, name_en = ${v.nameEn}, motor = ${v.motor || null}, owner_id = ${v.ownerId || null},
-              conditions = ${tx.json(def.conditions as never)}, actions = ${tx.json(def.actions as never)}, version = version + 1, updated_by = ${ctx.user.id}, updated_at = now()
+              conditions = ${tx.json(def.conditions as never)}, actions = ${tx.json(def.actions as never)}, version = version + 1, touched_by_person = true, updated_by = ${ctx.user.id}, updated_at = now()
               where id = ${id}`
     // Con otras condiciones, lo que ya había hecho deja de contar: cada registro se vuelve a evaluar con la versión nueva.
     await tx`delete from crm.automation_state where automation_id = ${id}`
@@ -112,7 +112,7 @@ export async function setAutomationActive(ctx: Ctx, id: string, active: boolean)
     const a = rows[0]
     if (!a) throw notFound('No encontramos esa automatización.', 'We could not find that automation.')
     if (a.is_active === active) return
-    await tx`update crm.automations set is_active = ${active}, updated_by = ${ctx.user.id}, updated_at = now() where id = ${id}`
+    await tx`update crm.automations set is_active = ${active}, touched_by_person = true, updated_by = ${ctx.user.id}, updated_at = now() where id = ${id}`
     await audit(tx, ctx, active ? 'automation.resumed' : 'automation.paused', 'automation', id, a.market_code, { active: a.is_active }, { active, name: a.name_es })
   })
 }

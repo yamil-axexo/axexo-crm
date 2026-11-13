@@ -35,6 +35,7 @@ import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
 import { storeRecord } from '@/dal/store-record'
+import { StoreSalesSection } from './ventas-tienda'
 import { CarrierPortfolio, SalesFirst, StoreKeptFields, StoreProfileSection } from './tienda-us'
 import { resolveKept } from '@/lib/store-labels'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
@@ -161,6 +162,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
       // Una visita que llegó de la hoja del equipo de campo lo dice (paquete mx): no se confunde con una capturada en la pantalla.
       : manualVisit(it) ? [(meta(it) as { source?: string }).source === 'import' ? t('Cargada de la hoja', 'Loaded from the sheet') : t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
         : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}`
+          // E6.F5: lo que llegó con la migración desde Pipedrive (notas, llamadas, tareas) dice su origen en el hilo.
+          : ['note', 'call', 'meeting', 'task', 'email'].includes(it.kind) && (meta(it) as { source?: string }).source === 'import' ? [t('Vino de Pipedrive', 'From Pipedrive'), it.actor].filter(Boolean).join(' · ')
           : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
   // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.
   const threadKind = (it: Item) =>
@@ -506,6 +509,13 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             {metrics && <p className="mt-2 text-[13px] text-muted" data-testid="metrics-asof">{t(`Datos de ventas con corte al ${day(metrics.as_of, locale)}.`, `Sales data as of ${day(metrics.as_of, locale)}.`)}</p>}
             {/* Estado y volumen del comercio: la misma definición que usan el Panel y Reportes. */}
             {metrics && <div data-testid="ficha-defs"><Def t={t} k="active" named /><Def t={t} k="volume" named /></div>}
+          </section>
+
+          {a.kind === 'store' && <StoreSalesSection ctx={ctx} accountId={a.id} />}
+          <section className={section} data-testid="account-documents">
+            <h3 className={h3}>{t('Documentos', 'Documents')}</h3>
+            <p className="mt-1 text-[14px] text-muted">{t('Pedido, propuesta o carta con los datos del comercio, para imprimir, bajar en PDF o mandar por correo.', 'Order, proposal or letter with the merchant’s data, to print, download as PDF or email.')}</p>
+            <Link href={`/comercios/${a.id}/documentos`} className="mt-2 inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="account-documents-link">{t('Abrir documentos', 'Open documents')}</Link>
           </section>
 
           {deals.length > 0 && (

@@ -752,3 +752,8 @@ values (pg_temp.uid('dat-us-iso'), 'US', current_date - 120, pg_temp.uid('robert
 insert into crm.partner_tiers (market_code, code, name_es, name_en, rank, min_active, min_quality_pct, min_compliance_pct) values
   ('US', 'base', 'Base', 'Base', 1, 0, 0, 0), ('US', 'silver', 'Plata', 'Silver', 2, 1, 30, 50), ('US', 'gold', 'Oro', 'Gold', 3, 25, 60, 80),
   ('MX', 'base', 'Base', 'Base', 1, 0, 0, 0), ('MX', 'silver', 'Plata', 'Silver', 2, 10, 40, 60);
+
+-- integraciones-migracion
+-- Lo que el equipo armó en Pipedrive se reconstruye otra vez con los embudos y campos que el seed acaba de crear
+-- (la migración 0035 corrió antes, cuando la base aún no los tenía).
+select crm.pipedrive_rebuild_apply();

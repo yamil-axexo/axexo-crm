@@ -47,6 +47,8 @@ export const EXPLICIT_EVENTS: EventDef[] = [
     example: { from: ID, to: ID2, kind: 'open' } },
   { type: 'deal.reassigned', version: 1, aggregate: 'user', source: 'explicit', about: ['Se pasaron negocios abiertos a otra persona.', 'Open deals were moved to another person.'],
     data: { count: f('integer', 'Cuántos negocios.', 'How many deals.') }, example: { count: 7 } },
+  { type: 'deal.owner_changed', version: 1, aggregate: 'deal', source: 'explicit', about: ['Cambió quien lleva un negocio.', 'A deal changed owner.'],
+    data: { owner_id: f('uuid', 'Quién lo lleva ahora.', 'Who owns it now.') }, example: { owner_id: ID2 } },
   { type: 'deal.won', version: 1, aggregate: 'deal', source: 'explicit', about: ['Un negocio se ganó con la primera transacción del comercio.', 'A deal was won by the merchant’s first transaction.'],
     data: { account_id: f('uuid', 'El comercio.', 'The merchant.'), closed_by: f('string', 'Cómo se cerró: transaction.', 'How it closed: transaction.') }, example: { account_id: ID, closed_by: 'transaction' } },
 ]
@@ -105,13 +107,16 @@ const SILENT: [prefix: string, why: Pair][] = [
   // Seguridad (0027):
   ['seat.', WHY.security], ['sensitive.', WHY.security], ['sensitive_field.', WHY.security], ['consent.', WHY.security], ['retention.', WHY.security],
   ['subject_request.', WHY.security], ['view_as.', WHY.security], ['access_review.', WHY.security], ['secret.', WHY.security], ['security.', WHY.security],
-  ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal], ['care.', WHY.internal],
+  ['template.', WHY.internal], ['goal.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal], ['care.', WHY.internal],
   // Paquete mercados: qué datos van arriba en la ficha por rol y cómo se agrupan los campos es acomodo de pantalla.
   ['ficha.', WHY.internal], ['field_section.', WHY.internal],
   // Paquete partners-contratos: tokens de lectura (operación de integraciones), niveles y material (configuración interna),
   // la carga de una red (cada comercio promovido emite account.created) y la invitación en cola de un externo.
   ['partner_token.', WHY.plumbing], ['partner_tier.', WHY.internal], ['network_load.', WHY.migration], ['partner.invite_queued', WHY.notice],
   ['partner.crossmatch_run', WHY.quality],
+  // integraciones2: la bitácora de cargas y su horario, los documentos generados, el respaldo de Pipedrive y el borrado de un
+  // mercado de prueba. Lo que una carga cambia emite lo suyo; un documento o un respaldo no cambian registros.
+  ['load.', WHY.jobs], ['document.', WHY.read], ['pipedrive.', WHY.read], ['market.reset_test', WHY.migration],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.

@@ -7,7 +7,8 @@ import { assertNoProhibited } from '@/domain/guard'
 import { moveDealTx } from '@/domain/deals'
 import { assignLeadTx } from '@/domain/leads'
 import { DomainError } from '@/lib/errors'
-import { DEFAULTS, FIELDS, type Action, type Condition, type Definition, type NoticeKind, type Source } from '@/domain/automation/catalog'
+import { CUSTOM_PREFIX, DEFAULTS, FIELDS, isCustomField, type Action, type Condition, type Definition, type NoticeKind, type Source } from '@/domain/automation/catalog'
+import { runRebuiltAction, type RebuiltAction } from '@/domain/automation/rebuilt'
 import { resolveTarget } from '@/domain/automation/people'
 import { setWaitingOnTx } from '@/domain/automation/transitions'
 import { notify } from '@/domain/notify'
@@ -62,7 +63,7 @@ function recordSet(tx: Tx, source: Source): Frag {
              case when d.next_step is null or d.next_step_due is null then 9999 else ${marketToday(tx, tx`d.market_code`)} - d.next_step_due end as next_step_days_late,
              d.revisit_needed, ${marketToday(tx, tx`d.market_code`)} - d.revisit_due as revisit_days_late,
              exists (select 1 from crm.activities x where x.account_id = d.account_id and x.kind = 'visit' and x.done_at is null) as has_open_visit,
-             d.waiting_on, d.amount_minor / 100.0 as amount, d.id::text as dedupe_id
+             d.waiting_on, d.amount_minor / 100.0 as amount, d.id::text as dedupe_id, d.pipeline_id, d.custom
         from crm.deals d
         join crm.stages s on s.id = d.stage_id
         join crm.pipelines p on p.id = d.pipeline_id
@@ -84,7 +85,7 @@ function recordSet(tx: Tx, source: Source): Frag {
       select a.id, a.market_code, a.id as account_id, null::uuid as deal_id, null::uuid as lead_id, a.owner_id, a.owner_id as ball_owner_id,
              a.segment as motor, a.name as label, a.name, a.lifecycle, a.lifecycle_at,
              (a.lifecycle in ('active', 'at_risk', 'onboarding')) as is_customer,
-             (a.owner_id is not null) as has_owner, (a.parent_id is not null) as is_branch, a.id::text as dedupe_id
+             (a.owner_id is not null) as has_owner, (a.parent_id is not null) as is_branch, a.id::text as dedupe_id, a.custom
         from crm.accounts a
        where a.archived_at is null)`
   }
@@ -115,6 +116,15 @@ function noticeDetail(tx: Tx, kind: NoticeKind): Frag {
 }
 
 function conditionSql(tx: Tx, source: Source, c: Condition): Frag {
+  if (isCustomField(c.field)) {
+    const v = tx`nullif(btrim(r.custom ->> ${c.field.slice(CUSTOM_PREFIX.length)}), '')`
+    if (c.op === 'is_empty') return tx`${v} is null`
+    if (c.op === 'not_empty') return tx`${v} is not null`
+    if (c.op === 'eq') return tx`coalesce(lower(${v}) = lower(${String(c.value ?? '')}), false)`
+    return tx`lower(${v}) is distinct from lower(${String(c.value ?? '')})`
+  }
+  if (c.field === 'pipeline_id') return tx`coalesce(r.pipeline_id::text = ${String(c.value ?? '')}, false)`
+  if (c.field === 'owner_id') return tx`coalesce(r.owner_id::text = any(${String(c.value ?? '').split(',').filter(Boolean)}::text[]), false)`
   const f = FIELDS[source].find((x) => x.key === c.field)
   if (!f) throw new Error(`automation condition on unknown field ${c.field}`)
   const col = tx`r.${tx(f.key)}`
@@ -129,6 +139,7 @@ function conditionSql(tx: Tx, source: Source, c: Condition): Frag {
     case 'gte': return tx`coalesce(${col} >= ${Number(c.value)}::numeric, false)`
     case 'lt': return tx`coalesce(${col} < ${Number(c.value)}::numeric, false)`
     case 'lte': return tx`coalesce(${col} <= ${Number(c.value)}::numeric, false)`
+    case 'in': return tx`coalesce(${col}::text = any(${String(c.value ?? '').split(',').filter(Boolean)}::text[]), false)`
   }
 }
 
@@ -140,9 +151,9 @@ function scope(tx: Tx, a: Automation): Frag {
 }
 const matching = (tx: Tx, a: Automation): Frag => tx`${scope(tx, a)} and ${allOf(tx, a.conditions.map((c) => conditionSql(tx, a.source, c)))}`
 
-/** Cada mercado nace con las reglas de base. Un mercado nuevo las recibe la primera vez que corre el motor. */
+/** Cada mercado nace con las reglas de base. Un mercado nuevo las recibe la primera vez que corre el motor. Lo reconstruido desde Pipedrive no cuenta como "ya tiene reglas". */
 export async function ensureDefaults(tx: Tx): Promise<number> {
-  const markets = await tx<{ code: string }[]>`select m.code from crm.markets m where not exists (select 1 from crm.automations a where a.market_code = m.code) order by m.code`
+  const markets = await tx<{ code: string }[]>`select m.code from crm.markets m where not exists (select 1 from crm.automations a where a.market_code = m.code and a.pipedrive_ref is null) order by m.code`
   let n = 0
   for (const m of markets) for (const d of DEFAULTS) n += await insertDefinition(tx, m.code, d, null, true)
   return n
@@ -280,8 +291,11 @@ async function act(tx: Tx, sys: Ctx, a: Automation, action: Exclude<Action, { ty
     await moveDealTx(tx, sys, rec.deal_id!, st[0].id, undefined, undefined, { byRule: true })
     return { action: 'move_stage', stage_code: action.stage_code }
   }
-  await setWaitingOnTx(tx, sys, rec.deal_id!, action.value)
-  return { action: 'set_field', field: action.field, value: action.value }
+  if (action.type === 'set_field') {
+    await setWaitingOnTx(tx, sys, rec.deal_id!, action.value)
+    return { action: 'set_field', field: action.field, value: action.value }
+  }
+  return runRebuiltAction(tx, sys, { id: a.id, source: a.source }, action as RebuiltAction, rec)
 }
 
 /** Las acciones de una automatización sobre un registro. Cada una en su punto de guardado: si una falla, no deja nada a medias. */

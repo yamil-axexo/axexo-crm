@@ -8,6 +8,7 @@ import { pipedriveConfigured } from '@/server/adapters/pipedrive'
 import { deliveryMode } from '@/server/adapters/event-delivery'
 import { antibotMode } from '@/server/adapters/antibot'
 import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
+import { zohoAdapter } from '@/server/adapters/zoho'
 import { adapterQueue } from '@/dal/reportes'
 import { routesAdapter } from '@/server/adapters/routes'
 import { documentVault } from '@/server/adapters/document-vault'
@@ -36,6 +37,7 @@ import { OBJECTIVE_LABEL, msText } from '@/lib/gobierno-labels'
 import { partnersAdapterStatus } from '@/server/adapters/partners'
 import { externalQueueCounts } from '@/dal/partners'
 import { aiStatus } from '@/server/adapters/ai'
+import { LoadsCard } from './cargas'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +60,7 @@ export default async function StatusPage() {
   // GOB-07: objetivos de servicio medidos, de los últimos 30 días. El detalle y los registros viven en Administración, Gobierno.
   const board = ctx.can('gov.read') ? await serviceBoard(ctx, 30) : null
   const salesFile = salesFileAdapter()
+  const zoho = zohoAdapter()
   const adConv = adConversionsAdapter()
   const desk = supportDeskAdapter()
   const version = deployedVersion()
@@ -131,8 +134,8 @@ export default async function StatusPage() {
     // Paquete campo-canal: bóveda de documentos del alta y fondeo desde el archivo de ventas. Construidos y apagados.
     {
       key: 'document_vault',
-      name: t('Bóveda de documentos del alta', 'Enrollment document vault'),
-      what: t('Archivos del expediente de alta', 'Enrollment file documents'),
+      name: t('Bóveda de documentos', 'Document vault'),
+      what: t('Archivos del expediente de alta y documentos generados (pedido, propuesta, carta)', 'Enrollment file documents and generated documents (order, proposal, letter)'),
       state: documentVault().mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t('El expediente ya guarda estado, quién validó, enlace y bitácora de lectura. Para encenderla: decisión del comité sobre una sola bóveda compartida con Sales Core, bucket privado con enlaces firmados cortos, retención de datos personales, aprobación de tecnología y la variable CONTIGO_DOCUMENT_VAULT.', 'The file already keeps status, who validated, link and read log. To turn it on: committee decision on a single vault shared with Sales Core, private bucket with short signed links, personal data retention, technology approval and the CONTIGO_DOCUMENT_VAULT variable.'),
     },
@@ -144,11 +147,25 @@ export default async function StatusPage() {
       last: t('La ficha, los avisos de saldo bajo y el simulador ya funcionan. Para encenderlo: que el archivo de ventas o el core traigan método, saldo y límite, el contrato acordado, la aprobación de tecnología y la variable CONTIGO_FUNDING_FEED.', 'The merchant view, low balance notices and the simulator already work. To turn it on: the sales file or the core must carry method, balance and limit, the agreed contract, technology approval and the CONTIGO_FUNDING_FEED variable.'),
     },
     {
+      key: 'zoho',
+      name: t('Zoho', 'Zoho'),
+      what: t('Importar de Zoho comercios, contactos y negocios, con el mapa de campos documentado', 'Import merchants, contacts and deals from Zoho, with the documented field map'),
+      state: zoho.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`CONTIGO no tiene acceso a Zoho. Para encenderlo hace falta el acceso de solo lectura, la aprobación de tecnología y la variable ${zoho.envVar}.`, `CONTIGO has no access to Zoho. Turning it on needs read-only access, technology approval and the ${zoho.envVar} variable.`),
+    },
+    {
       key: 'sales_file',
       name: t('Archivo de ventas: ir a buscarlo', 'Sales file: fetching it'),
       what: t('Primer fondeo y método, primera transacción, hábito y correcciones', 'First funding and method, first transaction, habit and corrections'),
       state: salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`Hoy el archivo entra cuando alguien lo entrega por la API. Para que CONTIGO vaya por él hace falta que Data y Reportería confirme el contrato con fondeo y método y dónde deja el archivo, la aprobación de tecnología y la variable ${salesFile.envVar}.`, `Today the file comes in when someone delivers it through the API. For CONTIGO to fetch it, Data and Reporting must confirm the contract with funding and method and where the file is left, plus technology approval and the ${salesFile.envVar} variable.`),
+    },
+    {
+      key: 'store_sales',
+      name: t('Cifras de ventas por tienda', 'Store sales figures'),
+      what: t('Activaciones por carrier y volumen de pago por Merchant ID, cada noche', 'Activations by carrier and payment volume by Merchant ID, every night'),
+      state: salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`Hoy entra cuando alguien lo entrega por la API (POST /api/v1/metrics/stores, contrato store_sales_daily v1, propuesta). Para que CONTIGO vaya por él cada noche hace falta que Data y Reportería confirme el contrato y dónde deja el archivo, la aprobación de tecnología y la variable ${salesFile.envVar}.`, `Today it comes in when someone delivers it through the API (POST /api/v1/metrics/stores, store_sales_daily v1 contract, proposed). For CONTIGO to fetch it every night, Data and Reporting must confirm the contract and where the file is left, plus technology approval and the ${salesFile.envVar} variable.`),
     },
     {
       key: 'ad_conversions',
@@ -329,6 +346,7 @@ export default async function StatusPage() {
             ))}
           </ul>
         </Card>
+        <LoadsCard ctx={ctx} tz={tz} />
         <Card pad={false} data-testid="status-integrations">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Datos e integraciones', 'Data and integrations')} hint={t('De dónde llegan los datos, si la conexión está viva y cuándo llegó lo último.', 'Where the data comes from, whether the connection is live and when the latest arrived.')} /></div>
           <ul className="border-t border-line">

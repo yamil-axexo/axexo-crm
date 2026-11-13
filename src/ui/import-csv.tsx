@@ -71,6 +71,7 @@ export function ImportCsv({ action, kinds, markets, initialKind, labels }: { act
           ) : (
             <>
               <p className="text-[15px] font-semibold text-strong" data-testid="import-summary">{fill(preview.total === 1 ? labels.summaryOne : labels.summaryMany, { total: preview.total, ok: preview.ok, dup: preview.duplicates, err: preview.errors })}</p>
+              {preview.notes?.map((n) => <p key={n} className="mt-2 text-[13.5px] text-muted-2" data-testid="import-note">{n}</p>)}
               {preview.rows.length === 0 ? <p className="mt-2 text-[13.5px] text-muted-2">{labels.allGood}</p> : (
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full min-w-[520px] text-left text-[13.5px]" data-testid="import-problems">

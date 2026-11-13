@@ -7,7 +7,7 @@ import { scrub } from '@/domain/pipedrive/mapping'
 import { invalid, type ActionResult } from '@/lib/errors'
 
 export type ImportState =
-  | { step: 'preview'; checksum: string; fileName: string; total: number; ok: number; duplicates: number; errors: number; fileProblem: string | null; rows: { rowNo: number; status: 'duplicate' | 'error'; label: string; problems: string[] }[]; more: number }
+  | { step: 'preview'; checksum: string; fileName: string; total: number; ok: number; duplicates: number; errors: number; fileProblem: string | null; notes?: string[]; rows: { rowNo: number; status: 'duplicate' | 'error'; label: string; problems: string[] }[]; more: number }
   | { step: 'done'; id: string; total: number; created: number; duplicates: number; rejected: number }
 
 const SHOWN = 100
@@ -36,6 +36,7 @@ export async function importCsvAction(_: ActionResult<ImportState> | null, fd: F
       data: {
         step: 'preview', checksum: p.checksum, fileName: p.fileName, total: p.total, ok: p.ok, duplicates: p.duplicates, errors: p.errors,
         fileProblem: p.fileProblem ? ctx.t(p.fileProblem[0], p.fileProblem[1]) : null,
+        notes: (p.notes ?? []).map((x) => ctx.t(x[0], x[1])),
         rows: bad.slice(0, SHOWN).map((r) => ({ rowNo: r.rowNo, status: r.status as 'duplicate' | 'error', label: scrub(r.label).slice(0, 80), problems: r.problems.map((x) => ctx.t(x[0], x[1])) })),
         more: Math.max(0, bad.length - SHOWN),
       },

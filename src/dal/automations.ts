@@ -7,6 +7,9 @@ import type { Action, Condition, Source } from '@/domain/automation/catalog'
 import type { Role } from '@/domain/policy'
 
 export type AutomationRow = {
+  /** GOB-05: lo reconstruido desde Pipedrive lleva el nombre que tenía allá, su explicación y, si nació apagada, por qué. */
+  pipedrive_ref: string | null; description_es: string | null; description_en: string | null; off_reason_es: string | null; off_reason_en: string | null
+
   id: string
   market_code: string
   motor: string | null
@@ -30,6 +33,7 @@ export type AutomationRow = {
 
 const SELECT = (tx: Parameters<Parameters<typeof withUser>[1]>[0]) => tx`
   select a.id, a.market_code, a.motor, a.key, a.name_es, a.name_en, a.source, a.trigger_kind, a.trigger_event, a.conditions, a.actions, a.is_active, a.version,
+         a.pipedrive_ref, a.description_es, a.description_en, a.off_reason_es, a.off_reason_en,
          a.owner_id, o.full_name as owner_name, u.full_name as updated_by_name, a.updated_at,
          (select max(l.at) from crm.automation_log l where l.automation_id = a.id) as last_at,
          (select count(*)::int from crm.automation_log l where l.automation_id = a.id and l.outcome = 'done' and l.at > now() - interval '7 days') as done_7d

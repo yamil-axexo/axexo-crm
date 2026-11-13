@@ -12,11 +12,15 @@ export type SalesFileAdapter = {
   envVar: 'SALES_FILE'
   /** El siguiente archivo por cargar, o null si no hay (o si está apagado). */
   next: () => Promise<unknown | null>
+  /** E5.F1: el siguiente archivo de cifras por tienda (store_sales_daily v1), o null si no hay (o si está apagado). */
+  nextStoreSales: () => Promise<unknown | null>
 }
 
-const g = globalThis as unknown as { __contigoSimulatedSalesFiles?: unknown[] }
+const g = globalThis as unknown as { __contigoSimulatedSalesFiles?: unknown[]; __contigoSimulatedStoreSales?: unknown[] }
 /** Archivos que una prueba deja listos para que el adaptador simulado los entregue. */
 export const simulatedSalesFiles = () => (g.__contigoSimulatedSalesFiles ??= [])
+/** E5.F1: archivos de cifras por tienda que una prueba deja listos. */
+export const simulatedStoreSalesFiles = () => (g.__contigoSimulatedStoreSales ??= [])
 
 export function salesFileAdapter(): SalesFileAdapter {
   const simulated = process.env.APP_ENV === 'test' && process.env.SALES_FILE === 'simulated'
@@ -24,5 +28,6 @@ export function salesFileAdapter(): SalesFileAdapter {
     envVar: 'SALES_FILE',
     mode: simulated ? 'simulated' : 'off',
     next: async () => (simulated ? (simulatedSalesFiles().shift() ?? null) : null),
+    nextStoreSales: async () => (simulated ? (simulatedStoreSalesFiles().shift() ?? null) : null),
   }
 }

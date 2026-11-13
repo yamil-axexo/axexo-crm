@@ -55,9 +55,12 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
 
   async function Rules() {
     await installDefaults(ctx)
-    const rows = await listAutomations(ctx)
+    const all = await listAutomations(ctx)
     const live = ctx.markets.filter((m) => m.status === 'live')
     const templates = allTemplates()
+    // GOB-05: lo reconstruido desde Pipedrive va en su propia sección, con el nombre que tenía allá y por qué está apagado si lo está.
+    const rebuilt = all.filter((r) => r.pipedrive_ref)
+    const rows = all.filter((r) => !r.pipedrive_ref)
     return (
       <NoticeArea closeLabel={t('Cerrar aviso', 'Dismiss notice')}>
         <div className="space-y-8" data-testid="auto-list">
@@ -73,6 +76,36 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                 </Field>
                 <div className="flex items-end sm:col-span-2"><Submit testId="auto-new-create">{t('Crear', 'Create')}</Submit></div>
               </ActionForm>
+            </Card>
+          )}
+          {rebuilt.length > 0 && (
+            <Card data-testid="auto-pipedrive">
+              <CardTitle title={t('Reconstruidas desde Pipedrive', 'Rebuilt from Pipedrive')} hint={t('Las automatizaciones y la asignación automática que el equipo tenía en Pipedrive, con las mismas condiciones. Las que no tienen todavía su embudo o su campo en CONTIGO esperan apagadas.', 'The automations and the automatic assignment the team had in Pipedrive, with the same conditions. Those whose pipeline or field does not exist in CONTIGO yet wait switched off.')} />
+              <ul className="divide-y divide-line">
+                {rebuilt.map((r) => {
+                  const d = describe({ source: r.source, trigger: r.trigger_kind === 'event' ? { kind: 'event', event: r.trigger_event! } : { kind: 'schedule' }, conditions: r.conditions, actions: r.actions })
+                  return (
+                    <li key={r.id} className="flex flex-wrap items-start justify-between gap-3 py-3" data-testid="auto-pd-row" data-key={r.key} data-active={r.is_active ? '1' : '0'}>
+                      <div className="min-w-0 max-w-[70ch]">
+                        <Link href={`/admin/automatizaciones/${r.id}`} className="font-semibold text-strong underline" data-testid="auto-open">{t(r.name_es, r.name_en)}</Link>
+                        <span className="mt-0.5 block text-[12.5px] text-muted-2">{t('En Pipedrive: ', 'In Pipedrive: ')}<span lang="en">{r.pipedrive_ref}</span> · {r.market_code}</span>
+                        <p className="mt-1 text-[13.5px] text-muted-2">{d.then.map((x) => t(x.es, x.en)).join('. ')}</p>
+                        {!r.is_active && r.off_reason_es && <p className="mt-1 text-[13px] text-muted" data-testid="auto-pd-off">{t(r.off_reason_es, r.off_reason_en ?? r.off_reason_es)}</p>}
+                      </div>
+                      <span className="flex items-center gap-2">
+                        {r.is_active ? <Badge tone="good">{t('Activa', 'On')}</Badge> : <Badge tone="warn">{t('Apagada', 'Off')}</Badge>}
+                        {manage && (
+                          <NoticeForm action={toggleAutomationAction} testId="auto-toggle">
+                            <input type="hidden" name="id" value={r.id} />
+                            <input type="hidden" name="active" value={r.is_active ? '0' : '1'} />
+                            <Submit variant="ghost" size="sm" testId="auto-pd-toggle-btn">{r.is_active ? t('Pausar', 'Pause') : t('Activar', 'Turn on')}</Submit>
+                          </NoticeForm>
+                        )}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
             </Card>
           )}
           {rows.length === 0 ? <Empty title={t('Todavía no hay automatizaciones', 'There are no automations yet')} hint={t('Se crean solas la primera vez que corre la revisión por horario.', 'They are created on their own the first time the scheduled check runs.')} /> : (

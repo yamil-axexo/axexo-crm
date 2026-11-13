@@ -303,6 +303,8 @@ export async function reassignDeals(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
     await tx`update crm.exceptions set owner_id = ${s.to} where resolved_at is null and deal_id = any(${ids}::uuid[])`
     await audit(tx, ctx, 'deal.reassigned', 'deal', null, market, { count: ids.length, from: s.from }, { to_user_id: s.to, to_name: toName, tasks: tasks.count, deal_ids: ids.slice(0, 50) })
     await emit(tx, 'deal.reassigned', 'user', s.to, market, { count: ids.length })
+    // Un evento por negocio: las automatizaciones que escuchan "cambia quien lleva un negocio" lo necesitan (GOB-05, automatización 3 de Pipedrive).
+    for (const id of ids) await emit(tx, 'deal.owner_changed', 'deal', id, market, { owner_id: s.to })
     const left = await tx<{ n: number }[]>`select count(*)::int as n from crm.deals d where ${pending}`
     return { moved: ids.length, left: left[0]?.n ?? 0 }
   })

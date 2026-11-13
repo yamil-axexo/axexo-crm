@@ -4,6 +4,7 @@ import { runVia, withSystem } from '@/server/db'
 import { env } from '@/env'
 import { JOBS } from './registry'
 import type { Job } from './types'
+import { finishLoad, startLoad, type LoadStart } from '@/domain/loads'
 
 // El corredor de las tareas programadas. Decide a cuál le toca, no deja que la misma corra dos veces a la vez
 // (candado de la base, por transacción: sirve también detrás de un pooler) y deja cada corrida en `crm.job_runs`:
@@ -27,6 +28,38 @@ const safeError = (e: unknown): string => {
  * falla no deja nada a medias, y la falla queda anotada aparte.
  */
 export async function runJob(job: Job, trigger: Trigger, opts: { force?: boolean; actorId?: string | null } = {}): Promise<RunOutcome> {
+  if (job.load) return runLoadJob(job, trigger, opts)
+  return runPlain(job, trigger, opts)
+}
+
+/**
+ * E5.F3/F4/F5: una carga de datos. Antes de abrir el trabajo: ¿le toca?, ¿su mercado está en ventana de mantenimiento?
+ * (no corre), ¿otra carga está corriendo? (espera su turno: "busy"). Al terminar, la carga queda cerrada y avisada.
+ */
+async function runLoadJob(job: Job, trigger: Trigger, opts: { force?: boolean; actorId?: string | null }): Promise<RunOutcome> {
+  if (!opts.force) {
+    const recent = await withSystem((tx) => tx<{ recent: boolean }[]>`
+      select coalesce(max(started_at) > now() - make_interval(mins => ${job.everyMinutes}), false) as recent from crm.job_runs where job_key = ${job.key}`)
+    if (recent[0]?.recent) return { key: job.key, status: 'not_due' }
+  }
+  let start: LoadStart
+  try {
+    start = await withSystem((tx) => startLoad(tx, job.load!, trigger, opts.actorId ?? null))
+  } catch (e) {
+    return { key: job.key, status: 'failed', error: safeError(e) }
+  }
+  if (start.status === 'busy') return { key: job.key, status: 'busy', note: `load_running:${start.running}` }
+  if (start.status === 'paused') return { key: job.key, status: 'not_due', note: `maintenance_window:${start.markets.join(',')}` }
+  const out = await runPlain(job, trigger, { ...opts, force: true })
+  try {
+    await withSystem((tx, sys) => finishLoad(tx, start.runId, out.status === 'ok' || out.status === 'busy' ? { ok: true, done: out.done ?? 0, note: out.note } : { ok: false, error: out.error ?? out.status }, sys))
+  } catch (e) {
+    console.error(JSON.stringify({ level: 'error', msg: 'load_finish_failed', job: job.key, code: safeError(e) }))
+  }
+  return out
+}
+
+async function runPlain(job: Job, trigger: Trigger, opts: { force?: boolean; actorId?: string | null }): Promise<RunOutcome> {
   const t0 = Date.now()
   try {
     // SEG-03: lo que cambie una tarea programada queda en la bitácora de la base con la vía "tarea programada".

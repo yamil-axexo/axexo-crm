@@ -12,13 +12,14 @@ import { parseCsv } from '@/lib/csv'
 import { toCsv } from '@/lib/periods'
 import { toE164 } from '@/lib/format'
 import { DomainError, invalid, notFound } from '@/lib/errors'
+import { loadBlocked, withLoad } from '@/domain/loads'
 
 // AUT-07: importación por archivo CSV de comercios, contactos y leads. El archivo se lee en memoria y NO se guarda.
 // 1) Vista previa: se valida TODO antes de escribir, fila por fila (requeridos, formatos, datos prohibidos, duplicados).
 // 2) Corrida: solo las filas buenas, en lotes, cada una por el mismo comando de dominio que el alta a mano.
 // 3) Bitácora por fila y deshacer: lo que nadie trabajó después se retira; lo demás se queda y se dice.
 type Pair = [es: string, en: string]
-export const IMPORT_KINDS = ['accounts', 'contacts', 'leads'] as const
+export const IMPORT_KINDS = ['accounts', 'contacts', 'leads', 'mx_leads'] as const
 export type ImportKind = (typeof IMPORT_KINDS)[number]
 export const IMPORT_MAX_ROWS = 2000
 export const IMPORT_MAX_BYTES = 900_000
@@ -61,9 +62,32 @@ export const IMPORT_COLUMNS: Record<ImportKind, Column[]> = {
     col('motor', ['tipo_venta', 'sale_type', 'tipo de venta', 'motor'], 'Tipo de venta (d2d, b2b o dealer; vacío: d2d)', 'Sale type (d2d, b2b or dealer; empty: d2d)', 'd2d', 40),
     col('message', ['mensaje', 'message', 'nota', 'note'], 'Nota', 'Note', 'Pide que le llamen por la tarde', 1000),
   ],
+  // E18.F7/F8: la hoja de leads de México para el corte. Mismas columnas que leads, más estado y motivo. Las columnas de
+  // promoción no se cargan; un lead muerto entra cerrado con su motivo (del catálogo de motivos del mercado).
+  mx_leads: [
+    col('business_name', ['negocio', 'business', 'business_name', 'nombre_negocio'], 'Nombre del negocio', 'Business name', 'Miscelánea Muestra', 120, true),
+    col('contact_name', ['contacto', 'contact', 'contact_name', 'nombre'], 'Nombre de la persona', 'Person’s name', 'Persona Ejemplo', 120, true),
+    col('phone', ['telefono', 'phone', 'teléfono'], 'Teléfono (o correo: hace falta uno)', 'Phone (or email: one is required)', '5512345678', 30),
+    col('email', ['correo', 'email'], 'Correo', 'Email', 'persona@ejemplo.test', 160),
+    col('locality', ['ciudad', 'city', 'locality'], 'Ciudad', 'City', 'Ciudad Ejemplo', 120),
+    col('motor', ['tipo_venta', 'sale_type', 'tipo de venta', 'motor'], 'Tipo de venta (d2d o dealer; vacío: d2d)', 'Sale type (d2d or dealer; empty: d2d)', 'd2d', 40),
+    col('state', ['estado', 'status', 'estatus'], 'Estado: abierto o muerto (vacío: abierto)', 'Status: open or dead (empty: open)', ['muerto', 'dead'], 20),
+    col('reason', ['motivo', 'reason', 'motivo de cierre'], 'Motivo, si está muerto (del catálogo de motivos de México)', 'Reason, if dead (from the Mexico reasons list)', ['La tienda cerró', 'store_closed_down'], 120),
+    col('message', ['mensaje', 'message', 'nota', 'note'], 'Nota', 'Note', 'Pide que le llamen por la tarde', 1000),
+  ],
 }
 
-export const KIND_LABEL: Record<ImportKind, Pair> = { accounts: ['Comercios', 'Merchants'], contacts: ['Contactos', 'Contacts'], leads: ['Leads', 'Leads'] }
+const DEAD_WORDS = ['muerto', 'muerta', 'perdido', 'perdida', 'descartado', 'cerrado', 'dead', 'lost', 'closed']
+const OPEN_WORDS = ['', 'abierto', 'abierta', 'nuevo', 'nueva', 'activo', 'open', 'new', 'active']
+/** E18.F8: ¿la fila de la hoja es un lead muerto? null: el estado no se entiende. */
+export function sheetLeadState(raw: string): 'open' | 'dead' | null {
+  const v = norm(raw)
+  return DEAD_WORDS.includes(v) ? 'dead' : OPEN_WORDS.includes(v) ? 'open' : null
+}
+/** E18.F8: columnas de promoción de la hoja: no se cargan. */
+export const isPromoColumn = (header: string) => /promo/.test(norm(header))
+
+export const KIND_LABEL: Record<ImportKind, Pair> = { accounts: ['Comercios', 'Merchants'], contacts: ['Contactos', 'Contacts'], leads: ['Leads', 'Leads'], mx_leads: ['Hoja de leads de México (corte)', 'Mexico leads sheet (cut-over)'] }
 
 /** Plantilla descargable: encabezados en el idioma de quien la baja y una fila de ejemplo. */
 export function importTemplate(kind: ImportKind, locale: 'es' | 'en'): { csv: string; fileName: string } {
@@ -72,7 +96,7 @@ export function importTemplate(kind: ImportKind, locale: 'es' | 'en'): { csv: st
 }
 
 export type PreviewRow = { rowNo: number; status: 'ok' | 'duplicate' | 'error'; label: string; problems: Pair[]; values: Record<string, string> }
-export type Preview = { kind: ImportKind; market: string; fileName: string; checksum: string; total: number; ok: number; duplicates: number; errors: number; rows: PreviewRow[]; fileProblem: Pair | null }
+export type Preview = { kind: ImportKind; market: string; fileName: string; checksum: string; total: number; ok: number; duplicates: number; errors: number; rows: PreviewRow[]; fileProblem: Pair | null; notes?: Pair[] }
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 const input = z.object({ kind: z.enum(IMPORT_KINDS), market: z.string().length(2), fileName: z.string().trim().min(1).max(160), text: z.string().min(1) })
@@ -98,6 +122,12 @@ export async function previewImport(ctx: Ctx, raw: z.input<typeof input>): Promi
   const missing = cols.filter((c) => c.required && !index.has(c.key))
   if (missing.length) return { ...base, fileProblem: [`Faltan columnas: ${missing.map((c) => c.names[0]).join(', ')}. Baja la plantilla y úsala como guía.`, `Missing columns: ${missing.map((c) => c.names[1] ?? c.key).join(', ')}. Download the template and use it as a guide.`] }
   if (table.rows.length === 0) return { ...base, fileProblem: ['El archivo no trae filas.', 'The file has no rows.'] }
+  const isLeads = kind === 'leads' || kind === 'mx_leads'
+  if (kind === 'mx_leads' && market !== 'MX') return { ...base, fileProblem: ['La hoja de leads de México solo se importa en el mercado MX.', 'The Mexico leads sheet only imports into the MX market.'] }
+  const promo = table.headers.filter(isPromoColumn)
+  const notes: Pair[] = promo.length ? [[`Las columnas de promoción no se cargan: ${promo.join(', ')}.`, `Promotion columns are not loaded: ${promo.join(', ')}.`]] : []
+  const reasons = kind === 'mx_leads' ? await withUser(ctx.user.id, (tx) => tx<{ code: string; label_es: string; label_en: string; motors: string[] | null }[]>`
+    select code, label_es, label_en, motors from crm.loss_reasons where kind = 'lost' and is_active and (market_code is null or market_code = ${market}) order by position, code`) : []
   if (table.rows.length > IMPORT_MAX_ROWS) return { ...base, fileProblem: [`El archivo trae ${table.rows.length} filas y el tope es ${IMPORT_MAX_ROWS}. Divídelo en partes.`, `The file has ${table.rows.length} rows and the limit is ${IMPORT_MAX_ROWS}. Split it into parts.`] }
 
   const rows: PreviewRow[] = table.rows.map((r, i) => {
@@ -108,12 +138,24 @@ export async function previewImport(ctx: Ctx, raw: z.input<typeof input>): Promi
       if (c.required && !val) problems.push([`Falta ${c.names[0]}.`, `${c.names[1] ?? c.key} is missing.`])
       if (val.length > c.max) problems.push([`${c.names[0]}: máximo ${c.max} caracteres.`, `${c.names[1] ?? c.key}: at most ${c.max} characters.`])
     }
-    const main = kind === 'accounts' ? values.name! : kind === 'leads' ? values.business_name! : values.full_name!
+    const main = kind === 'accounts' ? values.name! : isLeads ? values.business_name! : values.full_name!
     if (main && main.length < 2) problems.push(['El nombre es demasiado corto.', 'The name is too short.'])
     if (values.phone && !toE164(values.phone, mk.phoneCc)) problems.push(['El teléfono no parece válido.', 'The phone number does not look valid.'])
     if (values.email && !z.string().email().safeParse(values.email).success) problems.push(['El correo no parece válido.', 'The email does not look valid.'])
-    if (kind === 'leads' && !values.phone && !values.email) problems.push(['Hace falta un teléfono o un correo.', 'A phone or an email is required.'])
-    if (kind === 'leads' && values.motor && !(MOTORS as readonly string[]).includes(values.motor.toLowerCase())) problems.push(['Tipo de venta: usa d2d, b2b o dealer.', 'Sale type: use d2d, b2b or dealer.'])
+    if (isLeads && !values.phone && !values.email) problems.push(['Hace falta un teléfono o un correo.', 'A phone or an email is required.'])
+    if (kind === 'mx_leads') {
+      const st = sheetLeadState(values.state ?? '')
+      if (!st) problems.push(['Estado: usa abierto o muerto.', 'Status: use open or dead.'])
+      if (st === 'dead') {
+        const want = norm(values.reason ?? '')
+        const motor = (values.motor || 'd2d').toLowerCase()
+        const hit = want ? reasons.find((r) => (norm(r.code) === want || norm(r.label_es) === want || norm(r.label_en) === want) && (!r.motors || r.motors.includes(motor))) : undefined
+        if (!want) problems.push(['Un lead muerto necesita su motivo.', 'A dead lead needs its reason.'])
+        else if (!hit) problems.push([`Motivo "${values.reason}" no está en el catálogo de México. Usa uno de: ${reasons.filter((r) => !r.motors || r.motors.includes(motor)).map((r) => r.label_es).join(', ')}.`, `Reason "${values.reason}" is not in the Mexico list. Use one of: ${reasons.filter((r) => !r.motors || r.motors.includes(motor)).map((r) => r.label_en).join(', ')}.`])
+        else values.reason_code = hit.code
+      }
+    }
+    if (isLeads && values.motor && !(MOTORS as readonly string[]).includes(values.motor.toLowerCase())) problems.push(['Tipo de venta: usa d2d, b2b o dealer.', 'Sale type: use d2d, b2b or dealer.'])
     if (kind === 'accounts' && values.segment && !SEGMENTS.includes(values.segment.toLowerCase())) problems.push(['Canal: usa d2d, b2b, dealer, event, orders u other.', 'Channel: use d2d, b2b, dealer, event, orders or other.'])
     if (kind === 'accounts' && values.kind && !KINDS.includes(kindOf(values.kind))) problems.push(['Tipo: usa tienda, cadena, distribuidor u organización.', 'Type: use store, chain, distributor or organization.'])
     if (kind === 'contacts' && values.role && !(CONTACT_ROLES as readonly string[]).includes(roleOf(values.role))) problems.push(['Rol: usa uno de los que dice la plantilla (dueño del comercio, decisor, gerente, personal...).', 'Role: use one of those listed in the template (owner, decision_maker, manager, staff...).'])
@@ -143,7 +185,7 @@ export async function previewImport(ctx: Ctx, raw: z.input<typeof input>): Promi
     for (const r of rows) {
       if (r.status !== 'ok') continue
       const phone = r.values.phone ? toE164(r.values.phone, mk.phoneCc) : null
-      if (kind === 'accounts' || kind === 'leads') {
+      if (kind === 'accounts' || isLeads) {
         const dup = await tx<{ name: string; match: string }[]>`select name, match from app.duplicate_candidates(${market}, ${r.label}, ${phone}) limit 1`
         if (dup[0]) {
           r.status = 'duplicate'
@@ -151,7 +193,7 @@ export async function previewImport(ctx: Ctx, raw: z.input<typeof input>): Promi
           continue
         }
       }
-      if (kind === 'leads') {
+      if (isLeads) {
         const email = r.values.email?.toLowerCase() || null
         const open = await tx<{ business_name: string }[]>`
           select business_name from crm.leads where market_code = ${market} and status in ('new','contacted','qualified')
@@ -182,13 +224,24 @@ export async function previewImport(ctx: Ctx, raw: z.input<typeof input>): Promi
       }
     }
   })
-  return { ...base, total: rows.length, ok: rows.filter((r) => r.status === 'ok').length, duplicates: rows.filter((r) => r.status === 'duplicate').length, errors: rows.filter((r) => r.status === 'error').length, rows, fileProblem: null }
+  return { ...base, total: rows.length, ok: rows.filter((r) => r.status === 'ok').length, duplicates: rows.filter((r) => r.status === 'duplicate').length, errors: rows.filter((r) => r.status === 'error').length, rows, fileProblem: null, notes }
 }
 
 export type ImportResult = { id: string; total: number; created: number; duplicates: number; rejected: number }
 
 /** Importa las filas buenas del archivo. `checksum` es el de la vista previa: si el archivo cambió, hay que volver a revisarlo. */
 export async function runImport(ctx: Ctx, raw: z.input<typeof input> & { checksum: string }): Promise<ImportResult> {
+  // E5.F3/F4: una importación también es una carga: queda con inicio y fin y no corre junto con otra ni en la ventana de mantenimiento.
+  const out = await withLoad('imports', 'manual', ctx.user.id, async () => {
+    const r = await runImportNow(ctx, raw)
+    return { ...r, done: r.created, note: `${raw.kind} ${raw.market}` }
+  })
+  const blocked = 'status' in out ? loadBlocked(out) : null
+  if (blocked) throw new DomainError('busy', blocked[0], blocked[1], 409)
+  return out as ImportResult
+}
+
+async function runImportNow(ctx: Ctx, raw: z.input<typeof input> & { checksum: string }): Promise<ImportResult> {
   const p = await previewImport(ctx, raw)
   if (p.fileProblem) throw new DomainError('invalid', p.fileProblem[0], p.fileProblem[1])
   if (p.checksum !== raw.checksum) throw invalid('El archivo cambió desde la vista previa. Revísalo otra vez.', 'The file changed since the preview. Check it again.')
@@ -228,9 +281,16 @@ export async function runImport(ctx: Ctx, raw: z.input<typeof input> & { checksu
           }
           await withUser(ctx.user.id, (tx) => markUntrusted(tx, 'account', out.id!, p.market, 'csv_import', ['name', ...(x.locality ? ['locality'] : []), ...(x.region ? ['region'] : [])]))
           outcomes.push({ row_no: r.rowNo, outcome: 'created', object: 'account', object_id: out.id, detail: null })
-        } else if (p.kind === 'leads') {
+        } else if (p.kind === 'leads' || p.kind === 'mx_leads') {
           const id = await createImportedLead(ctx, { market: p.market, motor: (x.motor || 'd2d').toLowerCase(), businessName: x.business_name!, contactName: x.contact_name!, phone: x.phone, email: x.email, locality: x.locality, message: x.message })
-          outcomes.push({ row_no: r.rowNo, outcome: 'created', object: 'lead', object_id: id, detail: null })
+          // E18.F8: el lead muerto de la hoja entra cerrado con su motivo. Deshacer la importación también lo retira.
+          if (p.kind === 'mx_leads' && x.reason_code) {
+            await withUser(ctx.user.id, async (tx) => {
+              await tx`update crm.leads set status = 'disqualified', disqualify_code = ${x.reason_code!} where id = ${id}`
+              await audit(tx, ctx, 'lead.disqualified', 'lead', id, p.market, { status: 'new' }, { status: 'disqualified', reason: x.reason_code, via: 'mx_sheet' })
+            })
+            outcomes.push({ row_no: r.rowNo, outcome: 'created', object: 'lead', object_id: id, detail: 'closed_on_import' })
+          } else outcomes.push({ row_no: r.rowNo, outcome: 'created', object: 'lead', object_id: id, detail: null })
         } else {
           const id = await addContact(ctx, x.account_id!, { fullName: x.full_name!, phone: x.phone, email: x.email, role: roleOf(x.role || 'owner') as 'owner' })
           await withUser(ctx.user.id, (tx) => markUntrusted(tx, 'contact', id, p.market, 'csv_import', ['full_name']))

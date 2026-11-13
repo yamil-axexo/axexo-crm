@@ -13,4 +13,9 @@ export type Job = {
   description: { es: string; en: string }
   /** Runs without a signed-in user. Returns how many records it touched and an optional note for the log. */
   run: (tx: Tx) => Promise<{ done: number; note?: string }>
+  /**
+   * E5.F3/F4/F5 (integraciones2): si es una carga de datos, cuál. El corredor la anota con inicio y fin, no la corre en la
+   * ventana de mantenimiento de su mercado ni junto con otra carga, y avisa a su responsable si falla.
+   */
+  load?: 'pipedrive' | 'sales_file' | 'store_sales' | 'sales_app' | 'imports'
 }
