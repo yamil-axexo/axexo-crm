@@ -142,6 +142,7 @@ describe('E9.F5: origen del comercio, una sola vez', () => {
     await addAlias(robert, a, { system: 'emida', externalId: `EM-${tag()}` })
     expect((await storeRecord(robert, a, 'US'))!.merchant_origin).toBe('emida_conversion')
     const b = await imported()
+    await admin`update crm.accounts set owner_id = ${(await ctxFor('jade.kim')).user.id} where id = ${b}`
     await expect(setMerchantOrigin(await ctxFor('jade.kim'), b, 'new_acquisition')).rejects.toMatchObject({ code: 'forbidden' })
     await expect(setMerchantOrigin(robert, b, 'otra_cosa')).rejects.toMatchObject({ code: 'invalid' })
     await setMerchantOrigin(await ctxFor('tom.reyes'), b, 'new_acquisition')
