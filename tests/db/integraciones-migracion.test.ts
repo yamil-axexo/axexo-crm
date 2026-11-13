@@ -5,7 +5,7 @@ import { startMock } from '../support/pipedrive-mock.mjs'
 import { importStep, startImport, type Mode } from '@/domain/pipedrive/import'
 import { decideField } from '@/domain/pipedrive/edits'
 import { resolveConflict, setCutover, setGoalTarget } from '@/domain/pipedrive/coexistence'
-import { getConflicts, getCutover, getGoals, getRebuild, getBoards } from '@/dal/coexistence'
+import { getConflicts, getCutover, getGoals, getOrphans, getRebuild, getBoards } from '@/dal/coexistence'
 import { getImportStatus } from '@/dal/imports'
 import { problemIn, describe as say } from '@/domain/automation/catalog'
 import { findJob, runJob } from '@/server/jobs/runner'
@@ -158,6 +158,17 @@ describe('GOB-05 / E6.F3: convivencia y corte por mercado', () => {
     await expect(setCutover(nora, 'US', { action: 'unfreeze' })).rejects.toMatchObject({ code: 'invalid' })
     expect(await one(admin<{ n: number }[]>`select count(*)::int as n from crm.audit_events where action = 'import.cutover_updated'`)).toMatchObject({ n: 3 })
   }, 240_000)
+})
+
+describe('E6.F6: lo que desapareció de Pipedrive se lista para que una persona decida', () => {
+  it('una organización que la importación completa ya no trae aparece en la lista; CONTIGO no la borra', async () => {
+    const before = String((await account(1005)).id)
+    mock.data.organizations = mock.data.organizations!.filter((o) => o.id !== 1005)
+    await runImport('full')
+    const o = await getOrphans(nora)
+    expect(o.rows.find((r) => r.object === 'organization' && r.external_id === '1005')).toMatchObject({ record_id: before, market_code: 'MX' })
+    expect(await admin`select 1 from crm.accounts where id = ${before}`).toHaveLength(1)
+  }, 180_000)
 })
 
 describe('GOB-05: lo que el equipo armó en Pipedrive existe en CONTIGO', () => {

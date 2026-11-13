@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Ctx } from '@/server/context'
-import { getConflicts, getCutover, getRebuild, type RebuildRow } from '@/dal/coexistence'
+import { getConflicts, getCutover, getOrphans, getRebuild, type RebuildRow } from '@/dal/coexistence'
 import { Badge, Card, CardTitle, Empty, NoData } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { dayTime } from '@/lib/format'
@@ -28,7 +28,7 @@ const link = (o: string, id: string) => (o === 'deal' ? `/deals/${id}` : o === '
 /** GOB-05 y E6.F2/F3/F6: convivencia por mercado, choques por decidir y lo que falta por reconstruir de Pipedrive. */
 export async function CoexistenceCards({ ctx }: { ctx: Ctx }) {
   const { t, locale } = ctx
-  const [markets, conflicts, rebuild] = await Promise.all([getCutover(ctx), getConflicts(ctx), getRebuild(ctx)])
+  const [markets, conflicts, rebuild, orphans] = await Promise.all([getCutover(ctx), getConflicts(ctx), getRebuild(ctx), getOrphans(ctx)])
   const canDecide = ctx.can('migration.decide')
   const pending = rebuild.filter((r) => r.status !== 'built').length
   const kinds = [...new Set(rebuild.map((r) => r.kind))]
@@ -123,6 +123,28 @@ export async function CoexistenceCards({ ctx }: { ctx: Ctx }) {
                       <ActionForm action={resolveConflictAction}><input type="hidden" name="id" value={c.id} /><input type="hidden" name="choice" value="take" /><Submit variant="ghost" size="sm" testId="conflict-take">{t('Usar Pipedrive', 'Use Pipedrive')}</Submit></ActionForm>
                     </div>
                   )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Card>
+
+      <Card data-testid="orphans">
+        <CardTitle
+          title={t(`Ya no están en Pipedrive (${orphans.total})`, `No longer in Pipedrive (${orphans.total})`)}
+          hint={t('Registros cargados que la última importación completa ya no trajo: se borraron o se fusionaron en Pipedrive. CONTIGO no los borra; ábrelos y decide si se archivan, se fusionan o se quedan.', 'Loaded records the last full import no longer brought: they were deleted or merged in Pipedrive. CONTIGO does not delete them; open them and decide whether to archive, merge or keep them.')}
+        />
+        {orphans.rows.length === 0 ? <Empty title={t('Nada que revisar', 'Nothing to review')} hint={t('Aparecen aquí después de una importación completa.', 'They show up here after a full import.')} /> : (
+          <ul className="divide-y divide-line">
+            {orphans.rows.map((o) => {
+              const obj = o.object === 'organization' ? 'account' : o.object === 'person' ? 'contact' : 'deal'
+              const href = o.record_id ? link(obj, o.record_id) : null
+              const label = o.label || t('(sin nombre)', '(no name)')
+              return (
+                <li key={`${o.object}:${o.external_id}`} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-[13.5px]" data-testid="orphan-row">
+                  <span className="text-strong">{t(OBJECT[obj]![0], OBJECT[obj]![1])} · {href ? <Link href={href} className="underline">{label}</Link> : label}</span>
+                  <span className="text-muted-2">{o.market_code ?? ''} · {t('visto por última vez', 'last seen')} {dayTime(o.fetched_at, locale, 'UTC')}</span>
                 </li>
               )
             })}

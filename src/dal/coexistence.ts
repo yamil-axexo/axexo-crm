@@ -134,3 +134,31 @@ export async function opsPeople(ctx: Ctx, market: string): Promise<{ id: string;
      where u.is_active and not u.is_system and m.role = 'ops' and m.market_code = ${market} and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
      order by u.full_name`)
 }
+
+export type Orphan = { object: 'organization' | 'person' | 'deal'; external_id: string; record_id: string | null; label: string | null; market_code: string | null; fetched_at: Date }
+/**
+ * E6.F6: registros que ya estaban cargados y que la última importación completa ya no trajo de Pipedrive (se borraron o
+ * se fusionaron allá). CONTIGO no los borra: quedan en esta lista para que una persona decida (archivar, fusionar o dejarlos).
+ */
+export async function getOrphans(ctx: Ctx, limit = 50): Promise<{ rows: Orphan[]; total: number }> {
+  return withUser(ctx.user.id, async (tx) => {
+    const run = await tx<{ started_at: Date }[]>`select started_at from crm.import_runs where source = 'pipedrive' and status = 'done' and cursor ->> 'mode' = 'full' order by started_at desc limit 1`
+    if (!run[0]) return { rows: [], total: 0 }
+    const since = run[0].started_at
+    const rows = await tx<Orphan[]>`
+      select r.object, r.external_id, r.fetched_at,
+             coalesce(al.account_id, er.internal_id) as record_id,
+             coalesce(a.name, c.full_name, d.title) as label, coalesce(a.market_code, c.market_code, d.market_code) as market_code
+        from crm.import_raw r
+        left join crm.account_aliases al on r.object = 'organization' and al.system = 'pipedrive' and al.external_id = r.external_id and al.valid_to is null
+        left join crm.external_refs er on r.object in ('person', 'deal') and er.system = 'pipedrive' and er.object = r.object and er.external_id = r.external_id
+        left join crm.accounts a on a.id = al.account_id
+        left join crm.contacts c on r.object = 'person' and c.id = er.internal_id
+        left join crm.deals d on r.object = 'deal' and d.id = er.internal_id
+       where r.source = 'pipedrive' and r.object in ('organization', 'person', 'deal') and r.fetched_at < ${since} and r.loaded_at is not null and r.load_note is null
+       order by r.object, r.external_id limit ${limit}`
+    const total = await tx<{ n: number }[]>`select count(*)::int as n from crm.import_raw where source = 'pipedrive' and object in ('organization', 'person', 'deal')
+      and fetched_at < ${since} and loaded_at is not null and load_note is null`
+    return { rows: [...rows], total: total[0]?.n ?? 0 }
+  })
+}
