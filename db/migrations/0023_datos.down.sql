@@ -1,4 +1,8 @@
 -- 0023_datos (down): quita lo que agregó el paquete datos. Los alias con un sistema nuevo pasan a "other" para que vuelva el check.
+drop function if exists app.quality_snapshot();
+drop function if exists app.quality_failing(text, text, int);
+drop function if exists app.quality_measure();
+drop function if exists app.user_team(uuid, text);
 drop trigger if exists deal_ops_checks_to_account on crm.deal_ops_checks;
 drop function if exists crm.deal_check_to_account_product();
 drop table if exists crm.account_product_events;

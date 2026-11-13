@@ -152,7 +152,7 @@ export async function getAccount(ctx: Ctx, id: string) {
     const contacts = await tx<{ id: string; full_name: string; phone: string | null; email: string | null; role: string; valid_from: Date; is_primary: boolean; preferred_locale: string | null; sms_capable: boolean | null }[]>`
       select c.id, c.full_name, c.phone, c.email::text, ac.role, ac.valid_from, ac.is_primary, c.preferred_locale, c.sms_capable
         from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
-       where ac.account_id = ${id} and ac.valid_to is null order by ac.is_primary desc, ac.role, c.full_name`
+       where ac.account_id = ${id} and ac.valid_to is null and ac.deal_id is null order by ac.is_primary desc, ac.role, c.full_name`
     const aliases = await tx<{ system: string; external_id: string; valid_from: Date }[]>`
       select system, external_id, valid_from from crm.account_aliases where account_id = ${id} and valid_to is null order by system`
     const attributions = await tx<{ layer: string; party_label: string; party_kind: string; effective_from: Date; effective_to: Date | null }[]>`

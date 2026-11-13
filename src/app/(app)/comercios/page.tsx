@@ -116,6 +116,9 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 )}
                 <IntakeFields defs={intake} locale={locale} legend={t('Para calificar (lo que falte se completa después en la ficha)', 'To qualify (anything missing can be filled in later on the record)')} yes={t('Sí', 'Yes')} no={t('No', 'No')} />
                 <label className="col-span-2 flex items-center gap-3 text-[14px] text-muted-2"><input type="checkbox" name="force" className="h-4 w-4" data-testid="account-force" />{t('Crear de todos modos si se parece a uno que ya existe', 'Create anyway if it looks like an existing one')}</label>
+                <Field label={t('Si se parece a otro: ¿por qué es un comercio distinto?', 'If it looks like another one: why is it a different merchant?')} className="col-span-2" hint={t('Solo hace falta cuando marcas "Crear de todos modos". Lo revisa quien lidera tu mercado.', 'Only needed when you tick "Create anyway". Your market lead reviews it.')}>
+                  <input name="reason" className="input" maxLength={400} data-testid="account-reason" />
+                </Field>
                 <div className="col-span-2 flex justify-end"><Submit testId="save-account">{t('Guardar comercio', 'Save merchant')}</Submit></div>
               </ActionForm>
             </Dialog>

@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { Activity, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, CircleHelp, Database, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -88,6 +88,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                 : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
+              {ctx.can('data.quality') && <Link href="/datos" role="menuitem" className={menuLink} data-testid="nav-data"><Database size={20} strokeWidth={1.75} aria-hidden />{t('Datos', 'Data')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}
               {ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>

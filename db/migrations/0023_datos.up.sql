@@ -108,7 +108,9 @@ create or replace function app.scan_duplicates(p_market text default null) retur
 language plpgsql security definer set search_path = crm, app, public, extensions, pg_catalog as $$
 declare n int;
 begin
-  if app.current_user_id() is not null and not (app.is_admin() or (p_market is not null and p_market = any(app.lead_markets()))) then
+  -- La corre la tarea programada (sin persona o como usuario de sistema), administración, o quien lidera ese mercado.
+  if app.current_user_id() is not null and app.current_user_id() is distinct from app.system_user_id()
+     and not (app.is_admin() or (p_market is not null and p_market = any(app.lead_markets()))) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
   with live as (
@@ -400,6 +402,16 @@ create table crm.quality_snapshots (
 );
 create unique index quality_snapshots_uq on crm.quality_snapshots (as_of, market_code, coalesce(team_id, '00000000-0000-0000-0000-000000000000'::uuid), rule_code);
 
+-- El equipo de quien lleva un registro en un mercado (para agrupar la calidad por equipo sin exponer las membresías).
+create or replace function app.user_team(p_user uuid, p_market text) returns uuid
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select m.team_id from crm.memberships m
+   where m.user_id = p_user and m.market_code = p_market and m.team_id is not null
+     and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
+   order by m.valid_from limit 1
+$$;
+grant execute on function app.user_team(uuid, text) to contigo_app;
+
 -- ================================================================ DAT-07 productos por comercio
 alter table crm.products add column provider_id uuid references crm.ops_catalog(id);
 alter table crm.products add column legal_entity_id uuid references crm.legal_entities(id);
@@ -566,3 +578,110 @@ create policy account_products_upd on crm.account_products for update to contigo
   using (market_code = any((select app.ops_markets())::text[])) with check (market_code = any((select app.ops_markets())::text[]));
 create policy account_product_events_read on crm.account_product_events for select to contigo_app
   using (exists (select 1 from crm.account_products p where p.id = account_product_events.account_product_id));
+
+-- ================================================================ GOB-02 medición de las reglas de calidad
+-- Una sola definición de cada regla. Corre con los permisos de quien la llama: cada quien mide lo que ve
+-- (supervisión, su equipo; quien lidera, su mercado). El corte diario la llama desde una función con dueño y ve todo.
+create or replace function app.quality_measure()
+returns table (market_code text, team_id uuid, rule_code text, total int, failing int)
+language sql stable set search_path = crm, app, public, pg_catalog as $$
+  with acct as (
+    select a.id, a.market_code, a.kind, a.owner_id, a.parent_id, a.phone, a.address_line, a.locality, a.latitude, a.lifecycle, a.merchant_ref, a.updated_at,
+           app.user_team(a.owner_id, a.market_code) as team_id
+      from crm.accounts a where a.archived_at is null
+  ), cfg as (
+    select coalesce((select threshold from crm.quality_rules where code = 'stale'), 180) as stale_days
+  )
+  select x.market_code, x.team_id, 'no_owner', count(*)::int, (count(*) filter (where x.owner_id is null and x.parent_id is null))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_phone', count(*)::int, (count(*) filter (where x.phone is null))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_contact', count(*)::int,
+         (count(*) filter (where not exists (select 1 from crm.account_contacts ac where ac.account_id = x.id and ac.valid_to is null)))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_address', count(*)::int, (count(*) filter (where x.address_line is null or x.locality is null))::int from acct x group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_coords', count(*)::int, (count(*) filter (where x.latitude is null))::int from acct x where x.kind = 'store' group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'no_alias', count(*)::int,
+         (count(*) filter (where x.merchant_ref is null and not exists (select 1 from crm.account_aliases al where al.account_id = x.id and al.valid_to is null)))::int
+    from acct x where x.lifecycle <> 'prospect' group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'stale', count(*)::int,
+         (count(*) filter (where x.updated_at < now() - make_interval(days => cfg.stale_days)
+            and not exists (select 1 from crm.activities ac where ac.account_id = x.id and ac.created_at > now() - make_interval(days => cfg.stale_days))
+            and not exists (select 1 from crm.visits v where v.account_id = x.id and v.checked_in_at > now() - make_interval(days => cfg.stale_days))))::int
+    from acct x cross join cfg group by 1, 2
+  union all
+  select mk.code, null::uuid, 'duplicate', (select count(*)::int from acct x where x.market_code = mk.code),
+         (select count(*)::int from crm.duplicate_pairs p where p.market_code = mk.code and p.status = 'open')
+    from crm.markets mk where mk.status = 'live' and mk.code = any(app.my_markets())
+  union all
+  select b.market_code, app.user_team(b.actor_id, b.market_code), 'bypass', count(*)::int, (count(*) filter (where b.reviewed_at is null))::int
+    from crm.duplicate_bypasses b group by 1, 2
+  union all
+  select d.market_code, app.user_team(d.owner_id, d.market_code), 'deal_no_step', count(*)::int, (count(*) filter (where d.next_step is null or d.next_step_due is null))::int
+    from crm.deals d where d.status = 'open' group by 1, 2
+  union all
+  select p.market_code, null::uuid, 'provider_late', count(*)::int,
+         (count(*) filter (where k.sla_days is not null and p.submitted_at < now() - make_interval(days => k.sla_days)))::int
+    from crm.account_products p left join crm.ops_catalog k on k.id = p.provider_id where p.status = 'submitted' group by 1
+  union all
+  select mk.code, null::uuid, 'field_review', count(f.id)::int,
+         (count(f.id) filter (where f.decision is null or f.owner_id is null or f.review_on is null or f.review_on < (now() at time zone mk.timezone)::date))::int
+    from crm.markets mk join crm.field_definitions f on f.is_active and (f.market_code is null or f.market_code = mk.code)
+   where mk.status = 'live' and mk.code = any(app.my_markets()) group by mk.code
+$$;
+grant execute on function app.quality_measure() to contigo_app;
+
+-- La cola de una regla: los registros que hoy la incumplen en un mercado, para abrirlos y corregirlos.
+create or replace function app.quality_failing(p_rule text, p_market text, p_limit int default 100)
+returns table (kind text, id uuid, name text, who text, since timestamptz)
+language sql stable set search_path = crm, app, public, pg_catalog as $$
+  with cfg as (select coalesce((select threshold from crm.quality_rules where code = 'stale'), 180) as stale_days)
+  (select 'account', a.id, a.name, u.full_name, a.updated_at
+     from crm.accounts a cross join cfg left join crm.users u on u.id = a.owner_id
+    where a.archived_at is null and a.market_code = p_market and case p_rule
+            when 'no_owner' then a.owner_id is null and a.parent_id is null
+            when 'no_phone' then a.phone is null
+            when 'no_contact' then not exists (select 1 from crm.account_contacts ac where ac.account_id = a.id and ac.valid_to is null)
+            when 'no_address' then a.address_line is null or a.locality is null
+            when 'no_coords' then a.kind = 'store' and a.latitude is null
+            when 'no_alias' then a.lifecycle <> 'prospect' and a.merchant_ref is null and not exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null)
+            when 'stale' then a.updated_at < now() - make_interval(days => cfg.stale_days)
+                 and not exists (select 1 from crm.activities ac where ac.account_id = a.id and ac.created_at > now() - make_interval(days => cfg.stale_days))
+                 and not exists (select 1 from crm.visits v where v.account_id = a.id and v.checked_in_at > now() - make_interval(days => cfg.stale_days))
+            when 'provider_late' then exists (select 1 from crm.account_products p join crm.ops_catalog k on k.id = p.provider_id
+                   where p.account_id = a.id and p.status = 'submitted' and k.sla_days is not null and p.submitted_at < now() - make_interval(days => k.sla_days))
+            else false end
+    order by a.updated_at limit greatest(1, least(p_limit, 500)))
+  union all
+  (select 'deal', d.id, d.title, u.full_name, d.updated_at
+     from crm.deals d left join crm.users u on u.id = d.owner_id
+    where p_rule = 'deal_no_step' and d.market_code = p_market and d.status = 'open' and (d.next_step is null or d.next_step_due is null)
+    order by d.updated_at limit greatest(1, least(p_limit, 500)))
+$$;
+grant execute on function app.quality_failing(text, text, int) to contigo_app;
+
+-- Corte del día: guarda la medición de todo (mercado, equipo, regla). Segura de correr dos veces: el corte de hoy se reemplaza.
+create or replace function app.quality_snapshot() returns int
+language plpgsql security definer set search_path = crm, app, public, pg_catalog as $$
+declare n int;
+begin
+  if app.current_user_id() is not null and app.current_user_id() is distinct from app.system_user_id() and not app.is_admin() then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  -- Dentro de esta función la medición ve todos los mercados: se fija una identidad de sistema solo para app.my_markets().
+  perform set_config('app.user_id', app.system_user_id()::text, true);
+  with ins as (
+    insert into crm.quality_snapshots (as_of, market_code, team_id, rule_code, total, failing)
+    select (now() at time zone mk.timezone)::date, q.market_code, q.team_id, q.rule_code, q.total, q.failing
+      from app.quality_measure() q join crm.markets mk on mk.code = q.market_code
+    on conflict (as_of, market_code, coalesce(team_id, '00000000-0000-0000-0000-000000000000'::uuid), rule_code)
+    do update set total = excluded.total, failing = excluded.failing, created_at = now()
+    returning 1
+  )
+  select count(*) into n from ins;
+  return n;
+end $$;
+grant execute on function app.quality_snapshot() to contigo_app;

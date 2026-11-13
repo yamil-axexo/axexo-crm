@@ -12,12 +12,16 @@ import { Badge, Field, KeyVal, LinkButton, cx, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CompleteButton } from '@/ui/complete'
 import { CallLink, LogButton } from '@/ui/log'
-import { ConfirmButton, CopyButton } from '@/ui/confirm'
+import { ConfirmButton } from '@/ui/confirm'
 import { ago, day, isoDay, offsetMs, money, monthYear, num, phoneText, threadDate, weekday, zoneNote } from '@/lib/format'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
-import { ACTIVITY, ALIAS_SYSTEM, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
+import { ACTIVITY, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
-import { addContactAction, setParentAction, updateAccountAction } from './actions'
+import { addContactAction, updateAccountAction } from './actions'
+import { moveInTreeAction } from '@/app/(app)/datos/actions'
+import { accountIdentity, nodeTotals } from '@/dal/datos'
+import { contactRolesFor } from '@/lib/datos-labels'
+import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSection, ProductsSection, TreeTotals } from './datos-ficha'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
@@ -156,6 +160,13 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   // Los campos de un tipo de venta (los de B2B) solo salen en cuentas de ese tipo de venta, y los condicionados, cuando aplican.
   const defs = tab === 'datos' ? (await fieldDefs(ctx, 'account', a.market_code, a.segment)).filter((d) => fieldApplies(d, a.custom)) : []
   const typeName = a.type_es ? t(a.type_es, a.type_en ?? a.type_es) : lab(t, KIND[a.kind])
+  // Paquete datos: identidad del comercio (movimientos en el árbol, contactos, ID de otros sistemas, productos, procesos, fusiones)
+  // y lo que suma el nodo con todo lo que cuelga de él.
+  const identity = tab === 'datos' || tab === 'arbol' ? await accountIdentity(ctx, a.id, a.market_code) : null
+  const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id) : null
+  const canAlias = !a.archived_at && ctx.can('alias.manage', a.market_code)
+  const canProducts = !a.archived_at && ctx.can('account.products', a.market_code)
+  const contactRoles = contactRolesFor(a.segment, Object.keys(CONTACT_ROLE))
   const config = tab === 'hilo' && canWrite && tasks.length ? sheetConfig(ctx, now) : null
 
   return (
@@ -365,6 +376,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </p>
             </div>
           )}
+          {identity && (totals || identity.moves.length > 0) && <TreeTotals ctx={ctx} totals={totals} moves={identity.moves} tz={tz} />}
           {ancestors.length + children.length === 0 ? (
             <p className="text-[15px] text-muted">{m('record.tree.alone')}</p>
           ) : (
@@ -487,8 +499,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                   <ActionForm action={addContactAction} onOk="close" className="grid grid-cols-2 gap-4">
                     <input type="hidden" name="account_id" value={a.id} />
                     <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="full_name" className="input" required minLength={2} data-testid="contact-name" /></Field>
-                    <Field label={t('Rol', 'Role')}><select name="role" className="input" data-testid="contact-role">{Object.entries(CONTACT_ROLE).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
-                    <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="contact-phone" /></Field>
+                    <Field label={t('Rol', 'Role')}><select name="role" className="input" data-testid="contact-role">{contactRoles.map((k) => <option key={k} value={k}>{lab(t, CONTACT_ROLE[k])}</option>)}</select></Field>
+                    <Field label={t('Teléfono', 'Phone')} hint={t('Si esa persona ya es contacto de otra cuenta con este teléfono, se liga a esta: no se captura dos veces.', 'If that person is already a contact of another account with this phone, they are linked to this one: no second entry.')}><input name="phone" className="input" inputMode="tel" data-testid="contact-phone" /></Field>
                     <Field label={t('Correo', 'Email')} className="col-span-2"><input name="email" type="email" className="input" /></Field>
                     <Field label={t('Idioma preferido', 'Preferred language')} className="col-span-2 sm:col-span-1">
                       <select name="locale" className="input" defaultValue="" data-testid="contact-locale"><option value="">{t('Sin dato', 'Not set')}</option><option value="es">{t('Español', 'Spanish')}</option><option value="en">{t('Inglés', 'English')}</option></select>
@@ -521,10 +533,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                       <Submit variant="quiet" size="sm" testId="contact-make-primary">{t('Hacer principal', 'Make primary')}</Submit>
                     </ActionForm>
                   )}
+                  {identity && <ContactTools ctx={ctx} accountId={a.id} segment={a.segment} contact={c} others={identity.otherAccounts.get(c.id) ?? []} canEdit={canEdit} />}
                 </li>
               ))}
               {contacts.length === 0 && <li className="text-[15px] text-muted">{t('Sin contactos todavía.', 'No contacts yet.')}</li>}
             </ul>
+            {identity && <ContactHistory ctx={ctx} identity={identity} tz={tz} />}
           </section>
 
           <section className={section} data-testid="account-attribution">
@@ -542,19 +556,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </section>
 
           <section className={section} data-testid="account-aliases">
-            <h3 className={h3}>{t('IDs en otros sistemas', 'IDs in other systems')}</h3>
-            <p className="text-[13px] text-muted">{t('Este comercio tiene un solo ID en CONTIGO; los demás sistemas se ligan como alias.', 'This merchant has one ID in CONTIGO; other systems link to it as aliases.')}</p>
-            <dl className="mt-2">
-              <KeyVal k="CONTIGO"><code className="text-[13px]">{a.id.slice(0, 13)}…</code></KeyVal>
-              {aliases.map((al, i) => (
-                <KeyVal key={i} k={ALIAS_SYSTEM[al.system] ?? al.system}>
-                  <code className="text-[13px]" data-testid="alias-value">{al.external_id}</code>
-                  <CopyButton value={al.external_id} label={t(`Copiar el ID de ${ALIAS_SYSTEM[al.system] ?? al.system}`, `Copy the ${ALIAS_SYSTEM[al.system] ?? al.system} ID`)} done={t('ID copiado.', 'ID copied.')} />
-                </KeyVal>
-              ))}
-            </dl>
-            {aliases.length === 0 && <p className="mt-2 text-[13px] text-muted">{t('Todavía no existe en la Sales App ni en los datos de ventas.', 'It is not in the Sales App or the sales data yet.')}</p>}
+            {identity && <AliasSection ctx={ctx} accountId={a.id} identity={identity} canManage={canAlias} tz={tz} />}
           </section>
+
+          {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={identity} canManage={canProducts} />}
+          {identity && <ProcessSection ctx={ctx} accountId={a.id} identity={identity} canEdit={canEdit} />}
+          {identity && <MergeSection ctx={ctx} accountId={a.id} identity={identity} tz={tz} />}
 
           {defs.length > 0 && (
             <section className={section} data-testid="account-custom">
@@ -592,7 +599,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <div className="mt-3 flex justify-end"><Submit variant="ghost" size="sm" testId="type-save">{t('Guardar tipo', 'Save type')}</Submit></div>
               </ActionForm>
               {canTree && (
-                <ActionForm action={setParentAction} className="mt-6 border-t border-line pt-5">
+                <ActionForm action={moveInTreeAction} className="mt-6 border-t border-line pt-5" testId="parent-form">
                   <input type="hidden" name="id" value={a.id} />
                   <Field label={t('Pertenece a', 'Belongs to')} hint={canReassign ? undefined : t('Puedes armar el árbol con cuentas que son tuyas.', 'You can build the tree with accounts that are yours.')}>
                     <select name="parent_id" className="input" defaultValue={a.parent_id ?? ''} data-testid="parent-select">
@@ -601,6 +608,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                       {parents.filter((p) => p.id !== a.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </Field>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-[1fr_auto]">
+                    <Field label={a.parent_id ? t('¿Por qué se mueve?', 'Why is it moving?') : t('Motivo (opcional la primera vez)', 'Reason (optional the first time)')} hint={t('Queda en la historia del árbol. La cuenta conserva su historia, su atribución y a quien la lleva.', 'It stays in the tree history. The account keeps its history, its attribution and its owner.')}>
+                      <input name="reason" className="input" required={!!a.parent_id} minLength={5} maxLength={300} data-testid="parent-reason" />
+                    </Field>
+                    <Field label={t('Fecha efectiva', 'Effective date')}><input name="effective_on" type="date" className="input" defaultValue={today} max={today} data-testid="parent-date" /></Field>
+                  </div>
                   <div className="mt-3 flex justify-end"><Submit variant="ghost" size="sm" testId="parent-save">{t('Mover en el árbol', 'Move in the tree')}</Submit></div>
                 </ActionForm>
               )}
