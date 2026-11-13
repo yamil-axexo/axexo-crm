@@ -282,12 +282,12 @@ describe('E10.F3, F4 y F14', () => {
     const docs = await admin<{ code: string }[]>`select code from crm.ops_catalog where market_code = 'US' and kind = 'document' and is_active order by position`
     for (const c of ['sellers_permit', 'drivers_license', 'voided_check', 'premises_photo']) expect(docs.map((d) => d.code)).toContain(c)
     const approvals = await one(admin<{ required_fields: string[]; highlight_fields: string[] }[]>`select required_fields, highlight_fields from crm.stages where id = ${await stage('carrier')}`)
-    expect(approvals.highlight_fields.sort()).toEqual(['field:daily_limit', 'field:requested_credit_line'])
-    const all = await admin<{ n: number }[]>`select count(*)::int as n from crm.stages where required_fields && array['field:daily_limit','field:requested_credit_line']`
+    expect(approvals.highlight_fields.sort()).toEqual(['field:ops_daily_limit', 'field:ops_requested_credit_line'])
+    const all = await admin<{ n: number }[]>`select count(*)::int as n from crm.stages where required_fields && array['field:ops_daily_limit','field:ops_requested_credit_line']`
     expect(all[0]!.n).toBe(0)
     const { jade, id } = await enrollment()
-    await updateCustom(jade, 'deal', id, { daily_limit: '2500', requested_credit_line: '10000' })
-    expect((await one(admin<{ custom: Record<string, unknown> }[]>`select custom from crm.deals where id = ${id}`)).custom).toMatchObject({ daily_limit: 2500, requested_credit_line: 10000 })
+    await updateCustom(jade, 'deal', id, { ops_daily_limit: '2500', ops_requested_credit_line: '10000' })
+    expect((await one(admin<{ custom: Record<string, unknown> }[]>`select custom from crm.deals where id = ${id}`)).custom).toMatchObject({ ops_daily_limit: 2500, ops_requested_credit_line: 10000 })
   })
 })
 
@@ -387,7 +387,7 @@ describe('E12.F1, F2 y F4: toda visita lleva su propósito, elegido de una lista
     expect((await visitReasons(jade, { market: 'US' })).map((r) => r.code)).not.toContain(row.code)
     await expect(saveVisitReason(jade, { market: 'US', labelEs: 'Mío', labelEn: 'Mine' })).rejects.toMatchObject({ code: 'forbidden' })
     expect(await asPersona('jade.kim', (tx) => attempt(tx, (sp) => sp`insert into crm.visit_reasons (market_code, code, label_es, label_en) values ('US', 'mio', 'Mío', 'Mine')`))).toBe('42501')
-    expect((await admin`select 1 from crm.audit_events where object_id = ${row.id} and action in ('visit_reason.created', 'visit_reason.updated')`).length).toBe(2)
+    expect((await admin`select 1 from crm.audit_events where object_id = ${row.id} and action in ('pipeline.visit_reason_created', 'pipeline.visit_reason_updated')`).length).toBe(2)
   })
 })
 

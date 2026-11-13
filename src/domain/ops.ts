@@ -452,7 +452,7 @@ export async function saveVisitReason(ctx: Ctx, raw: z.input<typeof visitReasonI
     if (v.id) {
       const rows = await tx<{ market_code: string | null; code: string }[]>`update crm.visit_reasons set label_es = ${v.labelEs}, label_en = ${v.labelEn}, is_campaign = ${v.campaign}, is_active = ${v.active} where id = ${v.id} returning market_code, code`
       if (!rows[0]) throw notFound()
-      await audit(tx, ctx, 'visit_reason.updated', 'visit_reason', v.id, rows[0].market_code, null, { code: rows[0].code, label_es: v.labelEs, label_en: v.labelEn, campaign: v.campaign, active: v.active })
+      await audit(tx, ctx, 'pipeline.visit_reason_updated', 'visit_reason', v.id, rows[0].market_code, null, { code: rows[0].code, label_es: v.labelEs, label_en: v.labelEn, campaign: v.campaign, active: v.active })
       return
     }
     if (!v.market) throw invalid('Elige el mercado.', 'Pick the market.')
@@ -463,7 +463,7 @@ export async function saveVisitReason(ctx: Ctx, raw: z.input<typeof visitReasonI
     if (clash[0]) throw invalid('Ya existe un propósito con ese nombre en este mercado.', 'There is already a purpose with that name in this market.')
     const pos = await tx<{ n: number }[]>`select coalesce(max(position), 0)::int + 1 as n from crm.visit_reasons where coalesce(market_code, '') = ${v.market}`
     const rows = await tx<{ id: string }[]>`insert into crm.visit_reasons (market_code, code, label_es, label_en, is_campaign, position) values (${v.market}, ${code}, ${v.labelEs}, ${v.labelEn}, ${v.campaign}, ${pos[0]!.n}) returning id`
-    await audit(tx, ctx, 'visit_reason.created', 'visit_reason', rows[0]!.id, v.market, null, { code, label_es: v.labelEs, campaign: v.campaign })
+    await audit(tx, ctx, 'pipeline.visit_reason_created', 'visit_reason', rows[0]!.id, v.market, null, { code, label_es: v.labelEs, campaign: v.campaign })
   })
 }
 

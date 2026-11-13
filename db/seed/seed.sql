@@ -476,8 +476,8 @@ select 'deal', v.key, v.es, v.en, v.dt, v.opts::jsonb, 'US', 'internal', 'dealer
   (17, 'clerks_at_counter', 'Personas en el mostrador', 'Clerks at the Counter', 'number', '[]'),
   (18, 'pain_points', 'Qué le duele hoy', 'Current Pain Points', 'long_text', '[]'),
   (19, 'contract_signed_on', 'Contrato firmado y enviado', 'Contract signed & submitted', 'date', '[]'),
-  (20, 'daily_limit', 'Límite diario (USD)', 'Daily limit (USD)', 'number', '[]'),
-  (21, 'requested_credit_line', 'Línea de crédito solicitada (USD)', 'Requested credit line (USD)', 'number', '[]')
+  (20, 'ops_daily_limit', 'Límite diario (USD)', 'Daily limit (USD)', 'number', '[]'),
+  (21, 'ops_requested_credit_line', 'Línea de crédito solicitada (USD)', 'Requested credit line (USD)', 'number', '[]')
 ) v(pos, key, es, en, dt, opts);
 
 -- Candados (E10.F5, F6, F8, F9) y campos destacados sin exigirlos (E10.F7, F14).
@@ -489,8 +489,8 @@ update crm.stages s set required_fields = v.req::text[], highlight_fields = v.hi
                   '{field:primary_remittance_corridor,field:topup_destinations_served,field:primary_remittance_provider,field:remittance_frequency,field:business_bank_account,field:top_carriers_by_volume,field:monthly_topup_volume,field:monthly_remittance_volume,field:foot_traffic,field:customer_communities,field:counter_equipment,field:store_hours,field:clerks_at_counter,field:pain_points}'),
     ('qualified', '{field:primary_remittance_corridor,field:topup_destinations_served,field:primary_remittance_provider,field:remittance_frequency,field:business_bank_account,field:top_carriers_by_volume}', '{decision_maker}'),
     ('application', '{decision_maker,next_step,field:products_requested,field:account_funding}', '{field:contract_signed_on,amount}'),
-    ('carrier', '{next_step,amount,field:contract_signed_on,field:products_requested,field:account_funding}', '{field:daily_limit,field:requested_credit_line}'),
-    ('provisioned', '{}', '{field:daily_limit,field:requested_credit_line}'),
+    ('carrier', '{next_step,amount,field:contract_signed_on,field:products_requested,field:account_funding}', '{field:ops_daily_limit,field:ops_requested_credit_line}'),
+    ('provisioned', '{}', '{field:ops_daily_limit,field:ops_requested_credit_line}'),
     ('awaiting', '{}', '{}')
   ) v(code, req, hi)
  where s.pipeline_id = pg_temp.uid('p-us-dealer') and s.code = v.code;
