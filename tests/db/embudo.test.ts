@@ -20,6 +20,11 @@ import { listLeads } from '@/dal/leads'
 import { getBoard } from '@/dal/pipelines'
 import { readCatalogs } from '@/dal/api-v1'
 
+// embudo2 (ACT-02): la fecha del próximo paso tiene tope (90 días propuestos); las pruebas usan fechas cercanas.
+const SOON = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
+const SOON2 = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10)
+void SOON2
+
 const admin = owner()
 afterAll(() => admin.end())
 const one = async <T>(q: Promise<T[]>) => (await q)[0]!
@@ -30,7 +35,7 @@ async function freshDeal(motor: 'b2b' | 'd2d' = 'b2b') {
   const diana = await ctxFor('diana.cruz')
   const acc = await createAccount(diana, { market: 'MX', kind: motor === 'b2b' ? 'chain' : 'store', name: `Comercio Embudo ${tag()}`, segment: motor })
   const pipe = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = ${motor}`)
-  const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Negocio de prueba', nextStep: 'Llamar', nextStepDue: '2030-01-10' })
+  const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Negocio de prueba', nextStep: 'Llamar', nextStepDue: SOON })
   const stages = await admin<{ id: string; code: string }[]>`select id, code from crm.stages where pipeline_id = ${pipe.id} order by position`
   const stage = (code: string) => stages.find((s) => s.code === code)!.id
   return { diana, dealId, accountId: acc.id!, stage, pipelineId: pipe.id }

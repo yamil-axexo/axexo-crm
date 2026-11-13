@@ -224,7 +224,6 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'routing.assignment_rule_edited': ['Cambió el nombre o la condición de una regla de asignación', 'Changed the name or condition of an assignment rule'],
   'routing.suggestion_decided': ['Decidió una sugerencia de tienda saturada', 'Decided a saturated store suggestion'],
   'automation.owner_set': ['Confirmó quién responde por una automatización', 'Confirmed who answers for an automation'],
-  'view.official_published': ['Publicó una cola oficial', 'Published an official queue'],
   'transition.activated': ['Activó o pausó un paso de etapa propuesto', 'Turned a proposed stage step on or off'],
   'form.updated': ['Cambió un formulario web', 'Edited a web form'],
   'account.type_changed': ['Cambió el tipo de cuenta de un comercio', 'Changed a merchant’s account type'],
@@ -459,7 +458,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'rollout.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'funnel.%', 'transition.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'rollout.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%'], not: null },
   notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported', 'export.%'], not: null },

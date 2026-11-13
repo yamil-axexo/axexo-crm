@@ -40,14 +40,14 @@ export async function decideSuggestionAction(_: R | null, fd: FormData): Promise
 export async function correctActivityAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     await correctActivity(ctx, str(fd, 'id'), { subject: str(fd, 'subject'), body: str(fd, 'body'), reason: str(fd, 'reason') })
-    return { message: ['Corrección agregada. La original sigue en el hilo, marcada como corregida.', 'Correction added. The original stays in the thread, marked as corrected.'], revalidate: [`/comercios/${str(fd, 'account_id')}/hilo`, '/comercios'] }
+    return { message: ['Corrección agregada. La original sigue en el hilo, marcada como corregida.', 'Correction added. The original stays in the thread, marked as corrected.'], revalidate: [`/comercios/${str(fd, 'account_id')}/hilo`] }
   })
 }
 
 export async function setAutomationOwnerAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     await setAutomationOwner(ctx, str(fd, 'id'), str(fd, 'owner_id'))
-    return { message: ['Dueño confirmado.', 'Owner confirmed.'], revalidate: ['/admin/automatizaciones'] }
+    return { message: ['Responsable confirmado.', 'Owner confirmed.'], revalidate: ['/admin/automatizaciones'] }
   })
 }
 

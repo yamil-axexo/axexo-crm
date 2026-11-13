@@ -117,6 +117,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   // integraciones2: la bitácora de cargas y su horario, los documentos generados, el respaldo de Pipedrive y el borrado de un
   // mercado de prueba. Lo que una carga cambia emite lo suyo; un documento o un respaldo no cambian registros.
   ['load.', WHY.jobs], ['document.', WHY.read], ['pipedrive.', WHY.read], ['market.reset_test', WHY.migration],
+  // embudo2: valores del embudo, dueño de una automatización y pasos propuestos son configuración interna; la sugerencia de
+  // tienda saturada es una decisión de supervisión (la tarea que deja emite activity.added).
+  ['funnel.', WHY.internal], ['automation.owner_set', WHY.internal], ['transition.', WHY.internal], ['routing.suggestion_', WHY.internal],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.

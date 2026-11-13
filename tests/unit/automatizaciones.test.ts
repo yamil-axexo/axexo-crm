@@ -41,7 +41,9 @@ describe('AUT-03: el vocabulario de las automatizaciones', () => {
       expect(d.name.es, d.key).not.toBe(d.name.en)
       expect(`${d.name.es}${d.name.en}`, d.key).not.toMatch(/[—–]/)
     }
-    expect(DEFAULTS.map((d) => d.key)).toEqual(['lead_sla', 'revisit_due', 'activation_risk', 'no_next_step', 'stalled_deal', 'stalled_ops', 'reactivation', 'unowned_account', 'duplicate_suspect'])
+    expect(DEFAULTS.map((d) => d.key)).toEqual(['lead_sla', 'revisit_due', 'activation_risk', 'no_next_step', 'stalled_deal', 'stalled_ops', 'reactivation', 'unowned_account', 'duplicate_suspect',
+      // embudo2 (ACT-02): leads contactados y comercios en alta sin tarea siguiente.
+      'lead_no_next_step', 'onboarding_no_next_step'])
   })
   it('cada definición se lee como "cuando, si, entonces" en español y en inglés, sin códigos a la vista', () => {
     for (const d of all) {

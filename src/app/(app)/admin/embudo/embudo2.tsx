@@ -116,7 +116,7 @@ export async function ProposedFunnelValues({ ctx }: { ctx: Ctx }) {
   if (rows.length === 0 && steps.length === 0) return null
   return (
     <Card data-testid="status-proposed">
-      <CardTitle title={t('Valores propuestos por decidir', 'Proposed values to decide')} hint={t('Funcionan con un valor conservador que se puede cambiar en Administración, Embudo y Automatizaciones. Falta que su dueño lo confirme.', 'They run on a conservative value that can be changed under Administration, Pipeline and Automations. Their owner still has to confirm it.')} />
+      <CardTitle title={t('Valores propuestos por decidir', 'Proposed values to decide')} hint={t('Funcionan con un valor conservador que se puede cambiar en Administración, Embudo y Automatizaciones. Falta que quien decide lo confirme.', 'They run on a conservative value that can be changed under Administration, Pipeline and Automations. Their owner still has to confirm it.')} />
       <ul className="divide-y divide-line text-[14px]">
         {rows.map((r) => {
           const def = FUNNEL_SETTINGS.find((d) => d.key === r.key)

@@ -280,7 +280,7 @@ create index activities_corrects_idx on crm.activities (corrects_id) where corre
 create or replace function app.activities_append_only() returns trigger
 language plpgsql security definer set search_path = crm, app, pg_catalog as $$
 begin
-  if old.done_at is null or old.source = 'import' then return new; end if;
+  if old.done_at is null or old.source = 'import' or session_user <> 'contigo_app' then return new; end if;
   if new.subject is distinct from old.subject or new.body is distinct from old.body or new.done_at is distinct from old.done_at
      or new.created_by is distinct from old.created_by or new.created_at is distinct from old.created_at or new.outcome is distinct from old.outcome
      or new.corrects_id is distinct from old.corrects_id then

@@ -127,7 +127,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                           {r.is_active ? <Badge tone="good">{t('Activa', 'On')}</Badge> : <Badge tone="warn">{t('En pausa', 'Paused')}</Badge>}
                           {r.owner_review && (
                             <span className="mt-1 flex flex-wrap items-center gap-2" data-testid="auto-owner-review">
-                              <Badge tone="info">{t('Dueño por revisar', 'Owner to review')}</Badge>
+                              <Badge tone="info">{t('Responsable por confirmar', 'Owner to confirm')}</Badge>
                               {manage && r.owner_id && (
                                 <NoticeForm action={setAutomationOwnerAction} testId="auto-owner-confirm">
                                   <input type="hidden" name="id" value={r.id} /><input type="hidden" name="owner_id" value={r.owner_id} />
