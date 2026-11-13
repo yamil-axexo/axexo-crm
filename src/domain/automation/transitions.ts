@@ -324,7 +324,9 @@ export async function saveTransition(ctx: Ctx, input: z.input<typeof transitionI
   })
 }
 
-const stageTimes = z.object({ slaHours: z.number().int().min(1).max(2000).nullable(), rotDaysWaiting: z.number().int().min(0).max(365).nullable() })
+const stageTimes = z.object({ slaHours: z.number().int().min(1).max(2000).nullable(), rotDaysWaiting: z.number().int().min(0).max(365).nullable(),
+  /** PIPE-03 (embudo2): días de estancamiento cuando se espera al cliente y cuando se espera al carrier. Vacío: el de la etapa. */
+  rotDaysCustomer: z.number().int().min(1).max(365).nullable().optional(), rotDaysCarrier: z.number().int().min(1).max(365).nullable().optional() })
 
 /** Meta de tiempo de una etapa (horas hábiles) y días de estancamiento cuando se espera a un tercero. */
 export async function setStageTimes(ctx: Ctx, stageId: string, input: z.input<typeof stageTimes>): Promise<void> {
@@ -338,12 +340,14 @@ export async function setStageTimes(ctx: Ctx, stageId: string, input: z.input<ty
     const s = rows[0]
     if (!s) throw notFound('No encontramos esa etapa.', 'We could not find that stage.')
     if (s.kind === 'won' || s.kind === 'lost') throw invalid('Una etapa de cierre no lleva meta de tiempo.', 'A closing stage has no time goal.')
-    await tx`update crm.stages set sla_hours = ${v.slaHours}, rot_days_waiting = ${v.rotDaysWaiting} where id = ${stageId}`
-    await audit(tx, ctx, 'pipeline.stage_times', 'stage', stageId, s.market_code, { sla_hours: s.sla_hours, rot_days_waiting: s.rot_days_waiting }, { sla_hours: v.slaHours, rot_days_waiting: v.rotDaysWaiting })
+    await tx`update crm.stages set sla_hours = ${v.slaHours}, rot_days_waiting = ${v.rotDaysWaiting}
+              ${v.rotDaysCustomer !== undefined ? tx`, rot_days_customer = ${v.rotDaysCustomer}` : tx``}
+              ${v.rotDaysCarrier !== undefined ? tx`, rot_days_carrier = ${v.rotDaysCarrier}` : tx``} where id = ${stageId}`
+    await audit(tx, ctx, 'pipeline.stage_times', 'stage', stageId, s.market_code, { sla_hours: s.sla_hours, rot_days_waiting: s.rot_days_waiting }, { sla_hours: v.slaHours, rot_days_waiting: v.rotDaysWaiting, rot_days_customer: v.rotDaysCustomer, rot_days_carrier: v.rotDaysCarrier })
   })
 }
 
-const WAITING = ['us', 'customer', 'third_party', ''] as const
+const WAITING = ['us', 'customer', 'carrier', 'third_party', ''] as const
 
 /** PIPE-03: a quién espera el negocio. Separa "estancado por nosotros" de "esperando a un tercero". */
 export async function setWaitingOnTx(tx: Tx, ctx: Ctx, dealId: string, value: string): Promise<void> {

@@ -507,7 +507,25 @@ export async function pinnedViews(ctx: Ctx): Promise<SavedView[]> {
 
 /** Las colas fijadas de la persona, con su contador: cuántos registros cumplen hoy el filtro de cada una. */
 export async function pinnedQueues(ctx: Ctx): Promise<(SavedView & { count: number | null })[]> {
-  const pins = await pinnedViews(ctx)
+  return countViews(ctx, await pinnedViews(ctx))
+}
+
+/**
+ * UX-03 (embudo2): las colas oficiales del rol de la persona (las publica administración). Administración ve todas.
+ * Cada una con su contador: la meta es llegar en cero al cierre de la semana.
+ */
+export async function officialQueues(ctx: Ctx): Promise<(SavedView & { count: number | null; role: string })[]> {
+  const roles = ctx.memberships.map((m) => m.role as string)
+  const all = roles.includes('admin')
+  const rows = await withUser(ctx.user.id, (tx) => tx<(SavedView & { role: string })[]>`
+    select v.id, v.object, v.name, v.filters, v.is_shared, v.team_id, v.user_id = ${ctx.user.id} as mine, false as pinned, v.official_role as role
+      from crm.saved_views v where v.official_role is not null and v.is_shared ${all ? tx`` : tx`and v.official_role = any(${roles}::text[])`}
+     order by v.official_role, v.name`)
+  const counted = await countViews(ctx, [...rows])
+  return counted.map((v, i) => ({ ...v, role: rows[i]!.role }))
+}
+
+async function countViews<V extends SavedView>(ctx: Ctx, pins: V[]): Promise<(V & { count: number | null })[]> {
   if (pins.length === 0) return []
   const { listAccounts } = await import('@/dal/accounts')
   const { listLeads } = await import('@/dal/leads')
@@ -525,7 +543,9 @@ export async function pinnedQueues(ctx: Ctx): Promise<(SavedView & { count: numb
           select count(*)::int as n from crm.deals d where d.status = 'open'
             ${isUuid(f.pipeline) ? tx`and d.pipeline_id = ${f.pipeline}` : tx``}
             ${f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and d.owner_id is null` : isUuid(f.owner) ? tx`and d.owner_id = ${f.owner}` : tx``}
-            ${f.paso === 'sin' ? tx`and (d.next_step is null or d.next_step_due is null)` : tx``}`
+            ${f.paso === 'sin' ? tx`and (d.next_step is null or d.next_step_due is null)` : tx``}
+            ${f.paso === 'revisita' ? tx`and d.revisit_needed` : tx``}
+            ${f.paso === 'revisita-vencida' ? tx`and d.revisit_needed and d.revisit_due < ${marketToday(tx, tx`d.market_code`)}` : tx``}`
         return rows[0]?.n ?? 0
       })
     } else if (f.view !== 'done') {

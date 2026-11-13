@@ -25,6 +25,8 @@ export type AutomationRow = {
   version: number
   owner_id: string | null
   owner_name: string | null
+  /** AUT-03 (embudo2): quedó con administración por no tener dueño; falta que alguien lo confirme. */
+  owner_review: boolean
   updated_by_name: string | null
   updated_at: Date
   last_at: Date | null
@@ -34,7 +36,7 @@ export type AutomationRow = {
 const SELECT = (tx: Parameters<Parameters<typeof withUser>[1]>[0]) => tx`
   select a.id, a.market_code, a.motor, a.key, a.name_es, a.name_en, a.source, a.trigger_kind, a.trigger_event, a.conditions, a.actions, a.is_active, a.version,
          a.pipedrive_ref, a.description_es, a.description_en, a.off_reason_es, a.off_reason_en,
-         a.owner_id, o.full_name as owner_name, u.full_name as updated_by_name, a.updated_at,
+         a.owner_id, o.full_name as owner_name, a.owner_review, u.full_name as updated_by_name, a.updated_at,
          (select max(l.at) from crm.automation_log l where l.automation_id = a.id) as last_at,
          (select count(*)::int from crm.automation_log l where l.automation_id = a.id and l.outcome = 'done' and l.at > now() - interval '7 days') as done_7d
     from crm.automations a left join crm.users o on o.id = a.owner_id left join crm.users u on u.id = a.updated_by`
@@ -84,20 +86,20 @@ export async function jobsPanel(ctx: Ctx): Promise<{ jobs: JobRow[]; runs: RunRo
   })
 }
 
-export type StepStage = { id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; is_ops: boolean; sla_hours: number | null; rot_days: number; rot_days_waiting: number | null }
+export type StepStage = { id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; is_ops: boolean; sla_hours: number | null; rot_days: number; rot_days_waiting: number | null; rot_days_customer: number | null; rot_days_carrier: number | null }
 export type StepRow = {
   id: string; pipeline_id: string; from_stage_id: string | null; to_stage_id: string; allowed_roles: Role[]; requires_evidence: boolean; evidence_es: string | null; evidence_en: string | null
-  needs_approval: boolean; approver_role: Role | null; approver_id: string | null; approver_name: string | null; backup_id: string | null; backup_name: string | null; approval_hours: number; is_active: boolean
+  needs_approval: boolean; approver_role: Role | null; approver_id: string | null; approver_name: string | null; backup_id: string | null; backup_name: string | null; approval_hours: number; is_active: boolean; pending_owner: string | null
 }
 
 /** Embudos con sus etapas, los pasos configurados y las personas que pueden aprobar, por mercado. */
 export async function stepsConfig(ctx: Ctx): Promise<{ pipelines: { id: string; market_code: string; name: string }[]; stages: StepStage[]; steps: StepRow[]; people: (Person & { market_code: string | null })[] }> {
   return withUser(ctx.user.id, async (tx) => {
     const pipelines = await tx<{ id: string; market_code: string; name: string }[]>`select id, market_code, name from crm.pipelines where market_code = any(${ctx.markets.map((m) => m.code)}::text[]) order by market_code, position, name`
-    const stages = await tx<StepStage[]>`select id, pipeline_id, position, name_es, name_en, kind, is_ops, sla_hours, rot_days, rot_days_waiting from crm.stages where archived_at is null order by pipeline_id, position`
+    const stages = await tx<StepStage[]>`select id, pipeline_id, position, name_es, name_en, kind, is_ops, sla_hours, rot_days, rot_days_waiting, rot_days_customer, rot_days_carrier from crm.stages where archived_at is null order by pipeline_id, position`
     const steps = await tx<StepRow[]>`
       select t.id, t.pipeline_id, t.from_stage_id, t.to_stage_id, t.allowed_roles, t.requires_evidence, t.evidence_es, t.evidence_en, t.needs_approval, t.approver_role,
-             t.approver_id, a.full_name as approver_name, t.backup_id, b.full_name as backup_name, t.approval_hours, t.is_active
+             t.approver_id, a.full_name as approver_name, t.backup_id, b.full_name as backup_name, t.approval_hours, t.is_active, t.pending_owner
         from crm.stage_transitions t left join crm.users a on a.id = t.approver_id left join crm.users b on b.id = t.backup_id order by t.updated_at`
     const people = await tx<(Person & { market_code: string | null })[]>`
       select distinct u.id, u.full_name, m.market_code from crm.users u join crm.memberships m on m.user_id = u.id
