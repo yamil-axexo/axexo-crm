@@ -69,7 +69,7 @@ export default async function PlatformPage() {
         </Card>
 
         <Card data-testid="values-card">
-          <CardTitle title={t('Valores propuestos', 'Proposed values')} hint={t('Datos que decide otra persona. Mientras no los confirme su dueño, quedan como propuesta y salen en Estado de CONTIGO.', 'Facts someone else decides. Until their owner confirms them, they stay as a proposal and show in CONTIGO status.')} />
+          <CardTitle title={t('Valores propuestos', 'Proposed values')} hint={t('Datos que decide otra persona. Mientras no los confirme quien decide, quedan como propuesta y salen en Estado de CONTIGO.', 'Facts someone else decides. Until their owner confirms them, they stay as a proposal and show in CONTIGO status.')} />
           <ul>
             {values.map((v) => (
               <li key={v.key} className={row} data-testid={`value-${v.key}`}>

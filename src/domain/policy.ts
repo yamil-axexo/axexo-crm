@@ -259,7 +259,7 @@ export const CAPABILITIES = {
   // Paquete plataforma (0045): flags por rol, valores propuestos, reglas de aviso por evento. Lo cambia administración (parte Embudos y campos).
   'platform.manage': ['admin'],
   // IA-06: dejar que un agente (cliente MCP) lea CONTIGO como la persona, con su mismo alcance. Lo decide cada quien para sí.
-  'mcp.authorize': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'mcp.authorize': ['admin', 'market_lead', 'supervisor', 'rep', 'ops'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

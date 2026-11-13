@@ -545,6 +545,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `field_incident.taken` | Took a field incident | It is a confidential field record with restricted access: it is logged and not published to other systems. |
 | `field_incident.viewed` | Opened a field incident | It is a confidential field record with restricted access: it is logged and not published to other systems. |
 | `field_section.created` | Added a field section | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `flag.changed` | Changed who a feature applies to | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `funding.simulated` | Loaded a simulated funding value | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `goal.updated` | Changed a goal | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `help.lesson_saved` | Changed a screen’s lesson | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
@@ -589,6 +590,9 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `market.reset_test` | Wiped and reloaded a test market | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `material.removed` | Removed a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `material.saved` | Saved a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `mcp_oauth.authorized` | Allowed an agent to read as this person | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `mcp_oauth.client_created` | Registered an agent that can ask for read permission | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `mcp_oauth.revoked` | Removed an agent’s access | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `metric.owner_set` | Changed who answers for a metric | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `network_load.business_released` | Gave the business release for an acquired network | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `network_load.legal_released` | Gave the legal release for an acquired network | It is a historical or file load: each record created emits its own event; the run itself does not. |
@@ -597,6 +601,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `network_load.staged` | Loaded an acquired network into its separate space | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `notice.all_seen` | Marked all notices as read | It is a notice between people inside CONTIGO, not a change to the record. |
 | `notice.prefs_saved` | Changed notice preferences | It is a notice between people inside CONTIGO, not a change to the record. |
+| `notice_rule.changed` | Turned an event notice on or off | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `objective.set` | Set a service or recovery objective | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `onboarding.document_opened` | Asked to open an enrollment document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `partner.crossmatch_run` | Ran the partner base cross-match | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
@@ -607,11 +612,13 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `partner_token.created` | Created a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `partner_token.revoked` | Revoked a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `pipedrive.backup_downloaded` | Downloaded the Pipedrive backup | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `platform_value.changed` | Changed a platform value | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `quality.rule_updated` | Edited a data quality rule | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.snapshot_saved` | Saved today’s data quality snapshot | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `recommendation.accepted` | Accepted a suggestion and set the task with a date | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `recommendation.dismissed` | Dismissed a suggestion, with a reason | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `reconciliation.ran` | Reconciled with the sales file | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `redteam.reviewed` | Recorded an agent’s red-team review | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `release.announced` | Announced a release | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `release.created` | Created a release | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `release.item_checked` | Marked a go-live checklist item as done | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
@@ -638,6 +645,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `saved_view.saved` | Saved a view | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `saved_view.unpinned` | Removed a queue from the menu | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `seat.approved` | Recorded who approved a seat | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
+| `secret.backup_set` | Changed a connection’s backup owner | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `secret.updated` | Updated a connection’s inventory entry | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `security.alert_acknowledged` | Reviewed a security alert | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `security.due_days_changed` | Changed the response period for data requests | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |

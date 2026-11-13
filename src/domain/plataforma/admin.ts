@@ -126,7 +126,7 @@ export const REDTEAM_CHECKLIST = [
   { key: 'tools', label: ['Sus herramientas son las de la lista; ninguna escribe o envía si lee texto de afuera.', 'Its tools are the listed ones; none writes or sends if it reads outside text.'] },
   { key: 'approval', label: ['Toda acción sigue pidiendo la aprobación de una persona.', 'Every action still asks for a person’s approval.'] },
   { key: 'egress', label: ['La lista de salida del código no tiene hosts nuevos para este agente.', 'The code egress list has no new hosts for this agent.'] },
-  { key: 'logging', label: ['Cada llamada quedó en el registro de AI con versión, herramienta y cambio propuesto.', 'Each call was logged in the AI log with version, tool and proposed change.'] },
+  { key: 'logging', label: ['Cada llamada quedó en el registro de IA con versión, herramienta y cambio propuesto.', 'Each call was logged in the AI log with version, tool and proposed change.'] },
 ] as const
 
 export type RedteamReview = { id: string; agent_key: string; passed: boolean; checklist: Record<string, boolean>; notes: string | null; reviewed_at: Date; reviewer: string | null }

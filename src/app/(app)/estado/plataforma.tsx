@@ -5,7 +5,7 @@ import { p95 } from '@/dal/gobierno'
 import { msText } from '@/lib/gobierno-labels'
 import { num } from '@/lib/format'
 import { consumerLag } from '@/domain/plataforma/outbox'
-import { realtimeMissing, realtimeMode } from '@/server/adapters/realtime'
+import type { RealtimeMode } from '@/server/adapters/realtime'
 import { allowedHosts, blockedEgress } from '@/server/net/egress'
 import { mcpMode } from '@/server/adapters/ai'
 
@@ -24,7 +24,7 @@ export async function StagingBanner({ ctx }: { ctx: Ctx }) {
   )
 }
 
-export async function PlatformCard({ ctx }: { ctx: Ctx }) {
+export async function PlatformCard({ ctx, realtime: rt }: { ctx: Ctx; realtime: { mode: RealtimeMode; missing: string[] } }) {
   const { t, locale } = ctx
   const { speed, pending, recovery, lag } = await withUser(ctx.user.id, async (tx) => {
     const speed = await tx<{ screen: string; n: number; buckets: number[] }[]>`
@@ -37,7 +37,7 @@ export async function PlatformCard({ ctx }: { ctx: Ctx }) {
     return { speed, pending, recovery, lag }
   })
   const sp = (k: string) => speed.find((s) => s.screen === k)
-  const realtime = realtimeMode()
+  const realtime = rt.mode
   const blocked = blockedEgress().length
   return (
     <Card data-testid="status-platform">
@@ -64,7 +64,7 @@ export async function PlatformCard({ ctx }: { ctx: Ctx }) {
           </li>
         ))}
         <li className={row} data-testid="status-realtime">
-          <span className="min-w-0 flex-1 basis-60"><span className="block text-[14px] font-medium text-strong">{t('Pantallas en vivo por Broadcast', 'Live screens over Broadcast')}</span><span className="text-[12.5px] text-muted-2">{realtime === 'live' ? t('Encendido.', 'On.') : t(`Las pantallas se actualizan solas leyendo la cola dentro de CONTIGO. Para Broadcast falta: ${realtimeMissing().join(', ')} (sign-off de Dan Mulligan o Michael Essiet).`, `Screens refresh by reading the queue inside CONTIGO. Broadcast needs: ${realtimeMissing().join(', ')} (sign-off from Dan Mulligan or Michael Essiet).`)}</span></span>
+          <span className="min-w-0 flex-1 basis-60"><span className="block text-[14px] font-medium text-strong">{t('Pantallas en vivo por Broadcast', 'Live screens over Broadcast')}</span><span className="text-[12.5px] text-muted-2">{realtime === 'live' ? t('Encendido.', 'On.') : t(`Las pantallas se actualizan solas leyendo la cola dentro de CONTIGO. Para Broadcast falta: ${rt.missing.join(', ')} (sign-off de Dan Mulligan o Michael Essiet).`, `Screens refresh by reading the queue inside CONTIGO. Broadcast needs: ${rt.missing.join(', ')} (sign-off from Dan Mulligan or Michael Essiet).`)}</span></span>
           <Badge tone={realtime === 'live' ? 'good' : 'neutral'}>{realtime === 'live' ? t('Encendido', 'On') : realtime === 'simulated' ? t('Simulado (pruebas)', 'Simulated (tests)') : t('Apagado', 'Off')}</Badge>
         </li>
         <li className={row} data-testid="status-egress">
