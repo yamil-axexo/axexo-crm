@@ -5,6 +5,7 @@ import { Metric, ReportFilters, fxSource } from '@/ui/report'
 import { DataTable, linkClass } from '@/ui/reportes'
 import { qs } from '@/lib/labels'
 import { day, money, monthYear, num } from '@/lib/format'
+import { monthEnd } from '@/lib/periods'
 import { loadReport, type ReportSp } from '../load'
 import { ReportHeader, exportNote } from '../shell'
 
@@ -38,7 +39,7 @@ export default async function FinanceReportPage({ searchParams }: { searchParams
           head={[{ label: t('Mes', 'Month') }, ...(multi ? [{ label: t('Mercado', 'Market') }] : []), { label: t('Entidad legal', 'Legal entity') }, { label: t('Negocios ganados', 'Deals won'), num: true }, { label: t('Con monto', 'With an amount'), num: true }, { label: t('Monto', 'Amount'), num: true }]}
           rows={d.rows.map((x) => ({ key: `${x.month}${x.market_code}${x.currency}${x.entity}`, testId: 'finance-row', cells: [
             monthYear(`${x.month}-15`, locale), ...(multi ? [x.market_code] : []), x.entity ?? t('Sin entidad legal en el comercio', 'No legal entity on the merchant'),
-            <Link key="l" href={qs('/reportes/cerrados', { periodo: 'rango', desde: `${x.month}-01`, hasta: new Date(Date.UTC(Number(x.month.slice(0, 4)), Number(x.month.slice(5, 7)), 0)).toISOString().slice(0, 10), mercado: x.market_code, resultado: 'won' })} className={linkClass} data-testid="finance-row-link">{num(x.n, locale)}</Link>,
+            <Link key="l" href={qs('/reportes/cerrados', { periodo: 'rango', desde: `${x.month}-01`, hasta: monthEnd(x.month), mercado: x.market_code, resultado: 'won' })} className={linkClass} data-testid="finance-row-link">{num(x.n, locale)}</Link>,
             num(x.with_amount, locale), Number(x.amount) > 0 ? money(Number(x.amount), x.currency, locale) : <NoData locale={locale} />,
           ] }))} />
       </Card>

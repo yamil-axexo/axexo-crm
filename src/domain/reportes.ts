@@ -6,6 +6,7 @@ import { audit } from '@/domain/common'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { forbidden, invalid, notFound } from '@/lib/errors'
 import { toCsv } from '@/lib/periods'
+import { isoDay } from '@/lib/format'
 import { isMetricKey } from '@/lib/metric-defs'
 import { REPORT_PARAMS, VIEW_FILTERS, reportByKey, type ViewObject } from '@/lib/report-catalog'
 import { marketPeriods, type MarketPeriods } from '@/dal/reports'
@@ -62,7 +63,7 @@ export async function saveReport(ctx: Ctx, input: { report: string; name: string
     const rows = await tx<{ id: string }[]>`
       insert into crm.saved_reports (user_id, report, name, params, is_shared, market_code, schedule)
       values (${ctx.user.id}, ${def.key}, ${v.data.name}, ${tx.json(params)}, ${v.data.shared}, ${v.data.shared ? market : null}, ${v.data.schedule || null}) returning id`
-    await audit(tx, ctx, 'report.saved', 'saved_report', rows[0]!.id, market, null, { report: def.key, name: v.data.name, shared: v.data.shared, schedule: v.data.schedule || null })
+    await audit(tx, ctx, 'saved_report.saved', 'saved_report', rows[0]!.id, market, null, { report: def.key, name: v.data.name, shared: v.data.shared, schedule: v.data.schedule || null })
     return rows[0]!.id
   })
 }
@@ -70,7 +71,7 @@ export async function deleteReport(ctx: Ctx, id: string): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ report: string; name: string }[]>`delete from crm.saved_reports where id = ${id} and user_id = ${ctx.user.id} returning report, name`
     if (!rows[0]) throw notFound()
-    await audit(tx, ctx, 'report.deleted', 'saved_report', id, null, { report: rows[0].report, name: rows[0].name }, null)
+    await audit(tx, ctx, 'saved_report.deleted', 'saved_report', id, null, { report: rows[0].report, name: rows[0].name }, null)
   })
 }
 export async function scheduleReport(ctx: Ctx, id: string, schedule: string): Promise<void> {
@@ -78,7 +79,7 @@ export async function scheduleReport(ctx: Ctx, id: string, schedule: string): Pr
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ name: string }[]>`update crm.saved_reports set schedule = ${s} where id = ${id} and user_id = ${ctx.user.id} returning name`
     if (!rows[0]) throw notFound()
-    await audit(tx, ctx, 'report.scheduled', 'saved_report', id, null, null, { name: rows[0].name, schedule: s })
+    await audit(tx, ctx, 'saved_report.scheduled', 'saved_report', id, null, null, { name: rows[0].name, schedule: s })
   })
 }
 export async function markDeliveriesSeen(ctx: Ctx): Promise<void> {
@@ -92,7 +93,7 @@ export async function setAgencyLabels(ctx: Ctx, raw: string): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const before = await tx<{ value: unknown }[]>`select value from crm.settings where key = 'reports.agency_labels'`
     await tx`insert into crm.settings (key, value) values ('reports.agency_labels', ${tx.json(labels)}) on conflict (key) do update set value = excluded.value`
-    await audit(tx, ctx, 'report.agency_set', 'setting', null, null, { labels: before[0]?.value ?? [] }, { labels })
+    await audit(tx, ctx, 'agency.labels_set', 'setting', null, null, { labels: before[0]?.value ?? [] }, { labels })
   })
 }
 
@@ -176,7 +177,7 @@ export async function exportReport(ctx: Ctx, key: string, p: MarketPeriods, f: F
   } else if (key === 'conciliacion') {
     const d = await getReconciliation(ctx, f)
     head = [t('Mercado', 'Market'), t('Comercio', 'Merchant'), t('Diferencia', 'Difference'), t('Corte del archivo', 'File cutoff'), t('Primera venta en el archivo', 'First sale in the file'), t('Ganado en CONTIGO', 'Won in CONTIGO')]
-    rows = d.diffs.map((r) => [r.market_code, safe(r.name), r.kind, r.as_of ?? '', r.first_txn_at ? r.first_txn_at.toISOString().slice(0, 10) : '', r.won_at ? r.won_at.toISOString().slice(0, 10) : ''])
+    rows = d.diffs.map((r) => [r.market_code, safe(r.name), r.kind, r.as_of ?? '', r.first_txn_at ? isoDay(r.first_txn_at, ctx.market(r.market_code).timezone) : '', r.won_at ? isoDay(r.won_at, ctx.market(r.market_code).timezone) : ''])
   } else throw forbidden()
   const out = rows.slice(0, EXPORT_MAX)
   await withUser(ctx.user.id, (tx) => audit(tx, ctx, 'report.exported', 'report', null, f.market ?? (markets.length === 1 ? markets[0]! : null), null, {
@@ -217,7 +218,7 @@ export async function saveView(ctx: Ctx, input: { object: string; name: string; 
       values (${ctx.user.id}, ${input.object}, ${name}, ${tx.json(filters)}, ${input.shared}, ${wide ? null : team}) returning id`
     const id = rows[0]!.id
     if (input.pin) await tx`insert into crm.saved_view_pins (user_id, view_id) values (${ctx.user.id}, ${id}) on conflict do nothing`
-    await audit(tx, ctx, 'view.saved', 'saved_view', id, null, null, { object: input.object, name, shared: input.shared, filters })
+    await audit(tx, ctx, 'saved_view.saved', 'saved_view', id, null, null, { object: input.object, name, shared: input.shared, filters })
     return id
   })
 }
@@ -225,7 +226,7 @@ export async function deleteView(ctx: Ctx, id: string): Promise<void> {
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ object: string; name: string }[]>`delete from crm.saved_views where id = ${id} and user_id = ${ctx.user.id} returning object, name`
     if (!rows[0]) throw notFound('Solo puedes borrar las vistas que guardaste tú.', 'You can only delete the views you saved yourself.')
-    await audit(tx, ctx, 'view.deleted', 'saved_view', id, null, { object: rows[0].object, name: rows[0].name }, null)
+    await audit(tx, ctx, 'saved_view.deleted', 'saved_view', id, null, { object: rows[0].object, name: rows[0].name }, null)
   })
 }
 /** Fija o quita una vista del menú de la persona. Fijar una vista compartida no la cambia para nadie más. */
@@ -238,7 +239,7 @@ export async function pinView(ctx: Ctx, id: string, on: boolean): Promise<void> 
       if ((n[0]?.n ?? 0) >= 5) throw invalid('Puedes fijar hasta 5 colas en tu menú. Quita una antes de fijar otra.', 'You can pin up to 5 queues in your menu. Remove one before pinning another.')
       await tx`insert into crm.saved_view_pins (user_id, view_id) values (${ctx.user.id}, ${id}) on conflict do nothing`
     } else await tx`delete from crm.saved_view_pins where user_id = ${ctx.user.id} and view_id = ${id}`
-    await audit(tx, ctx, on ? 'view.pinned' : 'view.unpinned', 'saved_view', id, null, null, { name: v[0].name })
+    await audit(tx, ctx, on ? 'saved_view.pinned' : 'saved_view.unpinned', 'saved_view', id, null, null, { name: v[0].name })
   })
 }
 
@@ -249,14 +250,14 @@ export async function takeSnapshot(tx: Tx): Promise<{ done: number; note?: strin
   const days = await tx<{ day: string; n: number }[]>`select snapshot_date::text as day, count(*)::int as n from crm.pipeline_snapshots where taken_at >= now() - interval '1 minute' group by 1`
   let status = ''
   for (const d of days) status = await queueOutbound(tx, 'snapshot_file', { ref: `snapshot:${d.day}`, title: `pipeline_snapshot_${d.day}.csv`, rows: d.n, detail: { day: d.day } })
-  await tx`insert into crm.audit_events (actor_id, action, object, after) values (app.system_user_id(), 'report.snapshot_taken', 'snapshot', ${tx.json({ rows: rows[0]?.n ?? 0, file: status || 'none' })})`
+  await tx`insert into crm.audit_events (actor_id, action, object, after) values (app.system_user_id(), 'snapshot.taken', 'snapshot', ${tx.json({ rows: rows[0]?.n ?? 0, file: status || 'none' })})`
   return { done: rows[0]?.n ?? 0, note: status === 'simulated' ? 'file simulated' : 'file channel off' }
 }
 /** Conciliación con el archivo de ventas: guarda el conteo de diferencias por mercado y marca la corrida si pasa del umbral. */
 export async function runReconciliation(tx: Tx): Promise<{ done: number; note?: string }> {
   const rows = await tx<{ n: number }[]>`select app.run_reconciliation(${RECONCILE_THRESHOLD_PCT}) as n`
   const breached = await tx<{ n: number }[]>`select count(*)::int as n from crm.reconciliation_runs where ran_at >= now() - interval '1 minute' and breached`
-  await tx`insert into crm.audit_events (actor_id, action, object, after) values (app.system_user_id(), 'report.reconciled', 'reconciliation', ${tx.json({ markets: rows[0]?.n ?? 0, breached: breached[0]?.n ?? 0 })})`
+  await tx`insert into crm.audit_events (actor_id, action, object, after) values (app.system_user_id(), 'reconciliation.ran', 'reconciliation', ${tx.json({ markets: rows[0]?.n ?? 0, breached: breached[0]?.n ?? 0 })})`
   return { done: rows[0]?.n ?? 0, note: `${breached[0]?.n ?? 0} over threshold` }
 }
 /**
@@ -277,9 +278,9 @@ export async function deliverScheduled(tx: Tx, now = new Date()): Promise<{ done
     const sp = new URLSearchParams(r.params)
     const body = await reportHeadline(owner, r.report, r.params)
     await tx`insert into crm.report_deliveries (saved_report_id, user_id, title, body, href) values (${r.id}, ${r.user_id}, ${r.name}, ${body.slice(0, 1200)}, ${sp.size ? `${def.path}?${sp.toString()}` : def.path})`
-    await queueOutbound(tx, 'report_mail', { ref: `report:${r.id}:${now.toISOString().slice(0, 10)}`, title: r.name, rows: 1, detail: { report: r.report } })
+    await queueOutbound(tx, 'report_mail', { ref: `report:${r.id}:${isoDay(now)}`, title: r.name, rows: 1, detail: { report: r.report } })
     await tx`update crm.saved_reports set last_run_at = ${now} where id = ${r.id}`
-    await tx`insert into crm.audit_events (actor_id, action, object, object_id, after) values (app.system_user_id(), 'report.delivered', 'saved_report', ${r.id}, ${tx.json({ report: r.report, schedule: r.schedule })})`
+    await tx`insert into crm.audit_events (actor_id, action, object, object_id, after) values (app.system_user_id(), 'saved_report.delivered', 'saved_report', ${r.id}, ${tx.json({ report: r.report, schedule: r.schedule })})`
     done++
   }
   return { done }

@@ -42,7 +42,7 @@ export async function seenDeliveriesAction(_: Prev, _fd: FormData): Promise<Acti
 export async function metricOwnerAction(_: Prev, fd: FormData): Promise<ActionResult<unknown>> {
   return runAction(async (ctx) => {
     await setMetricOwner(ctx, { key: str(fd, 'key'), owner: str(fd, 'owner') })
-    return { message: ['Dueño guardado.', 'Owner saved.'], revalidate: ['/reportes/indicadores'] }
+    return { message: ['Responsable guardado.', 'Owner saved.'], revalidate: ['/reportes/indicadores'] }
   })
 }
 export async function agencyLabelsAction(_: Prev, fd: FormData): Promise<ActionResult<unknown>> {

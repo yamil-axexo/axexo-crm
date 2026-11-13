@@ -24,7 +24,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/conciliacion', 'Conciliación con el archivo de ventas', 'Reconciliation with the sales file'],
   ['/reportes/lo-que-llevo', 'Lo que llevo', 'My running numbers'],
   ['/reportes/indicadores-campo', 'Indicadores de campo', 'Field indicators'],
-  ['/reportes/indicadores', 'Indicadores y dueños', 'Metrics and owners'],
+  ['/reportes/indicadores', 'Indicadores y responsables', 'Metrics and owners'],
   ['/reportes/pronostico', 'Pronóstico', 'Forecast'],
   ['/reportes', 'Reportes', 'Reports'],
   // Va antes de /admin: la primera ruta que coincide es la que nombra la pantalla.

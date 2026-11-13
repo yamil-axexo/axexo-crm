@@ -24,7 +24,7 @@ export const REPORTS: ReportDef[] = [
   { key: 'historico', path: '/reportes/historico', title: ['Histórico', 'History'], desc: ['Foto diaria de negocios y cartera, cohortes y velocidad por etapa.', 'Daily snapshot of deals and merchants, cohorts and stage velocity.'], cap: 'report.view', group: 'history', exportable: true },
   { key: 'conciliacion', path: '/reportes/conciliacion', title: ['Conciliación con el archivo de ventas', 'Reconciliation with the sales file'], desc: ['Lo que dice CONTIGO contra lo que dice el archivo diario, con la lista de diferencias.', 'What CONTIGO says against what the daily file says, with the list of differences.'], cap: 'report.reconcile', group: 'health', exportable: true },
   { key: 'adopcion', path: '/reportes/adopcion', title: ['Adopción', 'Adoption'], desc: ['Uso real por persona y equipo: actividades, próximo paso al día y leads atendidos a tiempo.', 'Real use by person and team: activities, next step up to date and leads handled on time.'], cap: 'adoption.team', group: 'health', exportable: false },
-  { key: 'indicadores', path: '/reportes/indicadores', title: ['Indicadores y dueños', 'Metrics and owners'], desc: ['Cómo se calcula cada cifra y quién responde por ella.', 'How each figure is calculated and who answers for it.'], cap: 'report.gallery', group: 'health', exportable: false },
+  { key: 'indicadores', path: '/reportes/indicadores', title: ['Indicadores y responsables', 'Metrics and owners'], desc: ['Cómo se calcula cada cifra y quién responde por ella.', 'How each figure is calculated and who answers for it.'], cap: 'report.gallery', group: 'health', exportable: false },
 ]
 
 export const GROUP_LABEL: Record<ReportDef['group'], Pair> = {

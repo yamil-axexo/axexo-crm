@@ -15,7 +15,7 @@ const MARKET: Pair = ['Quien lidera el mercado', 'Market lead']
 const OPS: Pair = ['Operaciones', 'Operations']
 const DATA: Pair = ['Data y Reportería', 'Data & Reporting']
 const FINANCE: Pair = ['Finanzas', 'Finance']
-const C1: Pair = ['Global AI Operations', 'Global AI Operations']
+const C1: Pair = ['Operaciones Globales de IA', 'Global AI Operations']
 const FILE: Pair = ['Archivo diario de ventas', 'Daily sales file']
 const FILE_WINDOW: Pair = ['La fecha de corte del archivo diario de ventas más reciente.', 'The cutoff date of the most recent daily sales file.']
 

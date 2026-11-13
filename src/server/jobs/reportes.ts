@@ -15,7 +15,7 @@ export const reportesJobs: Job[] = [
   },
   {
     key: 'reportes.scheduled', everyMinutes: 60,
-    description: { es: 'Entrega de los reportes programados a su dueño dentro de CONTIGO.', en: 'Delivery of scheduled reports to their owner inside CONTIGO.' },
+    description: { es: 'Entrega de los reportes programados a quien los guardó, dentro de CONTIGO.', en: 'Delivery of scheduled reports to their owner inside CONTIGO.' },
     run: (tx) => deliverScheduled(tx),
   },
 ]

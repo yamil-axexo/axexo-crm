@@ -21,7 +21,7 @@ export default async function MetricsPage() {
   return (
     <>
       <BackToReports t={t} />
-      <PageHeader title={t('Indicadores y dueños', 'Metrics and owners')} desc={t('Cada cifra de CONTIGO tiene una sola definición y alguien que responde por ella. Las pantallas leen de esta misma lista.', 'Each figure in CONTIGO has a single definition and someone who answers for it. Screens read from this same list.')} />
+      <PageHeader title={t('Indicadores y responsables', 'Metrics and owners')} desc={t('Cada cifra de CONTIGO tiene una sola definición y alguien que responde por ella. Las pantallas leen de esta misma lista.', 'Each figure in CONTIGO has a single definition and someone who answers for it. Screens read from this same list.')} />
       <ul className="grid gap-4" data-testid="metric-list">
         {METRIC_KEYS.map((k) => {
           const d = METRICS[k]
@@ -39,7 +39,7 @@ export default async function MetricsPage() {
                   <div><dt className="font-semibold text-muted-2">{t('Ventana', 'Window')}</dt><dd className="text-strong">{t(d.window[0], d.window[1])}</dd></div>
                   <div><dt className="font-semibold text-muted-2">{t('Fuente', 'Source')}</dt><dd className="text-strong">{t(d.source[0], d.source[1])}</dd></div>
                 </dl>
-                {!owners[k] && <p className="mt-2 text-[12.5px] text-muted">{t('Dueño por defecto, por área. Administración puede poner a la persona o al área que responde.', 'Default owner, by area. Administration can set the person or area that answers.')}</p>}
+                {!owners[k] && <p className="mt-2 text-[12.5px] text-muted">{t('Responsable por defecto, por área. Administración puede poner a la persona o al área que responde.', 'Default owner, by area. Administration can set the person or area that answers.')}</p>}
                 {canEdit && (
                   <ActionForm action={metricOwnerAction} className="mt-3 flex flex-wrap items-end gap-3">
                     <input type="hidden" name="key" value={k} />

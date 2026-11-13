@@ -5,6 +5,7 @@ import { Metric, ReportFilters } from '@/ui/report'
 import { Columns, DataTable, linkClass } from '@/ui/reportes'
 import { SOURCE, qs } from '@/lib/labels'
 import { monthYear, num, pct } from '@/lib/format'
+import { monthEnd } from '@/lib/periods'
 import { loadReport, type ReportSp } from '../load'
 import { ReportHeader, exportNote } from '../shell'
 
@@ -17,7 +18,7 @@ export default async function LeadsReportPage({ searchParams }: { searchParams: 
   const rows = await getLeadsReport(ctx, period, { ...f, source })
   const leads = rows.reduce((n, x) => n + x.leads, 0), converted = rows.reduce((n, x) => n + x.converted, 0)
   const months = [...new Set(rows.map((x) => x.month))].sort()
-  const last = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10)
+  const last = monthEnd
   const listHref = (x: { month: string; market_code: string; source: string }) => qs('/leads', { status: 'all', market: x.market_code, source: x.source, from: `${x.month}-01` < period.byMarket[x.market_code]!.from ? period.byMarket[x.market_code]!.from : `${x.month}-01`, to: last(x.month) > period.byMarket[x.market_code]!.to ? period.byMarket[x.market_code]!.to : last(x.month) })
   const extra = { fuente: source }
   return (
