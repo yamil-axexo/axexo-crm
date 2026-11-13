@@ -167,7 +167,7 @@ describe('apagado nunca sale nada', () => {
     route(/.*/, () => ({ body: { ok: true } }))
     expect((await emailAdapter().send({ to: 'a@b.com', subject: 's', body: 'b' })).status).toBe('queued_off')
     expect((await slackAdapter().send({ to: 'a@b.com', subject: 's', body: 'b' })).status).toBe('queued_off')
-    expect((await whatsappAdapter().send({ to: '+5215512345678', subject: 's', body: 'b', template: { name: 'x', locale: 'es', params: [] } })).status).toBe('queued_off')
+    expect((await whatsappAdapter().send({ to: '+52551234567', subject: 's', body: 'b', template: { name: 'x', locale: 'es', params: [] } })).status).toBe('queued_off')
     expect((await aiAdapter().ask({ feature: 'lead_class', choices: ['a', 'b'] as const, data: [], rules: 'a' })).status).toBe('off')
     expect((await documentVault().store({ id: '1', title: 't' })).status).toBe('channel_off')
     expect((await documentVault().signedUrl('x')).status).toBe('vault_off')
@@ -273,12 +273,12 @@ describe('conectores live: petición correcta', () => {
   it('WhatsApp: solo plantilla aprobada, desde el número del mercado', async () => {
     turnOn(def('whatsapp'), { WHATSAPP_TOKEN: 'EAAG', WHATSAPP_PHONE_NUMBER_ID: '1111111' })
     route(/graph\.facebook\.com\/v21\.0\/2222222\/messages/, () => ({ body: { messages: [{ id: 'wamid.1' }] } }))
-    expect((await whatsappAdapter().send({ to: '+5215512345678', subject: 's', body: 'b' })).status).toBe('blocked_template')
+    expect((await whatsappAdapter().send({ to: '+52551234567', subject: 's', body: 'b' })).status).toBe('blocked_template')
     expect(seen.length).toBe(0)
-    const r = await whatsappAdapter().send({ to: '+5215512345678', subject: 's', body: 'b', template: { name: 'cs_low_balance', locale: 'es', params: ['Abarrotes La Esquina'] }, phoneNumberId: '2222222' })
+    const r = await whatsappAdapter().send({ to: '+52551234567', subject: 's', body: 'b', template: { name: 'cs_low_balance', locale: 'es', params: ['Abarrotes La Esquina'] }, phoneNumberId: '2222222' })
     expect(r).toMatchObject({ status: 'sent', providerId: 'wamid.1' })
     const b = JSON.parse(seen[0]!.body)
-    expect(b).toMatchObject({ messaging_product: 'whatsapp', to: '5215512345678', type: 'template', template: { name: 'cs_low_balance', language: { code: 'es' } } })
+    expect(b).toMatchObject({ messaging_product: 'whatsapp', to: '52551234567', type: 'template', template: { name: 'cs_low_balance', language: { code: 'es' } } })
   })
   it('captura de Gmail: solo metadatos y del buzón encendido', async () => {
     turnOn(def('gmail_capture'))
@@ -450,12 +450,12 @@ describe('conectores live: petición correcta', () => {
     expect(await antibot().verify(null, 'ip')).toEqual({ ok: false, checked: true })
   })
   it('webhook de WhatsApp: firma obligatoria y solo lo necesario', () => {
-    const body = JSON.stringify({ entry: [{ changes: [{ value: { metadata: { phone_number_id: '111' }, messages: [{ id: 'wamid.9', from: '5215512345678', timestamp: '1763000000', type: 'text', text: { body: 'hola' } }] } }] }] })
+    const body = JSON.stringify({ entry: [{ changes: [{ value: { metadata: { phone_number_id: '111' }, messages: [{ id: 'wamid.9', from: '52551234567', timestamp: '1763000000', type: 'text', text: { body: 'hola' } }] } }] }] })
     const sig = `sha256=${createHmac('sha256', 'app-secret').update(body).digest('hex')}`
     expect(verifyMetaSignature(body, sig, 'app-secret')).toBe(true)
     expect(verifyMetaSignature(body, sig, 'otro')).toBe(false)
     expect(verifyMetaSignature(body, null, 'app-secret')).toBe(false)
-    expect(parseWhatsappWebhook(JSON.parse(body))).toEqual([{ id: 'wamid.9', from: '+5215512345678', phoneNumberId: '111', timestamp: new Date(1763000000000).toISOString(), type: 'text', text: 'hola' }])
+    expect(parseWhatsappWebhook(JSON.parse(body))).toEqual([{ id: 'wamid.9', from: '+52551234567', phoneNumberId: '111', timestamp: new Date(1763000000000).toISOString(), type: 'text', text: 'hola' }])
   })
 })
 
