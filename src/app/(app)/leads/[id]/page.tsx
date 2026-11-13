@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { untrustedMark } from '@/dal/untrusted'
+import { UntrustedTag } from '@/ui/untrusted'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getLead, marketPipelines, sellers, territoriesOf } from '@/dal/leads'
@@ -25,6 +27,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getLead(ctx, id)
+  // IA-07: si el texto del lead llegó de fuera (formulario, archivo), se dice junto al texto.
+  const untrusted = data ? await untrustedMark(ctx, 'lead', id) : null
   if (!data) notFound()
   const { lead, duplicates, activities } = data
   const market = ctx.market(lead.market_code)
@@ -268,6 +272,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               <KeyVal k={t('Primer contacto', 'First touch')}>{lead.first_touch_at ? <>{marketTime(lead.first_touch_at, locale, market)}<OwnTime at={new Date(lead.first_touch_at).toISOString()} zone={market.timezone} locale={locale} /></> : <NoData locale={locale} />}</KeyVal>
             </dl>
             {lead.message && <p className="mt-4 rounded-2xl bg-surface-2 p-4 text-[13.5px] text-muted-2">“{lead.message}”</p>}
+            {untrusted && <UntrustedTag t={t} origin={untrusted.origin} />}
             {canEdit && (
               <div className="mt-4">
                 <Dialog trigger={t('Corregir tipo o rol', 'Fix type or role')} title={t('Tipo de negocio, de cuenta y rol', 'Business type, account type and role')} size="sm" testId="lead-edit-type">

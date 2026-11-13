@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { CalendarPlus, MapPinCheck, MessageCircle, MessageSquareText, Navigation, Phone, StickyNote, X } from 'lucide-react'
 import type { Ctx } from '@/server/context'
+import { untrustedMark } from '@/dal/untrusted'
+import { UntrustedTag } from '@/ui/untrusted'
 import { getAccount } from '@/dal/accounts'
 import { sellers } from '@/dal/leads'
 import { fieldDefs, fieldApplies } from '@/dal/fields'
@@ -46,6 +48,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const { t, m, locale } = ctx
   const { account: a, ancestors, rollup, children, contacts, aliases, attributions, deals, metrics, tasks, timeline, pipelines } = data
   const market = ctx.market(a.market_code)
+  // IA-07: si el nombre o la dirección llegaron de fuera (Sales App, archivo), se dice junto al nombre.
+  const untrusted = await untrustedMark(ctx, 'account', a.id)
   const tz = market.timezone
   const now = new Date()
   const canWrite = !a.archived_at && ctx.can('activity.write', a.market_code)
@@ -165,6 +169,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           <div className="min-w-0">
             <p className="eyebrow" data-testid="ficha-type">{[typeName, size, ctx.markets.length > 1 ? market.name : null].filter(Boolean).join(' · ')}</p>
             <Title id="ficha-title" className="mt-0.5 text-[22px] leading-[30px] font-semibold break-words">{a.name}</Title>
+            {untrusted && <UntrustedTag t={t} origin={untrusted.origin} />}
           </div>
           <Link href={closeHref} aria-label={m('record.close')} title={m('record.close')} className="press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-line bg-surface text-strong hover:bg-green-50" data-testid="ficha-close">
             <X size={20} strokeWidth={1.75} aria-hidden />

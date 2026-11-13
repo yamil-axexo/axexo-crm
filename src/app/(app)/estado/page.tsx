@@ -4,6 +4,8 @@ import { deployedVersion, env, ssoEnabled } from '@/env'
 import { getStatus, getConfig } from '@/dal/admin'
 import { closeRuleChanges } from '@/dal/b2b'
 import { pipedriveConfigured } from '@/server/adapters/pipedrive'
+import { deliveryMode } from '@/server/adapters/event-delivery'
+import { antibotMode } from '@/server/adapters/antibot'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
@@ -90,10 +92,17 @@ export default async function StatusPage() {
     },
     {
       key: 'outbox',
-      name: t('Avisos a otros sistemas', 'Notices to other systems'),
+      name: t('Eventos para otros sistemas', 'Events for other systems'),
       what: t('Lo que CONTIGO publica para que otros lo lean', 'What CONTIGO publishes for others to read'),
-      state: { tone: 'neutral', text: t('Sin conectar', 'Not connected') },
-      last: t(`${num(s.outbox_pending, locale)} guardados; nadie los recoge todavía`, `${num(s.outbox_pending, locale)} stored; nobody picks them up yet`),
+      state: deliveryMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
+      last: t(`${num(s.outbox_pending, locale)} guardados, listos para publicar. Para encenderlo: aprobación del transporte, llave de firma y la variable CONTIGO_EVENT_DELIVERY`, `${num(s.outbox_pending, locale)} stored, ready to publish. To turn it on: transport approval, signing key and the CONTIGO_EVENT_DELIVERY variable`),
+    },
+    {
+      key: 'antibot',
+      name: t('Verificación anti-bot de formularios', 'Anti-bot check on forms'),
+      what: t('Un desafío para distinguir personas de programas', 'A challenge to tell people from programs'),
+      state: antibotMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
+      last: t('Activos sin él: límite por dirección, tiempo mínimo y campo trampa. Para encenderlo: aprobar el servicio y la variable CONTIGO_ANTIBOT', 'On without it: per-address limit, minimum time and trap field. To turn it on: approve the service and set the CONTIGO_ANTIBOT variable'),
     },
   ]
 

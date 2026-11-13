@@ -312,7 +312,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel√
         await expect(page.getByTestId('status-row-s5').getByTestId('status-last')).toContainText('√öltimo archivo: corte del')
         await expect(page.getByTestId('status-row-s5').getByTestId('status-state')).toHaveText('Sin conectar')
         await expect(page.getByTestId('status-row-sales_app').getByTestId('status-state')).toHaveText('Sin conectar')
-        await expect(page.getByTestId('status-row-outbox').getByTestId('status-state')).toHaveText('Sin conectar')
+        await expect(page.getByTestId('status-row-outbox').getByTestId('status-state')).toHaveText('Canal apagado')
         await expect(page.getByTestId('status-row-google').getByTestId('status-last')).toContainText('personas de prueba')
         await expect(page.getByTestId('status-row-web_forms')).toContainText('3 formularios activos')
         // Lo que nadie ha definido no trae un valor inventado.

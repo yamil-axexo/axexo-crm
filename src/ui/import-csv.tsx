@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useActionState, useRef, useState, type FormEvent } from 'react'
+import { startTransition, useActionState, useState, type FormEvent } from 'react'
 import type { ActionResult } from '@/lib/errors'
 import type { ImportState } from '@/app/(app)/importar/actions'
 import { buttonClass, cx } from '@/ui/kit'
@@ -20,23 +20,24 @@ export function ImportCsv({ action, kinds, markets, initialKind, labels }: { act
   const [state, formAction, pending] = useActionState(action, null)
   const [kind, setKind] = useState(initialKind)
   const [dirty, setDirty] = useState(false)
-  const intent = useRef<'check' | 'run'>('check')
-  const form = useRef<HTMLFormElement>(null)
+  const [intent, setIntent] = useState<'check' | 'run'>('check')
   const preview = state?.ok && state.data?.step === 'preview' && !dirty ? state.data : null
   const done = state?.ok && state.data?.step === 'done' && !dirty ? state.data : null
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const data = new FormData(e.currentTarget)
-    data.set('intent', intent.current)
-    if (intent.current === 'run' && preview) data.set('checksum', preview.checksum)
+    const wanted = ((e.nativeEvent as SubmitEvent).submitter as HTMLElement | null)?.dataset.intent === 'run' && preview ? 'run' : 'check'
+    setIntent(wanted)
+    data.set('intent', wanted)
+    if (wanted === 'run' && preview) data.set('checksum', preview.checksum)
     setDirty(false)
     startTransition(() => formAction(data))
   }
   const touched = () => setDirty(true)
 
   return (
-    <form ref={form} action={formAction} onSubmit={submit} className="space-y-5" data-testid="import-form">
+    <form action={formAction} onSubmit={submit} className="space-y-5" data-testid="import-form">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-[13px] font-semibold text-muted-2">{labels.kind}
           <select name="kind" className="input mt-1.5" value={kind} onChange={(e) => { setKind(e.target.value); touched() }} data-testid="import-kind">
@@ -54,7 +55,7 @@ export function ImportCsv({ action, kinds, markets, initialKind, labels }: { act
         <span className="mt-1.5 block text-[12.5px] font-normal text-muted">{labels.fileHint}</span>
       </label>
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending} onClick={() => { intent.current = 'check' }} className={buttonClass(preview ? 'ghost' : 'primary')} data-testid="import-check">{pending && intent.current === 'check' ? labels.checking : preview ? labels.again : labels.check}</button>
+        <button type="submit" disabled={pending} data-intent="check" className={buttonClass(preview ? 'ghost' : 'primary')} data-testid="import-check">{pending && intent === 'check' ? labels.checking : preview ? labels.again : labels.check}</button>
         <a href={`/importar/plantilla?tipo=${kind}`} download className={cx(buttonClass('ghost'))} data-testid="import-template">{labels.template}</a>
       </div>
 
@@ -87,7 +88,7 @@ export function ImportCsv({ action, kinds, markets, initialKind, labels }: { act
               )}
               <div className="mt-5">
                 {preview.ok > 0
-                  ? <button type="submit" disabled={pending} onClick={() => { intent.current = 'run' }} className={buttonClass('primary')} data-testid="import-run">{pending && intent.current === 'run' ? labels.running : labels.run(preview.ok)}</button>
+                  ? <button type="submit" disabled={pending} data-intent="run" className={buttonClass('primary')} data-testid="import-run">{pending && intent === 'run' ? labels.running : labels.run(preview.ok)}</button>
                   : <p className="text-[13.5px] font-medium text-amber-text" data-testid="import-nothing">{labels.nothing}</p>}
               </div>
             </>

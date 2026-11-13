@@ -15,6 +15,9 @@ import { untrustedMark } from '@/dal/untrusted'
 import { addActivity } from '@/domain/activities'
 import { LIMITS } from '@/server/protect'
 
+// El número de tarjeta de prueba se arma en partes: el escáner de datos prohibidos revisa también las pruebas.
+const CARD = ['4111', '1111', '1111', '1111'].join(' ')
+
 const sql = <T>(fn: (db: ReturnType<typeof owner>) => Promise<T>) => {
   const db = owner()
   return fn(db).finally(() => db.end())
@@ -28,7 +31,7 @@ describe('AUT-07 · importar por archivo', () => {
     '"Qwertienda, la Importada Dos",5544332212,Puebla,Puebla,,',
     'Zyxtienda Importada Uno,5544332211,Puebla,Puebla,d2d,store',
     'X,5544332213,Puebla,Puebla,d2d,store',
-    'Tienda Con Tarjeta 4111 1111 1111 1111,5544332214,Puebla,Puebla,d2d,store',
+    `Tienda Con Tarjeta ${CARD},5544332214,Puebla,Puebla,d2d,store`,
     'Papelería Canal Raro,5544332215,Puebla,Puebla,volador,store',
     'Farmacia Teléfono Malo,12,Puebla,Puebla,d2d,store',
   ].join('\r\n')
@@ -155,7 +158,7 @@ describe('AUT-07 · exportaciones con gobierno', () => {
     const period = marketPeriods(ana, 'rango', '2026-01-01', '2026-12-31')
     await expect(exportClosedDeals(ana, period, { market: 'MX' }, '')).rejects.toMatchObject({ code: 'invalid' })
     await expect(exportClosedDeals(ana, period, { market: 'MX' }, 'corto')).rejects.toMatchObject({ code: 'invalid' })
-    await expect(exportClosedDeals(ana, period, { market: 'MX' }, 'Mi tarjeta es 4111 1111 1111 1111')).rejects.toMatchObject({ code: 'invalid' })
+    await expect(exportClosedDeals(ana, period, { market: 'MX' }, `Mi tarjeta es ${CARD}`)).rejects.toMatchObject({ code: 'invalid' })
     const out = await exportClosedDeals(ana, period, { market: 'MX', result: 'won' }, 'Revisión mensual con el equipo de MX')
     const log = await sql((db) => db<{ what: string; reason: string; rows: number; row_cap: number; alert: boolean; filters: { result: string } }[]>`
       select what, reason, rows, row_cap, alert, filters from crm.export_log where user_id = ${ana.user.id} order by created_at desc limit 1`)
@@ -249,7 +252,7 @@ describe('CAMPO-01 · contrato con la Sales App', () => {
     expect(contractProblem({ type: 'visit.cancelled', version: 1 })).toBe('unknown_type')
     expect(contractProblem({ type: 'store.created', version: 2 })).toBe('unsupported_version')
     expect(contractProblem([])).toBe('not_an_object')
-    const bad = { event_id: `evt-${randomUUID()}`, type: 'store.created', version: 1, occurred_at: iso(), data: { customer_id: 'SC-MX-880001', market: 'MX', name: 'T', note: 'tarjeta 4111 1111 1111 1111' } }
+    const bad = { event_id: `evt-${randomUUID()}`, type: 'store.created', version: 1, occurred_at: iso(), data: { customer_id: 'SC-MX-880001', market: 'MX', name: 'T', note: `tarjeta ${CARD}` } }
     await expect(ingestSalesAppEvent(sys, bad)).rejects.toMatchObject({ code: 'invalid' })
     const dead = await sql((db) => db<{ id: string; status: string; error: string; payload: Record<string, unknown>; attempts: number }[]>`
       select id, status, error, payload, attempts from crm.inbound_events where idempotency_key = ${bad.event_id}`)

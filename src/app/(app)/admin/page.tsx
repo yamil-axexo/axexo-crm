@@ -59,7 +59,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <PageHeader title={t('Administración', 'Administration')} desc={t('La configuración se hace aquí y queda en la bitácora. Ventas opera; administración configura.', 'Configuration happens here and is logged. Sales operates; administration configures.')} />
       <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={tab} items={[...allowed.map((k) => ({ key: k as string, href: qs('/admin', { tab: k }), label: labels[k] })),
         // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
-        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }] : [])]} /></div>
+        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }, { key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }] : [])]} /></div>
       {hidden && (
         <p role="status" className="mb-6 rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] font-medium text-amber-text" data-testid="tab-hidden">
           {t(`Tu rol no ve la sección "${labels[hidden]}". Esa la lleva administración. Te dejamos en "${labels[tab]}".`, `Your role does not see the "${labels[hidden]}" section. Administration handles that one. You are in "${labels[tab]}".`)}
@@ -261,6 +261,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {t('CONTIGO ya recibe eventos de la Sales App y el archivo diario de ventas. Falta que los equipos que llevan esos sistemas acuerden el formato y los conecten.', 'CONTIGO already accepts Sales App events and the daily sales file. The teams that run those systems still need to agree on the format and connect them.')}
         </div>
 
+        <p className="rounded-[14px] border border-line px-5 py-4 text-[14px] text-muted-2" data-testid="integrations-more">
+          {t('Suscriptores y catálogo de eventos, llaves de lectura con rotación, documentación de la API, mensajes detenidos de la Sales App, protección de formularios e importaciones y exportaciones: ', 'Subscribers and the event catalog, read keys with rotation, the API documentation, held Sales App messages, form protection and imports and exports: ')}
+          <Link href="/admin/integraciones" className="font-medium text-blue-text underline" data-testid="integrations-more-link">{t('abrir Eventos, API y datos', 'open Events, API and data')}</Link>.
+        </p>
+
         {staging && (
           <Card data-testid="integration-lab">
             <CardTitle title={t('Probar el contrato (solo staging)', 'Try the contract (staging only)')} hint={t('Cada botón manda el mismo mensaje que mandaría el sistema real, por el mismo camino.', 'Each button sends the same message the real system would, down the same path.')} />
@@ -304,7 +309,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <p className="eyebrow mt-7 mb-3">{t('Archivos diarios de ventas', 'Daily sales files')}</p>
             <ul className="space-y-2.5">{d.batches.map((b) => <li key={b.id} className="flex items-center justify-between gap-3 text-[13.5px]" data-testid="batch-row"><span className="truncate"><code className="text-[12.5px]">{b.file_name}</code></span><span className="shrink-0 text-muted-2">{t(`${num(b.matched, locale)} de ${num(b.row_count, locale)} filas ligadas`, `${num(b.matched, locale)} of ${num(b.row_count, locale)} rows matched`)} · {day(b.as_of, locale)}</span></li>)}</ul>
           </Card>
-          <Card data-testid="outbox-log"><CardTitle title={t('Avisos para otros sistemas', 'Notices for other systems')} hint={t('Avisos que CONTIGO guarda para otros sistemas. Todavía nadie los consume: el número crece y no afecta el trabajo diario.', 'Notices CONTIGO keeps for other systems. Nobody consumes them yet: the number grows and it does not affect daily work.')} right={<Badge tone={d.outboxPending ? 'warn' : 'good'}>{t(`${num(d.outboxPending, locale)} por publicar`, `${num(d.outboxPending, locale)} to publish`)}</Badge>} />
+          <Card data-testid="outbox-log"><CardTitle title={t('Avisos para otros sistemas', 'Notices for other systems')} hint={t('Eventos que CONTIGO guarda para otros sistemas. El canal de entrega está apagado: quedan listos para publicar y no afectan el trabajo diario.', 'Events CONTIGO keeps for other systems. The delivery channel is off: they stay ready to publish and do not affect daily work.')} right={<Badge tone="neutral">{t(`${num(d.outboxPending, locale)} guardados`, `${num(d.outboxPending, locale)} stored`)}</Badge>} />
             <ul className="space-y-2.5">{d.outbox.map((o) => <li key={o.id} className="flex items-center justify-between gap-3 text-[13.5px]"><code className="text-[12.5px]">{o.event_type}</code><span className="text-muted-2">{o.market_code ?? <NoData locale={locale} />} · {ago(o.created_at, locale)}</span></li>)}</ul>
           </Card>
         </div>
