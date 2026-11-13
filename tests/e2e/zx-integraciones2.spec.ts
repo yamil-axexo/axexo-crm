@@ -141,7 +141,7 @@ test.describe('integraciones2', () => {
     await at(page, 'desktop')
     await tools.getByTestId('mx-sheet-link').click()
     await expect(page).toHaveURL(/\/importar\?tipo=mx_leads/)
-    await expect(page.getByText('Hoja de leads de México (corte)').first()).toBeVisible()
+    await expect(page.getByTestId('import-kind')).toHaveValue('mx_leads')
     // Quien no administra no baja el respaldo.
     await loginAs(page, 'ana.robles')
     const res = await page.request.get('/admin/respaldo-pipedrive')
