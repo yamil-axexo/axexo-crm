@@ -78,7 +78,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           // Datos (duplicados, registro de campos, productos y tablero de calidad): quien administra entra por aquí, no por el menú de la cuenta.
           ...(admin && (ctx.can('data.quality') || ctx.isGlobal) ? [{ key: 'datos', href: '/datos', label: t('Datos', 'Data') }] : [])] },
         { key: 'mercados', label: t('Mercados', 'Markets'), items: admin ? [
-          { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : [] },
+          { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') },
+          // Paquete campo-canal: expedientes, cartera, atribución, registros de canal, crédito, competencia, incidentes y umbrales.
+          { key: 'campo', href: '/campo', label: t('Campo y canales', 'Field and channels') }] : [] },
         { key: 'control', label: t('Control', 'Oversight'), items: [tabItem('auditoria'),
           ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : [])] },
       ].map((g) => ({ ...g, items: g.items.filter((x): x is AdminNavItem => x !== null) }))} />

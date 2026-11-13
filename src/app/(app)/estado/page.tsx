@@ -9,6 +9,8 @@ import { antibotMode } from '@/server/adapters/antibot'
 import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
 import { adapterQueue } from '@/dal/reportes'
 import { routesAdapter } from '@/server/adapters/routes'
+import { documentVault } from '@/server/adapters/document-vault'
+import { fundingFeed } from '@/server/adapters/funding-feed'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
@@ -103,6 +105,21 @@ export default async function StatusPage() {
       what: t('Tiendas de cada persona para planear su ruta', 'Each person’s stores to plan their route'),
       state: routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`La lista de tiendas por persona ya se arma dentro de CONTIGO. Para encenderlo hace falta elegir la herramienta, su aprobación de tecnología y la variable ${routes.envVar}.`, `The store list per person is already built inside CONTIGO. Turning it on needs the tool chosen, its technology approval and the ${routes.envVar} variable.`),
+    },
+    // Paquete campo-canal: bóveda de documentos del alta y fondeo desde el archivo de ventas. Construidos y apagados.
+    {
+      key: 'document_vault',
+      name: t('Bóveda de documentos del alta', 'Enrollment document vault'),
+      what: t('Archivos del expediente de alta', 'Enrollment file documents'),
+      state: documentVault().mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t('El expediente ya guarda estado, quién validó, enlace y bitácora de lectura. Para encenderla: decisión del comité sobre una sola bóveda compartida con Sales Core, bucket privado con enlaces firmados cortos, retención de datos personales, aprobación de tecnología y la variable CONTIGO_DOCUMENT_VAULT.', 'The file already keeps status, who validated, link and read log. To turn it on: committee decision on a single vault shared with Sales Core, private bucket with short signed links, personal data retention, technology approval and the CONTIGO_DOCUMENT_VAULT variable.'),
+    },
+    {
+      key: 'funding_feed',
+      name: t('Fondeo, saldo y límite de crédito', 'Funding, balance and credit limit'),
+      what: t('Del archivo de ventas o del core, por comercio', 'From the sales file or the core, per merchant'),
+      state: fundingFeed().mode === 'off' ? { tone: 'neutral', text: t('Conexión apagada', 'Connection off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t('La ficha, los avisos de saldo bajo y el simulador ya funcionan. Para encenderlo: que el archivo de ventas o el core traigan método, saldo y límite, el contrato acordado, la aprobación de tecnología y la variable CONTIGO_FUNDING_FEED.', 'The merchant view, low balance notices and the simulator already work. To turn it on: the sales file or the core must carry method, balance and limit, the agreed contract, technology approval and the CONTIGO_FUNDING_FEED variable.'),
     },
     {
       key: 'outbox',
