@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { asPersona, attempt, ctxFor, owner, personaId } from './helpers'
+import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
 import { loadCtx } from '@/server/context'
 import { runVia, withUser, withoutUser } from '@/server/db'
 import { can, isReadOnly, type Membership } from '@/domain/policy'
 import { createApiClient, grantAccess, hashKey } from '@/domain/admin'
-import { createLead } from '@/domain/leads'
+import { createLead, intakeFromForm } from '@/domain/leads'
+import { deadLeadsForMailing } from '@/dal/mx'
 import { exportClosedDeals } from '@/domain/reports'
 import { marketPeriods } from '@/dal/reports'
 import { searchAll } from '@/dal/accounts'
@@ -408,6 +409,31 @@ describe('SEG-04: consentimiento, baja y retención', () => {
     const { revokeConsent } = await import('@/domain/security')
     await revokeConsent(diana, consentId, 'Ya no quiere promociones')
     expect(await ask('marketing')).toEqual({ ok: false, why: 'no_consent' })
+  })
+
+  it('todo envío a alguien de fuera respeta la baja: el acuse de un lead web y la base de correo de leads descartados', async () => {
+    const sys = await systemContext()
+    const ana = await ctxFor('ana.robles')
+    const form = await one(admin<{ slug: string }[]>`select slug from crm.web_forms where market_code = 'US' and is_active limit 1`)
+    const t = tag()
+    const status = async (leadId: string) => (await one(admin<{ status: string }[]>`select status from crm.notifications where lead_id = ${leadId} and recipient_kind = 'lead'`)).status
+    const before = await intakeFromForm(sys, form.slug, { business_name: `Con permiso ${t}`, contact_name: 'Persona Uno', email: `uno-${t}@ejemplo.test`, consent: true }, `seg-${t}-1`)
+    // Con el canal apagado queda en la cola; fuera del horario del mercado, en espera. En los dos casos, listo para salir.
+    expect(['queued_off', 'held_hours']).toContain(await status(before.leadId))
+    // La misma dirección pide la baja: el siguiente mensaje queda registrado y no sale, aunque haya dado su consentimiento.
+    await optOut(await ctxFor('robert.hale'), { market: 'US', channel: 'email', address: `dos-${t}@ejemplo.test` })
+    const after = await intakeFromForm(sys, form.slug, { business_name: `Con baja ${t}`, contact_name: 'Persona Dos', email: `dos-${t}@ejemplo.test`, consent: true }, `seg-${t}-2`)
+    expect(await status(after.leadId)).toBe('skipped_consent')
+
+    // Base de correo: sale quien dio su consentimiento y no pidió la baja.
+    const mk = (email: string) => admin`insert into crm.leads (market_code, motor, business_name, contact_name, email, source, status, consent_at, consent_text)
+      values ('MX', 'd2d', ${`Descartado ${tag()}`}, 'Persona Lista', ${email}, 'web_form', 'disqualified', now(), 'Acepto recibir correos')`
+    await mk(`si-${t}@ejemplo.test`)
+    await mk(`no-${t}@ejemplo.test`)
+    await optOut(ana, { market: 'MX', channel: 'all', address: `no-${t}@ejemplo.test` })
+    const list = await withUser(ana.user.id, (tx) => deadLeadsForMailing(tx, 'MX', 'America/Mexico_City', 500))
+    expect(list.some((l) => l.email === `si-${t}@ejemplo.test`)).toBe(true)
+    expect(list.some((l) => l.email === `no-${t}@ejemplo.test`)).toBe(false)
   })
 
   it('el consentimiento de un formulario web queda como registro propio', async () => {
