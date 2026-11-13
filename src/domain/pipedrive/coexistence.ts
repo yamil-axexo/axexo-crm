@@ -4,7 +4,7 @@ import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
-import { STAGE_COMPANIONS, type Obj } from './edits'
+import type { Obj } from './edits'
 
 /**
  * E6.F2 y GOB-05: lo que una persona decide en la convivencia con Pipedrive.
@@ -34,8 +34,8 @@ export async function resolveConflict(ctx: Ctx, id: string, choice: 'keep' | 'ta
         const pd = (c.pipedrive_value ?? {}) as Record<string, string | null>
         const cur = await tx<{ stage_id: string }[]>`select stage_id from crm.deals where id = ${c.record_id} for update`
         if (!cur[0]) throw notFound()
-        const sets: Record<string, string | null> = { stage_id: pd.stage_id ?? null }
-        for (const k of STAGE_COMPANIONS) if (k !== 'stage_entered_at') sets[k] = pd[k] ?? null
+        const g = (k: string): string | null => pd[k] ?? null
+        const sets = { stage_id: g('stage_id'), pipeline_id: g('pipeline_id'), status: g('status'), won_at: g('won_at'), lost_at: g('lost_at'), loss_reason_code: g('loss_reason_code'), loss_note: g('loss_note'), closed_by: g('closed_by') }
         if (!sets.stage_id) throw invalid('Pipedrive no trae una etapa para este negocio.', 'Pipedrive does not bring a stage for this deal.')
         await tx`update crm.deals set stage_id = ${sets.stage_id}, pipeline_id = coalesce(${sets.pipeline_id}::uuid, pipeline_id), status = coalesce(${sets.status}, status),
                    won_at = ${sets.won_at}::timestamptz, lost_at = ${sets.lost_at}::timestamptz, loss_reason_code = ${sets.loss_reason_code}, loss_note = ${sets.loss_note},
