@@ -8,7 +8,7 @@ import { NoticeForm } from '@/ui/admin'
 import { addDays, ago, day, isoDay, pct } from '@/lib/format'
 import { MOTOR, lab, qs } from '@/lib/labels'
 import { FIELD_OBJECT, FIELD_TYPE, PII_CLASS } from '@/lib/datos-labels'
-import { closePromotionAction, decideFieldAction, proposeFieldAction, requestPromotionAction, setFieldSchemaAction, updateFieldAction } from './actions'
+import { convertToListAction, decideOverlapAction, closePromotionAction, decideFieldAction, proposeFieldAction, requestPromotionAction, setFieldSchemaAction, updateFieldAction } from './actions'
 import { toggleFieldAction } from '@/app/(app)/b2b-actions'
 
 const VIEWS = ['vigentes', 'sin-decision', 'propuestos', 'archivados'] as const
@@ -74,6 +74,25 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
               `Deadline to decide a proposal: ${d.sla} days. In the last 90 days, ${d.slaStats.on_time} of ${d.slaStats.decided} were decided on time; half took ${d.slaStats.median_days ?? '0'} days or less.`)}
         {d.slaStats.open_late > 0 && <span className="ml-2"><Badge tone="warn">{t(`${d.slaStats.open_late} fuera de plazo`, `${d.slaStats.open_late} past deadline`)}</Badge></span>}
       </p>
+
+      {d.overlaps.length > 0 && (
+        <Card data-testid="field-overlaps">
+          <CardTitle title={t('Campos de la tienda de Estados Unidos que se parecen a uno importado', 'US store fields that look like an imported one')} hint={t('Para no tener el mismo dato dos veces. Si es el mismo, se usa el de Pipedrive y los valores pasan a él; el otro se archiva.', 'So the same data does not live twice. If it is the same, the Pipedrive one is used and the values move to it; the other one is archived.')} />
+          <ul>
+            {d.overlaps.map((o) => (
+              <li key={`${o.kept_id}-${o.imported_id}`} className="flex flex-wrap items-center justify-between gap-3 border-t border-line py-3 first:border-t-0" data-testid="overlap-row">
+                <span className="min-w-0 text-[14px]"><span className="font-semibold text-strong">{o.kept_label}</span> <span className="text-muted-2">{t('y', 'and')}</span> <span className="font-semibold text-strong">{o.imported_label}</span> <Badge>Pipedrive</Badge></span>
+                {admin && (
+                  <span className="flex flex-wrap gap-2">
+                    <NoticeForm action={decideOverlapAction}><input type="hidden" name="kept_id" value={o.kept_id} /><input type="hidden" name="imported_id" value={o.imported_id} /><input type="hidden" name="decision" value="same" /><Submit size="sm" testId="overlap-same">{t('Es el mismo', 'Same field')}</Submit></NoticeForm>
+                    <NoticeForm action={decideOverlapAction}><input type="hidden" name="kept_id" value={o.kept_id} /><input type="hidden" name="imported_id" value={o.imported_id} /><input type="hidden" name="decision" value="different" /><Submit size="sm" variant="ghost" testId="overlap-different">{t('Son distintos', 'Different')}</Submit></NoticeForm>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {d.promotions.length > 0 && (
         <Card data-testid="field-promotions">
@@ -179,6 +198,15 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
                                 </>
                               )}
                               <div className="col-span-2 flex justify-end"><Submit testId="rules-save">{t('Guardar reglas', 'Save rules')}</Submit></div>
+                            </NoticeForm>
+                          </Dialog>
+                        )}
+                        {f.data_type === 'text' && f.object === 'account' && (
+                          <Dialog trigger={t('Pasar a lista', 'Make it a list')} title={t(`Lista de opciones: ${f.label_es}`, `Option list: ${f.label_en}`)} size="sm" testId="registry-to-list">
+                            <NoticeForm action={convertToListAction} className="space-y-4 text-left">
+                              <input type="hidden" name="id" value={f.id} />
+                              <Field label={t('Opciones, una por renglón', 'Options, one per line')} hint={t('Si algún comercio tiene un valor fuera de la lista, no se cambia y se dice cuál.', 'If a merchant has a value outside the list, nothing changes and you are told which one.')}><textarea name="options" rows={4} required className="input !h-auto py-3" data-testid="to-list-options" /></Field>
+                              <div className="flex justify-end"><Submit testId="to-list-save">{t('Pasar a lista', 'Make it a list')}</Submit></div>
                             </NoticeForm>
                           </Dialog>
                         )}

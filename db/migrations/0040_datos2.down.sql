@@ -1,4 +1,6 @@
 -- 0040_datos2 (down)
+drop function if exists app.us_field_overlaps();
+drop table if exists crm.field_overlap_decisions;
 drop function if exists app.operator_move_accounts(uuid[], uuid, text);
 drop function if exists app.operator_markets();
 delete from crm.memberships where role = 'finance';

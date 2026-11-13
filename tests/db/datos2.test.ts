@@ -5,7 +5,7 @@ import { addContactLinked, createAccount, setParent } from '@/domain/accounts'
 import { fieldRegistry, nodeTotals } from '@/dal/datos'
 import { decideField, proposeField } from '@/domain/gobierno'
 import { updateCustom } from '@/domain/custom'
-import { requestPromotion, setFieldSchema } from '@/domain/fields2'
+import { convertToList, decideFieldOverlap, requestPromotion, setFieldSchema } from '@/domain/fields2'
 import { openExpansionDeals, setProductEntity } from '@/domain/products2'
 import { productMatrix } from '@/dal/datos'
 import { inferAccountTimezones } from '@/server/jobs/datos'
@@ -517,5 +517,33 @@ describe('E6.F8 · borrar y recargar un mercado en producción queda bloqueado y
     expect((await admin`select 1 from crm.audit_events where action = 'market.reset_blocked'`).length).toBe(1)
     expect(await withSystem((tx) => productionResetState(tx))).toBe('blocked')
     expect((await admin`select 1 from crm.accounts where market_code = 'SV'`).length).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('E9.F11 · campos de la tienda de US contra los importados y listas de opciones', () => {
+  it('un campo conservado que se parece a uno de Pipedrive sale para decidir; "es el mismo" pasa los valores y archiva el conservado', async () => {
+    const nora = await ctxFor('nora.salas')
+    const kept = await one(admin<{ id: string; key: string }[]>`select id, key from crm.field_definitions where key = 'us_dba' and market_code = 'US'`)
+    const imp = await one(admin<{ id: string; key: string }[]>`
+      insert into crm.field_definitions (object, key, label_es, label_en, data_type, market_code, source, external_ref)
+      values ('account', ${`pd_dba_${tag()}`}, 'DBA', 'DBA name', 'text', 'US', 'pipedrive', ${`ext_${tag()}`}) returning id, key`)
+    const acc = await rawAccount('US', 'jade.kim')
+    await admin`update crm.accounts set custom = custom || jsonb_build_object(${kept.key}::text, 'Tienda Sol') where id = ${acc}`
+    const reg = await fieldRegistry(nora, 'vigentes')
+    expect(reg.overlaps.some((o) => o.kept_id === kept.id && o.imported_id === imp.id)).toBe(true)
+    expect(await decideFieldOverlap(nora, kept.id, imp.id, 'same')).toBeGreaterThanOrEqual(1)
+    expect((await one(admin<{ v: string | null }[]>`select custom ->> ${imp.key} as v from crm.accounts where id = ${acc}`)).v).toBe('Tienda Sol')
+    expect((await one(admin<{ is_active: boolean }[]>`select is_active from crm.field_definitions where id = ${kept.id}`)).is_active).toBe(false)
+    expect((await fieldRegistry(nora, 'vigentes')).overlaps.some((o) => o.kept_id === kept.id)).toBe(false)
+  })
+
+  it('un campo de texto pasa a lista solo si los valores guardados caben en ella', async () => {
+    const nora = await ctxFor('nora.salas')
+    const f = await one(admin<{ id: string; key: string }[]>`select id, key from crm.field_definitions where key = 'us_lead_type' and market_code = 'US'`)
+    const acc = await rawAccount('US', 'jade.kim')
+    await admin`update crm.accounts set custom = custom || jsonb_build_object(${f.key}::text, 'Walk-in') where id = ${acc}`
+    expect(await convertToList(nora, f.id, ['Referral', 'Campaign'])).toEqual({ converted: false, outside: ['Walk-in'] })
+    expect((await convertToList(nora, f.id, ['Referral', 'Campaign', 'Walk-in'])).converted).toBe(true)
+    expect((await one(admin<{ data_type: string }[]>`select data_type from crm.field_definitions where id = ${f.id}`)).data_type).toBe('select')
   })
 })

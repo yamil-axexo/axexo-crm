@@ -126,3 +126,50 @@ export async function syncPromotions(tx: Tx): Promise<number> {
   }
   return n
 }
+
+/**
+ * E9.F11 (datos2): un campo de la tienda de US que resultó ser el mismo que uno importado de Pipedrive. "same": los valores
+ * pasan al importado donde este no tenga dato, y el conservado se archiva (no se borra). "different": el par no vuelve a salir.
+ */
+export async function decideFieldOverlap(ctx: Ctx, keptId: string, importedId: string, decision: 'same' | 'different'): Promise<number> {
+  ctx.assert('config.manage')
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ id: string; key: string; object: string; market_code: string | null; source: string; origin: string | null }[]>`
+      select id, key, object, market_code, source, origin from crm.field_definitions where id in (${keptId}, ${importedId})`
+    const kept = rows.find((r) => r.id === keptId)
+    const imp = rows.find((r) => r.id === importedId)
+    if (!kept || !imp || imp.source !== 'pipedrive' || kept.object !== 'account') throw notFound()
+    let moved = 0
+    if (decision === 'same') {
+      moved = (await tx`update crm.accounts set custom = (custom - ${kept.key}) || jsonb_build_object(${imp.key}::text, custom -> ${kept.key})
+                         where custom ? ${kept.key} and not (custom ? ${imp.key}) and (${kept.market_code}::text is null or market_code = ${kept.market_code})`).count
+      await tx`update crm.field_definitions set is_active = false, decision_note = ${`Es el mismo que ${imp.key} (Pipedrive)`} where id = ${keptId}`
+    }
+    await tx`insert into crm.field_overlap_decisions (kept_id, imported_id, decision, decided_by) values (${keptId}, ${importedId}, ${decision}, ${ctx.user.id})`
+    await audit(tx, ctx, 'field.overlap_decided', 'field', keptId, kept.market_code, null, { imported_key: imp.key, kept_key: kept.key, decision, values_moved: moved })
+    return moved
+  })
+}
+
+/**
+ * E9.F11 (datos2): pasar un campo de texto a lista cuando su dueño define las opciones. Si hay valores guardados que no están
+ * en la lista, no se cambia y se dice cuáles son (nada se pierde ni se reescribe solo).
+ */
+export async function convertToList(ctx: Ctx, fieldId: string, options: string[]): Promise<{ converted: boolean; outside: string[] }> {
+  ctx.assert('config.manage')
+  const opts = [...new Set(options.map((o) => o.trim()).filter(Boolean))].slice(0, 30)
+  if (opts.length < 2) throw invalid('Una lista lleva al menos dos opciones, una por renglón.', 'A list needs at least two options, one per line.')
+  assertNoProhibited(...opts)
+  return withUser(ctx.user.id, async (tx) => {
+    const f = (await tx<{ key: string; object: string; data_type: string; market_code: string | null }[]>`select key, object, data_type, market_code from crm.field_definitions where id = ${fieldId} for update`)[0]
+    if (!f) throw notFound()
+    if (f.data_type !== 'text' || f.object !== 'account') throw invalid('Solo un campo de texto de comercio pasa a lista.', 'Only a merchant text field becomes a list.')
+    const outside = (await tx<{ v: string }[]>`
+      select distinct custom ->> ${f.key} as v from crm.accounts where custom ? ${f.key} and nullif(custom ->> ${f.key}, '') is not null
+         and not ((custom ->> ${f.key}) = any(${opts}::text[])) limit 20`).map((r) => r.v)
+    if (outside.length) return { converted: false, outside }
+    await tx`update crm.field_definitions set data_type = 'select', options = ${tx.json(opts)} where id = ${fieldId}`
+    await audit(tx, ctx, 'field.converted_to_list', 'field', fieldId, f.market_code, { data_type: 'text' }, { data_type: 'select', options: opts })
+    return { converted: true, outside: [] }
+  })
+}

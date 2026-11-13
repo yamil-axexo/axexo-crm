@@ -551,5 +551,41 @@ end $$;
 revoke execute on function app.operator_move_accounts(uuid[], uuid, text) from public;
 grant execute on function app.operator_move_accounts(uuid[], uuid, text) to contigo_app;
 
+
+-- ================================================================ E9.F11 campos de la tienda de US contra los importados de Pipedrive
+-- Pares "campo conservado de US" y "campo importado de Pipedrive" que se parecen (nombre en inglés o en español). Una persona
+-- decide: es el mismo (se usa el importado y los valores pasan a él) o son distintos (el par no vuelve a salir).
+create table crm.field_overlap_decisions (
+  kept_id      uuid not null references crm.field_definitions(id),
+  imported_id  uuid not null references crm.field_definitions(id),
+  decision     text not null check (decision in ('same','different')),
+  decided_by   uuid not null references crm.users(id),
+  decided_at   timestamptz not null default now(),
+  primary key (kept_id, imported_id)
+);
+alter table crm.field_overlap_decisions enable row level security;
+alter table crm.field_overlap_decisions force row level security;   -- AUTHZ-03
+revoke all on crm.field_overlap_decisions from contigo_app;
+grant select, insert on crm.field_overlap_decisions to contigo_app;
+create policy field_overlap_read on crm.field_overlap_decisions for select to contigo_app using ((select app.current_user_id()) is not null);
+create policy field_overlap_ins on crm.field_overlap_decisions for insert to contigo_app with check ((select app.is_admin()));
+
+create or replace function app.us_field_overlaps()
+returns table (kept_id uuid, kept_key text, kept_label text, imported_id uuid, imported_key text, imported_label text, score real)
+language sql stable security definer set search_path = crm, app, public, extensions, pg_catalog as $$
+  select k.id, k.key, k.label_en, i.id, i.key, i.label_en,
+         greatest(similarity(lower(k.label_en), lower(i.label_en)), similarity(lower(k.label_es), lower(i.label_es)),
+                  similarity(lower(k.label_en), lower(i.label_es)))
+    from crm.field_definitions k
+    join crm.field_definitions i on i.object = k.object and i.source = 'pipedrive' and i.is_active and i.id <> k.id
+         and (i.market_code is null or i.market_code = k.market_code)
+   where k.origin = 'Requerimientos v1, E9.F11' and k.is_active and (select app.current_user_id()) is not null
+     and greatest(similarity(lower(k.label_en), lower(i.label_en)), similarity(lower(k.label_es), lower(i.label_es)),
+                  similarity(lower(k.label_en), lower(i.label_es))) > 0.45
+     and not exists (select 1 from crm.field_overlap_decisions d where d.kept_id = k.id and d.imported_id = i.id)
+   order by 7 desc
+$$;
+grant execute on function app.us_field_overlaps() to contigo_app;
+
 -- Bitácora de la base en las tablas nuevas (SEG-03).
 select audit.attach_all();

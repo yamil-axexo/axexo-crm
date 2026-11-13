@@ -6,7 +6,7 @@ import { createMarket, createProcessList, createRoutingRule, createWebForm, deci
   saveQualitySnapshot, setProviderSla, setQualityRule, setRoutingRuleActive, setTypeDepth, setWebFormActive, updateField, updateMarket, type GovernanceInput } from '@/domain/gobierno'
 import { setParent } from '@/domain/accounts'
 import { dismissContactPair, mergeContacts, undoContactMerge } from '@/domain/contacts-dedup'
-import { closePromotion, requestPromotion, setFieldSchema } from '@/domain/fields2'
+import { closePromotion, convertToList, decideFieldOverlap, requestPromotion, setFieldSchema } from '@/domain/fields2'
 import { openExpansionDeals, setProductEntity } from '@/domain/products2'
 import type { ActionResult } from '@/lib/errors'
 
@@ -336,5 +336,23 @@ export async function openExpansionDealsAction(_: R | null, fd: FormData): Promi
     return { message: out.opened === 0
       ? ['No se abrió ningún negocio: los comercios elegidos ya tienen el producto o un trámite.', 'No deal was opened: the merchants picked already have the product or a request.']
       : [`Listo: ${out.opened === 1 ? 'se abrió 1 negocio' : `se abrieron ${out.opened} negocios`} de expansión, a nombre de quien lleva cada comercio.`, `Done: ${out.opened === 1 ? '1 expansion deal was' : `${out.opened} expansion deals were`} opened, owned by whoever owns each merchant.`] }
+  })
+}
+
+// ---------------------------------------------------------------- E9.F11 campos de US contra los importados (paquete datos2)
+
+export async function decideOverlapAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const same = str(fd, 'decision') === 'same'
+    const n = await decideFieldOverlap(ctx, str(fd, 'kept_id'), str(fd, 'imported_id'), same ? 'same' : 'different')
+    return { message: same ? [`Listo: se usa el campo importado. ${n === 1 ? '1 comercio pasó' : `${n} comercios pasaron`} su dato.`, `Done: the imported field is used. ${n === 1 ? '1 merchant moved' : `${n} merchants moved`} its value.`] : ['Listo: son campos distintos.', 'Done: they are different fields.'] }
+  })
+}
+
+export async function convertToListAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const out = await convertToList(ctx, str(fd, 'id'), lines(str(fd, 'options')))
+    if (!out.converted) return { message: [`No se cambió: hay valores que no están en la lista (${out.outside.join(', ')}). Agrégalos o corrígelos primero.`, `Not changed: some values are not in the list (${out.outside.join(', ')}). Add them or fix them first.`] }
+    return { message: ['Listo: el campo ahora es una lista.', 'Done: the field is now a list.'] }
   })
 }

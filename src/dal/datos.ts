@@ -172,7 +172,10 @@ export async function fieldRegistry(ctx: Ctx, view: 'vigentes' | 'propuestos' | 
       select p.id, p.field_id, f.label_es, f.label_en, f.object, p.column_name, p.reason, p.migration_sql, p.status, u.full_name as requested_by, p.requested_at, p.close_note
         from crm.field_promotions p join crm.field_definitions f on f.id = p.field_id left join crm.users u on u.id = p.requested_by
        order by (p.status = 'requested') desc, p.requested_at desc limit 20`
-    return { sla, fields: [...fields], counts: counts[0]!, people: [...people], slaStats, promotions: [...promotions] }
+    // E9.F11 (datos2): campos conservados de la tienda de US que se parecen a uno importado de Pipedrive.
+    const overlaps = await tx<{ kept_id: string; kept_key: string; kept_label: string; imported_id: string; imported_key: string; imported_label: string; score: number }[]>`
+      select * from app.us_field_overlaps() limit 50`
+    return { sla, fields: [...fields], counts: counts[0]!, people: [...people], slaStats, promotions: [...promotions], overlaps: [...overlaps] }
   })
 }
 

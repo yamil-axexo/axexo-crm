@@ -25,6 +25,8 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'activity.custom_updated': ['Cambió campos adicionales de una actividad', 'Edited an activity’s additional fields'],
   'field.schema_set': ['Cambió las reglas de valor de un campo', 'Changed a field’s value rules'],
   'field.promotion_closed': ['Cerró un pedido de pasar un campo a columna', 'Closed a request to promote a field to a column'],
+  'field.overlap_decided': ['Decidió si un campo de US es el mismo que uno importado', 'Decided whether a US field matches an imported one'],
+  'field.converted_to_list': ['Pasó un campo de texto a lista', 'Turned a text field into a list'],
   'decision.set': ['Cambió una decisión de negocio', 'Changed a business decision'],
   'lead.held': ['Retuvo una solicitud sin dueño', 'Held a request with no owner'],
   'lead.held_released': ['Liberó una solicitud retenida', 'Released a held request'],
