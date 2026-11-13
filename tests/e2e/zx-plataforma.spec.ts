@@ -178,10 +178,8 @@ test.describe('Datos reservados del negocio (SEG-02) y acciones rápidas (UX-02)
     const lead = (await sql<{ id: string }[]>`select id from crm.leads where owner_id = ${marco} and status in ('new','contacted') limit 1`)[0]!
     await page.goto(`/leads/${lead.id}`)
     await expect(page.getByTestId('lead-qualify')).toBeVisible()
-    // Mientras la pantalla está abierta, el lead se cierra por otro lado: calificar ya no se puede.
-    await sql`update crm.leads set status = 'disqualified', disqualified_reason = 'duplicate' where id = ${lead.id}`.catch(async () => {
-      await sql`update crm.leads set status = 'disqualified' where id = ${lead.id}`
-    })
+    // Mientras la pantalla está abierta, otra persona lo califica: calificarlo otra vez ya no se puede.
+    await sql`update crm.leads set status = 'qualified' where id = ${lead.id}`
     await page.getByTestId('lead-qualify').click()
     await expect(page.getByTestId('lead-qualify-error')).toBeVisible()
     await expect(page.getByTestId('lead-qualify')).toHaveText('Calificar')
