@@ -22,9 +22,10 @@ async function reservedAccount() {
     const acc = (await sql<{ id: string; name: string }[]>`
       select a.id, a.name from crm.account_sensitive s join crm.accounts a on a.id = s.account_id where s.field_key = 'commercial_terms' limit 1`)[0]!
     const phone = `+52557${Math.floor(1_000_000 + Math.random() * 8_999_999)}`
-    const contact = (await sql<{ id: string }[]>`insert into crm.contacts (market_code, full_name, phone) values ('MX', ${`Contacto Reservado ${tag()}`}, ${phone}) returning id`)[0]!
+    const contactName = `Contacto Reservado ${tag()}`
+    const contact = (await sql<{ id: string }[]>`insert into crm.contacts (market_code, full_name, phone) values ('MX', ${contactName}, ${phone}) returning id`)[0]!
     await sql`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${acc.id}, ${contact.id}, 'MX', 'manager')`
-    return { ...acc, phone }
+    return { ...acc, phone, contactName }
   } finally {
     await sql.end()
   }
@@ -164,7 +165,7 @@ test.describe('Equipo y datos reservados en la ficha del comercio', () => {
     await page.keyboard.press('Escape')
 
     // Consentimiento y baja del contacto.
-    const contact = page.getByTestId('consent-contact').filter({ hasText: 'Contacto Reservado' })
+    const contact = page.getByTestId('consent-contact').filter({ hasText: acc.contactName })
     await contact.getByTestId('consent-add-open').click()
     await page.getByTestId('consent-evidence').fill('Aceptó por teléfono recibir avisos de su cuenta')
     await page.getByTestId('consent-save').click()
