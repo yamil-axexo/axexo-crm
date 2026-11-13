@@ -127,7 +127,8 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
     // SEG-07: la persona se entera de que recibió el acceso (dentro de CONTIGO; por correo cuando ese canal se encienda).
     if (userId !== ctx.user.id) {
       await notify(tx, ctx, {
-        to: userId, kind: 'access_granted', market, link: '/bienvenida',
+        // El aviso es de la persona, no del mercado: así también lo puede dejar quien administra solo la parte Accesos.
+        to: userId, kind: 'access_granted', market: null, link: '/bienvenida',
         title: [`Tienes acceso a CONTIGO como ${ROLE_LABEL[v.role].es}${market ? ` en ${market}` : ''}`, `You have access to CONTIGO as ${ROLE_LABEL[v.role].en}${market ? ` in ${market}` : ''}`],
         body: [`Te lo dio ${ctx.user.name}. Si no lo esperabas, avisa a Administración.`, `${ctx.user.name} gave it to you. If you were not expecting it, tell Administration.`],
       })

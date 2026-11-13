@@ -19,7 +19,7 @@ const uuid = z.guid()
 export async function accessGranted(tx: Tx, ctx: Ctx, userId: string, market: string | null, role: [string, string]): Promise<void> {
   if (userId === ctx.user.id) return
   await notify(tx, ctx, {
-    to: userId, kind: 'access_granted', market, link: '/bienvenida',
+    to: userId, kind: 'access_granted', market: null, link: '/bienvenida',
     title: [`Tienes acceso a CONTIGO como ${role[0]}${market ? ` en ${market}` : ''}`, `You have access to CONTIGO as ${role[1]}${market ? ` in ${market}` : ''}`],
     body: [`Te lo dio ${ctx.user.name}. Si no lo esperabas, avisa a Administración.`, `${ctx.user.name} gave it to you. If you were not expecting it, tell Administration.`],
   })
