@@ -422,7 +422,7 @@ const reasonInput = z.object({ labelEs: label, labelEn: label, market: z.string(
 async function reasonRoom(tx: Tx, kind: string, market: string | null, except: string | null): Promise<{ n: number; cap: number | null }> {
   const r = await tx<{ n: number; cap: number | null }[]>`
     select (select count(*)::int from crm.loss_reasons where kind = ${kind} and is_active and market_code is not distinct from ${market} and code is distinct from ${except}) as n,
-           (app.funnel_setting(${market}, ${market ? 'reason_max_extensions' : 'reason_core_max'}))::text::int as cap`
+           (app.funnel_setting(${market}, ${market ? 'reason_max_extensions' : 'reason_core_max'}) #>> '{}')::int as cap`
   return r[0]!
 }
 const fullMsg = (market: string | null, cap: number) => invalid(

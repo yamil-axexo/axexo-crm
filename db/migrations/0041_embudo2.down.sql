@@ -17,6 +17,7 @@ drop trigger if exists activities_no_delete on crm.activities;
 drop trigger if exists activities_append_only on crm.activities;
 drop function if exists app.activities_mark_corrected();
 drop function if exists app.activities_no_delete();
+drop function if exists app.activity_retention_apply();
 drop function if exists app.activities_append_only();
 alter table crm.activities drop column if exists corrected_at, drop column if exists corrects_id, drop column if exists visibility_class;
 

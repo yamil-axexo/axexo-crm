@@ -59,7 +59,7 @@ export async function ReasonCapsCard({ ctx }: { ctx: Ctx }) {
   const { t } = ctx
   const rows = await withUser(ctx.user.id, (tx) => tx<{ kind: string; scope: string; n: number; cap: number | null }[]>`
     select r.kind, coalesce(r.market_code, '*') as scope, count(*)::int as n,
-           (app.funnel_setting(r.market_code, case when r.market_code is null then 'reason_core_max' else 'reason_max_extensions' end))::text::int as cap
+           (app.funnel_setting(r.market_code, case when r.market_code is null then 'reason_core_max' else 'reason_max_extensions' end) #>> '{}')::int as cap
       from crm.loss_reasons r where r.is_active group by r.kind, r.market_code order by r.kind, r.market_code nulls first`)
   const kind = (k: string) => (k === 'lost' ? t('Pérdida', 'Loss') : t('No venta', 'No sale'))
   return (

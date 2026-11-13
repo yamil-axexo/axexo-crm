@@ -39,19 +39,8 @@ export async function correctActivity(ctx: Ctx, activityId: string, raw: z.input
 
 /** Retención (crm.funnel_settings 'activity_retention_months'): vacío no borra nada. Devuelve cuántas filas quitó. */
 export async function applyActivityRetention(tx: Tx): Promise<number> {
-  const rows = await tx<{ market_code: string; months: number | null }[]>`
-    select m.code as market_code, (app.funnel_setting(m.code, 'activity_retention_months'))::text::int as months from crm.markets m`
-  let n = 0
-  for (const r of rows) {
-    if (!r.months) continue
-    // Primero las correcciones (apuntan a la original), luego lo demás. Las tareas pendientes nunca se tocan.
-    const old = tx`select id from crm.activities where market_code = ${r.market_code} and done_at is not null and done_at < now() - make_interval(months => ${r.months})
-                    and approval_id is null and not exists (select 1 from crm.activities c where c.corrects_id = crm.activities.id and c.done_at >= now() - make_interval(months => ${r.months}))`
-    const del = await tx`delete from crm.activities where id in (${old}) and corrects_id is not null`
-    const del2 = await tx`delete from crm.activities where id in (${old})`
-    n += del.count + del2.count
-  }
-  return n
+  const r = await tx<{ n: number }[]>`select app.activity_retention_apply() as n`
+  return r[0]?.n ?? 0
 }
 
 /**

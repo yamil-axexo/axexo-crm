@@ -60,7 +60,7 @@ function recordSet(tx: Tx, source: Source): Frag {
              extract(epoch from (now() - d.stage_entered_at)) / 86400.0 as stage_age_days,
              (lim.days > 0 and d.stage_entered_at < now() - make_interval(days => lim.days)) as over_stage_limit,
              (lim.days > 0 and d.stage_entered_at < now() - make_interval(days => lim.days)
-               and (coalesce((app.funnel_setting(d.market_code, 'rot_respects_next_step'))::text, 'true') <> 'true'
+               and (coalesce(app.funnel_setting(d.market_code, 'rot_respects_next_step') #>> '{}', 'true') <> 'true'
                     or d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)})) as rotting,
              d.next_step_due,
              (s.sla_hours is not null and app.business_minutes(d.market_code, d.stage_entered_at, now()) > s.sla_hours * 60) as over_stage_sla,

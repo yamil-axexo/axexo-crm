@@ -87,7 +87,7 @@ export async function saveFunnelSetting(ctx: Ctx, input: { key: string; market: 
 /** ACT-02: la fecha del próximo paso, dentro del tope del mercado. */
 export async function assertNextStepWithinCap(tx: Tx, market: string, due: string): Promise<void> {
   const r = await tx<{ cap: number | null; ok: boolean }[]>`
-    select (app.funnel_setting(${market}, 'next_step_max_days'))::text::int as cap,
-           coalesce(${due}::date <= (now() at time zone (select timezone from crm.markets where code = ${market}))::date + (app.funnel_setting(${market}, 'next_step_max_days'))::text::int, true) as ok`
+    select (app.funnel_setting(${market}, 'next_step_max_days') #>> '{}')::int as cap,
+           coalesce(${due}::date <= (now() at time zone (select timezone from crm.markets where code = ${market}))::date + (app.funnel_setting(${market}, 'next_step_max_days') #>> '{}')::int, true) as ok`
   if (r[0] && !r[0].ok) throw invalid(`La fecha del próximo paso puede ir hasta ${r[0].cap} días adelante. Si falta más, pon un paso intermedio.`, `The next step date can be up to ${r[0].cap} days ahead. If it is further out, set an intermediate step.`)
 }

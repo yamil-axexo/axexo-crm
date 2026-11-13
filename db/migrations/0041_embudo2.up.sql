@@ -60,7 +60,7 @@ declare cap int; today date;
 begin
   if new.next_step_due is null or new.status <> 'open' or session_user <> 'contigo_app' then return new; end if;
   if tg_op = 'UPDATE' and new.next_step_due is not distinct from old.next_step_due then return new; end if;
-  cap := (app.funnel_setting(new.market_code, 'next_step_max_days'))::text::int;
+  cap := (app.funnel_setting(new.market_code, 'next_step_max_days') #>> '{}')::int;
   if cap is null then return new; end if;
   select (now() at time zone m.timezone)::date into today from crm.markets m where m.code = new.market_code;
   if new.next_step_due > today + cap then
@@ -97,10 +97,10 @@ begin
   if not new.is_active or session_user <> 'contigo_app' then return new; end if;
   if tg_op = 'UPDATE' and old.is_active and old.market_code is not distinct from new.market_code then return new; end if;
   if new.market_code is null then
-    cap := (app.funnel_setting(null, 'reason_core_max'))::text::int;
+    cap := (app.funnel_setting(null, 'reason_core_max') #>> '{}')::int;
     select count(*) into n from crm.loss_reasons where market_code is null and kind = new.kind and is_active and code <> new.code;
   else
-    cap := (app.funnel_setting(new.market_code, 'reason_max_extensions'))::text::int;
+    cap := (app.funnel_setting(new.market_code, 'reason_max_extensions') #>> '{}')::int;
     select count(*) into n from crm.loss_reasons where market_code = new.market_code and kind = new.kind and is_active and code <> new.code;
   end if;
   if cap is not null and n >= cap then
@@ -132,7 +132,7 @@ declare
   tz text; d int[]; o time; c time;
   loc timestamp; day date; s timestamp; e timestamp;
   remaining numeric := greatest(coalesce(p_minutes, 60), 0);
-  avail numeric; i int := 0;
+  avail numeric; i int := 0; hday date;
 begin
   select m.timezone into tz from crm.markets m where m.code = p_market;
   tz := coalesce(nullif(p_tz, ''), tz, 'UTC');
@@ -141,7 +141,8 @@ begin
   loc := p_from at time zone tz;
   day := loc::date;
   while i < 370 loop
-    if extract(isodow from day)::int = any(d) and not exists (select 1 from crm.market_holidays x where x.market_code = p_market and x.day = day) then
+    hday := day;
+    if extract(isodow from day)::int = any(d) and not exists (select 1 from crm.market_holidays x where x.market_code = p_market and x.day = hday) then
       s := greatest(loc, day + o);
       e := day + c;
       if s < e then
@@ -162,7 +163,7 @@ language plpgsql stable security definer set search_path = crm, app, pg_catalog 
 declare
   tz text; d int[]; o time; c time;
   a timestamp; b timestamp; day date; s timestamp; e timestamp;
-  total numeric := 0; i int := 0;
+  total numeric := 0; i int := 0; hday date;
 begin
   if p_from is null or p_to is null or p_to <= p_from then return 0; end if;
   select m.timezone into tz from crm.markets m where m.code = p_market;
@@ -172,7 +173,8 @@ begin
   a := p_from at time zone tz; b := p_to at time zone tz;
   day := a::date;
   while day <= b::date and i < 370 loop
-    if extract(isodow from day)::int = any(d) and not exists (select 1 from crm.market_holidays x where x.market_code = p_market and x.day = day) then
+    hday := day;
+    if extract(isodow from day)::int = any(d) and not exists (select 1 from crm.market_holidays x where x.market_code = p_market and x.day = hday) then
       s := greatest(a, day + o);
       e := least(b, day + c);
       if s < e then total := total + extract(epoch from (e - s)) / 60.0; end if;
@@ -290,12 +292,30 @@ create trigger activities_append_only before update on crm.activities for each r
 create or replace function app.activities_no_delete() returns trigger
 language plpgsql security definer set search_path = crm, app, pg_catalog as $$
 begin
-  if old.done_at is not null and session_user = 'contigo_app' then
+  if old.done_at is not null and current_user = 'contigo_app' then
     raise exception 'activity is append-only once done' using errcode = '42501', hint = 'append_only';
   end if;
   return old;
 end $$;
 create trigger activities_no_delete before delete on crm.activities for each row execute function app.activities_no_delete();
+-- Retención (crm.funnel_settings 'activity_retention_months', vacía = se guarda todo): la única vía para quitar actividades
+-- terminadas. Primero las correcciones, luego las originales; nunca lo pendiente ni lo ligado a una aprobación.
+create or replace function app.activity_retention_apply() returns int
+language plpgsql volatile security definer set search_path = crm, app, pg_catalog as $$
+declare r record; n int := 0; k int;
+begin
+  for r in select m.code, (app.funnel_setting(m.code, 'activity_retention_months') #>> '{}')::int as months from crm.markets m loop
+    continue when r.months is null;
+    delete from crm.activities a where a.market_code = r.code and a.done_at < now() - make_interval(months => r.months) and a.approval_id is null and a.corrects_id is not null;
+    get diagnostics k = row_count; n := n + k;
+    delete from crm.activities a where a.market_code = r.code and a.done_at < now() - make_interval(months => r.months) and a.approval_id is null
+       and not exists (select 1 from crm.activities c where c.corrects_id = a.id);
+    get diagnostics k = row_count; n := n + k;
+  end loop;
+  return n;
+end $$;
+revoke execute on function app.activity_retention_apply() from public;
+grant execute on function app.activity_retention_apply() to contigo_app;
 -- Marca de "corregida" en la original: la pone la base al insertar la corrección (la original no se edita desde la app).
 create or replace function app.activities_mark_corrected() returns trigger
 language plpgsql security definer set search_path = crm, app, pg_catalog as $$
