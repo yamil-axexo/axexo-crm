@@ -24,8 +24,17 @@ export const IMPORT_MAX_ROWS = 2000
 export const IMPORT_MAX_BYTES = 900_000
 const BATCH = 50
 
-type Column = { key: string; names: string[]; required?: boolean; label: Pair; example: string; max: number }
-const col = (key: string, names: string[], es: string, en: string, example: string, max: number, required = false): Column => ({ key, names, label: [es, en], example, max, required })
+type Column = { key: string; names: string[]; required?: boolean; label: Pair; example: string | Pair; max: number }
+const col = (key: string, names: string[], es: string, en: string, example: string | Pair, max: number, required = false): Column => ({ key, names, label: [es, en], example, max, required })
+
+/** El archivo se puede llenar en español o en inglés: estas palabras valen lo mismo que el valor interno. */
+const ROLE_WORDS: Record<string, (typeof CONTACT_ROLES)[number]> = {
+  dueno: 'owner', propietario: 'owner', decisor: 'decision_maker', 'quien decide': 'decision_maker', gerente: 'manager', encargado: 'manager', personal: 'staff', empleado: 'staff',
+  cobranza: 'billing', facturacion: 'billing', directivo: 'executive', compras: 'purchasing', finanzas: 'finance', tecnologia: 'technology', legal: 'legal', operaciones: 'operations',
+}
+const KIND_WORDS: Record<string, string> = { tienda: 'store', sucursal: 'store', cadena: 'chain', distribuidor: 'distributor', organizacion: 'organization', corporativo: 'organization' }
+const roleOf = (raw: string): string => ROLE_WORDS[norm(raw)] ?? norm(raw).replace(/ /g, '_')
+const kindOf = (raw: string): string => KIND_WORDS[norm(raw)] ?? norm(raw)
 
 export const IMPORT_COLUMNS: Record<ImportKind, Column[]> = {
   accounts: [
@@ -34,14 +43,14 @@ export const IMPORT_COLUMNS: Record<ImportKind, Column[]> = {
     col('locality', ['ciudad', 'city', 'locality'], 'Ciudad', 'City', 'Ciudad Ejemplo', 120),
     col('region', ['estado', 'state', 'region'], 'Estado', 'State', 'Estado Ejemplo', 120),
     col('segment', ['canal', 'channel', 'segment'], 'Canal (d2d, b2b, dealer, event, orders u other; vacío: d2d)', 'Channel (d2d, b2b, dealer, event, orders or other; empty: d2d)', 'd2d', 10),
-    col('kind', ['tipo', 'type', 'kind'], 'Tipo (store, chain, distributor u organization; vacío: store)', 'Type (store, chain, distributor or organization; empty: store)', 'store', 20),
+    col('kind', ['tipo', 'type', 'kind'], 'Tipo: tienda, cadena, distribuidor u organización (vacío: tienda)', 'Type: store, chain, distributor or organization (empty: store)', ['tienda', 'store'], 20),
   ],
   contacts: [
     col('account', ['comercio', 'merchant', 'account'], 'Nombre exacto del comercio que ya existe', 'Exact name of the existing merchant', 'Abarrotes Ejemplo', 160, true),
     col('full_name', ['nombre', 'name', 'contacto', 'contact'], 'Nombre del contacto', 'Contact name', 'Persona Ejemplo', 120, true),
     col('phone', ['telefono', 'phone', 'teléfono'], 'Teléfono', 'Phone', '5512345678', 30),
     col('email', ['correo', 'email'], 'Correo', 'Email', 'persona@ejemplo.test', 160),
-    col('role', ['rol', 'role'], `Rol (${CONTACT_ROLES.slice(0, 4).join(', ')}...; vacío: owner)`, `Role (${CONTACT_ROLES.slice(0, 4).join(', ')}...; empty: owner)`, 'owner', 20),
+    col('role', ['rol', 'role'], 'Rol: dueño, decisor, gerente, personal, cobranza, directivo, compras, finanzas, tecnología, legal u operaciones (vacío: dueño)', `Role: ${CONTACT_ROLES.join(', ')} (empty: owner)`, ['dueño', 'owner'], 20),
   ],
   leads: [
     col('business_name', ['negocio', 'business', 'business_name', 'nombre_negocio'], 'Nombre del negocio', 'Business name', 'Miscelánea Muestra', 120, true),
@@ -59,7 +68,7 @@ export const KIND_LABEL: Record<ImportKind, Pair> = { accounts: ['Comercios', 'M
 /** Plantilla descargable: encabezados en el idioma de quien la baja y una fila de ejemplo. */
 export function importTemplate(kind: ImportKind, locale: 'es' | 'en'): { csv: string; fileName: string } {
   const cols = IMPORT_COLUMNS[kind]
-  return { csv: toCsv(cols.map((c) => (locale === 'en' ? c.names[1]! : c.names[0]!)), [cols.map((c) => c.example)]), fileName: `contigo-plantilla-${kind}.csv` }
+  return { csv: toCsv(cols.map((c) => (locale === 'en' ? c.names[1]! : c.names[0]!)), [cols.map((c) => (typeof c.example === 'string' ? c.example : c.example[locale === 'en' ? 1 : 0]))]), fileName: `contigo-plantilla-${kind}.csv` }
 }
 
 export type PreviewRow = { rowNo: number; status: 'ok' | 'duplicate' | 'error'; label: string; problems: Pair[]; values: Record<string, string> }
@@ -106,8 +115,8 @@ export async function previewImport(ctx: Ctx, raw: z.input<typeof input>): Promi
     if (kind === 'leads' && !values.phone && !values.email) problems.push(['Hace falta un teléfono o un correo.', 'A phone or an email is required.'])
     if (kind === 'leads' && values.motor && !(MOTORS as readonly string[]).includes(values.motor.toLowerCase())) problems.push(['Tipo de venta: usa d2d, b2b o dealer.', 'Sale type: use d2d, b2b or dealer.'])
     if (kind === 'accounts' && values.segment && !SEGMENTS.includes(values.segment.toLowerCase())) problems.push(['Canal: usa d2d, b2b, dealer, event, orders u other.', 'Channel: use d2d, b2b, dealer, event, orders or other.'])
-    if (kind === 'accounts' && values.kind && !KINDS.includes(values.kind.toLowerCase())) problems.push(['Tipo: usa store, chain, distributor u organization.', 'Type: use store, chain, distributor or organization.'])
-    if (kind === 'contacts' && values.role && !(CONTACT_ROLES as readonly string[]).includes(values.role.toLowerCase())) problems.push(['Rol: usa uno de la plantilla (owner, decision_maker, manager, staff...).', 'Role: use one from the template (owner, decision_maker, manager, staff...).'])
+    if (kind === 'accounts' && values.kind && !KINDS.includes(kindOf(values.kind))) problems.push(['Tipo: usa tienda, cadena, distribuidor u organización.', 'Type: use store, chain, distributor or organization.'])
+    if (kind === 'contacts' && values.role && !(CONTACT_ROLES as readonly string[]).includes(roleOf(values.role))) problems.push(['Rol: usa uno de los que dice la plantilla (dueño, decisor, gerente, personal...).', 'Role: use one of those listed in the template (owner, decision_maker, manager, staff...).'])
     try {
       assertNoProhibited(...Object.values(values))
     } catch {
@@ -211,7 +220,7 @@ export async function runImport(ctx: Ctx, raw: z.input<typeof input> & { checksu
       try {
         const x = r.values
         if (p.kind === 'accounts') {
-          const out = await createAccount(ctx, { market: p.market, name: x.name!, phone: x.phone, locality: x.locality, region: x.region, segment: ((x.segment || 'd2d').toLowerCase()) as 'd2d', kind: ((x.kind || 'store').toLowerCase()) as 'store' })
+          const out = await createAccount(ctx, { market: p.market, name: x.name!, phone: x.phone, locality: x.locality, region: x.region, segment: ((x.segment || 'd2d').toLowerCase()) as 'd2d', kind: kindOf(x.kind || 'store') as 'store' })
           if (!out.id) {
             duplicates++
             outcomes.push({ row_no: r.rowNo, outcome: 'duplicate', object: null, object_id: null, detail: 'duplicate found while importing' })
@@ -223,7 +232,7 @@ export async function runImport(ctx: Ctx, raw: z.input<typeof input> & { checksu
           const id = await createImportedLead(ctx, { market: p.market, motor: (x.motor || 'd2d').toLowerCase(), businessName: x.business_name!, contactName: x.contact_name!, phone: x.phone, email: x.email, locality: x.locality, message: x.message })
           outcomes.push({ row_no: r.rowNo, outcome: 'created', object: 'lead', object_id: id, detail: null })
         } else {
-          const id = await addContact(ctx, x.account_id!, { fullName: x.full_name!, phone: x.phone, email: x.email, role: ((x.role || 'owner').toLowerCase()) as 'owner' })
+          const id = await addContact(ctx, x.account_id!, { fullName: x.full_name!, phone: x.phone, email: x.email, role: roleOf(x.role || 'owner') as 'owner' })
           await withUser(ctx.user.id, (tx) => markUntrusted(tx, 'contact', id, p.market, 'csv_import', ['full_name']))
           outcomes.push({ row_no: r.rowNo, outcome: 'created', object: 'contact', object_id: id, detail: null })
         }

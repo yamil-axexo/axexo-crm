@@ -27,7 +27,7 @@ const iso = () => new Date().toISOString()
 describe('AUT-07 · importar por archivo', () => {
   const accountsCsv = [
     'nombre,telefono,ciudad,estado,canal,tipo',
-    'Zyxtienda Importada Uno,5544332211,Puebla,Puebla,d2d,store',
+    'Zyxtienda Importada Uno,5544332211,Puebla,Puebla,d2d,tienda',
     '"Qwertienda, la Importada Dos",5544332212,Puebla,Puebla,,',
     'Zyxtienda Importada Uno,5544332211,Puebla,Puebla,d2d,store',
     'X,5544332213,Puebla,Puebla,d2d,store',
@@ -142,7 +142,7 @@ describe('AUT-07 · importar por archivo', () => {
     const acc = await sql((db) => db<{ id: string; name: string }[]>`
       select a.id, a.name from crm.accounts a where a.market_code = 'MX' and a.archived_at is null
          and (select count(*) from crm.accounts b where b.market_code = 'MX' and b.archived_at is null and lower(btrim(b.name)) = lower(btrim(a.name))) = 1 order by a.created_at limit 1`)
-    const contacts = `comercio,nombre,telefono,correo,rol\n"${acc[0]!.name.replace(/"/g, '""')}",Contacto Importado,5511223399,,manager\nComercio Que No Existe,Alguien Más,5511223398,,owner`
+    const contacts = `comercio,nombre,telefono,correo,rol\n"${acc[0]!.name.replace(/"/g, '""')}",Contacto Importado,5511223399,,Gerente\nComercio Que No Existe,Alguien Más,5511223398,,owner`
     const cp = await previewImport(ana, { kind: 'contacts', market: 'MX', fileName: 'contactos.csv', text: contacts })
     expect(cp).toMatchObject({ ok: 1, errors: 1 })
     const cr = await runImport(ana, { kind: 'contacts', market: 'MX', fileName: 'contactos.csv', text: contacts, checksum: cp.checksum })

@@ -9,6 +9,7 @@ import { listAccounts, type AccountFilters } from '@/dal/accounts'
 import { listLeads, type LeadFilters } from '@/dal/leads'
 import { forbidden, invalid } from '@/lib/errors'
 import { toCsv } from '@/lib/periods'
+import { isoDay } from '@/lib/format'
 import { LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
 
 // AUT-07: toda exportación pide motivo, tiene tope de filas según el rol, queda anotada con filtros y conteo, y avisa a
@@ -46,7 +47,8 @@ export async function governExport(tx: Tx, ctx: Ctx, e: { what: ExportWhat; reas
 
 export type ListExport = { csv: string; rows: number; truncated: boolean; fileName: string }
 const safe = (s: string | null | undefined) => (s ? scrub(s) : '')
-const today = () => new Date().toISOString().slice(0, 10)
+/** El día del archivo es el del mercado del filtro (o el primero del alcance), no el del servidor. */
+const today = (ctx: Ctx, market?: string) => isoDay(new Date(), ctx.markets.find((m) => m.code === market)?.timezone ?? ctx.markets[0]?.timezone ?? 'UTC')
 
 function assertListExport(ctx: Ctx, market?: string): number {
   if (!ctx.can('report.export', market)) throw forbidden()
@@ -71,7 +73,7 @@ export async function exportAccounts(ctx: Ctx, f: AccountFilters, rawReason: str
     await audit(tx, ctx, 'report.exported', 'report', null, f.market ?? null, null, { report: 'accounts', rows: data.items.length, truncated, reason, filters })
     await governExport(tx, ctx, { what: 'accounts', reason, rows: data.items.length, cap, truncated, market: f.market ?? null, filters })
   })
-  return { csv, rows: data.items.length, truncated, fileName: `contigo-comercios-${today()}.csv` }
+  return { csv, rows: data.items.length, truncated, fileName: `contigo-comercios-${today(ctx, f.market)}.csv` }
 }
 
 /** Exporta los leads que la lista muestra con esos filtros. Sin nombre, teléfono ni correo de la persona. */
@@ -91,5 +93,5 @@ export async function exportLeads(ctx: Ctx, f: LeadFilters, rawReason: string): 
     await audit(tx, ctx, 'report.exported', 'report', null, f.market ?? null, null, { report: 'leads', rows: data.items.length, truncated, reason, filters })
     await governExport(tx, ctx, { what: 'leads', reason, rows: data.items.length, cap, truncated, market: f.market ?? null, filters })
   })
-  return { csv, rows: data.items.length, truncated, fileName: `contigo-leads-${today()}.csv` }
+  return { csv, rows: data.items.length, truncated, fileName: `contigo-leads-${today(ctx, f.market)}.csv` }
 }

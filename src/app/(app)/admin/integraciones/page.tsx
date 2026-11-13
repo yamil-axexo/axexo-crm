@@ -226,15 +226,16 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
                       </Dialog>
                     )}
                   </div>
-                  {!dead && !c.retire_at && (
-                    <details className="mt-1 text-[13px]"><summary className="cursor-pointer font-medium text-blue-text" data-testid="key-rotate-open">{t('Rotar', 'Rotate')}</summary>
+                  {!dead && (
+                    <details className="mt-1 text-[13px]"><summary className="cursor-pointer font-medium text-blue-text" data-testid="key-rotate-open">{c.retire_at ? t('Rotación en curso', 'Rotation in progress') : t('Rotar', 'Rotate')}</summary>
                       <RevealOnce action={rotateApiKeyAction} label={t('Llave nueva. Cópiala ahora: no se vuelve a mostrar.', 'New key. Copy it now: it will not be shown again.')} copyLabel={t('Copiar', 'Copy')} copiedLabel={t('Copiada', 'Copied')}>
+                        {c.retire_at ? <p className="mt-2 text-muted-2" data-testid="key-rotating">{t(`Esta llave ya se rotó: sigue vigente hasta el ${day(c.retire_at, locale)} y después deja de valer sola. La llave nueva está en esta lista.`, `This key was already rotated: it stays valid until ${day(c.retire_at, locale)} and then stops working on its own. The new key is in this list.`)}</p> : <>
                         <input type="hidden" name="id" value={c.id} />
                         <p className="mt-2 text-muted-2">{t('Nace una llave nueva con el mismo mercado y permisos. La anterior sigue valiendo los días que digas, para que el otro sistema cambie sin corte, y después deja de valer sola.', 'A new key is created with the same market and scopes. The previous one stays valid for the days you set, so the other system can switch with no outage, and then stops working on its own.')}</p>
                         <div className="mt-2 flex flex-wrap items-end gap-3">
                           <Field label={t('Días que sigue vigente la anterior', 'Days the previous one stays valid')}><input name="days" type="number" inputMode="numeric" min={ROTATION_DAYS.min} max={ROTATION_DAYS.max} defaultValue={ROTATION_DAYS.default} className="input !w-28" data-testid="key-rotate-days" /></Field>
                           <Submit variant="ghost" size="sm" testId="key-rotate">{t('Rotar llave', 'Rotate key')}</Submit>
-                        </div>
+                        </div></>}
                       </RevealOnce>
                     </details>
                   )}

@@ -6,11 +6,13 @@ import type { ImportState } from '@/app/(app)/importar/actions'
 import { buttonClass, cx } from '@/ui/kit'
 
 type Action = (prev: ActionResult<ImportState> | null, data: FormData) => Promise<ActionResult<ImportState>>
+/** Textos del formulario. Los que llevan números traen marcadores ({n}, {total}, {ok}, {dup}, {err}): un componente cliente no recibe funciones. */
 export type ImportLabels = {
-  kind: string; market: string; file: string; fileHint: string; check: string; checking: string; run: (n: number) => string; running: string; template: string
-  summary: (s: { total: number; ok: number; duplicates: number; errors: number }) => string; nothing: string; row: string; what: string; why: string
-  duplicate: string; error: string; more: (n: number) => string; changed: string; allGood: string; again: string
+  kind: string; market: string; file: string; fileHint: string; check: string; checking: string; runOne: string; runMany: string; running: string; template: string
+  summaryOne: string; summaryMany: string; nothing: string; row: string; what: string; why: string
+  duplicate: string; error: string; moreOne: string; moreMany: string; changed: string; allGood: string; again: string
 }
+const fill = (template: string, vars: Record<string, number>) => template.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? new Intl.NumberFormat(typeof document !== 'undefined' && document.documentElement.lang === 'en' ? 'en-US' : 'es-MX').format(vars[k]!) : `{${k}}`))
 
 /**
  * AUT-07: importar un CSV en dos pasos dentro del mismo formulario. "Revisar" valida todo y no escribe nada; "Importar"
@@ -68,7 +70,7 @@ export function ImportCsv({ action, kinds, markets, initialKind, labels }: { act
             <p role="alert" className="text-[14px] font-medium text-red-text" data-testid="import-file-problem">{preview.fileProblem}</p>
           ) : (
             <>
-              <p className="text-[15px] font-semibold text-strong" data-testid="import-summary">{labels.summary(preview)}</p>
+              <p className="text-[15px] font-semibold text-strong" data-testid="import-summary">{fill(preview.total === 1 ? labels.summaryOne : labels.summaryMany, { total: preview.total, ok: preview.ok, dup: preview.duplicates, err: preview.errors })}</p>
               {preview.rows.length === 0 ? <p className="mt-2 text-[13.5px] text-muted-2">{labels.allGood}</p> : (
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full min-w-[520px] text-left text-[13.5px]" data-testid="import-problems">
@@ -83,12 +85,12 @@ export function ImportCsv({ action, kinds, markets, initialKind, labels }: { act
                       ))}
                     </tbody>
                   </table>
-                  {preview.more > 0 && <p className="mt-3 text-[12.5px] text-muted">{labels.more(preview.more)}</p>}
+                  {preview.more > 0 && <p className="mt-3 text-[12.5px] text-muted">{fill(preview.more === 1 ? labels.moreOne : labels.moreMany, { n: preview.more })}</p>}
                 </div>
               )}
               <div className="mt-5">
                 {preview.ok > 0
-                  ? <button type="submit" disabled={pending} data-intent="run" className={buttonClass('primary')} data-testid="import-run">{pending && intent === 'run' ? labels.running : labels.run(preview.ok)}</button>
+                  ? <button type="submit" disabled={pending} data-intent="run" className={buttonClass('primary')} data-testid="import-run">{pending && intent === 'run' ? labels.running : fill(preview.ok === 1 ? labels.runOne : labels.runMany, { n: preview.ok })}</button>
                   : <p className="text-[13.5px] font-medium text-amber-text" data-testid="import-nothing">{labels.nothing}</p>}
               </div>
             </>

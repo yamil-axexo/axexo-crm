@@ -221,6 +221,8 @@ test.describe('CAMPO-01 · contrato con la Sales App', () => {
     // Fuera de contrato: a muertos con su motivo. Aprobación de un punto de venta desconocido: detenida.
     await page.getByTestId('sim-invalid-send').click()
     await expect(page.getByTestId('sim-invalid').getByTestId('form-ok')).toContainText('mensajes muertos')
+    // El formulario ignora un segundo envío pegado al anterior (protección contra doble clic): se espera un momento.
+    await page.waitForTimeout(900)
     await page.getByTestId('sim-approved-id').fill('SC-MX-E2E-404')
     await page.getByTestId('sim-approved-ref').fill('MID-E2E-0404')
     await page.getByTestId('sim-approved-send').click()
@@ -255,21 +257,24 @@ test.describe('SEG-10 e IA-07 · formularios públicos y texto de fuera', () => 
     if (message) await page.locator('textarea[name=message]').fill(message)
   }
 
-  test('envío demasiado rápido, campo trampa y límite por dirección se rechazan sin detalle y sin guardar nada; el texto que entra queda marcado y se ve tal cual', async ({ page, browser }) => {
+  test('envío demasiado rápido, campo trampa y límite por dirección se rechazan sin detalle y sin guardar nada; el texto que entra queda marcado y se ve tal cual', async ({ page }) => {
     const sql = testDb()
     await sql`update crm.web_forms set min_fill_seconds = 3, rate_per_minute = 4 where slug = ${slug}`
     await sql`delete from crm.rate_counters where bucket like ${'form:%' + slug + '%'}`
     const generic = /No pudimos enviar el formulario|We could not send the form/
     try {
+      // Cada intento parte de una página recién cargada: así el aviso que se revisa es el de ese envío.
       // 1) Demasiado rápido.
       await page.goto(`/f/${slug}`)
       await fill(page, 'Robot Veloz Uno')
       await page.getByTestId('public-submit').click()
       await expect(page.getByTestId('form-error')).toHaveText(generic)
       // 2) Campo trampa (invisible para una persona).
+      await page.goto(`/f/${slug}`)
       await expect(page.locator('input[name=website]')).toBeHidden()
-      await page.waitForTimeout(3200)
+      await fill(page, 'Robot Con Trampa')
       await page.evaluate(() => { (document.querySelector('input[name=website]') as HTMLInputElement).value = 'https://spam.example' })
+      await page.waitForTimeout(3200)
       await page.getByTestId('public-submit').click()
       await expect(page.getByTestId('form-error')).toHaveText(generic)
       // 3) Una persona de verdad: pasa. Su texto trae HTML, un enlace con formato y una instrucción.
@@ -279,25 +284,27 @@ test.describe('SEG-10 e IA-07 · formularios públicos y texto de fuera', () => 
       await page.waitForTimeout(3200)
       await page.getByTestId('public-submit').click()
       await expect(page.getByTestId('form-ok')).toBeVisible()
-      // 4) Límite por dirección: el quinto intento del minuto ya no pasa (van 3; con el tope en 4, pasa uno más).
+      // 4) Límite por dirección (4 por minuto): el cuarto envío todavía pasa y el quinto ya no.
+      await page.goto(`/f/${slug}`)
       await fill(page, 'Dealer Segundo E2E')
-      await page.waitForTimeout(800)
+      await page.waitForTimeout(3200)
       await page.getByTestId('public-submit').click()
       await expect(page.getByTestId('form-ok')).toBeVisible()
+      await page.goto(`/f/${slug}`)
       await fill(page, 'Dealer Sobre El Tope')
-      await page.waitForTimeout(800)
+      await page.waitForTimeout(3200)
       await page.getByTestId('public-submit').click()
       await expect(page.getByTestId('form-error')).toHaveText(generic)
 
       // Nada de lo rechazado se guardó.
-      const saved = await sql<{ business_name: string }[]>`select business_name from crm.leads where business_name in ('Robot Veloz Uno', 'Dealer Sobre El Tope') or message like '%spam.example%'`
+      const saved = await sql<{ business_name: string }[]>`select business_name from crm.leads where business_name in ('Robot Veloz Uno', 'Robot Con Trampa', 'Dealer Sobre El Tope') or message like '%spam.example%'`
       expect(saved).toHaveLength(0)
       const [lead] = await sql<{ id: string }[]>`select id from crm.leads where business_name = 'Dealer <b>Marcado</b> E2E'`
       const marks = await sql<{ origin: string }[]>`select origin from crm.untrusted_marks where object = 'lead' and object_id = ${lead!.id}`
       expect(marks[0]!.origin).toBe('web_form')
 
       // Administración ve los rechazos por motivo, sin contenido.
-      const admin = await (await browser.newContext({ locale: 'es-MX' })).newPage()
+      const admin = page
       await loginAs(admin, 'nora.salas', { stay: true })
       await admin.goto('/admin/integraciones?tab=formularios')
       const row = admin.getByTestId('form-limit-row').filter({ hasText: `/f/${slug}` })
@@ -313,7 +320,6 @@ test.describe('SEG-10 e IA-07 · formularios públicos y texto de fuera', () => 
       await expect(admin.getByText('Dealer <b>Marcado</b> E2E').first()).toBeVisible()
       expect(await admin.locator('img[src="x"]').count()).toBe(0)
       expect(await admin.locator('a[href^="javascript:"]').count()).toBe(0)
-      await admin.context().close()
     } finally {
       await sql`update crm.web_forms set min_fill_seconds = null, rate_per_minute = null where slug = ${slug}`
       await sql`delete from crm.rate_counters where bucket like ${'form:%'}`

@@ -46,7 +46,7 @@ test('supervisión mantiene el catálogo de vendedores de calle en Mi equipo, en
   // el Reporte de campo trae las visitas por quien visitó
   await page.goto('/reportes/campo')
   await expect(page.getByTestId('field-visitors')).toContainText('Visitas por quien visitó')
-  const res = await page.request.get((await page.getByTestId('export-visits').getAttribute('href'))!)
+  const res = await page.request.get(`${await page.getByTestId('export-visits').getAttribute('data-href')}&motivo=Revisi%C3%B3n+de+prueba+del+reporte`)
   expect((await res.text()).replace(/^﻿/, '').split('\r\n')[0]).toContain('Quién visitó')
   expect(errors).toEqual([])
 })

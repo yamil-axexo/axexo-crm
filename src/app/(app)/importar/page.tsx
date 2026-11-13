@@ -21,7 +21,6 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
   const kind: ImportKind = IMPORT_KINDS.includes(sp.tipo as ImportKind) ? (sp.tipo as ImportKind) : 'accounts'
   const markets = ctx.markets.filter((m) => m.status === 'live' && ctx.can('data.import', m.code))
   const imports = await getImports(ctx)
-  const plural = (n: number, one: string, many: string) => `${num(n, locale)} ${n === 1 ? one : many}`
   return (
     <>
       <PageHeader eyebrow={t('Datos', 'Data')} title={t('Importar un archivo', 'Import a file')}
@@ -36,12 +35,14 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
               kind: t('Qué vas a importar', 'What to import'), market: t('Mercado', 'Market'), file: t('Archivo CSV', 'CSV file'),
               fileHint: t('Separado por comas o por punto y coma, con encabezados en la primera fila. Baja la plantilla para ver las columnas.', 'Comma or semicolon separated, with headers in the first row. Download the template to see the columns.'),
               check: t('Revisar archivo', 'Check file'), checking: t('Revisando...', 'Checking...'), again: t('Revisar otra vez', 'Check again'),
-              run: (n) => t(`Importar ${plural(n, 'fila', 'filas')}`, `Import ${plural(n, 'row', 'rows')}`), running: t('Importando...', 'Importing...'),
+              runOne: t('Importar {n} fila', 'Import {n} row'), runMany: t('Importar {n} filas', 'Import {n} rows'), running: t('Importando...', 'Importing...'),
               template: t('Bajar plantilla', 'Download template'),
-              summary: (s) => t(`${plural(s.total, 'fila', 'filas')}: ${num(s.ok, locale)} listas para importar, ${num(s.duplicates, locale)} duplicadas y ${num(s.errors, locale)} con error.`, `${plural(s.total, 'row', 'rows')}: ${num(s.ok, locale)} ready to import, ${num(s.duplicates, locale)} duplicates and ${num(s.errors, locale)} with errors.`),
+              summaryOne: t('{total} fila: {ok} listas para importar, {dup} duplicadas y {err} con error.', '{total} row: {ok} ready to import, {dup} duplicates and {err} with errors.'),
+              summaryMany: t('{total} filas: {ok} listas para importar, {dup} duplicadas y {err} con error.', '{total} rows: {ok} ready to import, {dup} duplicates and {err} with errors.'),
               nothing: t('Ninguna fila se puede importar. Corrige el archivo y revísalo otra vez.', 'No row can be imported. Fix the file and check it again.'),
               row: t('Fila', 'Row'), what: t('Registro', 'Record'), why: t('Qué pasa', 'What is wrong'), duplicate: t('duplicada', 'duplicate'), error: t('error', 'error'),
-              more: (n) => t(`Y ${plural(n, 'fila más', 'filas más')} con problema. El reporte por fila queda disponible al importar.`, `And ${plural(n, 'more row', 'more rows')} with a problem. The per-row report is available after importing.`),
+              moreOne: t('Y {n} fila más con problema. El reporte por fila queda disponible al importar.', 'And {n} more row with a problem. The per-row report is available after importing.'),
+              moreMany: t('Y {n} filas más con problema. El reporte por fila queda disponible al importar.', 'And {n} more rows with a problem. The per-row report is available after importing.'),
               changed: t('Cambiaste algo: revisa el archivo otra vez antes de importar.', 'You changed something: check the file again before importing.'),
               allGood: t('Todas las filas están listas.', 'Every row is ready.'),
             }} />
