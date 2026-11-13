@@ -280,11 +280,14 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
 $$;
 grant execute on function app.alias_holder(text, text) to contigo_app;
 
--- Quien cuida los datos del mercado (líder de mercado, Operaciones) agrega y cierra alias, no solo administración.
+-- Quien cuida los datos del mercado (líder de mercado, Operaciones) agrega y cierra alias de sistemas externos (un proveedor,
+-- una red, otro CRM). Los de sistemas de axexo (Sales App, Merchant ID) los escribe la integración: esos siguen siendo solo de administración.
 create policy account_aliases_steward_ins on crm.account_aliases for insert to contigo_app
-  with check (market_code = any((select app.steward_markets())::text[]) and exists (select 1 from crm.accounts a where a.id = account_aliases.account_id));
+  with check (market_code = any((select app.steward_markets())::text[]) and exists (select 1 from crm.accounts a where a.id = account_aliases.account_id)
+              and exists (select 1 from crm.alias_systems s where s.code = account_aliases.system and s.kind <> 'internal'));
 create policy account_aliases_steward_upd on crm.account_aliases for update to contigo_app
-  using (market_code = any((select app.steward_markets())::text[])) with check (market_code = any((select app.steward_markets())::text[]));
+  using (market_code = any((select app.steward_markets())::text[]) and exists (select 1 from crm.alias_systems s where s.code = account_aliases.system and s.kind <> 'internal'))
+  with check (market_code = any((select app.steward_markets())::text[]));
 
 -- ================================================================ DAT-05 / GOB-01 campos
 alter table crm.field_definitions

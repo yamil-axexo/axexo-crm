@@ -361,6 +361,11 @@ describe('DAT-03 · alias de identificadores externos', () => {
     const identity = await accountIdentity(valeria, a, 'MX')
     expect(identity.aliases.find((x) => x.id === aliasId)).toMatchObject({ external_id: ext, label_es: 'Zoho' })
     expect(identity.aliases.find((x) => x.id === aliasId)!.valid_to).not.toBeNull()
+    // los ID de los sistemas de axexo (Sales App, Merchant ID) los escribe la integración: a mano, solo administración
+    await expect(addAlias(valeria, a, { system: 's5', externalId: `MID-${tag()}` })).rejects.toMatchObject({ code: 'forbidden' })
+    expect(await asPersona('valeria.soto', (tx) => attempt(tx, (sp) => sp`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${a}, 'MX', 's5', 'DIRECTO-2')`))).toBe('42501')
+    const mid = await addAlias(await ctxFor('nora.salas'), a, { system: 's5', externalId: `MID-${tag()}` })
+    await expect(closeAlias(valeria, mid, 'No le toca a Operaciones')).rejects.toMatchObject({ code: expect.stringMatching(/forbidden|not_found/) })
     // quien vende no agrega alias; la base repite el límite
     await expect(addAlias(await ctxFor('marco.pena'), a, { system: 'zoho', externalId: `ZH-${tag()}` })).rejects.toMatchObject({ code: 'forbidden' })
     expect(await asPersona('marco.pena', (tx) => attempt(tx, (sp) => sp`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${a}, 'MX', 'zoho', 'DIRECTO-1')`))).toBe('42501')

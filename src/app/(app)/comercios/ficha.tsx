@@ -556,7 +556,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </section>
 
           <section className={section} data-testid="account-aliases">
-            {identity && <AliasSection ctx={ctx} accountId={a.id} identity={identity} canManage={canAlias} tz={tz} />}
+            {identity && <AliasSection ctx={ctx} accountId={a.id} identity={identity} canManage={canAlias} canInternal={ctx.can('integration.operate', a.market_code)} tz={tz} />}
           </section>
 
           {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={identity} canManage={canProducts} />}

@@ -30,7 +30,7 @@ export type TreeMove = { parent_name: string; valid_from: Date; valid_to: Date |
 export type ContactExtra = { contact_id: string; other_accounts: { id: string; name: string }[] }
 export type PastContact = { full_name: string; role: string; valid_from: Date; valid_to: Date; end_reason: string | null }
 export type PrimaryTurn = { full_name: string; from_at: Date; to_at: Date | null; by_name: string | null }
-export type AliasRow = { id: string; system: string; label_es: string; label_en: string; external_id: string; valid_from: Date; valid_to: Date | null; note: string | null; by_name: string | null }
+export type AliasRow = { id: string; system: string; kind: string; label_es: string; label_en: string; external_id: string; valid_from: Date; valid_to: Date | null; note: string | null; by_name: string | null }
 export type AliasSystem = { code: string; label_es: string; label_en: string; kind: string; market_code: string | null; is_active: boolean; in_use: number }
 export type MergeRow = { id: string; source_id: string; source_name: string; target_id: string; target_name: string; merged_at: Date; merged_by: string | null; undone_at: Date | null; undo_reason: string | null; moved: Record<string, string[]>; fields: Record<string, Survivor> }
 export type AccountProduct = { id: string; product_id: string | null; product_name: string | null; provider_id: string | null; provider_es: string | null; provider_en: string | null; status: string; status_at: Date; requested_at: Date; submitted_at: Date | null; decided_at: Date | null; activated_at: Date | null; sla_days: number | null; late: boolean; note: string | null; deal_id: string | null }
@@ -56,11 +56,11 @@ export async function accountIdentity(ctx: Ctx, accountId: string, market: strin
         join crm.contacts c on c.id = h.contact_id left join crm.users u on u.id = h.changed_by
        where h.account_id = ${accountId} order by h.from_at desc limit 12`
     const aliases = await tx<AliasRow[]>`
-      select al.id, al.system, s.label_es, s.label_en, al.external_id, al.valid_from, al.valid_to, al.note, u.full_name as by_name
+      select al.id, al.system, s.kind, s.label_es, s.label_en, al.external_id, al.valid_from, al.valid_to, al.note, u.full_name as by_name
         from crm.account_aliases al join crm.alias_systems s on s.code = al.system left join crm.users u on u.id = coalesce(al.closed_by, al.created_by)
        where al.account_id = ${accountId} order by (al.valid_to is null) desc, al.valid_from desc limit 40`
-    const systems = await tx<{ code: string; label_es: string; label_en: string }[]>`
-      select code, label_es, label_en from crm.alias_systems where is_active and (market_code is null or market_code = ${market}) order by label_es`
+    const systems = await tx<{ code: string; label_es: string; label_en: string; kind: string }[]>`
+      select code, label_es, label_en, kind from crm.alias_systems where is_active and (market_code is null or market_code = ${market}) order by label_es`
     const merges = await tx<MergeRow[]>`
       select e.id, e.source_id, s.name as source_name, e.target_id, t.name as target_name, e.merged_at, u.full_name as merged_by, e.undone_at, e.undo_reason, e.moved,
              coalesce(e.survivorship -> 'fields', '{}'::jsonb) as fields

@@ -125,8 +125,9 @@ export function ContactHistory({ ctx, identity, tz }: { ctx: Ctx; identity: Iden
 }
 
 /** DAT-03: los ID que este comercio tiene en otros sistemas, con alta a mano, cierre con fecha e historia. */
-export function AliasSection({ ctx, accountId, identity, canManage, tz }: { ctx: Ctx; accountId: string; identity: Identity; canManage: boolean; tz: string }) {
+export function AliasSection({ ctx, accountId, identity, canManage, canInternal, tz }: { ctx: Ctx; accountId: string; identity: Identity; canManage: boolean; /** Los ID de sistemas de axexo los escribe la integración: a mano, solo administración. */ canInternal: boolean; tz: string }) {
   const { t, locale } = ctx
+  const systems = identity.systems.filter((s) => canInternal || s.kind !== 'internal')
   const live = identity.aliases.filter((a) => !a.valid_to)
   const closed = identity.aliases.filter((a) => a.valid_to)
   return (
@@ -137,7 +138,7 @@ export function AliasSection({ ctx, accountId, identity, canManage, tz }: { ctx:
           <Dialog trigger={t('Agregar ID', 'Add ID')} title={t('Agregar un ID de otro sistema', 'Add an ID from another system')} size="sm" testId="alias-add">
             <ActionForm action={addAliasAction} onOk="close" className="space-y-4">
               <input type="hidden" name="account_id" value={accountId} />
-              <Field label={t('Sistema', 'System')}><select name="system" className="input" data-testid="alias-system">{identity.systems.map((s) => <option key={s.code} value={s.code}>{t(s.label_es, s.label_en)}</option>)}</select></Field>
+              <Field label={t('Sistema', 'System')}><select name="system" className="input" data-testid="alias-system">{systems.map((s) => <option key={s.code} value={s.code}>{t(s.label_es, s.label_en)}</option>)}</select></Field>
               <Field label={t('ID en ese sistema', 'ID in that system')} hint={t('El identificador tal como aparece allá. Nunca una identificación fiscal completa ni una cuenta bancaria.', 'The identifier exactly as it shows there. Never a full tax ID or a bank account.')}><input name="external_id" className="input" required maxLength={80} data-testid="alias-id" /></Field>
               <Field label={t('Nota (opcional)', 'Note (optional)')}><input name="note" className="input" maxLength={300} /></Field>
               <div className="flex justify-end"><Submit testId="alias-save">{t('Agregar', 'Add')}</Submit></div>
@@ -152,7 +153,7 @@ export function AliasSection({ ctx, accountId, identity, canManage, tz }: { ctx:
           <KeyVal key={al.id} k={t(al.label_es, al.label_en)}>
             <code className="text-[13px]" data-testid="alias-value">{al.external_id}</code>
             <CopyButton value={al.external_id} label={t(`Copiar el ID de ${al.label_es}`, `Copy the ${al.label_en} ID`)} done={t('ID copiado.', 'ID copied.')} />
-            {canManage && (
+            {canManage && (canInternal || al.kind !== 'internal') && (
               <Dialog trigger={t('Cerrar', 'Close')} title={t(`Cerrar el ID de ${al.label_es}`, `Close the ${al.label_en} ID`)} size="sm" variant="quiet" testId="alias-close">
                 <ActionForm action={closeAliasAction} onOk="close" className="space-y-4">
                   <input type="hidden" name="alias_id" value={al.id} />

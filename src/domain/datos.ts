@@ -353,9 +353,11 @@ export async function addAlias(ctx: Ctx, accountId: string, input: { system: str
   return withUser(ctx.user.id, async (tx) => {
     const a = await liveAccount(tx, accountId)
     ctx.assert('alias.manage', a.market_code)
-    const sys = await tx<{ code: string; label_es: string; label_en: string }[]>`
-      select code, label_es, label_en from crm.alias_systems where code = ${input.system} and is_active and (market_code is null or market_code = ${a.market_code})`
+    const sys = await tx<{ code: string; label_es: string; label_en: string; kind: string }[]>`
+      select code, label_es, label_en, kind from crm.alias_systems where code = ${input.system} and is_active and (market_code is null or market_code = ${a.market_code})`
     if (!sys[0]) throw invalid('Elige el sistema de la lista.', 'Pick the system from the list.')
+    // Los ID de los sistemas de axexo (Sales App, Merchant ID) los escribe la integración: a mano, solo administración.
+    if (sys[0].kind === 'internal') ctx.assert('integration.operate', a.market_code)
     const holder = await tx<{ account_id: string; name: string }[]>`select account_id, name from app.alias_holder(${input.system}, ${externalId})`
     if (holder[0]?.account_id === accountId) throw invalid('Este comercio ya tiene ese identificador.', 'This merchant already has that identifier.')
     if (holder[0]) throw invalid(`Ese identificador de ${sys[0].label_es} ya es de "${holder[0].name}". Si son el mismo comercio, fusiónalos; si ahora es de este, ciérralo allá primero.`, `That ${sys[0].label_en} identifier already belongs to "${holder[0].name}". If they are the same merchant, merge them; if it now belongs to this one, close it there first.`)
@@ -384,6 +386,7 @@ export async function closeAlias(ctx: Ctx, aliasId: string, reason: string): Pro
     const al = rows[0]
     if (!al) throw notFound()
     ctx.assert('alias.manage', al.market_code)
+    if ((await tx`select 1 from crm.alias_systems where code = ${al.system} and kind = 'internal'`)[0]) ctx.assert('integration.operate', al.market_code)
     if (al.valid_to) throw invalid('Ese identificador ya estaba cerrado.', 'That identifier was already closed.')
     await tx`update crm.account_aliases set valid_to = now(), closed_by = ${ctx.user.id}, note = ${why} where id = ${aliasId}`
     await audit(tx, ctx, 'alias.closed', 'account', al.account_id, al.market_code, { system: al.system, external_id: al.external_id }, { reason: why })
