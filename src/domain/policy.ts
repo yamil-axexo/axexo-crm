@@ -256,6 +256,12 @@ export const CAPABILITIES = {
   'ia.ask': ['admin', 'lt', 'market_lead', 'supervisor'],
   'ia.oversee': ['admin', 'lt'],
   'ia.manage': ['admin'],
+  // Paquete conectores (0044): "Probar conexión" de un conector en Estado de CONTIGO, solo administración (queda en la bitácora).
+  'connector.test': ['admin'],
+  // AUT-05: activar los avisos del navegador en el propio navegador. Cada persona lo hace para sí misma.
+  'push.subscribe': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'agency', 'partner'],
+  // ACT-03: encender la captura de su propio correo y calendario (solo metadatos, solo contactos conocidos).
+  'capture.optin': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
@@ -291,6 +297,9 @@ export const CAP_AREA: Partial<Record<Capability, AdminArea | 'any'>> = {
   'load.configure': 'integrations',
   'pipedrive.backup': 'integrations',
   'market.reset_test': 'integrations',
+  'connector.test': 'integrations',
+  'push.subscribe': 'any',
+  'capture.optin': 'any',
 }
 
 const grants = (m: Membership, cap: Capability): boolean => {

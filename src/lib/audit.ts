@@ -367,6 +367,12 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'contract.signed': ['Marcó un contrato como firmado', 'Marked a contract as signed'],
   'contract.renewal_noticed': ['Avisó que un contrato está por renovarse', 'Gave notice that a contract is due for renewal'],
   'partner.registered': ['Registró una cuenta como partner', 'Registered an account as a partner'],
+  // Paquete conectores (0044)
+  'connector.tested': ['Probó la conexión de un conector', 'Tested a connector’s connection'],
+  'push.subscribed': ['Activó los avisos del navegador', 'Turned on browser notices'],
+  'push.unsubscribed': ['Apagó los avisos del navegador', 'Turned off browser notices'],
+  'capture.optin_changed': ['Cambió la captura de su correo y calendario', 'Changed the capture of their email and calendar'],
+  'capture.ingested': ['Ligó correos, reuniones o mensajes capturados a comercios', 'Linked captured emails, meetings or messages to merchants'],
   'partner.invite_queued': ['Dejó en cola la invitación de un usuario externo', 'Queued an external user invitation'],
   'partner.crossmatch_run': ['Corrió el cruce de bases de partners', 'Ran the partner base cross-match'],
   'partner_token.created': ['Creó un token de lectura de partner', 'Created a partner read token'],

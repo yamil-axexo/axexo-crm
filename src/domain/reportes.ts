@@ -11,7 +11,7 @@ import { isMetricKey } from '@/lib/metric-defs'
 import { REPORT_PARAMS, VIEW_FILTERS, reportByKey, type ViewObject } from '@/lib/report-catalog'
 import { marketPeriods, type MarketPeriods } from '@/dal/reports'
 import { getAgencyReport, getFieldKpis, getFinanceReport, getForecast, getHistory, getLeadsReport, getNodeReport, getReconciliation, getStagesReport, stageRate, wideScope, type Filters } from '@/dal/reportes'
-import { outboundStatus, type ChannelKey } from '@/server/adapters/report-channels'
+import { channelMode, outboundStatus, uploadSnapshotFile, type ChannelKey } from '@/server/adapters/report-channels'
 import { exportCap, exportReason, governExport } from '@/domain/exports'
 import { notify } from '@/domain/notify'
 import { SOURCE } from '@/lib/labels'
@@ -254,7 +254,7 @@ export async function pinView(ctx: Ctx, id: string, on: boolean): Promise<void> 
 
 // ------------------------------------------------------------------ tareas programadas (las llama src/server/jobs/reportes.ts)
 /** Deja en la cola del canal (crm.report_outbox) lo que habría salido. Nunca envía. Devuelve el estado con el que quedó. */
-async function queueOutbound(tx: Tx, key: ChannelKey, item: { ref: string; title: string; rows: number; detail?: Record<string, string | number> }): Promise<'channel_off' | 'simulated'> {
+async function queueOutbound(tx: Tx, key: ChannelKey, item: { ref: string; title: string; rows: number; detail?: Record<string, string | number> }): Promise<'channel_off' | 'simulated' | 'sent' | 'failed'> {
   const status = outboundStatus(key)
   await tx`insert into crm.report_outbox (channel, ref, title, row_count, status, detail)
            values (${key}, ${item.ref}, ${item.title.slice(0, 200)}, ${item.rows}, ${status}, ${tx.json(item.detail ?? {})})
@@ -266,9 +266,34 @@ export async function takeSnapshot(tx: Tx): Promise<{ done: number; note?: strin
   const rows = await tx<{ n: number }[]>`select app.take_report_snapshots() as n`
   const days = await tx<{ day: string; n: number }[]>`select snapshot_date::text as day, count(*)::int as n from crm.pipeline_snapshots where taken_at >= now() - interval '1 minute' group by 1`
   let status = ''
-  for (const d of days) status = await queueOutbound(tx, 'snapshot_file', { ref: `snapshot:${d.day}`, title: `pipeline_snapshot_${d.day}.csv`, rows: d.n, detail: { day: d.day } })
+  for (const d of days) {
+    status = await queueOutbound(tx, 'snapshot_file', { ref: `snapshot:${d.day}`, title: `pipeline_snapshot_${d.day}.csv`, rows: d.n, detail: { day: d.day } })
+    // Con el archivo encendido (live) la foto sale al bucket de S5 con su huella; si falla, queda en la cola y la tarea siguiente lo dice.
+    if (channelMode('snapshot_file') === 'live') status = await sendSnapshot(tx, d.day)
+  }
   await tx`insert into crm.audit_events (actor_id, action, object, after) values (app.system_user_id(), 'snapshot.taken', 'snapshot', ${tx.json({ rows: rows[0]?.n ?? 0, file: status || 'none' })})`
   return { done: rows[0]?.n ?? 0, note: status === 'simulated' ? 'file simulated' : 'file channel off' }
+}
+/** Arma el CSV de la foto de un día y lo sube. Devuelve "sent" o "failed" y lo anota en la cola. */
+async function sendSnapshot(tx: Tx, day: string): Promise<'sent' | 'failed'> {
+  const rows = await tx<Record<string, unknown>[]>`select * from crm.pipeline_snapshots where snapshot_date = ${day}::date order by 1`
+  const cols = rows[0] ? Object.keys(rows[0]) : []
+  const cell = (v: unknown) => {
+    const x = v === null || v === undefined ? '' : v instanceof Date ? v.toISOString() : typeof v === 'object' ? JSON.stringify(v) : String(v)
+    return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x
+  }
+  const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => cell(r[c])).join(','))].join('\n')
+  let st: 'sent' | 'failed' = 'failed'
+  let detail: Record<string, string> = {}
+  try {
+    const up = await uploadSnapshotFile(`pipeline_snapshot_${day}.csv`, csv)
+    st = 'sent'
+    detail = { ref: up.ref, sha256: up.sha256 }
+  } catch (e) {
+    detail = { error: e instanceof Error ? e.message.slice(0, 80) : 'error' }
+  }
+  await tx`update crm.report_outbox set status = ${st}, detail = detail || ${tx.json(detail)} where channel = 'snapshot_file' and ref = ${`snapshot:${day}`}`
+  return st
 }
 /** Conciliación con el archivo de ventas: guarda el conteo de diferencias por mercado y marca la corrida si pasa del umbral. */
 export async function runReconciliation(tx: Tx): Promise<{ done: number; note?: string }> {

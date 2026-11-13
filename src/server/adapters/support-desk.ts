@@ -1,4 +1,6 @@
 import 'server-only'
+import { gate, type ConnectorMode } from './live/gate'
+import { zendeskTicketUrl } from './live/providers'
 
 /**
  * ACT-01: tickets de soporte en el hilo del comercio. La mesa de soporte (Zendesk) es un sistema externo: CONTIGO guarda
@@ -8,17 +10,20 @@ import 'server-only'
  * No hay implementación real: falta la dirección de la mesa de soporte y la aprobación para consultarla.
  */
 export type SupportDeskAdapter = {
-  mode: 'off' | 'simulated'
+  mode: ConnectorMode
   envVar: 'SUPPORT_DESK'
   /** Dirección para abrir el ticket en la mesa de soporte; null con el adaptador apagado. */
   ticketUrl: (system: string, ref: string) => string | null
 }
 
+/** `live`: SUPPORT_DESK=live, ZENDESK_SUBDOMAIN y la aprobación. Solo arma el enlace al ticket en Zendesk; no lee nada. */
+export const SUPPORT_DESK_GATE = { envVar: 'SUPPORT_DESK', credentials: ['ZENDESK_SUBDOMAIN'] } as const
 export function supportDeskAdapter(): SupportDeskAdapter {
-  const simulated = process.env.APP_ENV === 'test' && process.env.SUPPORT_DESK === 'simulated'
+  const mode = gate(SUPPORT_DESK_GATE).mode
+  const simulated = mode === 'simulated'
   return {
     envVar: 'SUPPORT_DESK',
-    mode: simulated ? 'simulated' : 'off',
-    ticketUrl: (system, ref) => (simulated ? `https://support.invalid/${encodeURIComponent(system)}/tickets/${encodeURIComponent(ref.replace(/^#/, ''))}` : null),
+    mode,
+    ticketUrl: (system, ref) => mode === 'live' ? (system.toLowerCase() === 'zendesk' ? zendeskTicketUrl(ref) : null) : (simulated ? `https://support.invalid/${encodeURIComponent(system)}/tickets/${encodeURIComponent(ref.replace(/^#/, ''))}` : null),
   }
 }

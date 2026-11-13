@@ -1,4 +1,6 @@
 import 'server-only'
+import { gate, type ConnectorMode } from './live/gate'
+import { zohoList } from './live/providers'
 
 /**
  * GOB-05: Zoho (Zoho Desk y Zoho CRM). CONTIGO no tiene acceso a Zoho hoy: no hay importador ni conexión.
@@ -8,7 +10,7 @@ import 'server-only'
  */
 export type ZohoRow = Record<string, unknown>
 export type ZohoAdapter = {
-  mode: 'off' | 'simulated'
+  mode: ConnectorMode
   envVar: 'ZOHO_ADAPTER'
   /** Las filas de un módulo de Zoho, o una lista vacía si está apagado. */
   list: (module: ZohoModule) => Promise<ZohoRow[]>
@@ -36,11 +38,14 @@ export const ZOHO_FIELD_MAP: { module: ZohoModule; zoho: string; contigo: string
 const g = globalThis as unknown as { __contigoSimulatedZoho?: Partial<Record<ZohoModule, ZohoRow[]>> }
 export const simulatedZoho = () => (g.__contigoSimulatedZoho ??= {})
 
+/** `live`: ZOHO_ADAPTER=live, ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN (alcance de solo lectura) y la aprobación. */
+export const ZOHO_GATE = { envVar: 'ZOHO_ADAPTER', credentials: ['ZOHO_CLIENT_ID', 'ZOHO_CLIENT_SECRET', 'ZOHO_REFRESH_TOKEN'] } as const
 export function zohoAdapter(): ZohoAdapter {
-  const simulated = process.env.APP_ENV === 'test' && process.env.ZOHO_ADAPTER === 'simulated'
+  const mode = gate(ZOHO_GATE).mode
+  const simulated = mode === 'simulated'
   return {
     envVar: 'ZOHO_ADAPTER',
-    mode: simulated ? 'simulated' : 'off',
-    list: async (module) => (simulated ? [...(simulatedZoho()[module] ?? [])] : []),
+    mode,
+    list: async (module) => mode === 'live' ? zohoList(module) : (simulated ? [...(simulatedZoho()[module] ?? [])] : []),
   }
 }

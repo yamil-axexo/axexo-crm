@@ -104,6 +104,14 @@ export async function flushConversions(tx: Tx): Promise<{ done: number; note: st
   if (rows.length === 0) return { done: 0, note: adapter.mode === 'off' ? 'Canal apagado: nada en cola' : 'Nada en cola' }
   const batch: AdConversion[] = rows.map((r) => ({ id: r.id, platform: r.platform, event: r.event_name, click_id: r.click_id, dedupe_key: r.dedupe_key, occurred_at: r.created_at.toISOString() }))
   const out = await adapter.send(batch)
+  if (out.status === 'live' && out.rows) {
+    for (const st of ['sent', 'failed', 'channel_off'] as const) {
+      const ids = rows.filter((r) => out.rows![r.id] === st).map((r) => r.id)
+      if (ids.length) await tx`update crm.conversion_events set status = ${st}, attempts = attempts + 1, processed_at = now() where id = any(${ids}::uuid[])`
+    }
+    const failed = rows.filter((r) => out.rows![r.id] === 'failed').length
+    return { done: rows.length, note: `Enviadas: ${out.sent}; fallaron: ${failed}; sin credencial de su plataforma: ${rows.length - out.sent - failed}` }
+  }
   await tx`update crm.conversion_events set status = ${out.status}, attempts = attempts + 1, processed_at = now() where id = any(${rows.map((r) => r.id)}::uuid[])`
   return { done: rows.length, note: out.status === 'channel_off' ? `Canal apagado: ${rows.length} en cola, nada salió` : `Simulado: ${rows.length}` }
 }
