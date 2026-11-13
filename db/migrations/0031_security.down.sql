@@ -105,6 +105,8 @@ drop function if exists app.log_read(text, text, int, text, jsonb, uuid);
 delete from crm.settings where key like 'security.%' or key like 'privacy.%';
 
 
+drop trigger if exists api_clients_owner on crm.api_clients;
+drop function if exists crm.api_client_owner();
 alter table crm.api_clients drop column owner_id, drop column expires_at, drop column last_used_at, drop column use_count, drop column rotated_from;
 create or replace function app.api_client(p_hash text)
 returns table (id uuid, name text, scopes text[])

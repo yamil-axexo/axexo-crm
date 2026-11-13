@@ -906,6 +906,14 @@ alter table crm.api_clients
   add column use_count bigint not null default 0,
   add column rotated_from uuid references crm.api_clients(id);
 update crm.api_clients set owner_id = created_by where owner_id is null;
+-- Una llave nace con dueño: quien la creó, salvo que se diga otra persona. Lo pone la base para que valga por cualquier vía.
+create or replace function crm.api_client_owner() returns trigger
+language plpgsql set search_path = pg_catalog as $$
+begin
+  new.owner_id := coalesce(new.owner_id, new.created_by);
+  return new;
+end $$;
+create trigger api_clients_owner before insert on crm.api_clients for each row execute function crm.api_client_owner();
 
 create or replace function app.api_client(p_hash text)
 returns table (id uuid, name text, scopes text[])

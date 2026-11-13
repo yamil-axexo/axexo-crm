@@ -81,7 +81,7 @@ describe('SEG-03: la bitácora la escribe la base', () => {
 
   it('la configuración va a su propia bitácora y las huellas de las llaves no se copian', async () => {
     const nora = await ctxFor('nora.salas')
-    const { id } = await createApiClient(nora, `Llave bitácora ${tag()}`, ['leads:write'])
+    const { id } = await createApiClient(nora, `Llave bitácora ${tag()}`, ['forms:write'])
     const row = await one(admin<{ after: Record<string, unknown>; n: number }[]>`
       select after, (select count(*)::int from audit.data_log where table_name = 'api_clients') as n from audit.config_log where table_name = 'api_clients' and row_id = ${id}`)
     expect(row.n).toBe(0)
@@ -191,7 +191,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
     await withUser(auditOnly.user.id, async (tx) => {
       expect(await attempt(tx, (sp) => sp`insert into crm.memberships (user_id, market_code, role) values (${auditOnly.user.id}, 'MX', 'rep')`)).toBe('42501')
       expect(await attempt(tx, (sp) => sp`update crm.stages set rot_days = rot_days where true`)).toBe('0 rows')
-      expect(await attempt(tx, (sp) => sp`insert into crm.api_clients (name, key_prefix, key_hash, scopes) values ('x', 'ctg_xxxx', 'h', '{leads:write}')`)).toBe('42501')
+      expect(await attempt(tx, (sp) => sp`insert into crm.api_clients (name, key_prefix, key_hash, scopes) values ('x', 'ctg_xxxx', 'h', '{forms:write}')`)).toBe('42501')
       expect((await tx`select 1 from audit.data_log limit 1`).length).toBe(1)
     })
 
@@ -422,7 +422,11 @@ describe('SEG-04: consentimiento, baja y retención', () => {
     const old = await one(admin<{ id: string }[]>`
       insert into crm.leads (market_code, motor, business_name, contact_name, phone, source, status, updated_at)
       values ('MX', 'd2d', ${`Lead viejo ${tag()}`}, 'Pedro Antiguo', ${mxPhone()}, 'manual', 'disqualified', now() - interval '400 days') returning id`)
-    await admin`update crm.leads set updated_at = now() - interval '400 days' where id = ${old.id}`
+    // El sello de "última modificación" lo pone la base en cada cambio: para envejecer el lead de prueba se apagan los triggers en esa transacción.
+    await admin.begin(async (tx) => {
+      await tx`set local session_replication_role = replica`
+      await tx`update crm.leads set updated_at = now() - interval '400 days' where id = ${old.id}`
+    })
     await expect(setRetentionRule(nora, 'leads_disqualified', { afterDays: null, isActive: true })).rejects.toMatchObject({ code: 'invalid' })
     await expect(setRetentionRule(nora, 'leads_disqualified', { afterDays: 5, isActive: true })).rejects.toMatchObject({ code: 'invalid' })
     await expect(setRetentionRule(await ctxFor('ana.robles'), 'leads_disqualified', { afterDays: 365, isActive: true })).rejects.toMatchObject({ code: 'forbidden' })
@@ -483,7 +487,8 @@ describe('SEG-07: ver como y recertificación de accesos', () => {
     // Su propio acceso lo acusa otra persona; quien vende no acusa nada; quien lidera otro mercado tampoco.
     await expect(decideReviewItem(ana, items.find((i) => i.user_id === ana.user.id)!.id, 'keep', '')).rejects.toMatchObject({ code: 'invalid' })
     await expect(decideReviewItem(await ctxFor('diana.cruz'), items[0]!.id, 'keep', '')).rejects.toMatchObject({ code: 'forbidden' })
-    await expect(decideReviewItem(await ctxFor('robert.hale'), items[0]!.id, 'keep', '')).rejects.toMatchObject({ code: 'forbidden' })
+    // Quien lidera otro mercado ni siquiera ve esos accesos.
+    await expect(decideReviewItem(await ctxFor('robert.hale'), items[0]!.id, 'keep', '')).rejects.toMatchObject({ code: 'not_found' })
     const ivan = await personaId('ivan.rios')
     for (const i of items.filter((x) => x.user_id !== ana.user.id)) await decideReviewItem(ana, i.id, i.user_id === ivan ? 'remove' : 'keep', i.user_id === ivan ? 'Cambió de área' : '')
     expect(await closeAccessReview(ana, reviewId)).toEqual({ keep: items.length - 2, remove: 1 })
@@ -571,11 +576,11 @@ describe('SEG-09: solicitudes de titulares', () => {
 describe('SEG-08: llaves y secretos', () => {
   it('una llave tiene dueño, vencimiento y último uso; rotarla deja la anterior viva 24 horas; vencida deja de valer', async () => {
     const nora = await ctxFor('nora.salas')
-    const made = await createApiClient(nora, `Llave rotación ${tag()}`, ['leads:write'])
+    const made = await createApiClient(nora, `Llave rotación ${tag()}`, ['forms:write'])
     const lookup = async (key: string) => (await withoutUser((tx) => tx<{ id: string }[]>`select id from app.api_client(${hashKey(key)})`))[0]?.id ?? null
     expect(await lookup(made.key)).toBe(made.id)
-    await withoutUser((tx) => tx`select app.api_client_used(${made.id}, 'leads:write')`)
-    await withoutUser((tx) => tx`select app.api_client_used(${made.id}, 'leads:write')`)
+    await withoutUser((tx) => tx`select app.api_client_used(${made.id}, 'forms:write')`)
+    await withoutUser((tx) => tx`select app.api_client_used(${made.id}, 'forms:write')`)
     const keys = (await getKeys(nora))!
     expect(keys.keys.find((k) => k.id === made.id)).toMatchObject({ use_count: 2, owner: 'Nora Salas', expired: false })
     expect(keys.keys.find((k) => k.id === made.id)!.last_used_at).not.toBeNull()
@@ -619,7 +624,7 @@ describe('UX-02: la búsqueda no deja enumerar', () => {
     const a = await account('diana.cruz')
     const name = (await one(admin<{ name: string }[]>`select name from crm.accounts where id = ${a.id}`)).name
     const alias = `EXT-${tag().toUpperCase()}-778899`
-    await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${a.id}, 'MX', 'sales_app', ${alias})`
+    await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${a.id}, 'MX', 'sales_core', ${alias})`
     await admin`update crm.accounts set phone = ${a.phone} where id = ${a.id}`
     const hit = async (q: string) => (await searchAll(ana, q)).accounts.some((x) => x.id === a.id)
     const digits = a.phone.replace('+', '')

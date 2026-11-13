@@ -319,6 +319,8 @@ export async function liftOptOut(ctx: Ctx, id: string, reason: string): Promise<
   const why = z.string().trim().min(10).max(200).safeParse(reason)
   if (!why.success) throw invalid('Escribe por qué se levanta la baja (10 caracteres o más): la persona tuvo que pedirlo.', 'Write why the opt-out is lifted (10 characters or more): the person must have asked for it.')
   assertNoProhibited(why.data)
+  // Levantar una baja es de quien lidera o de privacidad: quien vende ni llega a buscarla.
+  ctx.assert('consent.lift')
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string; channel: string }[]>`select market_code, channel from crm.contact_suppressions where id = ${id} and lifted_at is null for update`
     const s = rows[0]
@@ -466,6 +468,7 @@ export async function openAccessReview(ctx: Ctx, market: string | null, dueOn: s
 export async function decideReviewItem(ctx: Ctx, itemId: string, decision: 'keep' | 'remove', note: string): Promise<void> {
   if (decision !== 'keep' && decision !== 'remove') throw invalid('Elige si el acceso se mantiene o se quita.', 'Choose whether the access stays or goes.')
   assertNoProhibited(note)
+  ctx.assert('access.review')
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string | null; user_id: string; role: string; closed: boolean }[]>`
       select i.market_code, i.user_id, i.role, r.closed_at is not null as closed from crm.access_review_items i join crm.access_reviews r on r.id = i.review_id where i.id = ${itemId} for update of i`
@@ -483,6 +486,7 @@ export async function decideReviewItem(ctx: Ctx, itemId: string, decision: 'keep
 
 /** Cierra la revisión: es el acuse de quien lidera. Solo cierra cuando cada acceso tiene su decisión. */
 export async function closeAccessReview(ctx: Ctx, reviewId: string): Promise<{ keep: number; remove: number }> {
+  ctx.assert('access.review')
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string | null; closed: boolean }[]>`select market_code, closed_at is not null as closed from crm.access_reviews where id = ${reviewId} for update`
     const r = rows[0]
