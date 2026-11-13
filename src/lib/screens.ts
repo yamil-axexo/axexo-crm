@@ -49,6 +49,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/bienvenida', 'Primeros pasos', 'First steps'],
   ['/ayuda', 'Ayuda', 'Help'],
   ['/reportar', 'Reportar un problema', 'Report a problem'],
+  ['/campo', 'Campo y canales', 'Field and channels'],
   ['/solicitudes', 'Pedir un cambio', 'Request a change'],
 ]
 

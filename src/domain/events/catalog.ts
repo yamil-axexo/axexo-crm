@@ -101,7 +101,7 @@ const SILENT: [prefix: string, why: Pair][] = [
   ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
   // Paquete campo-canal: abrir un documento es una lectura; los incidentes son confidenciales y no salen de CONTIGO;
   // el simulador de fondeo y los umbrales son configuración interna.
-  ['onboarding.document_opened', WHY.read], ['incident.', WHY.confidential], ['funding.simulated', WHY.internal], ['threshold.', WHY.internal],
+  ['onboarding.document_opened', WHY.read], ['field_incident.', WHY.confidential], ['funding.simulated', WHY.internal], ['threshold.', WHY.internal],
   // Seguridad (0027):
   ['seat.', WHY.security], ['sensitive.', WHY.security], ['sensitive_field.', WHY.security], ['consent.', WHY.security], ['retention.', WHY.security],
   ['subject_request.', WHY.security], ['view_as.', WHY.security], ['access_review.', WHY.security], ['secret.', WHY.security], ['security.', WHY.security],

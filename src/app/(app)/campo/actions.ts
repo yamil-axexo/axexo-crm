@@ -2,6 +2,7 @@
 
 import { runAction, str } from '@/server/action'
 import type { ActionResult } from '@/lib/errors'
+import { day } from '@/lib/format'
 import { assignFile, decideFile, markReceived, openDocument, openFile, reviewDocument, submitFile } from '@/domain/campo-canal/expediente'
 import { correctAttribution, decideCreditLimit, extendClaim, raiseDispute, registerClaim, rejectClaim, requestCreditLimit, resolveDispute, simulateFunding } from '@/domain/campo-canal/canal'
 import { addCompetitor, applyPlan, discardPlan, draftPlan, handleIncident, recordCompetitor, reportIncident, setChannelAssignment, setRepPlan, setSellerProfile, setTerritoryOwner } from '@/domain/campo-canal/campo'
@@ -118,9 +119,9 @@ export async function resolveDisputeAction(_: R | null, fd: FormData): Promise<R
 export async function registerClaimAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const out = await registerClaim(ctx, all(fd))
-    if (out.status === 'held') return { message: [`Esa tienda ya tiene un registro vigente de otro canal hasta el ${out.until.toISOString().slice(0, 10)}. El intento quedó rechazado con ese motivo.`, `That store already has an active registration from another channel until ${out.until.toISOString().slice(0, 10)}. The attempt was rejected with that reason.`], revalidate: REV }
+    if (out.status === 'held') return { message: [`Esa tienda ya tiene un registro vigente de otro canal hasta el ${day(out.until, ctx.locale, ctx.market(str(fd, 'market')).timezone)}. El intento quedó rechazado con ese motivo.`, `That store already has an active registration from another channel until ${day(out.until, ctx.locale, ctx.market(str(fd, 'market')).timezone)}. The attempt was rejected with that reason.`], revalidate: REV }
     if (out.status === 'customer') return { message: ['Esa tienda ya es cliente: no se registra.', 'That store is already a customer: it is not registered.'], revalidate: REV }
-    return { message: [`Registrada hasta el ${out.until.toISOString().slice(0, 10)}.`, `Registered until ${out.until.toISOString().slice(0, 10)}.`], revalidate: REV }
+    return { message: [`Registrada hasta el ${day(out.until, ctx.locale, ctx.market(str(fd, 'market')).timezone)}.`, `Registered until ${day(out.until, ctx.locale, ctx.market(str(fd, 'market')).timezone)}.`], revalidate: REV }
   })
 }
 export async function extendClaimAction(_: R | null, fd: FormData): Promise<R> {

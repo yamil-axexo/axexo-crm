@@ -4,7 +4,7 @@ import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table, shown } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
-import { day, dayTime, money, num } from '@/lib/format'
+import { day, dayTime, isoDay, money, num } from '@/lib/format'
 import * as dal from '@/dal/campo-canal'
 import { THRESHOLDS } from '@/domain/campo-canal/thresholds'
 import { documentVault } from '@/server/adapters/document-vault'
@@ -30,7 +30,7 @@ export default async function CampoPage({ searchParams }: { searchParams: Promis
   const { t } = ctx
   const sp = flat(await searchParams)
   const tabs: { key: Tab; label: string; ok: boolean }[] = [
-    { key: 'prioridad', label: t('Prioridad de hoy', 'Today’s priority'), ok: ctx.can('priority.read') },
+    { key: 'prioridad', label: t('Prioridad de hoy', 'Today’s priority'), ok: ctx.can('priority.read') || ctx.isGlobal },
     { key: 'expedientes', label: t('Expedientes', 'Enrollment files'), ok: ctx.can('onboarding.capture') || ctx.can('onboarding.review') },
     { key: 'cartera', label: t('Cartera', 'Portfolio'), ok: ctx.can('portfolio.plan') },
     { key: 'atribucion', label: t('Atribución', 'Attribution'), ok: ctx.can('attribution.correct') || ctx.can('dispute.raise') || ctx.isGlobal },
@@ -38,7 +38,7 @@ export default async function CampoPage({ searchParams }: { searchParams: Promis
     { key: 'registros', label: t('Registros de canal', 'Channel registrations'), ok: ctx.can('claim.manage') },
     { key: 'credito', label: t('Fondeo y crédito', 'Funding and credit'), ok: ctx.can('credit.request') || ctx.can('credit.approve') || ctx.isGlobal },
     { key: 'competencia', label: t('Competencia', 'Competition'), ok: ctx.can('competitor.record') || ctx.isGlobal },
-    { key: 'pdv', label: t('Punto de venta perfecto', 'Perfect store'), ok: ctx.can('priority.read') || ctx.can('board.supervisor') },
+    { key: 'pdv', label: t('Punto de venta perfecto', 'Perfect store'), ok: ctx.can('priority.read') || ctx.can('board.supervisor') || ctx.isGlobal },
     { key: 'incidentes', label: t('Incidentes', 'Incidents'), ok: ctx.can('incident.report') || ctx.can('incident.manage') },
     { key: 'umbrales', label: t('Umbrales y metas', 'Thresholds and targets'), ok: ctx.can('threshold.manage') || ctx.can('plan.set') },
   ]
@@ -324,11 +324,11 @@ async function Portfolio({ ctx, market, acc, tz }: { ctx: Ctx; market: string; a
         )}
       </Card>
       <Card data-testid="territory-owners">
-        <CardTitle title={t('Polos con dueño', 'Territories with an owner')} hint={t('Quién responde por cada territorio, y el perfil de cada quien vende.', 'Who owns each territory, and each seller’s profile.')} />
+        <CardTitle title={t('Quién responde por cada territorio', 'Who is responsible for each territory')} hint={t('Cada territorio con una persona que responde por él, y el perfil de cada quien vende.', 'Each territory with a person responsible for it, and each seller’s profile.')} />
         <ul>{owners.map((o) => (
           <li key={o.id} className="flex flex-col gap-2 border-t border-line py-3 first:border-t-0 md:flex-row md:items-center md:justify-between">
-            <span className="text-[15px]"><span className="font-semibold">{o.name}</span>: {o.owner ?? t('sin dueño', 'no owner')}{o.since ? t(` desde ${day(o.since, locale, tz)}`, ` since ${day(o.since, locale, tz)}`) : ''}</span>
-            {own && <ActionForm action={A.territoryOwnerAction} className="flex gap-2"><input type="hidden" name="territory" value={o.id} />{peopleSel('userId', 'territory-user')}<Submit size="sm" variant="ghost">{t('Poner dueño', 'Set owner')}</Submit></ActionForm>}
+            <span className="text-[15px]"><span className="font-semibold">{o.name}</span>: {o.owner ?? t('nadie responde todavía', 'nobody yet')}{o.since ? t(` desde ${day(o.since, locale, tz)}`, ` since ${day(o.since, locale, tz)}`) : ''}</span>
+            {own && <ActionForm action={A.territoryOwnerAction} className="flex gap-2"><input type="hidden" name="territory" value={o.id} />{peopleSel('userId', 'territory-user')}<Submit size="sm" variant="ghost">{t('Asignar', 'Assign')}</Submit></ActionForm>}
           </li>
         ))}</ul>
         <ul className="mt-4">{people.map((p) => (
@@ -349,7 +349,8 @@ const ORIGIN_KIND: Record<string, [string, string]> = { network_conversion: ['Re
 
 async function Attribution({ ctx, market, acc, tz, month }: { ctx: Ctx; market: string; acc: { id: string; name: string } | null; tz: string; month: string }) {
   const { t, locale } = ctx
-  const ym = /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().slice(0, 7)
+  const mk = ctx.market(market)
+  const ym = /^\d{4}-\d{2}$/.test(month) ? month : isoDay(new Date(), mk.timezone).slice(0, 7)
   const cycle = ctx.can('attribution.correct', market) || ctx.isGlobal ? await dal.attributionCycle(ctx, market, ym) : null
   const hist = acc ? await dal.attributionHistory(ctx, acc.id) : []
   return (
@@ -386,7 +387,7 @@ async function Attribution({ ctx, market, acc, tz, month }: { ctx: Ctx; market: 
             right={<form method="get" action="/campo" className="flex gap-2"><input type="hidden" name="tab" value="atribucion" /><input type="hidden" name="mercado" value={market} /><input type="month" name="ciclo" defaultValue={ym} className="input" aria-label={t('Mes', 'Month')} /><button className="press h-11 rounded-full border border-line px-4 text-[14px] font-semibold">{t('Ver', 'Show')}</button></form>} />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {([
-              [t('Con dueño sin fila vigente', 'Owner with no current row'), cycle.no_owner_row], [t('Sin origen', 'No origin'), cycle.no_origin],
+              [t('Lo lleva alguien sin fila vigente', 'Owned with no current row'), cycle.no_owner_row], [t('Sin origen', 'No origin'), cycle.no_origin],
               [t('Origen sin clasificar', 'Origin not classified'), cycle.unclassified_origin], [t('Red adquirida', 'Acquired network'), cycle.network],
               [t('Alta nueva', 'New sign-up'), cycle.acquisition], [t('Correcciones del mes', 'Corrections this month'), cycle.corrections],
               [t('Disputas del mes', 'Disputes this month'), cycle.disputes_opened], [t('Disputas vencidas', 'Overdue disputes'), cycle.disputes_open_late],
@@ -549,9 +550,10 @@ async function Credit({ ctx, market, currency, acc, tz }: { ctx: Ctx; market: st
 
 async function Competition({ ctx, market, currency, acc }: { ctx: Ctx; market: string; currency: string; acc: { id: string; name: string } | null }) {
   const { t, locale } = ctx
+  const mk = ctx.market(market)
   const [list, report, obs] = await Promise.all([dal.competitors(ctx, market), dal.competitorReport(ctx, market), acc ? dal.accountCompetitors(ctx, acc.id) : Promise.resolve([])])
   const SRC: Record<string, [string, string]> = { visit: ['Visita', 'Visit'], onboarding: ['Alta', 'Sign-up'], dealer_tabs: ['Pestañas abiertas del dealer', 'Dealer’s open tabs'], sales_app: ['Sales App', 'Sales App'] }
-  const today = new Date().toISOString().slice(0, 10)
+  const today = isoDay(new Date(), mk.timezone)
   return (
     <div className="flex flex-col gap-6">
       {acc && ctx.can('competitor.record', market) && (
@@ -599,13 +601,14 @@ async function PerfectStore({ ctx, market, tz }: { ctx: Ctx; market: string; tz:
 
 async function Incidents({ ctx, market, tz, open }: { ctx: Ctx; market: string; tz: string; open?: string }) {
   const { t, locale } = ctx
+  const mk = ctx.market(market)
   const [list, accounts] = await Promise.all([dal.incidents(ctx, market), dal.marketAccounts(ctx, market)])
   const manage = ctx.can('incident.manage', market)
   if (open && list.some((i) => i.id === open)) {
     await logIncidentView(ctx, open)
   }
   const TYPE: Record<string, [string, string]> = { conduct: ['Conducta', 'Conduct'], complaint: ['Queja', 'Complaint'], fraud_suspicion: ['Sospecha de fraude', 'Fraud suspicion'], equipment: ['Material instalado o retirado', 'Equipment installed or removed'], other: ['Otro', 'Other'] }
-  const today = new Date().toISOString().slice(0, 10)
+  const today = isoDay(new Date(), mk.timezone)
   return (
     <div className="flex flex-col gap-6">
       <p className="rounded-[14px] bg-surface-3 px-5 py-4 text-[14px] text-strong" role="note" data-testid="incident-note">
@@ -652,8 +655,9 @@ async function Incidents({ ctx, market, tz, open }: { ctx: Ctx; market: string; 
 
 async function Thresholds({ ctx, market, tz }: { ctx: Ctx; market: string; tz: string }) {
   const { t, locale } = ctx
+  const mk = ctx.market(market)
   const [rows, plansList, people] = await Promise.all([dal.thresholds(ctx, market), dal.repPlans(ctx, market), dal.marketPeople(ctx, market, ['rep'])])
-  const month = new Date().toISOString().slice(0, 7)
+  const month = isoDay(new Date(), mk.timezone).slice(0, 7)
   return (
     <div className="flex flex-col gap-6">
       {ctx.can('threshold.manage', market) && (

@@ -172,7 +172,7 @@ export const CAPABILITIES = {
   'credit.request': [...SELLERS, 'ops'],
   'credit.approve': ['admin', 'market_lead'],
   'competitor.record': [...SELLERS, 'ops'],
-  'priority.read': [...SELLERS, 'lt'],
+  'priority.read': SELLERS,
   // Incidentes de campo: cualquiera que trabaja en el mercado reporta; solo quien lidera o administra los ve todos y los atiende.
   'incident.report': ['admin', 'market_lead', 'supervisor', 'rep', 'ops'],
   'incident.manage': ['admin', 'market_lead'],

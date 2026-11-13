@@ -378,7 +378,7 @@ export async function reportIncident(ctx: Ctx, raw: Record<string, string>): Pro
       values (${d.market}, ${d.accountId || null}, ${d.partyKind}, ${d.partyLabel}, ${d.type}, ${d.occurredOn}::date, ${d.description}, ${ctx.user.id}) returning id`
     const id = rows[0]!.id
     // La bitácora no copia la descripción ni a quién señala: solo que existe, de qué tipo y en qué mercado.
-    await audit(tx, ctx, 'incident.reported', 'field_incident', id, d.market, null, { type: d.type })
+    await audit(tx, ctx, 'field_incident.reported', 'field_incident', id, d.market, null, { type: d.type })
     await notifyMany(tx, ctx, (await peopleWithRole(tx, d.market, ['market_lead'])).filter((u) => u !== ctx.user.id), {
       kind: 'lifecycle', market: d.market, link: '/campo?tab=incidentes', needsAction: true,
       title: ['Incidente de campo por atender', 'Field incident to handle'], body: ['Es confidencial: el detalle está en Campo y canales.', 'It is confidential: the detail is under Field and channels.'],
@@ -404,7 +404,7 @@ export async function handleIncident(ctx: Ctx, id: string, action: string, rawRe
     if (r.status === 'closed') throw invalid('Ese incidente ya está cerrado.', 'That incident is already closed.')
     if (action === 'take') await tx`update crm.field_incidents set status = 'in_review', assigned_to = ${ctx.user.id} where id = ${id}`
     else await tx`update crm.field_incidents set status = 'closed', resolution = ${resolution}, closed_at = now(), assigned_to = coalesce(assigned_to, ${ctx.user.id}) where id = ${id}`
-    await audit(tx, ctx, action === 'take' ? 'incident.taken' : 'incident.closed', 'field_incident', id, r.market_code, { status: r.status }, { status: action === 'take' ? 'in_review' : 'closed' })
+    await audit(tx, ctx, action === 'take' ? 'field_incident.taken' : 'field_incident.closed', 'field_incident', id, r.market_code, { status: r.status }, { status: action === 'take' ? 'in_review' : 'closed' })
   })
 }
 
@@ -413,6 +413,6 @@ export async function logIncidentView(ctx: Ctx, id: string): Promise<void> {
   if (!UUID.test(id)) return
   await withUser(ctx.user.id, async (tx) => {
     const r = (await tx<{ market_code: string }[]>`select market_code from crm.field_incidents where id = ${id}`)[0]
-    if (r) await audit(tx, ctx, 'incident.viewed', 'field_incident', id, r.market_code, null, null)
+    if (r) await audit(tx, ctx, 'field_incident.viewed', 'field_incident', id, r.market_code, null, null)
   })
 }

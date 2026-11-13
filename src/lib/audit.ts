@@ -250,10 +250,10 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'competitor.added': ['Agregó un competidor a la lista', 'Added a competitor to the list'],
   'competitor.observed': ['Registró competencia en un punto de venta', 'Recorded competition at a store'],
   'plan.set': ['Puso la meta del mes de una persona', 'Set a person’s monthly target'],
-  'incident.reported': ['Reportó un incidente de campo', 'Reported a field incident'],
-  'incident.taken': ['Tomó un incidente de campo', 'Took a field incident'],
-  'incident.closed': ['Cerró un incidente de campo', 'Closed a field incident'],
-  'incident.viewed': ['Abrió el detalle de un incidente de campo', 'Opened a field incident'],
+  'field_incident.reported': ['Reportó un incidente de campo', 'Reported a field incident'],
+  'field_incident.taken': ['Tomó un incidente de campo', 'Took a field incident'],
+  'field_incident.closed': ['Cerró un incidente de campo', 'Closed a field incident'],
+  'field_incident.viewed': ['Abrió el detalle de un incidente de campo', 'Opened a field incident'],
   'report.created': ['Reportó un problema o pidió algo', 'Reported a problem or asked for something'],
   'report.answered': ['Respondió un reporte del equipo', 'Answered a team report'],
   'report.exported': ['Exportó un reporte', 'Exported a report'],
@@ -376,6 +376,7 @@ export const AUDIT_GROUPS = {
   security: { label: ['Seguridad y privacidad', 'Security and privacy'] as Pair, like: ['sensitive.%', 'sensitive_field.%', 'consent.%', 'retention.%', 'subject_request.%', 'view_as.%', 'access_review.%', 'security.%', 'secret.%', 'seat.%'], not: null },
   // Paquete gobierno: servicio, versiones, costos, solicitudes y motivos de cambio.
   governance: { label: ['Gobierno', 'Governance'] as Pair, like: ['objective.%', 'incident.%', 'restore_test.%', 'component.%', 'maintenance.%', 'release.%', 'deployment.%', 'cost.%', 'config_request.%', 'change.%', 'champion.%', 'material.%'], not: null },
+  field: { label: ['Campo y canales', 'Field and channels'] as Pair, like: ['onboarding.%', 'threshold.%', 'channel.%', 'seller.%', 'portfolio.%', 'attribution.%', 'dispute.%', 'claim.%', 'funding.%', 'credit.%', 'competitor.%', 'plan.%', 'field_incident.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const
@@ -384,6 +385,13 @@ export const isAuditGroup = (v: string | undefined): v is AuditGroup => v !== un
 
 /** Tipos de registro por los que se filtra, con su nombre. */
 export const AUDIT_OBJECT: Record<string, Pair> = {
+  onboarding_file: ['Expediente de alta', 'Enrollment file'],
+  threshold: ['Umbral', 'Threshold'],
+  reassignment_plan: ['Plan de reparto', 'Reassignment plan'],
+  attribution_dispute: ['Disputa de atribución', 'Attribution dispute'],
+  channel_claim: ['Registro de canal', 'Channel registration'],
+  competitor: ['Competidor', 'Competitor'],
+  field_incident: ['Incidente de campo', 'Field incident'],
   agency: ['Agencia o socio', 'Agency or partner'],
   account: ['Comercio', 'Merchant'],
   deal: ['Negocio', 'Deal'],
