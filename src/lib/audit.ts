@@ -345,7 +345,7 @@ export const AUDIT_GROUPS = {
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
-  saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },
+  saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'goal.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },
   security: { label: ['Seguridad y privacidad', 'Security and privacy'] as Pair, like: ['sensitive.%', 'sensitive_field.%', 'consent.%', 'retention.%', 'subject_request.%', 'view_as.%', 'access_review.%', 'security.%', 'secret.%', 'seat.%'], not: null },
   // Paquete gobierno: servicio, versiones, costos, solicitudes y motivos de cambio.
   governance: { label: ['Gobierno', 'Governance'] as Pair, like: ['objective.%', 'incident.%', 'restore_test.%', 'component.%', 'maintenance.%', 'release.%', 'deployment.%', 'cost.%', 'config_request.%', 'change.%', 'champion.%', 'material.%'], not: null },

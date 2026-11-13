@@ -338,9 +338,9 @@ begin
     (7, 'US - Vegas Leads Activities by rep (by type)', 'campo', 'US · Vegas, actividades por persona', jsonb_build_object('mercado', 'US', 'embudo', vegas::text), 'vegas'),
     (8, 'US - Vegas Open deals by stage', 'etapas', 'US · Vegas, negocios abiertos por etapa', jsonb_build_object('mercado', 'US', 'embudo', vegas::text), 'vegas'),
     (9, 'US - Activities by rep (by type)', 'campo', 'US · Actividades por persona', jsonb_build_object('mercado', 'US'), null),
-    (10, 'US — Deals por loss reason', 'cerrados', 'US · Negocios perdidos por motivo', jsonb_build_object('mercado', 'US', 'resultado', 'lost', 'por', 'motivo'), null),
-    (11, 'US — Deals entrando por stage (mensual)', 'mercado', 'US · Negocios que entran a cada etapa por mes', jsonb_build_object('mercado', 'US', 'embudo', dealer::text), 'dealer'),
-    (12, 'US — Vegas Funnel conversion (Lead→Won)', 'historico', 'US · Vegas, conversión de lead a ganado', jsonb_build_object('mercado', 'US', 'embudo', vegas::text), 'vegas')
+    (10, 'US - Deals por loss reason', 'cerrados', 'US · Negocios perdidos por motivo', jsonb_build_object('mercado', 'US', 'resultado', 'lost', 'por', 'motivo'), null),
+    (11, 'US - Deals entrando por stage (mensual)', 'mercado', 'US · Negocios que entran a cada etapa por mes', jsonb_build_object('mercado', 'US', 'embudo', dealer::text), 'dealer'),
+    (12, 'US - Vegas Funnel conversion (Lead→Won)', 'historico', 'US · Vegas, conversión de lead a ganado', jsonb_build_object('mercado', 'US', 'embudo', vegas::text), 'vegas')
   ) v(pos, pd, report, name, params, pipe) loop
     ok := not (r.pipe = 'dealer' and dealer is null) and not (r.pipe = 'vegas' and vegas is null);
     select id into rid from crm.saved_reports where user_id = sys and name = r.name limit 1;
@@ -361,10 +361,10 @@ begin
   for r in select * from (values
     (1, 'US - Dealer Enrollment Ops', 'us_dealer_ops', 'US · Alta de dealers, Operaciones', 'US · Dealer sign-up, Operations', 'US', array[1, 2, 3, 4, 5, 9, 10, 11]),
     (2, 'US - Vegas Sales Overview', 'us_vegas_sales', 'US · Vegas, ventas', 'US · Vegas, sales', 'US', array[6, 7, 8, 12]),
-    (3, 'MX Transacciones — Preview', 'mx_transacciones', 'MX · Transacciones', 'MX · Transactions', 'MX', array[]::int[]),
+    (3, 'MX Transacciones - Preview', 'mx_transacciones', 'MX · Transacciones', 'MX · Transactions', 'MX', array[]::int[]),
     (4, 'MX Cobertura', 'mx_cobertura', 'MX · Cobertura', 'MX · Coverage', 'MX', array[]::int[]),
-    (5, 'MX Enrollment — Funnel', 'mx_enrollment', 'MX · Embudo de altas', 'MX · Sign-up funnel', 'MX', array[]::int[]),
-    (6, 'MX Ops — Tiendas', 'mx_ops_tiendas', 'MX · Operaciones, tiendas', 'MX · Operations, stores', 'MX', array[]::int[])
+    (5, 'MX Enrollment - Funnel', 'mx_enrollment', 'MX · Embudo de altas', 'MX · Sign-up funnel', 'MX', array[]::int[]),
+    (6, 'MX Ops - Tiendas', 'mx_ops_tiendas', 'MX · Operaciones, tiendas', 'MX · Operations, stores', 'MX', array[]::int[])
   ) v(pos, pd, key, nes, nen, market, reports) loop
     continue when not exists (select 1 from crm.markets where code = r.market);
     mx_ids := '{}';

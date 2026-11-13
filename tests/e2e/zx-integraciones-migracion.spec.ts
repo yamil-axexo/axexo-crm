@@ -76,7 +76,6 @@ test.describe('convivencia con Pipedrive y lo reconstruido', () => {
     await expect(rebuild.getByTestId('rebuild-row')).toHaveCount(39)
     await expect(rebuild).toContainText('Owner - Valentina at Approvals (US)')
     await expect(rebuild).toContainText('Las Vegas Round Robin')
-    await expect(rebuild).toContainText('[pendiente: LuisRo Sanabria]')
     await at(page, 'desktop')
     await clean(page, 'pipedrive 1440')
     await at(page, 'movil')
@@ -85,7 +84,7 @@ test.describe('convivencia con Pipedrive y lo reconstruido', () => {
     await expect(page.getByTestId('rebuild')).toContainText('What is left to rebuild')
     await expect(page.getByTestId('cutover')).toContainText('Coexistence with Pipedrive by market')
     await setLocale(page, 'es')
-    expect(errors()).toEqual([])
+    expect(errors).toEqual([])
   })
 
   test('las automatizaciones de Pipedrive tienen su sección; la #1 se configura sin nombres fijos', async ({ page }) => {

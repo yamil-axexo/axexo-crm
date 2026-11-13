@@ -104,9 +104,9 @@ Source: `/home/claude/audit/pipedrive-inventario.md` (screens read on 13 Nov 202
 | US - Vegas Leads Activities by rep (by type) | Field report | Las Vegas pipeline |
 | US - Vegas Open deals by stage | Deals by stage | Las Vegas pipeline |
 | US - Activities by rep (by type) | Field report | US |
-| US — Deals por loss reason | Closed deals | lost, by reason |
-| US — Deals entrando por stage (mensual) | Market report | dealer pipeline, by month |
-| US — Vegas Funnel conversion (Lead→Won) | History | Las Vegas pipeline |
+| US - Deals por loss reason | Closed deals | lost, by reason |
+| US - Deals entrando por stage (mensual) | Market report | dealer pipeline, by month |
+| US - Vegas Funnel conversion (Lead→Won) | History | Las Vegas pipeline |
 
 ### Insights dashboards → Reports → "Boards" (`crm.report_boards`)
 
@@ -114,10 +114,10 @@ Source: `/home/claude/audit/pipedrive-inventario.md` (screens read on 13 Nov 202
 |---|---|
 | US - Dealer Enrollment Ops | US · Dealer sign-up, Operations (reports 1 to 5, 9 to 11) |
 | US - Vegas Sales Overview | US · Vegas, sales (reports 6 to 8 and 12) |
-| MX Transacciones — Preview | MX · Transactions (reconciliation, wins by period) |
+| MX Transacciones - Preview | MX · Transactions (reconciliation, wins by period) |
 | MX Cobertura | MX · Coverage (field indicators, field report) |
-| MX Enrollment — Funnel | MX · Sign-up funnel (deals by stage, leads, market report) |
-| MX Ops — Tiendas | MX · Operations, stores (chains and key accounts, history) |
+| MX Enrollment - Funnel | MX · Sign-up funnel (deals by stage, leads, market report) |
+| MX Ops - Tiendas | MX · Operations, stores (chains and key accounts, history) |
 
 ### Goal
 
