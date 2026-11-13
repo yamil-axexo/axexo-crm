@@ -264,12 +264,14 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       // El historial de un solo registro.
       await page.getByTestId('audit-row').filter({ hasText: name }).first().getByTestId('audit-history').click()
       await expect(page.getByTestId('audit-record')).toContainText(name)
-      await expect(page.getByTestId('audit-what')).toHaveText(['Quitó un acceso', 'Dio acceso'])
+      // E4.F9 (datos2, cambio a propósito): el acceso nace con su aprobación de asiento, que también queda en el historial.
+      expect((await page.getByTestId('audit-what').allInnerTexts()).sort()).toEqual(['Dio acceso', 'Quitó un acceso', 'Registró quién aprobó un asiento'])
 
       // En inglés, lo mismo con sus palabras.
       await english(page)
       await page.reload()
-      await expect(page.getByTestId('audit-what')).toHaveText(['Removed access', 'Granted access'])
+      await expect(page.getByTestId('audit-what')).toHaveCount(3)
+      expect(await page.getByTestId('audit-what').allInnerTexts()).toEqual(expect.arrayContaining(['Removed access', 'Granted access']))
       await expect(page.getByTestId('audit-zone')).toContainText('Times are in Puerto Rico time (GMT-4).')
       await spanish(page)
 
