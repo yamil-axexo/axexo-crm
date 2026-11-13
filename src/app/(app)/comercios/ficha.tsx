@@ -20,7 +20,7 @@ import type { MessageKey } from '@/lib/messages'
 import { addContactAction, setParentAction, updateAccountAction } from './actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
-import { AccountOrders } from './pedidos'
+import { AccountOrders, LastOrderLine } from './pedidos'
 import { StoreProviders } from './proveedores'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
 import { StagePicker } from '@/ui/ops'
@@ -237,6 +237,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             )}
           </p>
         </div>
+        <LastOrderLine ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
       </div>
 
       {/* Arriba, contactar (llamar, WhatsApp, mensaje de texto); abajo, dejar registro (visita, nota, actividad). */}
