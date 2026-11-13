@@ -4,7 +4,6 @@ import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
 import { invalid, notFound } from '@/lib/errors'
-import { decisionValue } from '@/domain/decisions'
 import type postgres from 'postgres'
 
 type Json = postgres.JSONValue
@@ -36,10 +35,8 @@ export async function resolveContact(tx: Tx, actorId: string, p: { market: strin
 }
 
 /** E4.F2: fusionar contactos es de administración; Ventas y Operaciones también, si el mercado lo tiene encendido. */
-export async function canMergeHere(tx: Tx, ctx: Ctx, market: string): Promise<boolean> {
-  if (ctx.can('account.merge', market)) return true
-  if (!ctx.memberships.some((m) => ['rep', 'ops', 'supervisor', 'market_lead'].includes(m.role) && (m.market === null || m.market === market))) return false
-  return (await decisionValue(tx, 'ops.operator_rights', market)).value === 'on'
+export async function canMergeHere(_tx: Tx, ctx: Ctx, market: string): Promise<boolean> {
+  return ctx.can('account.merge', market) || ctx.can('operator.merge', market)
 }
 
 const ids = (rows: readonly { id: string }[]) => rows.map((r) => r.id)
@@ -58,7 +55,7 @@ export async function mergeContacts(ctx: Ctx, sourceId: string, targetId: string
     if (!s || !t || s.archived_at || t.archived_at) throw notFound('No encontramos ese contacto.', 'We could not find that contact.')
     const market = String(t.market_code)
     if (s.market_code !== market) throw invalid('Solo se fusionan contactos del mismo mercado.', 'Only contacts in the same market can be merged.')
-    if (!(await canMergeHere(tx, ctx, market))) ctx.assert('account.merge', market)
+    if (!(await canMergeHere(tx, ctx, market))) ctx.assert('operator.merge', market)
 
     // Primero se archiva el que se va (todavía se ve: tiene sus vínculos); después se mueven sus vínculos.
     const phone = (s.phone ?? s.held_phone ?? null) as string | null
@@ -99,7 +96,7 @@ export async function undoContactMerge(ctx: Ctx, eventId: string, reason: string
       select market_code, source_id, target_id, snapshot, moved, undone_at from crm.contact_merge_events where id = ${eventId} for update`)[0]
     if (!ev) throw notFound('No encontramos esa fusión.', 'We could not find that merge.')
     if (ev.undone_at) throw invalid('Esa fusión ya se deshizo.', 'That merge was already undone.')
-    if (!(await canMergeHere(tx, ctx, ev.market_code))) ctx.assert('account.merge', ev.market_code)
+    if (!(await canMergeHere(tx, ctx, ev.market_code))) ctx.assert('operator.merge', ev.market_code)
     const src = ev.snapshot.source
     // El teléfono vuelve a su dueño solo si el que quedó no lo cambió después.
     if ((ev.moved.phone_taken ?? []).length) {

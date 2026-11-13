@@ -1,4 +1,26 @@
 -- 0040_datos2 (down)
+drop function if exists app.operator_move_accounts(uuid[], uuid, text);
+drop function if exists app.operator_markets();
+delete from crm.memberships where role = 'finance';
+alter table crm.memberships drop constraint memberships_role_check;
+alter table crm.memberships add constraint memberships_role_check
+  check (role in ('admin','lt','market_lead','supervisor','rep','ops','agency','partner'));
+create or replace function app.full_markets() returns text[]
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select case when app.is_global()
+              then coalesce((select array_agg(code) from crm.markets), '{}')
+              else coalesce((select array_agg(distinct market_code) from app.active_memberships()
+                              where role in ('market_lead','ops')), '{}')
+         end
+$$;
+create or replace function app.write_markets() returns text[]
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select case when app.is_admin()
+              then coalesce((select array_agg(code) from crm.markets), '{}')
+              else coalesce((select array_agg(distinct market_code) from app.active_memberships()
+                              where role in ('market_lead','supervisor','rep','ops','agency')), '{}')
+         end
+$$;
 drop function if exists app.lead_timezone(uuid);
 drop function if exists app.business_due(text, timestamptz, int, text);
 alter table crm.leads drop column if exists timezone;

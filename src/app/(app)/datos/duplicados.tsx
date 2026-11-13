@@ -21,7 +21,7 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
   const picked = pairId ? (await duplicateQueue(ctx, null, pairId)).pairs[0] : undefined
   const markets = ctx.markets.filter((m) => m.status === 'live')
   const canReview = (m: string) => ctx.can('duplicate.review', m)
-  const canMerge = (m: string) => ctx.can('account.merge', m)
+  const canMerge = (m: string) => ctx.can('account.merge', m) || ctx.can('operator.merge', m)
   const scanMarkets = markets.filter((m) => canReview(m.code))
   const totalOpen = d.counts.filter((c) => !market || c.market_code === market).reduce((a, c) => a + c.open, 0)
   // Las fechas se dicen en el día del mercado, no en el del servidor.
@@ -168,7 +168,7 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
                     {taken.length > 0 && <span className="mt-1 block text-[13px] text-muted-2" data-testid="merge-survivors">{t('Del archivado se tomó', 'Taken from the archived one')}: {taken.map(([f, v]) => `${lab(t, SURVIVOR_LABEL[f], f)} (${lab(t, SURVIVOR_REASON[v.reason])})`).join('; ')}</span>}
                     {e.undone_at && <span className="mt-1 block text-[13px] text-amber-text" data-testid="merge-undone">{t(`Se deshizo el ${day(e.undone_at, locale, tzOf(e.market_code))}: ${e.undo_reason ?? ''}`, `Undone on ${day(e.undone_at, locale, tzOf(e.market_code))}: ${e.undo_reason ?? ''}`)}</span>}
                   </span>
-                  {!e.undone_at && ctx.can('account.merge') && (
+                  {!e.undone_at && canMerge(e.market_code) && (
                     <Dialog trigger={t('Deshacer', 'Undo')} title={t('Deshacer la fusión', 'Undo the merge')} size="sm" testId="merge-undo">
                       <NoticeForm action={undoMergeAction} className="space-y-4 text-left">
                         <input type="hidden" name="event_id" value={e.id} />

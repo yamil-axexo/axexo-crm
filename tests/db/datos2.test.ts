@@ -13,6 +13,9 @@ import { JOBS } from '@/server/jobs/registry'
 import { convertLead, createLead, intakeFromForm, qualifyLead } from '@/domain/leads'
 import { systemContext } from './helpers'
 import { retryIntakeNow } from '@/domain/embudo/intake-retry'
+import { reassignAccounts } from '@/domain/reparto'
+import { loadCtx } from '@/server/context'
+import { updateAccount } from '@/domain/accounts'
 import { dismissContactPair, mergeContacts, resolveContact, undoContactMerge } from '@/domain/contacts-dedup'
 import { decisionValue, DECISIONS, setDecision } from '@/domain/decisions'
 import { contactQueue, decisionsBoard } from '@/dal/datos2'
@@ -437,5 +440,45 @@ describe('E3.F10 · el formulario no crea un lead sin dueño', () => {
       await admin`update crm.routing_rules set member_ids = ${before.member_ids}, fallback_id = ${before.fallback_id} where id = ${form.routing_rule_id}`
       await setDecision(nora, { key: 'lead.no_owner', market: 'MX', value: 'market_lead', confirmed: false })
     }
+  })
+})
+
+describe('E4.F2 · quien opera no administra; cambiar dueño, fusionar y editar en bloque por mercado; rol de Finanzas', () => {
+  it('en Estados Unidos (confirmado) Ventas cambia dueños y fusiona; en México sigue cerrado hasta que se decida', async () => {
+    const jade = await ctxFor('jade.kim')
+    const lucia = await ctxFor('lucia.vega')
+    expect(jade.can('operator.reassign', 'US')).toBe(true)
+    expect(jade.can('operator.merge', 'US')).toBe(true)
+    expect(lucia.can('operator.reassign', 'MX')).toBe(false)
+    // nada de administrar, exportar ni importar
+    for (const c of ['config.manage', 'report.export', 'data.import', 'access.manage'] as const) expect(jade.can(c, 'US')).toBe(false)
+    const mine = await rawAccount('US', 'jade.kim')
+    expect(await reassignAccounts(jade, [mine], await personaId('sam.ortiz'))).toBe(1)
+    const mx = await rawAccount('MX', 'lucia.vega')
+    await expect(reassignAccounts(lucia, [mx], await personaId('diana.cruz'))).rejects.toMatchObject({ code: 'forbidden' })
+    // si administración enciende México, Ventas de México también puede
+    const nora = await ctxFor('nora.salas')
+    await setDecision(nora, { key: 'ops.operator_rights', market: 'MX', value: 'on', confirmed: false })
+    try {
+      const lucia2 = await ctxFor('lucia.vega')
+      expect(await reassignAccounts(lucia2, [mx], await personaId('marco.pena'))).toBe(1)
+    } finally {
+      await setDecision(nora, { key: 'ops.operator_rights', market: 'MX', value: 'off', confirmed: false })
+    }
+  })
+
+  it('existe el rol de Finanzas: edita y lee sus reportes en su mercado, sin administrar ni exportar', async () => {
+    const uid = await one(admin<{ id: string }[]>`insert into crm.users (email, full_name, locale) values (${`finanzas.${tag()}@contigo.test`}, 'Persona Finanzas', 'es') returning id`)
+    await admin`insert into crm.memberships (user_id, market_code, role) values (${uid.id}, 'US', 'finance')`
+    const fin = (await loadCtx(uid.id, 'es'))!
+    expect(fin.can('report.finance', 'US')).toBe(true)
+    expect(fin.can('account.edit', 'US')).toBe(true)
+    expect(fin.can('operator.reassign', 'US')).toBe(true)
+    for (const c of ['config.manage', 'report.export', 'data.import', 'account.merge', 'deal.create'] as const) expect(fin.can(c, 'US')).toBe(false)
+    expect(fin.can('account.edit', 'MX')).toBe(false)
+    // ve y edita comercios de su mercado (RLS)
+    const acc = await rawAccount('US', 'jade.kim')
+    await updateAccount(fin, acc, { name: 'Tienda Finanzas Reno', locality: 'Reno' })
+    expect((await one(admin<{ locality: string }[]>`select locality from crm.accounts where id = ${acc}`)).locality).toBe('Reno')
   })
 })

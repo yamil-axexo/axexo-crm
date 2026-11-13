@@ -481,3 +481,72 @@ language sql stable set search_path = crm, app, pg_catalog as $$
 $$;
 grant execute on function app.lead_timezone(uuid) to contigo_app;
 
+
+-- ================================================================ E4.F2 rol de Finanzas
+-- Finanzas trabaja los registros de su mercado (ve todo el mercado, edita, registra actividades y lee los reportes de
+-- finanzas). No administra, no exporta ni importa, no borra y no cambia campos, embudos ni ajustes (eso es de policy.ts).
+alter table crm.memberships drop constraint memberships_role_check;
+alter table crm.memberships add constraint memberships_role_check
+  check (role in ('admin','lt','market_lead','supervisor','rep','ops','agency','partner','finance'));
+create or replace function app.full_markets() returns text[]
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select case when app.is_global()
+              then coalesce((select array_agg(code) from crm.markets), '{}')
+              else coalesce((select array_agg(distinct market_code) from app.active_memberships()
+                              where role in ('market_lead','ops','finance')), '{}')
+         end
+$$;
+create or replace function app.write_markets() returns text[]
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select case when app.is_admin()
+              then coalesce((select array_agg(code) from crm.markets), '{}')
+              else coalesce((select array_agg(distinct market_code) from app.active_memberships()
+                              where role in ('market_lead','supervisor','rep','ops','agency','finance')), '{}')
+         end
+$$;
+
+-- ================================================================ E4.F2 cambiar dueño, fusionar y editar en bloque (quien opera)
+-- La decisión por mercado vive en crm.decision_settings ('ops.operator_rights'). Valor propuesto: Estados Unidos encendido
+-- (confirmado en el requerimiento E4.F2), los demás apagado. Se guarda como fila para que la base y la aplicación lean lo mismo.
+insert into crm.decision_settings (key, market_code, value, proposed, owner_label)
+select 'ops.operator_rights', code, to_jsonb(case when code = 'US' then 'on' else 'off' end), true, 'Martech' from crm.markets
+on conflict do nothing;
+
+-- Mercados donde la persona (Ventas, Operaciones o Finanzas) puede cambiar dueños y fusionar.
+create or replace function app.operator_markets() returns text[]
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select coalesce(array_agg(distinct m.market_code), '{}')
+    from app.active_memberships() m
+   where m.role in ('rep','ops','finance') and m.market_code is not null
+     and coalesce((select s.value #>> '{}' from crm.decision_settings s where s.key = 'ops.operator_rights' and s.market_code = m.market_code),
+                  (select s.value #>> '{}' from crm.decision_settings s where s.key = 'ops.operator_rights' and s.market_code is null), 'off') = 'on'
+$$;
+grant execute on function app.operator_markets() to contigo_app;
+
+-- Cambiar el dueño como quien opera: la persona solo pasa comercios que ya ve (la aplicación los lee con sus permisos antes de
+-- llamar aquí) y solo en un mercado donde la decisión está encendida. Mueve lo mismo que el reparto de siempre: atribución de
+-- dueño con fecha, negocios abiertos, tareas y visitas por hacer, y pendientes abiertos. La base lo hace porque el registro deja
+-- de estar a la vista de quien lo pasa.
+create or replace function app.operator_move_accounts(p_ids uuid[], p_to uuid, p_to_name text)
+returns table (deals int, tasks int)
+language plpgsql volatile security definer set search_path = crm, app, pg_catalog as $$
+declare v_market text; d int; k int;
+begin
+  select min(market_code) into v_market from crm.accounts where id = any(p_ids);
+  if v_market is null or (select count(distinct market_code) from crm.accounts where id = any(p_ids)) <> 1
+     or not (v_market = any(app.operator_markets())) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  update crm.account_attributions set effective_to = now() where account_id = any(p_ids) and layer = 'owner' and effective_to is null;
+  insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
+  select a.id, a.market_code, 'owner', 'user', p_to, p_to_name, app.current_user_id() from crm.accounts a where a.id = any(p_ids);
+  update crm.deals set owner_id = p_to where account_id = any(p_ids) and status = 'open';
+  get diagnostics d = row_count;
+  update crm.activities set owner_id = p_to where account_id = any(p_ids) and kind in ('task', 'visit') and done_at is null;
+  get diagnostics k = row_count;
+  update crm.accounts set owner_id = p_to where id = any(p_ids);
+  update crm.exceptions set owner_id = p_to where resolved_at is null and account_id = any(p_ids) and kind not in ('unowned_account', 'duplicate_suspect');
+  return query select d, k;
+end $$;
+revoke execute on function app.operator_move_accounts(uuid[], uuid, text) from public;
+grant execute on function app.operator_move_accounts(uuid[], uuid, text) to contigo_app;

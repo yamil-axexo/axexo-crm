@@ -4,7 +4,8 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createHash, randomBytes } from 'node:crypto'
 import { withUser, withoutUser, systemUserId } from '@/server/db'
-import { can, isFullAdmin, READ_CAPS, type AdminArea, type Capability, type Membership, type Role } from '@/domain/policy'
+import { can, isFullAdmin, OPERATOR_CAPS, READ_CAPS, type AdminArea, type Capability, type Membership, type Role } from '@/domain/policy'
+import { decisionValue } from '@/domain/decisions'
 import { translator, type Locale, type T } from '@/lib/format'
 import { messages, type M } from '@/lib/messages'
 import { forbidden } from '@/lib/errors'
@@ -66,7 +67,13 @@ export async function loadCtx(userId: string, localeOverride?: Locale, viewAs?: 
         from crm.markets where code = any(app.my_markets()) order by status, code`
     const memberships: Membership[] = ms.map((m) => ({ market: m.market_code, role: m.role, teamId: m.team_id, areas: m.admin_areas }))
     // Mientras alguien ve como otra persona solo quedan vivas las capacidades de lectura: no cambia, no exporta, no revela.
+    // E4.F2 (datos2): mercados donde Ventas, Operaciones y Finanzas cambian dueños, fusionan y editan en bloque (decisión por mercado).
+    const opMarkets = new Set<string>()
+    for (const code of new Set(memberships.filter((m) => m.market && ['rep', 'ops', 'finance'].includes(m.role)).map((m) => m.market!))) {
+      if ((await decisionValue(tx, 'ops.operator_rights', code)).value === 'on') opMarkets.add(code)
+    }
     const allowed = (cap: Capability, market?: string | null) => (!viewAs || READ_CAPS.includes(cap)) && can(memberships, cap, market)
+      && (!OPERATOR_CAPS.includes(cap) || (market ? opMarkets.has(market) : opMarkets.size > 0))
     const locale = localeOverride ?? u.locale
     const list: Market[] = markets.map((m) => ({
       code: m.code,

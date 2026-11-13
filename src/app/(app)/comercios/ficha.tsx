@@ -72,6 +72,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
   const canWrite = !a.archived_at && ctx.can('activity.write', a.market_code)
   const canEdit = !a.archived_at && ctx.can('account.edit', a.market_code)
   const canReassign = !a.archived_at && ctx.can('account.reassign', a.market_code)
+  // E4.F2 (datos2): cambiar el dueño también lo hace quien opera, donde la decisión del mercado lo permite.
+  const canChangeOwner = canReassign || (!a.archived_at && ctx.can('operator.reassign', a.market_code))
   // Un comercio sin asignar: lo toma quien vende en ese mercado si la regla se lo permite (quien dirige, cualquiera de su
   // alcance; quien vende, los de sus territorios). Si no, la ficha dice a quién pedirlo.
   const sellsHere = ctx.memberships.some((x) => x.market === a.market_code && x.role !== 'ops')
@@ -174,7 +176,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
 
   // Armar el árbol: quien dirige mueve cualquier cuenta; quien vende, las suyas (y solo bajo una matriz suya).
   const canTree = !a.archived_at && ctx.can('account.tree', a.market_code) && (canReassign || a.owner_id === ctx.user.id)
-  const people = tab === 'datos' && canReassign ? await sellers(ctx, a.market_code) : []
+  const people = tab === 'datos' && canChangeOwner ? await sellers(ctx, a.market_code) : []
   const parents = tab === 'datos' && canTree ? await parentChoices(ctx, a.market_code, !canReassign) : []
   const types = tab === 'datos' && canEdit ? await accountTypes(ctx, a.market_code) : []
   // Los campos de un tipo de venta (los de B2B) solo salen en cuentas de ese tipo de venta, y los condicionados, cuando aplican.
@@ -217,7 +219,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
           </span>
           <span aria-hidden className="text-muted">·</span>
           <span className={!a.owner_name && !ancestors.length ? 'text-amber-text' : undefined}>{m('record.owner', { name: owner })}</span>
-          {canReassign && tab !== 'datos' && (
+          {canChangeOwner && tab !== 'datos' && (
             <Link href={href(a.id, 'datos')} scroll={false} className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="ficha-reassign">
               {a.owner_id ? t('Reasignar', 'Reassign') : t('Asignar', 'Assign')}
             </Link>
@@ -461,7 +463,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
       {tab === 'datos' && (
         <div className="space-y-6" data-testid="account-data">
           {/* Reasignar va arriba de Datos: quien supervisa llega aquí desde el encabezado de la ficha, sin recorrer la pantalla. */}
-          {canReassign && (
+          {canChangeOwner && (
             <section data-testid="account-reassign">
               <form data-testid="reassign-form">
                 <input type="hidden" name="account_id" value={a.id} />
@@ -487,7 +489,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
             </section>
           )}
 
-          <section className={canReassign ? section : undefined}>
+          <section className={canChangeOwner ? section : undefined}>
             <h3 className={h3}>{isParent ? t('Ventas de su red', 'Network sales') : t('Ventas', 'Sales')}</h3>
             <dl className="mt-2">
               <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde', 'since')} {day(a.lifecycle_at, locale, tz)}</KeyVal>
