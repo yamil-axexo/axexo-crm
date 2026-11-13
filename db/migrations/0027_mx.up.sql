@@ -192,7 +192,7 @@ begin
       update crm.stages set position = position + 1000 where pipeline_id = b2b and position > p;
       update crm.stages set position = position - 999 where pipeline_id = b2b and position > 1000;
       insert into crm.stages (pipeline_id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en)
-      values (b2b, p + 1, 'nda', 'Acuerdo de confidencialidad (NDA)', 'Non-disclosure agreement (NDA)', 'open', 40, 14, '{amount}',
+      values (b2b, p + 1, 'nda', 'Acuerdo de confidencialidad (NDA)', 'Non-disclosure agreement (NDA)', 'open', 40, 14, '{amount,decision_maker}',
               'NDA firmado por las dos partes', 'NDA signed by both parties');
     end if;
     if not exists (select 1 from crm.stages where pipeline_id = b2b and code = 'contrato') then

@@ -112,13 +112,13 @@ export async function getDeal(ctx: Ctx, id: string) {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<
       (BoardDeal & { market_code: string; pipeline_id: string; pipeline_name: string; status: 'open' | 'won' | 'lost'; loss_reason_code: string | null;
-        loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string; custom: Record<string, unknown>; close_by_transaction: boolean;
+        loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string; custom: Record<string, unknown>; close_by_transaction: boolean; txn_also_wins: boolean;
         motor: string; pause_reason: string | null })[]
     >`select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
              ${dealNextStep(tx, ctx.locale)} as next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
              d.owner_id, (select o.full_name from crm.users o where o.id = d.ops_owner_id) as ops_owner_name, d.ops_next_step, d.ops_next_step_due::text,
              d.market_code, d.pipeline_id, p.name as pipeline_name, d.status, d.loss_reason_code, d.loss_note, d.won_at, d.lost_at, d.closed_by,
-             d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle, d.custom, p.close_by_transaction, p.motor, d.paused_at, d.pause_review_on::text, d.pause_reason
+             d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle, d.custom, p.close_by_transaction, p.txn_also_wins, p.motor, d.paused_at, d.pause_review_on::text, d.pause_reason
         from crm.deals d join crm.accounts a on a.id = d.account_id join crm.pipelines p on p.id = d.pipeline_id left join crm.users u on u.id = d.owner_id
        where d.id = ${id}`
     const deal = rows[0]

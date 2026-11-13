@@ -113,7 +113,7 @@ export function GateFields({ info, labels, minDate, dealHref }: { info: GateInfo
               <option value="">{labels.pickOne ?? '…'}</option>
               {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
-          ) : <input name={`custom:${f.key}`} required maxLength={200} inputMode={f.data_type === 'number' || f.data_type === 'money' ? 'decimal' : undefined} className="input mt-1.5" data-testid={`gate-field-${f.key}`} />}
+          ) : <input name={`custom:${f.key}`} required type={f.data_type === 'date' ? 'date' : undefined} maxLength={200} inputMode={f.data_type === 'number' || f.data_type === 'money' ? 'decimal' : undefined} className="input mt-1.5" data-testid={`gate-field-${f.key}`} />}
         </label>
       ))}
       {has('items') && (

@@ -41,8 +41,8 @@ export default async function PublicForm({ params, searchParams }: { params: Pro
           <Field label={t('Nombre del negocio', 'Business name')}><input name="business_name" className="input" required minLength={2} maxLength={120} /></Field>
           {companyTypes.length > 0 && (
             <Field label={t('Tipo de empresa', 'Company type')}>
-              <select name="company_type" className="input" required defaultValue="" data-testid="public-company-type">
-                <option value="" disabled>{t('Elige una opción', 'Pick an option')}</option>
+              <select name="company_type" className="input" defaultValue="" data-testid="public-company-type">
+                <option value="">{t('Elige una opción', 'Pick an option')}</option>
                 {companyTypes.map((c) => <option key={c.code} value={c.code}>{t(c.label_es, c.label_en)}</option>)}
               </select>
             </Field>

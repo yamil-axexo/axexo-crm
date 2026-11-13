@@ -83,8 +83,8 @@ export async function getUsers(ctx: Ctx, access: AccessFilter = 'con') {
 
 export async function getConfig(ctx: Ctx) {
   return withUser(ctx.user.id, async (tx) => {
-    const pipelines = await tx<{ id: string; market_code: string; motor: string; name: string; close_by_transaction: boolean; open_deals: number }[]>`
-      select p.id, p.market_code, p.motor, p.name, p.close_by_transaction,
+    const pipelines = await tx<{ id: string; market_code: string; motor: string; name: string; close_by_transaction: boolean; txn_also_wins: boolean; open_deals: number }[]>`
+      select p.id, p.market_code, p.motor, p.name, p.close_by_transaction, p.txn_also_wins,
              (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'open') as open_deals
         from crm.pipelines p where p.is_active order by p.market_code, p.position`
     const stages = await tx<{ id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; probability: number; rot_days: number; required_fields: string[]; exit_es: string; exit_en: string; edited_at: Date | null }[]>`

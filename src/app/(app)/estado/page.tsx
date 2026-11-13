@@ -173,7 +173,7 @@ export default async function StatusPage() {
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line py-3 text-[14px] first:border-t-0" data-testid="status-close-rule">
                 <span className="font-medium text-strong">{p.market_code} · {p.name}</span>
                 <span className="flex flex-wrap items-center gap-2">
-                  <Badge tone={p.close_by_transaction ? 'info' : 'neutral'}>{p.close_by_transaction ? t('Con la primera transacción', 'By the first transaction') : t('A mano', 'By hand')}</Badge>
+                  <Badge tone={p.close_by_transaction || p.txn_also_wins ? 'info' : 'neutral'}>{p.close_by_transaction ? t('Con la primera transacción', 'By the first transaction') : p.txn_also_wins ? t('Con contrato firmado o primera transacción', 'By signed contract or first transaction') : t('A mano', 'By hand')}</Badge>
                   <span className="text-[13px] text-muted-2">{t(`${num(p.open_deals, locale)} ${p.open_deals === 1 ? 'negocio abierto' : 'negocios abiertos'}`, `${num(p.open_deals, locale)} open ${p.open_deals === 1 ? 'deal' : 'deals'}`)}</span>
                 </span>
               </li>

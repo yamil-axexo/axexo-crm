@@ -140,7 +140,9 @@ test('Administración: la columna de etapas dice "Para avanzar" y las etapas sem
   await expect(page.locator('main')).not.toContainText('Criterio de salida')
   // las etapas sembradas ya no dicen "decisor": ni en el nombre ni en lo que piden ni en "Para avanzar"
   for (const row of await page.getByTestId('stage-row').all()) await expect(row).not.toContainText(/decisor/i)
-  await expect(page.getByTestId('stage-name').filter({ hasText: 'Interés de quien decide' }).first()).toBeVisible()
+  // (paquete mx: las etapas de tiendas de México llevan los nombres del documento de requerimientos; "quien decide" queda en lo que piden)
+  await expect(page.getByTestId('stage-name').filter({ hasText: 'Contactada' }).first()).toBeVisible()
+  await expect(page.getByTestId('stage-row').filter({ hasText: 'Quien decide aceptó migrar' }).first()).toBeVisible()
 })
 
 test('Hoy de quien supervisa: con pendientes en el equipo no titula "Todo al día"', async ({ page }) => {
