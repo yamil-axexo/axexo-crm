@@ -51,15 +51,17 @@ test.describe('página Reportes', () => {
     // la definición y quién responde por el número, a un toque
     await page.getByTestId('m-conversion').locator('summary').click()
     await expect(page.getByTestId('m-conversion')).toContainText('Quién responde por este número')
-    // filtro por fuente
-    await page.getByTestId('filter-fuente').selectOption({ label: 'Formulario web' })
-    await expect(page).toHaveURL(/fuente=web_form/)
-    for (const r of await page.getByTestId('leads-row').all()) await expect(r).toContainText('Formulario web')
+    // filtro por fuente. En México los formularios web son de campaña desde el paquete mx (el seed deja sus leads como
+    // "Campaña web"): con "Formulario web" ana.robles no tenía filas y la prueba esperaba una que no existe.
+    await page.getByTestId('filter-fuente').selectOption({ label: 'Campaña web' })
+    await expect(page).toHaveURL(/fuente=web_campaign/)
+    await expect(page.getByTestId('leads-row').first()).toBeVisible()
+    for (const r of await page.getByTestId('leads-row').all()) await expect(r).toContainText('Campaña web')
     // clic al detalle: la lista de leads de ese mes y esa fuente
     const first = page.getByTestId('leads-row').first()
     const n = int(await first.getByTestId('leads-row-link').innerText())
     await first.getByTestId('leads-row-link').click()
-    await expect(page).toHaveURL(/\/leads\?.*source=web_form/)
+    await expect(page).toHaveURL(/\/leads\?.*source=web_campaign/)
     if (n <= 25) await expect(page.getByTestId('lead-row')).toHaveCount(n)
     // exportación gobernada
     await page.goto(`/reportes/leads?${YEAR}`)

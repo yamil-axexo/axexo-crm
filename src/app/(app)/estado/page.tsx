@@ -392,7 +392,7 @@ export default async function StatusPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-[13px] text-muted-2">{t('Los valores propuestos, con su dueño, están en la lista de abajo.', 'Proposed values, with their owner, are in the list below.')}</p>
+            <p className="mt-3 text-[13px] text-muted-2">{t('Los valores propuestos, con quién decide cada uno, están en la lista de abajo.', 'Proposed values, with their owner, are in the list below.')}</p>
           </Card>
         </div>
 

@@ -60,7 +60,7 @@ export const CAPABILITIES = {
   // Cerrar en bloque los negocios sin movimiento: Operaciones, supervisión y quien lidera.
   'deal.bulk_close': [...MANAGERS, 'ops'],
   'account.create': FIELD,
-  'account.edit': [...FIELD, 'ops', 'finance'],
+  'account.edit': [...FIELD, 'ops'],
   'account.reassign': MANAGERS,
   // Tomar un comercio sin asignar: quien dirige, cualquiera de su alcance; quien vende, solo los de sus territorios
   // (el mismo límite que ya pone la base en accounts_upd; ver domain/reparto.ts).
@@ -68,7 +68,7 @@ export const CAPABILITIES = {
   // Armar el árbol: quien dirige mueve cualquier cuenta de su alcance; quien vende, solo entre cuentas que son suyas (ver domain/accounts.ts).
   'account.tree': SELLERS,
   'account.merge': ['admin'],
-  'activity.write': [...FIELD, 'ops', 'finance'],
+  'activity.write': [...FIELD, 'ops'],
   'exception.resolve': [...MANAGERS, 'ops', 'rep'],
   'board.supervisor': [...MANAGERS, 'lt'],
   // La cola de avisos del alcance, en solo lectura para leadership. Operaciones ve la de sus mercados (ya resolvía avisos
