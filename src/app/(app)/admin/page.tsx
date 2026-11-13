@@ -98,7 +98,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           tabItem('mercados'),
           { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') },
           // Paquete campo-canal: expedientes, cartera, atribución, registros de canal, crédito, competencia, incidentes y umbrales.
-          { key: 'campo', href: '/campo', label: t('Campo y canales', 'Field and channels') }] : [] },
+          { key: 'campo', href: '/campo', label: t('Campo y canales', 'Field and channels') },
+          // Paquete partners-contratos: partners, niveles, cruce de bases y redes adquiridas.
+          { key: 'partners', href: '/partners', label: t('Partners', 'Partners') }] : [] },
         { key: 'control', label: t('Control', 'Oversight'), items: [tabItem('auditoria'),
           ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : []),
           // Seguridad y privacidad: alertas, accesos, datos reservados, llaves y la bitácora que escribe la base.
