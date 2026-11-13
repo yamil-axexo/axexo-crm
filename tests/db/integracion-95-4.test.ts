@@ -12,6 +12,8 @@ import { peopleWithRole } from '@/domain/notify'
 import { peopleWithRole as automationPeople } from '@/domain/automation/people'
 import { careAdapterStatus, aiReviewDraftMode } from '@/server/adapters/care'
 import { aiAdapter } from '@/server/adapters/ai'
+import { withLoad } from '@/domain/loads'
+import { documentVault } from '@/server/adapters/document-vault'
 
 // Integración 95-4 (ciclo-cs, campo-canal, partners-contratos, ia): lo que cruza paquetes. Un solo saldo y una sola regla de
 // saldo bajo, un solo adaptador de AI, una sola alta de agencias, un solo escritor del límite por entidad, una sola
@@ -106,5 +108,24 @@ describe('un solo modelo por concepto', () => {
     const cols = await admin<{ c: string }[]>`select column_name as c from information_schema.columns where table_schema = 'crm' and table_name = 'market_comms'`
     expect(cols.map((r) => r.c)).not.toContain('whatsapp_daily_limit')
     expect(cols.map((r) => r.c)).not.toContain('whatsapp_unit_cost')
+  })
+
+  it('una sola bitácora de corridas: una carga es una corrida del corredor y crm.load_runs solo la muestra', async () => {
+    await admin`delete from crm.job_runs where status = 'running'`
+    const sys = await systemContext()
+    const out = await withLoad('imports', 'manual', sys.user.id, async () => ({ done: 3, note: 'integración 95-4' }))
+    expect(out).toMatchObject({ done: 3 })
+    const run = await one(admin<{ job_key: string; status: string; done: number; finished: boolean }[]>`
+      select job_key, status, done, finished_at is not null as finished from crm.job_runs where load_key = 'imports' order by started_at desc limit 1`)
+    expect(run).toEqual({ job_key: 'load.imports', status: 'ok', done: 3, finished: true })
+    const kinds = await admin<{ relkind: string }[]>`select relkind from pg_class where oid = 'crm.load_runs'::regclass`
+    expect(kinds[0]!.relkind).toBe('v')
+  })
+
+  it('una sola bóveda de documentos para el alta y los documentos generados', () => {
+    const v = documentVault()
+    expect(v.envVar).toBe('CONTIGO_DOCUMENT_VAULT')
+    expect(typeof v.signedUrl).toBe('function')
+    expect(typeof v.store).toBe('function')
   })
 })
