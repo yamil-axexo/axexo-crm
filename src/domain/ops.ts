@@ -294,7 +294,9 @@ export async function notifyFromNote(tx: Tx, ctx: Ctx, p: { market: string; user
 export async function markNoticeSeen(ctx: Ctx, id: string): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw notFound()
   await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ market_code: string }[]>`update crm.notices set seen_at = now() where id = ${id} and user_id = ${ctx.user.id} and seen_at is null returning market_code`
+    // Un anuncio que pide acuse no se da por visto desde aquí: se confirma en Anuncios.
+    const rows = await tx<{ market_code: string | null }[]>`update crm.notices set seen_at = now() where id = ${id} and user_id = ${ctx.user.id} and seen_at is null
+      and not (announcement_id is not null and needs_action) returning market_code`
     if (rows[0]) await audit(tx, ctx, 'activity.notice_seen', 'notice', id, rows[0].market_code, null, null)
   })
 }

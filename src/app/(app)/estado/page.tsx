@@ -10,6 +10,8 @@ import { TimezoneSync } from '@/ui/admin'
 import { day, dayTime, num } from '@/lib/format'
 import { zoneLabel } from '@/lib/audit'
 import { NOT_YET, UNDEFINED_ITEMS } from '@/content/status'
+import { channelStatus } from '@/server/adapters/channels'
+import { CHANNEL_LABEL } from '@/lib/notice-kinds'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,6 +97,14 @@ export default async function StatusPage() {
       state: { tone: 'neutral', text: t('Sin conectar', 'Not connected') },
       last: t(`${num(s.outbox_pending, locale)} guardados; nadie los recoge todavía`, `${num(s.outbox_pending, locale)} stored; nobody picks them up yet`),
     },
+    // Canales de avisos (paquete avisos): construidos y apagados. Cada uno dice qué falta para encenderlo.
+    ...channelStatus().map((c) => ({
+      key: `channel_${c.channel}`,
+      name: t(`Avisos por ${CHANNEL_LABEL[c.channel][0]}`, `Notices by ${CHANNEL_LABEL[c.channel][1]}`),
+      what: t('Canal de salida. Dentro de CONTIGO los avisos ya llegan.', 'Outgoing channel. Inside CONTIGO notices already arrive.'),
+      state: c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Apagado', 'Off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
+      last: `${t(...c.needs)} ${t(`Se enciende con la variable ${c.envVar}, después de la aprobación.`, `It is turned on with the ${c.envVar} variable, after approval.`)}`,
+    })),
   ]
 
   return (

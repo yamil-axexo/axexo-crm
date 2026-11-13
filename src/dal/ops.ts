@@ -117,15 +117,17 @@ export async function getDealOps(ctx: Ctx, dealId: string) {
   })
 }
 
-export type Notice = { id: string; body: string; from_name: string; account_id: string | null; deal_id: string | null; record: string | null; created_at: Date }
+export type Notice = { id: string; body: string; from_name: string; account_id: string | null; deal_id: string | null; record: string | null; created_at: Date; kind: string; title: string | null; link: string | null }
 
-/** Avisos sin ver de la persona: alguien le avisó desde una nota. */
+/** Avisos sin ver de la persona que piden acción: una mención desde una nota, un negocio ganado, un pedido por recibir, un anuncio con acuse. */
 export async function myNotices(ctx: Ctx): Promise<Notice[]> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<Notice[]>`
-      select n.id, n.body, u.full_name as from_name, n.account_id, n.deal_id, coalesce(d.title, a.name) as record, n.created_at
+      select n.id, n.body, u.full_name as from_name, n.account_id, n.deal_id, coalesce(d.title, a.name) as record, n.created_at, n.kind, n.title, n.link
         from crm.notices n join crm.users u on u.id = n.from_user_id left join crm.deals d on d.id = n.deal_id left join crm.accounts a on a.id = n.account_id
-       where n.user_id = ${ctx.user.id} and n.seen_at is null and n.needs_action order by n.created_at desc limit 20`
+       where n.user_id = ${ctx.user.id} and n.seen_at is null and n.needs_action
+         and (n.announcement_id is null or exists (select 1 from crm.announcements x where x.id = n.announcement_id and x.status = 'published' and x.ends_at > now()))
+       order by n.created_at desc limit 20`
     return [...rows]
   })
 }
