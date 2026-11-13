@@ -66,7 +66,7 @@ test.describe('Paquete partners-contratos', () => {
     await page.context().addCookies([{ name: 'contigo_locale', value: 'es', url: page.url() }])
     await page.goto(`/comercios/${AGENT}/contratos`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Términos y contratos')
-    await expect(page.getByTestId('terms-card')).toContainText('Recargas'.length ? 'Términos comerciales' : '')
+    await expect(page.getByTestId('terms-card')).toContainText('Términos comerciales')
     await at(page, 390, 'contratos en español')
   })
 

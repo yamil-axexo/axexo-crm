@@ -30,7 +30,7 @@ export const partnersJobs: Job[] = [
     key: 'partners.tiers',
     everyMinutes: 1440,
     description: {
-      es: 'Recalcula el nivel de cada partner del período con los criterios publicados: PDV activos, calidad de altas y cumplimiento.',
+      es: 'Recalcula el nivel de cada partner del período con los criterios publicados: puntos de venta activos, calidad de altas y cumplimiento.',
       en: 'Recalculates each partner’s tier for the period with the published criteria: active stores, onboarding quality and compliance.',
     },
     run: async (tx) => ({ done: await recalcTiers(tx) }),
@@ -39,7 +39,7 @@ export const partnersJobs: Job[] = [
     key: 'partners.crossmatch',
     everyMinutes: 1440,
     description: {
-      es: 'Cruza los PDV de cada partner contra la cartera propia por teléfono, ID de otro sistema e identificador fiscal. El resultado lo ve solo quien maneja los partners.',
+      es: 'Cruza los puntos de venta de cada partner contra la cartera propia por teléfono, ID de otro sistema e identificador fiscal. El resultado lo ve solo quien maneja los partners.',
       en: 'Matches each partner’s stores against the own portfolio by phone, ID from another system and tax ID. Only whoever manages partners sees the result.',
     },
     run: async (tx) => ({ done: await crossMatch(tx) }),

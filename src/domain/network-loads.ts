@@ -75,7 +75,7 @@ export async function stageNetwork(ctx: Ctx, raw: LoadInput): Promise<{ id: stri
     const cc = (await tx<{ phone_cc: string }[]>`select phone_cc from crm.markets where code = ${v.market}`)[0]?.phone_cc ?? '+1'
     const id = await newId(tx)
     await tx`insert into crm.network_loads (id, market_code, legal_entity_id, name, source_system, mapping, root_account_id, rows_total, created_by)
-             values (${id}, ${v.market}, ${v.entityId}, ${v.name}, ${v.system}, ${tx.json(mapping)}, ${v.rootAccountId || null}, ${table.rows.length}, ${ctx.user.id})`
+             values (${id}, ${v.market}, ${v.entityId}, ${v.name}, ${v.system}, ${tx.json(mapping as Record<string, string>)}, ${v.rootAccountId || null}, ${table.rows.length}, ${ctx.user.id})`
     const seen = new Set<string>()
     const cell = (r: string[], t: NetworkTarget) => (idx[t] === undefined ? '' : (r[idx[t]!] ?? '').trim())
     const rows = table.rows.map((r, i) => {
@@ -107,7 +107,7 @@ export async function stageNetwork(ctx: Ctx, raw: LoadInput): Promise<{ id: stri
       await tx`insert into crm.network_load_rows ${tx(chunk, 'load_id', 'market_code', 'line', 'external_id', 'parent_external_id', 'name', 'kind', 'phone', 'locality', 'region', 'status', 'issues')}`
     }
     await dedupe(tx, id, false)
-    await audit(tx, ctx, 'network_load.staged', 'network_load', id, v.market, null, { name: v.name, system: v.system, rows: table.rows.length, mapping })
+    await audit(tx, ctx, 'network_load.staged', 'network_load', id, v.market, null, { name: v.name, system: v.system, rows: table.rows.length, mapping: mapping as Record<string, string> })
     return { id, rows: table.rows.length }
   })
 }

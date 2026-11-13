@@ -1,5 +1,5 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { whatsappWindow, type WindowState } from '@/domain/comms'
 import type { CommissionLine, ContractStatus, TierMetrics } from '@/domain/partners'
@@ -8,7 +8,7 @@ export type TermsRow = { id: string; version: number; commission_lines: Commissi
 export type ContractRow = { id: string; status: ContractStatus; terms_id: string; terms_version: number | null; starts_on: string; ends_on: string; renewal_notice_days: number; sent_at: string | null; signed_on: string | null; signed_by_name: string | null; document_url: string | null; esign_state: string | null; renewal_noticed_at: string | null; renewed_from: string | null; created_at: string }
 export type AccountHead = { id: string; name: string; market_code: string; owner: string | null; kind: string; can_terms_view: boolean; can_terms_edit: boolean }
 
-async function head(tx: Parameters<Parameters<typeof withUser>[1]>[0], id: string): Promise<AccountHead | null> {
+async function head(tx: Tx, id: string): Promise<AccountHead | null> {
   const rows = await tx<AccountHead[]>`
     select a.id, a.name, a.market_code, u.full_name as owner, a.kind,
            app.sensitive_can('commercial_terms', a.id, 'view') as can_terms_view, app.sensitive_can('commercial_terms', a.id, 'edit') as can_terms_edit
