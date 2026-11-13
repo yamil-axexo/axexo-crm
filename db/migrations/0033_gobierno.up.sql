@@ -477,7 +477,7 @@ create table crm.training_materials (
   kind         text not null check (kind in ('deck', 'lead_guide', 'faq')),
   locale       text not null check (locale in ('es', 'en')),
   title        text not null check (char_length(title) between 3 and 140),
-  url          text not null check (url ~ '^https://[^[:space:]]{4,490}$'),
+  url          text not null check (url ~ '^https://[^[:space:]]+$' and char_length(url) between 12 and 500),
   in_portal    boolean not null default false,
   pinned       boolean not null default false,
   updated_by   uuid not null references crm.users(id),

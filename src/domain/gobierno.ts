@@ -354,10 +354,11 @@ export async function voidCost(ctx: Ctx, id: string): Promise<void> {
   ctx.assert('gov.manage')
   if (!UUID.test(id)) throw notFound('No encontramos ese costo.', 'We could not find that cost.')
   await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ voided_at: Date | null; label: string; amount_usd: string; month: string }[]>`select voided_at, label, amount_usd, to_char(month, 'YYYY-MM') as month from crm.cost_entries where id = ${id} for update`)[0]
+    const before = (await tx<{ voided_at: Date | null; label: string; amount_usd: string; month: string }[]>`select voided_at, label, amount_usd, to_char(month, 'YYYY-MM') as month from crm.cost_entries where id = ${id}`)[0]
     if (!before) throw notFound('No encontramos ese costo.', 'We could not find that cost.')
-    if (before.voided_at) throw invalid('Ese costo ya estaba anulado.', 'That cost was already voided.')
-    await tx`update crm.cost_entries set voided_by = ${ctx.user.id}, voided_at = now() where id = ${id}`
+    // Sin `for update`: la base solo deja bloquear un costo vigente, y uno anulado tiene que poder leerse para decirlo.
+    const done = before.voided_at ? [] : await tx`update crm.cost_entries set voided_by = ${ctx.user.id}, voided_at = now() where id = ${id} and voided_at is null returning id`
+    if (!done.length) throw invalid('Ese costo ya estaba anulado.', 'That cost was already voided.')
     await audit(tx, ctx, 'cost.voided', 'cost_entry', id, null, { month: before.month, label: before.label, amount_usd: Number(before.amount_usd) }, { voided: true })
   })
 }
