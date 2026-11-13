@@ -160,7 +160,7 @@ describe('archivo de ventas: corte tardío, manifiesto y campos opcionales (AUT-
   const setup = async () => {
     const ref = `MID-R2-${tag()}`
     const acc = await one(admin<{ id: string }[]>`select id from crm.accounts where market_code = 'MX' and kind = 'store' and lifecycle = 'active' and archived_at is null order by id limit 1 offset 7`)
-    await admin`insert into crm.account_aliases (account_id, system, external_id) values (${acc.id}, 's5', ${ref})`
+    await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${acc.id}, 'MX', 's5', ${ref})`
     return { ref, acc }
   }
   it('un archivo con corte anterior al último aplicado no entra y no cambia el estado de los comercios', async () => {

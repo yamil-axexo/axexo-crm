@@ -22,7 +22,7 @@ export function reportScope(ctx: Ctx, own = false): ReportScope {
   const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead', 'finance']))
   // Supervisión ve a su equipo. Con `own` (solo "Mis negocios cerrados"), quien vende ve lo que lleva: app.supervised_user_ids()
   // devuelve a la propia persona y a quienes supervisa. Los demás reportes no le dan alcance a quien vende.
-  const team = live.filter((c) => !full.includes(c) && has(c, own ? ['supervisor', 'rep'] : ['supervisor']))
+  const team = live.filter((c) => !full.includes(c) && has(c, own ? ['supervisor', 'rep', 'kam'] : ['supervisor']))
   return { full, team }
 }
 export const scopeMarkets = (s: ReportScope) => [...s.full, ...s.team]

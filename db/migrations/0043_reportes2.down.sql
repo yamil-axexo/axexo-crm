@@ -1,3 +1,4 @@
+drop policy exceptions_quality_team_read on crm.exceptions;
 delete from crm.report_outbox where channel = 'scheduled_slack';
 alter table crm.report_outbox drop constraint report_outbox_channel_check;
 alter table crm.report_outbox add constraint report_outbox_channel_check check (channel in ('email','snapshot_file'));

@@ -416,3 +416,7 @@ $function$;
 -- ============================================================ 12) REP-01: el reporte programado también se deja en la cola del canal de Slack (apagado)
 alter table crm.report_outbox drop constraint report_outbox_channel_check;
 alter table crm.report_outbox add constraint report_outbox_channel_check check (channel in ('email','snapshot_file','scheduled_slack'));
+
+-- GOB-02: el aviso de calidad es de la persona (no de un comercio): quien la supervisa lo ve en la cola de su equipo.
+create policy exceptions_quality_team_read on crm.exceptions for select to contigo_app
+  using (kind = 'data_quality' and owner_id = any((select app.supervised_user_ids())::uuid[]));
