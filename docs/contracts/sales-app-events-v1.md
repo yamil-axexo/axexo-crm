@@ -70,6 +70,7 @@ JSON Schemas: `sales-app-events-v1.schema.json` (generated from the same validat
 | Merchant ID in CONTIGO | CONTIGO | `account.alias_issued` | One creator: if the merchant already exists (same ID or same phone in the market), the event links to it; it never duplicates. |
 | Trade name, city and state | CONTIGO | `store.created · onboarding.submitted` | The event carries them only to create the merchant the first time. If it exists, CONTIGO’s values win. |
 | Merchant phone | CONTIGO | `store.created · onboarding.submitted` | Used to link to the prospect. It does not overwrite the existing one. |
+| Store location (latitude and longitude) | CONTIGO | `store.created` | Optional. Taken by the phone of whoever signs the store up. It fills the gap when the merchant has no location; it does not overwrite one already saved in CONTIGO. |
 | Account owner, territory, hierarchy and portfolio | CONTIGO | `account.reassigned · account.territory_set` | Only CONTIGO changes them. The seller email in the event only suggests an owner when the merchant is born without one. |
 | Visit: date, duration, sale or not, reason, decision-maker, revisit | Sales App | `visit.checked_out` | The visit is recorded once, there. CONTIGO reads it and flags the revisit on the deal; it does not edit it. |
 | Onboarding submitted and documents complete | Sales App | `onboarding.submitted` | Moves the merchant to "Onboarding" and leaves the entry in its thread. |
