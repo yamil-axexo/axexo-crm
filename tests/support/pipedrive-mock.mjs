@@ -142,7 +142,17 @@ export function buildData() {
     { id: 301, deal_id: 7006, product_id: 801, name: 'SIM kit (synthetic)', quantity: 10, item_price: 25, sum: 250, currency: 'USD', discount: 0, discount_type: 'percentage', comments: null, order_nr: 1 },
     { id: 302, deal_id: 7006, product_id: 802, name: 'Terminal stand (synthetic)', quantity: 4, item_price: 25, sum: 100, currency: 'USD', discount: 0, discount_type: 'percentage', comments: 'Entrega en tienda', order_nr: 2 },
   ]
+  // GOB-05 (integraciones2): historial de etapas por negocio (/v1/deals/:id/flow) y organización matriz (/v1/organizationRelationships).
+  const dealFlows = {
+    7001: [
+      { object: 'dealChange', timestamp: iso(25), data: { id: 90001, field_key: 'stage_id', old_value: null, new_value: '35', log_time: iso(25), user_id: 11 } },
+      { object: 'dealChange', timestamp: iso(12), data: { id: 90002, field_key: 'stage_id', old_value: '35', new_value: '46', log_time: iso(12), user_id: 11 } },
+      { object: 'dealChange', timestamp: iso(11), data: { id: 90003, field_key: 'title', old_value: 'Alta', new_value: 'Alta La Esperanza', log_time: iso(11), user_id: 11 } },
+    ],
+  }
+  const orgRelationships = [{ id: 95001, type: 'parent', rel_owner_org_id: { value: 2000, name: 'Tienda Sintética 0' }, rel_linked_org_id: { value: 2002, name: 'Tienda Sintética 2' }, active_flag: true }]
   return {
+    dealFlows, orgRelationships,
     fields: F, users, pipelines, stages, organizations, persons, deals, dealsArchived, leads, leadsArchived, activities, notes, products, dealProducts,
     activityTypes: ['call', 'meeting', 'task', 'deadline', 'email', 'lunch'].map((k, i) => ({ id: i + 1, key_string: k, name: k[0].toUpperCase() + k.slice(1), active_flag: true })).concat([{ id: 9, key_string: 'visit', name: 'Visit', active_flag: true, is_custom_flag: true }]),
     leadLabels: [{ id: 'lab-1', name: 'Hot', color: 'red' }],
@@ -213,6 +223,12 @@ export async function startMock(port, { rateLimitOnce = false } = {}) {
     if (p === '/api/v2/activities') return cursorPage(res, since(data.activities, q), q)
     if (p === '/v1/notes') return offsetPage(res, since(data.notes, q), q)
     if (p === '/api/v2/products') return cursorPage(res, since(data.products, q), q)
+    const flow = /^\/v1\/deals\/(\d+)\/flow$/.exec(p)
+    if (flow) return offsetPage(res, data.dealFlows?.[flow[1]] ?? [], q)
+    if (p === '/v1/organizationRelationships') {
+      const org = Number(q.get('org_id'))
+      return send(res, 200, { success: true, data: (data.orgRelationships ?? []).filter((r) => r.rel_owner_org_id.value === org || r.rel_linked_org_id.value === org) })
+    }
     if (p === '/api/v2/deals/products') {
       const ids = new Set((q.get('deal_ids') ?? '').split(',').map(Number))
       return cursorPage(res, data.dealProducts.filter((x) => ids.has(x.deal_id)), q)

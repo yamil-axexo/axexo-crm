@@ -20,7 +20,8 @@ import { finishOpenLoad, loadBlocked, startLoad } from '@/server/loads'
 export const STEPS = [
   'config',
   'x:organization', 'x:person', 'x:deal', 'x:deal_archived', 'x:lead', 'x:lead_archived', 'x:activity', 'x:note', 'x:product', 'x:deal_product',
-  'l:organization', 'l:person', 'l:deal', 'l:lead', 'l:activity', 'l:note', 'l:product', 'l:deal_product',
+  'x:deal_flow', 'x:org_relationship',
+  'l:organization', 'l:person', 'l:deal', 'l:lead', 'l:activity', 'l:note', 'l:product', 'l:deal_product', 'l:deal_flow', 'l:org_relationship',
   'finish',
 ] as const
 export type Step = (typeof STEPS)[number]
@@ -195,6 +196,7 @@ async function runStep(runId: string, phase: Step, cursor: Cursor, deadline: num
     return { done: true, cursor }
   }
   if (phase === 'x:deal_product') return extractDealProducts(runId, cursor)
+  if (phase === 'x:deal_flow' || phase === 'x:org_relationship') return extractPerRecord(runId, phase, cursor, deadline)
   if (phase.startsWith('x:')) return extractPage(runId, phase, cursor)
   if (phase === 'finish') {
     await withSystem((tx, sysId) => finish(tx, runId, sysId))
@@ -478,6 +480,65 @@ async function extractDealProducts(runId: string, cursor: Cursor): Promise<{ don
   await withSystem(async (tx) => {
     if (rows.length) await upsertRaw(tx, 'deal_product', rows)
     await bump(tx, runId, ['extracted', 'deal_product'], rows.length)
+    await tx`update crm.import_runs set cursor = cursor || ${tx.json({ after: last } as unknown as Json)}, updated_at = now() where id = ${runId}`
+  })
+  return { done: false, cursor: { ...cursor, after: last } }
+}
+
+/**
+ * GOB-05: el historial de etapas de cada negocio y las relaciones padre e hijo de las organizaciones no vienen en las listas:
+ * se piden a Pipedrive registro por registro, solo para lo que llegó o cambió en esta corrida (lo pendiente de carga).
+ * Si la cuenta de Pipedrive no da ese dato (404 o sin permiso), el paso termina con un aviso y la carga sigue.
+ */
+async function extractPerRecord(runId: string, phase: 'x:deal_flow' | 'x:org_relationship', cursor: Cursor, deadline: number): Promise<{ done: boolean; cursor: Cursor }> {
+  const flow = phase === 'x:deal_flow'
+  const parentObject = flow ? 'deal' : 'organization'
+  const after = cursor.after ?? ''
+  const ids = await withSystem((tx) => tx<{ external_id: string }[]>`
+    select external_id from crm.import_raw where source = ${SRC} and object = ${parentObject} and loaded_at is null and external_id > ${after}
+     order by external_id limit 25`)
+  if (!ids.length) return { done: true, cursor }
+  const rows: RawRow[] = []
+  let last = after
+  for (const { external_id: id } of ids) {
+    if (Date.now() > deadline) break
+    try {
+      if (flow) {
+        const items: PdItem[] = []
+        let page: string | null = null
+        for (let i = 0; i < 20; i++) {
+          const res = await pdList(`/v1/deals/${id}/flow`, 'offset', { items: 'dealChange' }, page, 100)
+          items.push(...res.items)
+          if (!res.next) break
+          page = res.next
+        }
+        for (const it of items) {
+          const d = (it.data ?? it) as PdItem
+          if ((it.object ?? 'dealChange') !== 'dealChange' || d.field_key !== 'stage_id' || d.id == null) continue
+          rows.push({ external_id: `${id}:${d.id}`, parent_ref: id, payload: { old_value: d.old_value ?? null, new_value: d.new_value ?? null, log_time: d.log_time ?? it.timestamp ?? null, user_id: d.user_id ?? null } as PdItem })
+        }
+      } else {
+        const res = await pdList('/v1/organizationRelationships', 'single', { org_id: id }, null, 100)
+        for (const r of res.items) {
+          if (r.id == null || r.type !== 'parent') continue
+          const owner = sid((r.rel_owner_org_id as PdItem | undefined)?.value ?? r.rel_owner_org_id)
+          const linked = sid((r.rel_linked_org_id as PdItem | undefined)?.value ?? r.rel_linked_org_id)
+          if (owner && linked) rows.push({ external_id: String(r.id), parent_ref: linked, payload: { parent_org: owner, child_org: linked } as PdItem })
+        }
+      }
+    } catch (e) {
+      if (e instanceof PipedriveError && (e.code === 'not_found' || e.status === 403)) {
+        await withSystem((tx) => addIssue(tx, runId, { code: 'history_unavailable', step: phase, detail: e.code === 'not_found' ? 'not_found' : 'forbidden' }))
+        return { done: true, cursor }
+      }
+      throw e
+    }
+    last = id
+  }
+  const object = flow ? 'deal_flow' : 'org_relationship'
+  await withSystem(async (tx) => {
+    if (rows.length) await upsertRaw(tx, object, rows)
+    await bump(tx, runId, ['extracted', object], rows.length)
     await tx`update crm.import_runs set cursor = cursor || ${tx.json({ after: last } as unknown as Json)}, updated_at = now() where id = ${runId}`
   })
   return { done: false, cursor: { ...cursor, after: last } }

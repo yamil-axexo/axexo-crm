@@ -21,6 +21,8 @@ const OBJECTS: { key: string; label: Pair; into: Pair }[] = [
   { key: 'note', label: ['Notas', 'Notes'], into: ['Notas en el hilo', 'Thread notes'] },
   { key: 'product', label: ['Productos', 'Products'], into: ['Productos', 'Products'] },
   { key: 'deal_product', label: ['Productos de los negocios', 'Deal products'], into: ['Líneas del negocio', 'Deal line items'] },
+  { key: 'deal_flow', label: ['Cambios de etapa', 'Stage changes'], into: ['Historial de etapas', 'Stage history'] },
+  { key: 'org_relationship', label: ['Organización matriz', 'Parent organization'], into: ['Árbol de cuentas', 'Account tree'] },
 ]
 
 const PHASE: Record<string, Pair> = {
@@ -31,6 +33,12 @@ const SKIP: Record<string, Pair> = {
   no_market: ['sin mercado identificable', 'no identifiable market'],
   // Reglas de entrada (las mismas de la pantalla y la API): la fila que no cumple no entra.
   rule_name: ['sin nombre válido', 'no valid name'],
+  no_deal: ['su negocio no está en CONTIGO', 'its deal is not in CONTIGO'],
+  already_known: ['ya estaba en el historial', 'already in the history'],
+  no_account: ['alguna de las dos organizaciones no está en CONTIGO', 'one of the two organizations is not in CONTIGO'],
+  other_market: ['la matriz es de otro mercado', 'the parent is in another market'],
+  parent_kept: ['ya tenía matriz en CONTIGO: manda CONTIGO', 'it already had a parent in CONTIGO: CONTIGO wins'],
+  parent_rejected: ['la matriz no puede tener cuentas debajo', 'the parent cannot have accounts under it'],
   rule_prohibited: ['traía un dato que CONTIGO no guarda', 'it carried data CONTIGO does not store'],
   rule_phone: ['teléfono inválido', 'invalid phone number'],
   rule_amount: ['monto inválido', 'invalid amount'],

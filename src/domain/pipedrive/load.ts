@@ -853,6 +853,70 @@ const loadDealProducts: Loader = async (tx, runId) => {
   return true
 }
 
+// ---------------------------------------------------------------- GOB-05: historial de etapas y árbol de organizaciones
+/** Cada cambio de etapa de Pipedrive entra al historial del negocio con su fecha real. Lo que ya estaba no se repite. */
+const loadDealFlow: Loader = async (tx, runId) => {
+  const rows = await pending(tx, 'deal_flow', 500)
+  if (!rows.length) return false
+  const refs = await refsFor(tx, runId)
+  const deals = await refMap(tx, 'deal', uniq(rows.map((r) => r.parent_ref)))
+  const tally = new Tally()
+  const events: Rec[] = []
+  for (const r of rows) {
+    const dealId = r.parent_ref ? deals.get(r.parent_ref) : undefined
+    if (!dealId) { tally.skip(r.external_id, 'no_deal'); continue }
+    const to = refs.stages.get(sid(r.payload.new_value) ?? '')
+    if (!to) { tally.skip(r.external_id, 'no_stage'); continue }
+    const from = refs.stages.get(sid(r.payload.old_value) ?? '')
+    events.push({ ext: r.external_id, deal_id: dealId, from_id: from?.id ?? null, to_id: to.id, at: M.isoTime(r.payload.log_time), actor: refs.users.get(sid(r.payload.user_id) ?? '')?.id ?? null })
+  }
+  if (events.length) {
+    const ins = await tx<{ ext: string }[]>`
+      with x as (select * from jsonb_to_recordset(${J(tx, events)}) as x(ext text, deal_id uuid, from_id uuid, to_id uuid, at timestamptz, actor uuid))
+      insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause, at)
+      select x.deal_id, d.market_code, x.from_id, x.to_id, x.actor, 'import', coalesce(x.at, now())
+        from x join crm.deals d on d.id = x.deal_id
+       where not exists (select 1 from crm.deal_stage_events e where e.deal_id = x.deal_id and e.to_stage_id = x.to_id
+                           and (e.at = x.at or (e.cause = 'import' and x.at is not null and abs(extract(epoch from e.at - x.at)) < 1)))
+      returning (select y.ext from x y where y.deal_id = deal_stage_events.deal_id and y.to_id = deal_stage_events.to_stage_id limit 1) as ext`
+    const added = new Set(ins.map((i) => i.ext))
+    for (const e of events) {
+      if (added.has(String(e.ext))) tally.ok(String(e.ext), true)
+      else tally.skip(String(e.ext), 'already_known')
+    }
+  }
+  await tally.save(tx, runId, 'deal_flow')
+  return true
+}
+
+/** La organización matriz de Pipedrive cuelga a la hija en el árbol de cuentas. Si en CONTIGO ya tiene matriz, manda CONTIGO. */
+const loadOrgRelationships: Loader = async (tx, runId, sysId) => {
+  const rows = await pending(tx, 'org_relationship', 300)
+  if (!rows.length) return false
+  const accs = await accountsByOrg(tx, uniq(rows.flatMap((r) => [String(r.payload.parent_org ?? ''), String(r.payload.child_org ?? '')])))
+  const tally = new Tally()
+  for (const r of rows) {
+    const parent = accs.get(String(r.payload.parent_org ?? ''))
+    const child = accs.get(String(r.payload.child_org ?? ''))
+    if (!parent || !child || parent.id === child.id) { tally.skip(r.external_id, 'no_account'); continue }
+    if (parent.market !== child.market) { tally.skip(r.external_id, 'other_market'); continue }
+    const cur = await tx<{ parent_id: string | null }[]>`select parent_id from crm.accounts where id = ${child.id}`
+    if (cur[0]?.parent_id === parent.id) { tally.ok(r.external_id, false); continue }
+    if (cur[0]?.parent_id) { tally.skip(r.external_id, 'parent_kept'); continue }
+    try {
+      await tx.savepoint(async (sp) => {
+        await sp`update crm.accounts set parent_id = ${parent.id} where id = ${child.id}`
+        await sp`insert into crm.account_links (child_id, parent_id, created_by, reason) values (${child.id}, ${parent.id}, ${sysId}, 'Pipedrive')`
+      })
+      tally.ok(r.external_id, true)
+    } catch {
+      tally.skip(r.external_id, 'parent_rejected')
+    }
+  }
+  await tally.save(tx, runId, 'org_relationship')
+  return true
+}
+
 export const LOADERS = {
   'l:organization': loadOrganizations,
   'l:person': loadPersons,
@@ -862,6 +926,8 @@ export const LOADERS = {
   'l:note': loadNotes,
   'l:product': loadProducts,
   'l:deal_product': loadDealProducts,
+  'l:deal_flow': loadDealFlow,
+  'l:org_relationship': loadOrgRelationships,
 } satisfies Record<string, Loader>
 
 // ---------------------------------------------------------------- cierre de la corrida
@@ -903,6 +969,13 @@ export async function finish(tx: Tx, runId: string, sysId: string): Promise<void
      where exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.system = ${SRC})
        and not exists (select 1 from crm.account_attributions t where t.account_id = a.id and t.layer = 'owner')`
 
+  // GOB-05: las reglas de duplicados de datos (DAT-04) corren sobre lo que acaba de llegar. Cada par posible queda en la cola de
+  // duplicados para que una persona decida; la carga nunca fusiona sola.
+  const dupMarkets = await tx<{ market_code: string }[]>`select distinct a.market_code from crm.accounts a join crm.account_aliases al on al.account_id = a.id
+    where al.system = ${SRC} and a.updated_at >= (select started_at from crm.import_runs where id = ${runId})`
+  let pairs = 0
+  for (const m of dupMarkets) pairs += (await tx<{ n: number }[]>`select app.scan_duplicates(${m.market_code}) as n`)[0]?.n ?? 0
+  await bump(tx, runId, ['created', 'duplicate_pair'], pairs)
   await evaluateRules(tx)
   // GOB-05: lo que el equipo armó en Pipedrive (automatizaciones, turno, reportes, tableros, meta y filtros) se vuelve a revisar con los
   // embudos y campos que acaban de llegar: lo que estaba apagado por falta de un embudo o campo se enciende si ya existe.
