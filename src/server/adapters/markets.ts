@@ -44,6 +44,8 @@ export type ProtectedDataAdapter = {
   envVar: string
   /** Guarda el valor completo de un dato protegido fuera de CONTIGO. Apagado: el valor se descarta al terminar la validación. */
   store: (input: { kind: 'tax_id'; accountId: string; value: string }) => Promise<{ stored: boolean }>
+  /** El valor completo para un documento (E9.F13). Apagado y simulado: nunca lo devuelve; los documentos llevan los últimos 4. */
+  read: (input: { kind: 'tax_id'; accountId: string }) => Promise<null>
 }
 export function protectedDataAdapter(): ProtectedDataAdapter {
   const envVar = 'PROTECTED_DATA_ADAPTER'
@@ -56,6 +58,7 @@ export function protectedDataAdapter(): ProtectedDataAdapter {
       simulatedMarketCalls().push({ adapter: 'protected_data', payload: { kind: input.kind, accountId: input.accountId, length: input.value.length } })
       return { stored: true }
     },
+    read: async () => null,
   }
 }
 

@@ -10,8 +10,7 @@ import { agenciesAdmin, dealRecruiter, documentTaxId, recruiterChoices, storeRec
 import { accountTypes } from '@/dal/b2b'
 import { fieldDefs } from '@/dal/fields'
 import { resolveKept, KEPT_GROUPS } from '@/lib/store-labels'
-import { protectedDataAdapter } from '@/server/adapters/protected-data'
-import { simulatedMarketCalls } from '@/server/adapters/markets'
+import { protectedDataAdapter, simulatedMarketCalls } from '@/server/adapters/markets'
 import { isoDay } from '@/lib/format'
 
 const admin = owner()
@@ -246,7 +245,7 @@ describe('E9.F13: Tax ID, solo los últimos 4', () => {
       expect(protectedDataAdapter().mode).toBe('simulated')
       expect(await setTaxId(jade, id, '98-7654321')).toMatchObject({ last4: '4321', vault: 'simulated' })
       expect(simulatedMarketCalls().at(-1)).toEqual({ adapter: 'protected_data', payload: { kind: 'tax_id', accountId: id, length: 9 } })
-      expect(await protectedDataAdapter().readTaxId(id)).toBeNull()
+      expect(await protectedDataAdapter().read({ kind: 'tax_id', accountId: id })).toBeNull()
     } finally {
       delete process.env.PROTECTED_DATA_ADAPTER
     }

@@ -23,7 +23,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 - Any 2xx is success. Anything else is retried after 1, 5, 30 and 120 minutes; the fifth failure moves the delivery to dead letters, where an administrator can resend it.
 - At-least-once: a subscriber can receive the same event twice and must discard repeats by `id`.
 
-## Catalog (215 events)
+## Catalog (190 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -73,23 +73,14 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `alias_system.created` | 1 | Added a source system for identifiers. | `changed` (string[]), `actor_id` (uuid) |
 | `alias.added` | 1 | Added an ID from another system to a merchant. | `changed` (string[]), `actor_id` (uuid) |
 | `alias.closed` | 1 | Closed a merchant’s ID from another system. | `changed` (string[]), `actor_id` (uuid) |
-| `attribution.corrected` | 1 | Corrected a merchant’s attribution (new row). | `changed` (string[]), `actor_id` (uuid) |
 | `automation.created` | 1 | Created an automation. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.paused` | 1 | Paused an automation. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.resumed` | 1 | Turned an automation on. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.updated` | 1 | Edited an automation. | `changed` (string[]), `actor_id` (uuid) |
-| `channel.assigned` | 1 | Assigned a merchant’s channel. | `changed` (string[]), `actor_id` (uuid) |
-| `claim.extended` | 1 | Extended a channel registration with evidence. | `changed` (string[]), `actor_id` (uuid) |
-| `claim.registered` | 1 | Registered a store for a channel. | `changed` (string[]), `actor_id` (uuid) |
-| `claim.rejected` | 1 | Rejected a channel registration with a reason. | `changed` (string[]), `actor_id` (uuid) |
-| `competitor.added` | 1 | Added a competitor to the list. | `changed` (string[]), `actor_id` (uuid) |
-| `competitor.observed` | 1 | Recorded competition at a store. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.added` | 1 | Added a contact. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.ended` | 1 | Removed a contact from an account. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.primary_set` | 1 | Changed the primary contact. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.updated` | 1 | Edited a contact. | `changed` (string[]), `actor_id` (uuid) |
-| `credit.decided` | 1 | Approved or rejected a credit limit. | `changed` (string[]), `actor_id` (uuid) |
-| `credit.requested` | 1 | Requested a credit limit. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.approval_approved` | 1 | Approved a step. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.approval_escalated` | 1 | An approval ran out of time and went to the backup. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.approval_rejected` | 1 | Declined a step. | `changed` (string[]), `actor_id` (uuid) |
@@ -119,8 +110,6 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `deal.win_redated` | 1 | Corrected the date a deal was won. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.won` | 1 | A deal was won by the merchant’s first transaction. | `account_id` (uuid), `closed_by` (string) |
 | `deal.won_on_migration` | 1 | Deal won on the real migration date. | `changed` (string[]), `actor_id` (uuid) |
-| `dispute.raised` | 1 | Raised an attribution dispute. | `changed` (string[]), `actor_id` (uuid) |
-| `dispute.resolved` | 1 | Resolved an attribution dispute. | `changed` (string[]), `actor_id` (uuid) |
 | `entity.created` | 1 | Added a legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `entity.updated` | 1 | Edited a legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `exception.dismissed` | 1 | Dismissed an alert. | `changed` (string[]), `actor_id` (uuid) |
@@ -167,14 +156,6 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `membership.entity_changed` | 1 | Limited an access to a legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `membership.expiry_changed` | 1 | Changed when an access expires. | `changed` (string[]), `actor_id` (uuid) |
 | `membership.granted` | 1 | Granted access. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.approved` | 1 | Approved an enrollment file. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.assigned` | 1 | Took or assigned a control desk file. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.auto_approved` | 1 | Prepaid enrollment file approved by rule. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.document_received` | 1 | Marked an enrollment document as received. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.document_reviewed` | 1 | Validated or rejected an enrollment document. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.opened` | 1 | Opened an enrollment file. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.returned` | 1 | Returned an enrollment file with a reason. | `changed` (string[]), `actor_id` (uuid) |
-| `onboarding.submitted` | 1 | Sent an enrollment file to the control desk. | `changed` (string[]), `actor_id` (uuid) |
 | `order.received` | 1 | Received an order in Operations. | `changed` (string[]), `actor_id` (uuid) |
 | `order.sent_to_ops` | 1 | Sent an order to Operations. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.catalog_created` | 1 | Added an item to an Operations catalog. | `changed` (string[]), `actor_id` (uuid) |
@@ -189,10 +170,6 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `pipeline.visit_reason_created` | 1 | Added a visit purpose. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.visit_reason_updated` | 1 | Edited a visit purpose. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.win_rule_set` | 1 | Changed a pipeline’s win rule. | `changed` (string[]), `actor_id` (uuid) |
-| `plan.set` | 1 | Set a person’s monthly target. | `changed` (string[]), `actor_id` (uuid) |
-| `portfolio.plan_applied` | 1 | Applied a reassignment plan. | `changed` (string[]), `actor_id` (uuid) |
-| `portfolio.plan_discarded` | 1 | Discarded a reassignment plan. | `changed` (string[]), `actor_id` (uuid) |
-| `portfolio.plan_drafted` | 1 | Saved a draft reassignment plan. | `changed` (string[]), `actor_id` (uuid) |
 | `process.enrolled` | 1 | Put a merchant on a process list. | `changed` (string[]), `actor_id` (uuid) |
 | `process.list_created` | 1 | Created a process list. | `changed` (string[]), `actor_id` (uuid) |
 | `process.list_toggled` | 1 | Turned a process list on or off. | `changed` (string[]), `actor_id` (uuid) |
@@ -209,7 +186,6 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `routing.rule_created` | 1 | Created a lead rotation. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.rule_toggled` | 1 | Turned a lead rotation on or off. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.target_set` | 1 | Changed a rotation’s response target. | `changed` (string[]), `actor_id` (uuid) |
-| `seller.profile_set` | 1 | Changed a seller’s profile (opens or keeps accounts). | `changed` (string[]), `actor_id` (uuid) |
 | `stage.archived` | 1 | Archived a stage. | `changed` (string[]), `actor_id` (uuid) |
 | `stage.condition_set` | 1 | Changed the condition of a stage requirement. | `changed` (string[]), `actor_id` (uuid) |
 | `stage.created` | 1 | Added a stage. | `changed` (string[]), `actor_id` (uuid) |
@@ -228,7 +204,6 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `territory.archived` | 1 | Archived a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.created` | 1 | Created a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.manager_set` | 1 | Changed a territory’s manager. | `changed` (string[]), `actor_id` (uuid) |
-| `territory.owner_set` | 1 | Set who owns a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.renamed` | 1 | Renamed a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.restored` | 1 | Restored a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `training.cancelled` | 1 | Cancelled a training. | `changed` (string[]), `actor_id` (uuid) |
@@ -491,12 +466,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `event_subscriber.status_changed` | Paused, resumed or removed an event subscriber | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `export.alert` | Went over the daily export threshold | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `ficha.layout_set` | Changed the top facts of the merchant page for a role | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
-| `field_incident.closed` | Closed a field incident | It is a confidential field record with restricted access: it is logged and not published to other systems. |
-| `field_incident.reported` | Reported a field incident | It is a confidential field record with restricted access: it is logged and not published to other systems. |
-| `field_incident.taken` | Took a field incident | It is a confidential field record with restricted access: it is logged and not published to other systems. |
-| `field_incident.viewed` | Opened a field incident | It is a confidential field record with restricted access: it is logged and not published to other systems. |
 | `field_section.created` | Added a field section | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
-| `funding.simulated` | Loaded a simulated funding value | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `help.lesson_saved` | Changed a screen’s lesson | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `import.cancelled` | Stopped the Pipedrive import | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `import.completed` | The Pipedrive import finished | It is a historical or file load: each record created emits its own event; the run itself does not. |
@@ -524,7 +494,6 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `notice.all_seen` | Marked all notices as read | It is a notice between people inside CONTIGO, not a change to the record. |
 | `notice.prefs_saved` | Changed notice preferences | It is a notice between people inside CONTIGO, not a change to the record. |
 | `objective.set` | Set a service or recovery objective | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
-| `onboarding.document_opened` | Asked to open an enrollment document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `quality.rule_updated` | Edited a data quality rule | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.snapshot_saved` | Saved today’s data quality snapshot | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `reconciliation.ran` | Reconciled with the sales file | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
@@ -573,6 +542,5 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `subject_request.exported` | Pulled a person’s data to hand it over | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `subject_request.updated` | Updated a personal data request | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `template.saved` | Saved a new version of a template | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
-| `threshold.changed` | Changed a threshold (new version) | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `view_as.ended` | Stopped viewing as someone else | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `view_as.started` | Started viewing CONTIGO as someone else | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |

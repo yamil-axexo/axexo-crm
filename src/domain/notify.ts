@@ -53,12 +53,22 @@ export async function currentTemplate(tx: Tx, key: string, market: string | null
 
 async function unitCost(tx: Tx, market: string | null, channel: Channel): Promise<{ cost: string | null; currency: string | null; limit: number | null }> {
   if (!market || channel === 'in_app' || channel === 'slack') return { cost: null, currency: null, limit: null }
-  const rows = await tx<{ email_unit_cost: string | null; whatsapp_unit_cost: string | null; whatsapp_daily_limit: number | null; currency: string }[]>`
-    select c.email_unit_cost::text, c.whatsapp_unit_cost::text, c.whatsapp_daily_limit, trim(m.currency) as currency
+  if (channel === 'whatsapp') {
+    // Un solo modelo de WhatsApp por mercado (0026_markets): el costo vigente de la categoría "utility" (los avisos lo son) y el
+    // límite diario de la cuenta activa del mercado. Se cargan en Administración, Mercados.
+    const rows = await tx<{ cost: string | null; currency: string | null; daily_limit: number | null }[]>`
+      select (select r.cost::text from crm.whatsapp_rates r where r.market_code = ${market} and r.category = 'utility' and r.effective_from <= (now() at time zone coalesce((select k.timezone from crm.markets k where k.code = ${market}), 'UTC'))::date order by r.effective_from desc limit 1) as cost,
+             (select trim(r.currency) from crm.whatsapp_rates r where r.market_code = ${market} and r.category = 'utility' and r.effective_from <= (now() at time zone coalesce((select k.timezone from crm.markets k where k.code = ${market}), 'UTC'))::date order by r.effective_from desc limit 1) as currency,
+             (select min(a.daily_limit) from crm.whatsapp_accounts a where a.market_code = ${market} and a.is_active) as daily_limit`
+    const r = rows[0]
+    return { cost: r?.cost ?? null, currency: r?.currency ?? null, limit: r?.daily_limit ?? null }
+  }
+  const rows = await tx<{ email_unit_cost: string | null; currency: string }[]>`
+    select c.email_unit_cost::text, trim(m.currency) as currency
       from crm.markets m left join crm.market_comms c on c.market_code = m.code where m.code = ${market}`
   const r = rows[0]
   if (!r) return { cost: null, currency: null, limit: null }
-  return { cost: channel === 'email' ? r.email_unit_cost : r.whatsapp_unit_cost, currency: r.currency, limit: channel === 'whatsapp' ? r.whatsapp_daily_limit : null }
+  return { cost: r.email_unit_cost, currency: r.currency, limit: null }
 }
 
 /** Decide qué pasa con un mensaje de afuera en este momento y lo entrega al canal si toca. */

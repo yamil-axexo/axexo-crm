@@ -156,7 +156,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {!ctx.can('config.manage') && ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>
               <Link href="/ayuda" role="menuitem" className={menuLink} data-testid="nav-help"><CircleHelp size={20} strokeWidth={1.75} aria-hidden />{m('top.help')}</Link>
-              <Link href="/solicitudes" role="menuitem" className={menuLink} data-testid="nav-requests"><GitPullRequestArrow size={20} strokeWidth={1.75} aria-hidden />{t('Pedir un cambio', 'Request a change')}</Link>
+              {/* Administración decide las solicitudes desde Gobierno; en su menú no cabe una entrada más en el teléfono. */}
+              {!ctx.can('config.manage') && <Link href="/solicitudes" role="menuitem" className={menuLink} data-testid="nav-requests"><GitPullRequestArrow size={20} strokeWidth={1.75} aria-hidden />{t('Pedir un cambio', 'Request a change')}</Link>}
               <ReportLink className={menuLink} testId="nav-report"><LifeBuoy size={20} strokeWidth={1.75} aria-hidden />{t('Reportar un problema', 'Report a problem')}</ReportLink>
             </div>
             {watchLeads && (

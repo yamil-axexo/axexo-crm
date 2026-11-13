@@ -20,12 +20,14 @@ function MilestoneList({ ctx, ms, cut, tz }: { ctx: Ctx; ms: Milestones | null; 
   const { t, locale } = ctx
   const none = t('Todavía no', 'Not yet')
   return (
-    <dl className="space-y-1" data-testid="milestones">
+    <div data-testid="milestones">
+    <dl className="space-y-1">
       <KeyVal k={t('Primer fondeo', 'First funding')}><span data-testid="ms-funding">{ms?.first_funding_at ? `${day(ms.first_funding_at, locale, tz)} · ${t(FUNDING_LABEL[(ms.funding_method ?? 'other') as FundingMethod].es, FUNDING_LABEL[(ms.funding_method ?? 'other') as FundingMethod].en)}` : none}</span></KeyVal>
       <KeyVal k={t('Primera transacción', 'First transaction')}><span data-testid="ms-first-txn">{ms?.first_txn_at ? day(ms.first_txn_at, locale, tz) : none}</span></KeyVal>
       <KeyVal k={t('Hábito', 'Habit')}><span data-testid="ms-habit">{ms?.habit_at ? day(ms.habit_at, locale, tz) : none}</span></KeyVal>
+      </dl>
       <p className="pt-1 text-[12.5px] text-muted" data-testid="ms-cut">{cut ? t(`Lo pone el archivo de ventas, con un día de atraso. Último corte: ${day(cut, locale)}.`, `Set by the sales file, one day behind. Last cut: ${day(cut, locale)}.`) : t('Lo pone el archivo de ventas. Todavía no se ha cargado ninguno.', 'Set by the sales file. None has been loaded yet.')}</p>
-    </dl>
+    </div>
   )
 }
 
@@ -222,7 +224,7 @@ export async function LeadEmbudoPanel({ ctx, leadId, canWork, search }: { ctx: C
         {l.referred_by && <p className="mb-3 text-[14.5px] text-strong" data-testid="lead-referred-by">{t('Lo refirió: ', 'Referred by: ')}<Link href={`/comercios/${l.referred_by_id}`} className="text-blue-text underline">{l.referred_by}</Link></p>}
         <TouchList ctx={ctx} touches={l.touches} tz={mk.timezone} />
         {l.routed && <p className="mt-4 border-t border-line pt-3 text-[13.5px] text-muted-2" data-testid="lead-routed">{t('Asignación al entrar: ', 'Assignment on arrival: ')}
-          {l.routed.rule_name ? t(`regla "${l.routed.rule_name}"`, `rule "${l.routed.rule_name}"`) : l.routed.action === 'form_rotation' ? t('turno del formulario', 'form rotation') : l.routed.action === 'market_lead' ? t('quien lidera el mercado, porque no había nadie más disponible', 'the market lead, because nobody else was available') : t('sin dueño', 'no owner')}
+          {l.routed.rule_name ? t(`regla "${l.routed.rule_name}"`, `rule "${l.routed.rule_name}"`) : l.routed.action === 'form_rotation' ? t('turno del formulario', 'form rotation') : l.routed.action === 'market_lead' ? t('quien lidera el mercado, porque no había nadie más disponible', 'the market lead, because nobody else was available') : t('sin asignar', 'no owner')}
           {l.routed.owner ? ` · ${l.routed.owner}` : ''}</p>}
       </Card>
       <Card data-testid="lead-link">
