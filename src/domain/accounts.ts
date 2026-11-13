@@ -1,4 +1,5 @@
 import 'server-only'
+import { applyTerritoryOwners } from '@/domain/mx-config'
 import { z } from 'zod'
 import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
@@ -124,6 +125,8 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
       (${id}, ${v.market}, 'owner', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id})`
     await audit(tx, ctx, 'account.created', 'account', id, v.market, null, { kind, account_type: accountType, name: v.name, forced_duplicate: dups.length > 0 })
     await emit(tx, 'account.created', 'account', id, v.market, { kind })
+    // E16.F2: una tienda de venta puerta a puerta es del gerente de su territorio (si el territorio tiene uno).
+    await applyTerritoryOwners(tx, [id])
     // E13.F2 (cuenta nueva): Operaciones del mercado se entera. No pide acción: no aparece en Hoy.
     await notifyMany(tx, ctx, await peopleWithRole(tx, v.market, ['ops']), {
       kind: 'lifecycle', market: v.market, template: 'account_new', link: `/comercios/${id}`, accountId: id, needsAction: false,

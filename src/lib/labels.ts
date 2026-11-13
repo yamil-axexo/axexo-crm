@@ -38,6 +38,7 @@ export const KIND: Record<string, Pair> = {
 
 export const SOURCE: Record<string, Pair> = {
   web_form: ['Formulario web', 'Web form'],
+  web_campaign: ['Campaña web', 'Web campaign'],
   manual: ['Captura manual', 'Manual entry'],
   import: ['Importación', 'Import'],
   referral: ['Referido', 'Referral'],

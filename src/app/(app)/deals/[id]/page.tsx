@@ -70,7 +70,10 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const gateInfoBase = { amount: deal.amount_minor ? String(Number(deal.amount_minor) / 100) : null, nextStep: deal.next_step, nextStepDue: deal.next_step_due,
     decisionMakerId: deal.decision_maker_id, decisionMakerMet: deal.decision_maker_met, contacts: contacts.map((c) => ({ id: c.id, full_name: c.full_name })), accountId: deal.account_id }
   const people = canLog ? await notifyOptions(ctx, { dealId: deal.id }) : []
-  const pilotRule = t('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.', 'During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own.')
+  // E14.F8: con la regla "contrato firmado o primera transacción" la hoja de ganar dice esa regla, no la del piloto.
+  const pilotRule = deal.txn_also_wins
+    ? t('Este embudo se gana con el contrato firmado; si antes llega la primera transacción del comercio, se gana solo.', 'This pipeline is won with the signed contract; if the merchant’s first transaction arrives first, it is won on its own.')
+    : t('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.', 'During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own.')
   const call = <><Phone size={18} strokeWidth={1.75} aria-hidden />{ctx.m('action.call')}</>
 
   return (
