@@ -17,6 +17,7 @@ import { VIEW_EN, VIEW_OBJECT_LABEL, viewHref } from '@/lib/report-catalog'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 import { stopViewAsAction } from '@/app/(app)/admin/seguridad/view-as-actions'
+import { CommandPalette } from '@/ui/palette'
 import { readerTimeZone } from '@/server/timezone'
 import { unreadNotices } from '@/dal/notices'
 import { HideOn, ScreenHelpFooter } from '@/ui/notices'
@@ -75,6 +76,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Colas fijadas por la persona (vistas guardadas), con su contador.
   const queues = await pinnedQueues(ctx)
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
+  // UX-02: la paleta (Ctrl+K) ofrece los mismos destinos que la persona ya tiene en el dock y en su menú, ni uno más.
+  const palette = [
+    ...items.map((i) => ({ href: i.href, label: i.label })),
+    ...create,
+    ...(ctx.can('board.supervisor') ? [{ href: '/supervisor', label: m('top.team') }] : []),
+    ...(ctx.can('report.gallery') ? [{ href: '/reportes', label: t('Reportes', 'Reports') }] : []),
+    ...(ctx.can('board.lt') ? [{ href: '/panel-lt', label: m('top.leadership') }] : []),
+    ...(showAdmin ? [{ href: '/admin', label: m('top.admin') }] : []),
+    ...(ctx.can('security.read') || ctx.can('access.manage') ? [{ href: '/admin/seguridad', label: t('Seguridad', 'Security') }] : []),
+    ...(ctx.can('status.read') ? [{ href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : []),
+    { href: '/avisos', label: t('Avisos y anuncios', 'Notices and announcements') },
+    { href: '/bienvenida', label: m('top.firstSteps') },
+    { href: '/ayuda', label: m('top.help') },
+  ]
 
   return (
     <div className="min-h-full">
@@ -171,6 +186,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </form>
         </div>
       )}
+      <CommandPalette items={palette} labels={{ title: t('Ir a una pantalla o buscar', 'Go to a screen or search'), placeholder: t('Escribe a dónde quieres ir o qué buscas', 'Type where you want to go or what you are looking for'), search: t('Buscar', 'Search for'), hint: t('Flechas para elegir, Enter para ir, Esc para cerrar', 'Arrows to choose, Enter to go, Esc to close'), close: t('Cerrar', 'Close') }} />
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">
         {first && firstText && (
