@@ -392,7 +392,7 @@ export default async function StatusPage() {
                 return (
                   <li key={`${r.key}-${r.market ?? ''}`} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3" data-testid="status-decision-row" data-key={r.key}>
                     <span className="min-w-0 flex-1 basis-48"><span className="block text-[14px] font-medium text-strong">{t(...d.label)}{r.market ? ` · ${r.market}` : ''}</span><span className="text-[12.5px] text-muted-2">{t(...(d.options.find((o) => o.value === r.value)?.label ?? [r.value, r.value]))}</span></span>
-                    <Badge tone="warn">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${d.owner}`)}</Badge>
+                    <span className="inline-block max-w-full rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text" data-testid="decision-pending">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${d.owner}`)}</span>
                   </li>
                 )
               })}

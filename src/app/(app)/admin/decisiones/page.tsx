@@ -48,20 +48,20 @@ export default async function DecisionsPage() {
                           {r.updatedAt && <span className="block text-[12.5px] text-muted">{[r.updatedBy, day(r.updatedAt, locale)].filter(Boolean).join(' · ')}{r.note ? ` · ${r.note}` : ''}</span>}
                         </span>
                         {r.proposed
-                          ? <Badge tone="warn">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${d.owner}`)}</Badge>
+                          ? <span className="inline-block max-w-full rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text" data-testid="decision-pending">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${d.owner}`)}</span>
                           : <Badge tone="good">{t('Decidido', 'Decided')}</Badge>}
                       </div>
                       {edit && !d.locked && (
-                        <NoticeForm action={setDecisionAction} className="mt-3 flex flex-wrap items-end gap-3" testId="decision-form">
+                        <NoticeForm action={setDecisionAction} className="mt-3 grid gap-3 sm:flex sm:flex-wrap sm:items-end" testId="decision-form">
                           <input type="hidden" name="key" value={d.key} />
                           <input type="hidden" name="market" value={r.market ?? ''} />
-                          <Field label={t('Valor', 'Value')} className="min-w-48">
+                          <Field label={t('Valor', 'Value')} className="sm:min-w-48">
                             <select name="value" className="input" defaultValue={r.value} data-testid="decision-select">
                               {d.options.map((o) => <option key={o.value} value={o.value}>{t(...o.label)}</option>)}
                             </select>
                           </Field>
                           <label className="flex min-h-11 items-center gap-2 text-[13.5px]"><input type="checkbox" name="confirmed" value="yes" className="h-5 w-5" defaultChecked={!r.proposed} data-testid="decision-confirmed" />{t(`Ya lo decidió ${d.owner}`, `${d.owner} has decided`)}</label>
-                          <Field label={t('Nota (cuándo y cómo se decidió)', 'Note (when and how it was decided)')} className="min-w-56 flex-1"><input name="note" className="input" maxLength={300} defaultValue={r.note ?? ''} data-testid="decision-note" /></Field>
+                          <Field label={t('Nota (cuándo y cómo se decidió)', 'Note (when and how it was decided)')} className="sm:min-w-56 sm:flex-1"><input name="note" className="input" maxLength={300} defaultValue={r.note ?? ''} data-testid="decision-note" /></Field>
                           <Submit size="sm" variant="ghost" testId="decision-save">{t('Guardar', 'Save')}</Submit>
                         </NoticeForm>
                       )}

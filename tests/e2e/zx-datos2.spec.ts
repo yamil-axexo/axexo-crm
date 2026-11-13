@@ -55,10 +55,11 @@ test.describe('datos2', () => {
     await expect(prod).toContainText('pendiente: Dan Mulligan')
     await expect(prod.getByTestId('decision-locked')).toBeVisible()
     await expect(prod.getByTestId('decision-form')).toHaveCount(0)
-    const tree = page.locator('[data-testid="decision-card"][data-key="tree.reparent_owner"] [data-testid="decision-row"][data-market="SV"]')
+    const tree = page.locator('[data-testid="decision-card"][data-key="tree.reparent_owner"] [data-testid="decision-row"][data-market="MX"]')
     await tree.getByTestId('decision-select').selectOption('parent')
     await tree.getByTestId('decision-save').click()
     await expect(notice(page)).toContainText('valor propuesto')
+    await sql`delete from crm.decision_settings where key = 'tree.reparent_owner'`
     await page.goto('/estado')
     await expect(page.locator('[data-testid="status-decision-row"][data-key="market.reset_production"]')).toBeVisible()
   })
