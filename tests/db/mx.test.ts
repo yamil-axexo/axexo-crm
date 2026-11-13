@@ -390,7 +390,7 @@ describe('E18 · arranque, acceso y reportes de México', () => {
       // un paso del equipo no se marca antes que los de quienes lideran, y el mercado no se abre antes
       await expect(setRolloutStep(ana, 'MX', 'sessions', { done: true })).rejects.toMatchObject({ code: 'leaders_first' })
       await expect(openToTeam(ana, 'MX')).rejects.toMatchObject({ code: 'leaders_first' })
-      for (const s of ROLLOUT_STEPS.filter((x) => x.phase === 'leaders')) await setRolloutStep(ana, 'MX', s.code, { done: true, ...(s.link ? { link: 'https://ejemplo.test/material' } : {}) })
+      for (const s of ROLLOUT_STEPS.filter((x) => x.phase === 'leaders')) await setRolloutStep(ana, 'MX', s.code, { done: true, ...(s.hasLink ? { link: 'https://ejemplo.test/material' } : {}) })
       await expect(setRolloutStep(ana, 'MX', 'deck', { done: true, link: 'http://sin-candado.test' })).rejects.toMatchObject({ code: 'invalid' })
       await expect(setRolloutStep(ana, 'MX', 'configure', { done: true, link: 'https://ejemplo.test/x' })).rejects.toMatchObject({ code: 'invalid' })
       await openToTeam(ana, 'MX')

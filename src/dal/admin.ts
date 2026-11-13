@@ -105,9 +105,9 @@ export async function getIntake(ctx: Ctx) {
       select f.id, f.slug, f.name, f.market_code, f.motor, f.locale, f.is_active, r.name as rule,
              (select count(*)::int from crm.leads l where l.form_id = f.id and l.created_at > now() - interval '30 days') as leads_30d
         from crm.web_forms f left join crm.routing_rules r on r.id = f.routing_rule_id order by f.market_code, f.name`
-    const rules = await tx<{ id: string; market_code: string; name: string; strategy: string; member_ids: string[]; cursor: number; fallback: string | null; fallback_active: boolean; sla_minutes: number; members: { id: string; full_name: string; active: boolean }[] }[]>`
+    const rules = await tx<{ id: string; market_code: string; name: string; strategy: string; member_ids: string[]; cursor: number; fallback: string | null; fallback_active: boolean; sla_minutes: number; sla_business_days: number | null; members: { id: string; full_name: string; active: boolean }[] }[]>`
       select r.id, r.market_code, r.name, r.strategy, r.member_ids, r.cursor, u.full_name as fallback,
-             (r.fallback_id is not null and app.can_sell_in(r.fallback_id, r.market_code)) as fallback_active, r.sla_minutes,
+             (r.fallback_id is not null and app.can_sell_in(r.fallback_id, r.market_code)) as fallback_active, r.sla_minutes, r.sla_business_days,
              coalesce((select jsonb_agg(jsonb_build_object('id', x.id, 'full_name', mu.full_name, 'active', app.can_sell_in(x.id, r.market_code)) order by x.ord)
                          from unnest(r.member_ids) with ordinality as x(id, ord) join crm.users mu on mu.id = x.id), '[]'::jsonb) as members
         from crm.routing_rules r left join crm.users u on u.id = r.fallback_id where r.is_active order by r.market_code, r.name`

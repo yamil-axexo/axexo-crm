@@ -12,7 +12,7 @@ import { assertNoProhibited } from '@/domain/guard'
  * recorrido grabado, sesiones en español, acompañamiento en los primeros usos y actualizaciones con las preguntas que salgan.
  * Los pasos son los mismos para cualquier mercado (E18.F11): lo que cambia es el avance de cada uno.
  */
-export type RolloutStep = { code: string; phase: 'leaders' | 'team'; es: string; en: string; hintEs: string; hintEn: string; link?: boolean }
+export type RolloutStep = { code: string; phase: 'leaders' | 'team'; es: string; en: string; hintEs: string; hintEn: string; /** El paso lleva un enlace a su material. */ hasLink?: boolean }
 
 export const ROLLOUT_STEPS: readonly RolloutStep[] = [
   { code: 'configure', phase: 'leaders', es: 'Configurar CONTIGO antes de mostrarlo', en: 'Configure CONTIGO before showing it',
@@ -21,11 +21,11 @@ export const ROLLOUT_STEPS: readonly RolloutStep[] = [
     hintEs: 'Quien lidera el mercado, supervisión, Operaciones y las personas clave de la lista.', hintEn: 'The market lead, supervisors, Operations and the key people on the list.' },
   { code: 'leaders_demo', phase: 'leaders', es: 'Mostrar la herramienta terminada a quienes lideran', en: 'Show the finished tool to the leaders',
     hintEs: 'Con sus datos ya cargados. Se enseña el proceso, no los botones.', hintEn: 'With their data already loaded. Teach the process, not the buttons.' },
-  { code: 'deck', phase: 'leaders', es: 'Presentación de arranque en español', en: 'Onboarding deck in Spanish', link: true,
+  { code: 'deck', phase: 'leaders', es: 'Presentación de arranque en español', en: 'Onboarding deck in Spanish', hasLink: true,
     hintEs: 'La presentación con la que se abre cada sesión.', hintEn: 'The deck that opens each session.' },
-  { code: 'lead_guide', phase: 'leaders', es: 'Guía de leads en español', en: 'Lead guide in Spanish', link: true,
+  { code: 'lead_guide', phase: 'leaders', es: 'Guía de leads en español', en: 'Lead guide in Spanish', hasLink: true,
     hintEs: 'Cómo llega un lead, quién lo recibe, en cuánto tiempo se responde y cómo se convierte.', hintEn: 'How a lead arrives, who gets it, how fast it is answered and how it converts.' },
-  { code: 'recording', phase: 'leaders', es: 'Recorrido grabado', en: 'Recorded walkthrough', link: true,
+  { code: 'recording', phase: 'leaders', es: 'Recorrido grabado', en: 'Recorded walkthrough', hasLink: true,
     hintEs: 'Un recorrido de punta a punta que el equipo puede volver a ver.', hintEn: 'An end-to-end walkthrough the team can watch again.' },
   { code: 'team_access', phase: 'team', es: 'Dar acceso al equipo de campo', en: 'Give access to the field team',
     hintEs: 'Se marca solo al abrir el mercado al equipo.', hintEn: 'It is ticked on its own when the market opens to the team.' },
@@ -35,7 +35,7 @@ export const ROLLOUT_STEPS: readonly RolloutStep[] = [
     hintEs: 'Alguien del arranque está con el equipo los primeros días.', hintEn: 'Someone from the rollout is with the team during the first days.' },
   { code: 'faq_updates', phase: 'team', es: 'Actualizar la guía con las preguntas que salieron', en: 'Update the guide with the questions that came up',
     hintEs: 'Lo que el equipo preguntó entra a la ayuda y a la guía.', hintEn: 'What the team asked goes into the help and the guide.' },
-  { code: 'short_videos', phase: 'team', es: 'Videos cortos', en: 'Short videos', link: true,
+  { code: 'short_videos', phase: 'team', es: 'Videos cortos', en: 'Short videos', hasLink: true,
     hintEs: 'Un video por tarea: recibir un lead, registrar una visita, mover un negocio.', hintEn: 'One video per task: taking a lead, logging a visit, moving a deal.' },
 ]
 
@@ -59,7 +59,7 @@ export async function setRolloutStep(ctx: Ctx, market: string, code: string, inp
   const note = (input.note ?? '').trim().slice(0, 300) || null
   const link = (input.link ?? '').trim() || null
   assertNoProhibited(note)
-  if (link && (!step.link || !z.string().url().safeParse(link).success || !link.startsWith('https://') || link.length > 300)) {
+  if (link && (!step.hasLink || !z.string().url().safeParse(link).success || !link.startsWith('https://') || link.length > 300)) {
     throw invalid('El enlace tiene que empezar con https:// y medir hasta 300 caracteres.', 'The link must start with https:// and be up to 300 characters long.')
   }
   await withUser(ctx.user.id, async (tx) => {
