@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
 import { loadCtx, type Ctx } from '@/server/context'
 import { withUser } from '@/server/db'
-import { createApiClient, createTeam, endMembership, grantAccess, grantMembership, keepTurn, recordSimulation, revokeApiClient, setMembershipExpiry, setRoutingMembers, updateStage } from '@/domain/admin'
+import { createTeam, endMembership, grantAccess, grantMembership, keepTurn, recordSimulation, revokeApiClient, setMembershipExpiry, setRoutingMembers, updateStage } from '@/domain/admin'
+import { createApiKey } from '@/domain/api-keys'
 import { getAudit, getConfig, getDataQuality, getIntake, getStatus, getUsers, AUDIT_PAGE } from '@/dal/admin'
 import { CONSENT_TEXT, assignLead, convertLead, createLead, disqualifyLead, intakeFromForm, markContacted, qualifyLead, takeLead } from '@/domain/leads'
 import { getLead, listLeads } from '@/dal/leads'
@@ -398,7 +399,7 @@ describe('página de estado', () => {
 
   it('cuenta las llaves vigentes por permiso y deja de contarlas al revocarlas', async () => {
     const before = (await getStatus(nora)).keys['forms:write'] ?? 0
-    const key = await createApiClient(nora, `C2 sitio ${tag()}`, ['forms:write'])
+    const key = await createApiKey(nora, { name: `C2 sitio ${tag()}`, scopes: ['forms:write'] })
     expect((await getStatus(nora)).keys['forms:write']).toBe(before + 1)
     await revokeApiClient(nora, key.id)
     expect((await getStatus(nora)).keys['forms:write'] ?? 0).toBe(before)
@@ -569,7 +570,7 @@ describe('solo lectura que se respeta', () => {
     const pipeline = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' order by position limit 1`)
     const stage = await one(admin<{ id: string }[]>`select id from crm.stages where pipeline_id = ${pipeline.id} order by position limit 1`)
     const seededRule = await one(admin<{ id: string }[]>`select id from crm.routing_rules where name = 'Web US dealers'`)
-    const key = await createApiClient(nora, `C2 llave ${tag()}`, ['forms:write'])
+    const key = await createApiKey(nora, { name: `C2 llave ${tag()}`, scopes: ['forms:write'] })
     const soon = addDays(todayIn('America/Mexico_City'), 3)
 
     const writes: [string, () => Promise<unknown>][] = [
@@ -604,7 +605,7 @@ describe('solo lectura que se respeta', () => {
       ['cambiar turno', () => setRoutingMembers(luis, seededRule.id, [])],
       ['regla de cierre', () => configurePipeline(luis, pipeline.id, { closeByTransaction: false, awaitingStageId: null })],
       ['editar etapa', () => updateStage(luis, stage.id, { nameEs: 'C2 no', nameEn: 'C2 no', rotDays: 1, requiredFields: [] })],
-      ['crear llave', () => createApiClient(luis, 'C2 llave no', ['forms:write'])],
+      ['crear llave', () => createApiKey(luis, { name: 'C2 llave no', scopes: ['forms:write'] })],
       ['revocar llave', () => revokeApiClient(luis, key.id)],
       ['probar integración', () => recordSimulation(luis, 'visit', 'x', null)],
       ['importar Pipedrive', () => startImport(luis, 'delta')],

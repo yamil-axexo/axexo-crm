@@ -5,15 +5,16 @@ import { requireCtx } from '@/server/context'
 import { env } from '@/env'
 import { getConfig, getDataQuality, getIntake, getIntegrations } from '@/dal/admin'
 import { sellers } from '@/dal/leads'
-import { API_SCOPES, STAGE_REQUIREMENTS } from '@/domain/admin'
+import { STAGE_REQUIREMENTS } from '@/domain/admin'
 import { StageFieldPicker } from '@/ui/stage-fields'
 import { FIELD_LABEL } from '@/domain/deals'
-import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table, NoData } from '@/ui/kit'
+import { Badge, Card, CardTitle, Empty, Field, PageHeader, Table, NoData } from '@/ui/kit'
+import { AdminNav, type AdminNavItem } from './nav'
 import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
 import { CloseDialog, NoticeArea, NoticeForm } from '@/ui/admin'
 import { ago, day, isoDay, num } from '@/lib/format'
 import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
-import { configurePipelineAction, createApiClientAction, revokeApiClientAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction, updateStageAction } from './actions'
+import { configurePipelineAction, setRoutingMembersAction, simulateMetricsAction, simulateStoreAction, simulateVisitAction, updateStageAction } from './actions'
 import { PipedriveTab } from './pipedrive'
 import { B2bConfig } from './b2b'
 import { PeopleTab, accessFilter } from './people'
@@ -50,23 +51,39 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     mercados: t('Mercados y entidades', 'Markets and entities'),
     embudos: t('Embudos y campos', 'Pipelines and fields'),
     entrada: t('Formularios y turnos', 'Forms and rotation'),
-    integraciones: t('Integraciones', 'Integrations'),
+    // Lo que llega de la Sales App y del archivo de ventas, con sus pruebas. Las llaves, los eventos y la API viven en "Eventos, API y datos".
+    integraciones: t('Sales App y ventas', 'Sales App and sales data'),
     pipedrive: 'Pipedrive',
     calidad: t('Calidad de datos', 'Data quality'),
     reportes: t('Problemas reportados', 'Reported problems'),
     auditoria: t('Auditoría', 'Audit'),
   }
+  const tabItem = (k: Tab): AdminNavItem | null => (allowed.includes(k) ? { key: k, href: qs('/admin', { tab: k }), label: labels[k] } : null)
   const live = ctx.markets.filter((m) => m.status === 'live')
   const staging = env().APP_ENV !== 'production'
 
   return (
     <>
       <PageHeader title={t('Administración', 'Administration')} desc={t('La configuración se hace aquí y queda en la bitácora. Ventas opera; administración configura.', 'Configuration happens here and is logged. Sales operates; administration configures.')} />
-      <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={tab} items={[...allowed.map((k) => ({ key: k as string, href: qs('/admin', { tab: k }), label: labels[k] })),
-        // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
-        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }, { key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }, { key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }, { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : []),
-        // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
-        ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : [])]} /></div>
+      {/* Administración en secciones: cada tema junta sus pantallas (las pestañas de esta página y las pantallas propias). */}
+      <AdminNav label={t('Secciones', 'Sections')} current={tab} groups={[
+        { key: 'personas', label: t('Personas y territorios', 'People and territories'), items: [tabItem('personas'), tabItem('territorios')] },
+        { key: 'ventas', label: t('Ventas y Operaciones', 'Sales and Operations'), items: [tabItem('embudos'), tabItem('entrada'),
+          // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
+          ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }] : []),
+          // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
+          ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : [])] },
+        { key: 'avisos', label: t('Avisos y soporte', 'Notices and support'), items: [
+          ...(admin ? [{ key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }] : []), tabItem('reportes')] },
+        { key: 'integraciones', label: t('Integraciones y datos', 'Integrations and data'), items: [tabItem('integraciones'),
+          ...(admin ? [{ key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }] : []), tabItem('pipedrive'), tabItem('calidad')] },
+        { key: 'mercados', label: t('Mercados', 'Markets'), items: admin ? [
+          // Entidades legales, festivos, WhatsApp por mercado, datos de arriba de la ficha y secciones de campos (paquete mercados).
+          tabItem('mercados'),
+          { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : [] },
+        { key: 'control', label: t('Control', 'Oversight'), items: [tabItem('auditoria'),
+          ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : [])] },
+      ].map((g) => ({ ...g, items: g.items.filter((x): x is AdminNavItem => x !== null) }))} />
       {hidden && (
         <p role="status" className="mb-6 rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] font-medium text-amber-text" data-testid="tab-hidden">
           {t(`Tu rol no ve la sección "${labels[hidden]}". Esa la lleva administración. Te dejamos en "${labels[tab]}".`, `Your role does not see the "${labels[hidden]}" section. Administration handles that one. You are in "${labels[tab]}".`)}
@@ -282,11 +299,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   async function Integrations() {
     const d = await getIntegrations(ctx)
-    const scopeText: Record<(typeof API_SCOPES)[number], string> = {
-      'forms:write': t('crea leads desde un formulario del sitio web', 'creates leads from a website form'),
-      'events:write': t('manda visitas y puntos de venta nuevos desde la Sales App', 'sends visits and new stores from the Sales App'),
-      'metrics:write': t('carga el archivo diario de ventas', 'loads the daily sales file'),
-    }
     return (
       <div className="space-y-8" data-testid="admin-integrations">
         <div className="rounded-[22px] bg-surface-3 px-6 py-5 text-[14px] text-muted-2" data-testid="integration-status">
@@ -295,7 +307,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </div>
 
         <p className="rounded-[14px] border border-line px-5 py-4 text-[14px] text-muted-2" data-testid="integrations-more">
-          {t('Suscriptores y catálogo de eventos, llaves de lectura con rotación, documentación de la API, mensajes detenidos de la Sales App, protección de formularios e importaciones y exportaciones: ', 'Subscribers and the event catalog, read keys with rotation, the API documentation, held Sales App messages, form protection and imports and exports: ')}
+          {t('Las llaves de API (de lectura y de escritura, con rotación) se crean y se revocan en un solo lugar, junto con los suscriptores y el catálogo de eventos, la documentación de la API, los mensajes detenidos de la Sales App, la protección de formularios y las importaciones y exportaciones: ', 'API keys (read and write, with rotation) are created and revoked in one place, together with subscribers and the event catalog, the API documentation, held Sales App messages, form protection and imports and exports: ')}
           <Link href="/admin/integraciones" className="font-medium text-blue-text underline" data-testid="integrations-more-link">{t('abrir Eventos, API y datos', 'open Events, API and data')}</Link>.
         </p>
 
@@ -347,45 +359,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
         </div>
 
-        <NoticeArea closeLabel={t('Cerrar aviso', 'Dismiss notice')}>
-        <Card data-testid="api-clients">
-          <CardTitle title={t('Llaves de API', 'API keys')} hint={t('La llave se muestra una sola vez. En la base solo queda su huella.', 'The key is shown once. Only its fingerprint is stored.')} />
-          <RevealOnce action={createApiClientAction} label={t('Copia esta llave ahora. No se vuelve a mostrar.', 'Copy this key now. It will not be shown again.')} copyLabel={t('Copiar', 'Copy')} copiedLabel={t('Copiada', 'Copied')}>
-            <div className="flex flex-wrap items-end gap-4">
-              <Field label={t('Nombre del sistema', 'System name')}><input name="name" className="input !w-64 max-w-full" required minLength={3} data-testid="api-name" /></Field>
-              <Submit variant="ghost" testId="api-create">{t('Crear llave', 'Create key')}</Submit>
-            </div>
-            <fieldset className="mt-4 space-y-1 text-[13.5px]">
-              <legend className="mb-1 text-[13px] font-semibold text-muted-2">{t('Qué puede hacer esta llave', 'What this key can do')}</legend>
-              {API_SCOPES.map((sc) => (
-                <label key={sc} className="flex min-h-11 cursor-pointer items-center gap-3">
-                  <input type="checkbox" name="scope" value={sc} className="h-5 w-5 shrink-0" defaultChecked={sc === 'events:write'} />
-                  <span><code className="text-[12.5px] text-strong">{sc}</code> <span className="text-muted-2">{scopeText[sc]}</span></span>
-                </label>
-              ))}
-            </fieldset>
-          </RevealOnce>
-          <ul className="mt-6">
-            {d.clients.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-line py-3 text-[14px] first:border-t-0" data-testid="api-row">
-                <span className="min-w-0">
-                  <span className="font-semibold text-strong">{c.name}</span> <code className="ml-2 text-[12.5px] text-muted-2">{c.key_prefix}…</code>
-                  <span className="block text-[12.5px] text-muted-2">{c.scopes.join(', ')} · {t(`creada el ${day(c.created_at, locale)}${c.created_by ? ` por ${c.created_by}` : ''}`, `created ${day(c.created_at, locale)}${c.created_by ? ` by ${c.created_by}` : ''}`)}{c.revoked_at ? ` · ${t(`revocada el ${day(c.revoked_at, locale)}`, `revoked ${day(c.revoked_at, locale)}`)}` : ''}</span>
-                </span>
-                {c.revoked_at ? <Badge tone="bad">{t('revocada', 'revoked')}</Badge> : (
-                  <Dialog trigger={t('Revocar', 'Revoke')} title={t(`Revocar la llave "${c.name}"`, `Revoke the "${c.name}" key`)} variant="quiet" size="sm" testId="api-revoke">
-                    <p className="text-[14px] text-muted-2">{t('La llave deja de servir en ese instante y no se puede reactivar. El sistema que la usa va a recibir un rechazo hasta que le pongas una llave nueva.', 'The key stops working right away and cannot be turned back on. The system using it will be rejected until you give it a new key.')}</p>
-                    <NoticeForm action={revokeApiClientAction} className="mt-6">
-                      <input type="hidden" name="id" value={c.id} />
-                      <div className="flex flex-wrap justify-end gap-3"><CloseDialog>{t('Cancelar', 'Cancel')}</CloseDialog><Submit variant="danger" testId="api-revoke-confirm">{t('Revocar llave', 'Revoke key')}</Submit></div>
-                    </NoticeForm>
-                  </Dialog>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
-        </NoticeArea>
       </div>
     )
   }

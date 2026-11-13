@@ -262,12 +262,14 @@ async function linkOrCreateStore(tx: Tx, sys: Ctx, d: StoreData): Promise<{ acco
   const created = !accountId
   if (!accountId) {
     const owner = d.salesperson_email ? await tx<{ id: string }[]>`select id from crm.users where email = ${d.salesperson_email} and is_active` : []
-    const name = scrub(plainText(d.name)).slice(0, 160)
     const locality = d.locality ? scrub(plainText(d.locality)) : null
     const region = d.region ? scrub(plainText(d.region)) : null
     // AUT-01: el punto de venta nace por la misma función que el alta de la pantalla, con sus mismas reglas de entrada.
-    const broken = accountRule({ name, phone })
+    // La regla mira el nombre como llegó (solo sin formato): un dato prohibido en el nombre se rechaza igual que en la
+    // pantalla, no se guarda tachado. Lo que sí pasa la regla se guarda limpio.
+    const broken = accountRule({ name: plainText(d.name).slice(0, 160), phone })
     if (broken) return { error: skipReason(broken) }
+    const name = scrub(plainText(d.name)).slice(0, 160)
     accountId = await insertAccountTx(tx, { market: d.market, kind: 'store', accountType: null, name, segment: 'd2d', lifecycle: 'onboarding', parentId: null,
       ownerId: owner[0]?.id ?? null, territoryId: null, phone, locality, region, createdBy: sys.user.id })
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)

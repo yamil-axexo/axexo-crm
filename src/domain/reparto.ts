@@ -279,7 +279,8 @@ export async function reassignLeads(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
 
 /**
  * Pasa los negocios abiertos de una persona a otra sin mover el comercio: el comercio se queda con su dueño.
- * Las tareas y las visitas por hacer ligadas a esos negocios y sus pendientes se van con el negocio.
+ * Las tareas y las visitas por hacer de quien lo vendía se van con el negocio; las que son de otra persona (Operaciones,
+ * una aprobación, una automatización) se quedan con ella.
  */
 export async function reassignDeals(ctx: Ctx, s: Source, batch = REPARTO_BATCH): Promise<Progress> {
   const market = marketOf(ctx, s.market)
@@ -292,8 +293,13 @@ export async function reassignDeals(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
     const rows = await tx<{ id: string }[]>`select d.id from crm.deals d where ${pending} order by d.created_at, d.id limit ${size} for update of d`
     const ids = rows.map((r) => r.id)
     if (ids.length === 0) return { moved: 0, left: 0 }
+    // Se van con el negocio las tareas y visitas por hacer de quien lo vendía. Lo que es de otra persona se queda con ella:
+    // las tareas del carril de Operaciones, una aprobación pendiente de quien supervisa, lo que una automatización le dejó a alguien más.
+    const tasks = await tx`
+      update crm.activities a set owner_id = ${s.to} from crm.deals d
+       where d.id = a.deal_id and a.deal_id = any(${ids}::uuid[]) and a.kind in ('task', 'visit') and a.done_at is null
+         and a.owner_id is not distinct from d.owner_id and a.approval_id is null`
     await tx`update crm.deals set owner_id = ${s.to} where id = any(${ids}::uuid[])`
-    const tasks = await tx`update crm.activities set owner_id = ${s.to} where deal_id = any(${ids}::uuid[]) and kind in ('task', 'visit') and done_at is null`
     await tx`update crm.exceptions set owner_id = ${s.to} where resolved_at is null and deal_id = any(${ids}::uuid[])`
     await audit(tx, ctx, 'deal.reassigned', 'deal', null, market, { count: ids.length, from: s.from }, { to_user_id: s.to, to_name: toName, tasks: tasks.count, deal_ids: ids.slice(0, 50) })
     await emit(tx, 'deal.reassigned', 'user', s.to, market, { count: ids.length })
