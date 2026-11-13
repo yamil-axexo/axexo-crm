@@ -81,7 +81,7 @@ create table crm.contracts (
   sent_at              timestamptz,
   signed_on            date,
   signed_by_name       text check (signed_by_name is null or char_length(btrim(signed_by_name)) between 2 and 120),
-  document_url         text check (document_url is null or document_url ~ '^https://[^ ]{4,400}$'),
+  document_url         text check (document_url is null or (document_url ~ '^https://[^ ]+$' and char_length(document_url) <= 400)),
   marked_by            uuid references crm.users(id),
   esign_state          text check (esign_state is null or esign_state in ('channel_off','simulated')),
   renewal_noticed_at   timestamptz,
@@ -249,7 +249,7 @@ create table crm.partner_enablement (
   title_es     text not null check (char_length(btrim(title_es)) between 2 and 120),
   title_en     text not null check (char_length(btrim(title_en)) between 2 and 120),
   -- Integrar Kore Academy, no duplicar: aquí solo vive el enlace al curso.
-  url          text not null check (url ~ '^https://[^ ]{4,400}$'),
+  url          text not null check (url ~ '^https://[^ ]+$' and char_length(url) <= 400),
   is_active    boolean not null default true,
   created_by   uuid references crm.users(id),
   created_at   timestamptz not null default now()

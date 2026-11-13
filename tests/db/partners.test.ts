@@ -196,12 +196,14 @@ describe('CANAL-06: niveles, habilitación y cruce de bases', () => {
     expect(p[0]!.metrics.active).toBeGreaterThanOrEqual(1)
     expect(p[0]!.tier_code).toBe('silver')
     expect((await admin<{ n: number }[]>`select count(*)::int as n from crm.partner_tier_history where account_id = ${await uid('dat-us-iso')}`)[0]!.n).toBe(1)
-    await expect(saveTier(await ctxFor('jade.kim'), { market: 'US', code: 'x1', nameEs: 'X', nameEn: 'X', rank: 9, minActive: 0, minQuality: 0, minCompliance: 0 })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(saveTier(await ctxFor('jade.kim'), { market: 'US', code: 'x1', nameEs: 'Prueba', nameEn: 'Test', rank: 9, minActive: 0, minQuality: 0, minCompliance: 0 })).rejects.toMatchObject({ code: 'forbidden' })
   })
 
   it('el cruce encuentra los puntos del partner que ya están en la cartera, y solo lo ve quien maneja partners', async () => {
     const robert = await ctxFor('robert.hale')
-    const twin = await usAccount('store', { phone: '+19565550142' })
+    // Un comercio propio, fuera del árbol del ISO, con el mismo teléfono que uno de sus puntos (llega por otra vía, sin aviso de duplicado).
+    const twin = (await admin<{ id: string }[]>`insert into crm.accounts (market_code, legal_entity_id, kind, name, lifecycle, phone, country, owner_id)
+      values ('US', ${await uid('le-us')}, 'store', ${`Gemelo ${tag()}`}, 'active', '+19565550142', 'US', ${await uid('jade.kim')}) returning id`)[0]!.id
     const n = await runCrossMatch(robert, 'US')
     expect(n).toBeGreaterThanOrEqual(1)
     const o = await admin<{ match_key: string }[]>`select match_key from crm.partner_overlaps where own_account_id = ${twin}`
