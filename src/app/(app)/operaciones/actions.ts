@@ -1,6 +1,7 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
+import { moveMessage } from '@/lib/steps'
 import { moveDeal, updateDeal } from '@/domain/deals'
 import { updateCustom } from '@/domain/custom'
 import { addDealItem, bulkCloseLost, markNoticeSeen, removeDealItem, saveOpsCatalog, saveProduct, setMerchantRef, setOpsCheck, setOpsStep, setPipelineFlags, setTraining, takeDeal } from '@/domain/ops'
@@ -65,8 +66,8 @@ export async function removeItemAction(_: R | null, fd: FormData): Promise<R> {
 /** Devolver a Ventas: motivo obligatorio (catálogo y texto) y regreso a la etapa de Ventas anterior. */
 export async function returnDealAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, undefined, { ret: { reasonCode: str(fd, 'reason'), note: str(fd, 'note') } })
-    return { message: ['Devuelto a Ventas. A quien lo vendió le aparece hoy con el motivo.', 'Sent back to Sales. The seller sees it today with the reason.'] }
+    const out = await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, undefined, { ret: { reasonCode: str(fd, 'reason'), note: str(fd, 'note') } })
+    return { message: moveMessage(out, ['Devuelto a Ventas. A quien lo vendió le aparece hoy con el motivo.', 'Sent back to Sales. The seller sees it today with the reason.']) }
   })
 }
 
@@ -99,9 +100,9 @@ export async function winDealAction(_: R | null, fd: FormData): Promise<R> {
     const id = str(fd, 'deal_id')
     await applyGate(ctx, id, fd)
     const on = str(fd, 'won_on')
-    await moveDeal(ctx, id, str(fd, 'stage_id'), undefined, undefined, { wonOn: on })
+    const out = await moveDeal(ctx, id, str(fd, 'stage_id'), undefined, undefined, { wonOn: on })
     const when = (locale: 'es' | 'en') => (/^\d{4}-\d{2}-\d{2}$/.test(on) ? day(on, locale) : locale === 'en' ? 'today' : 'hoy')
-    return { message: [`Negocio ganado, con cierre el ${when('es')}.`, `Deal won, with close date ${when('en')}.`] }
+    return { message: moveMessage(out, [`Negocio ganado, con cierre el ${when('es')}.`, `Deal won, with close date ${when('en')}.`]) }
   })
 }
 
@@ -110,8 +111,8 @@ export async function gateMoveAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const id = str(fd, 'deal_id')
     await applyGate(ctx, id, fd)
-    await moveDeal(ctx, id, str(fd, 'stage_id'))
-    return { message: ['Etapa actualizada.', 'Stage updated.'] }
+    const out = await moveDeal(ctx, id, str(fd, 'stage_id'))
+    return { message: moveMessage(out, ['Etapa actualizada.', 'Stage updated.']) }
   })
 }
 

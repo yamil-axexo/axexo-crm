@@ -359,7 +359,12 @@ export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
 }
 
 export async function assignLead(ctx: Ctx, leadId: string, ownerId: string): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
+  await withUser(ctx.user.id, (tx) => assignLeadTx(tx, ctx, leadId, ownerId))
+}
+
+/** La misma asignación dentro de una transacción que ya existe: la usan la pantalla y las automatizaciones (AUT-01). */
+export async function assignLeadTx(tx: Tx, ctx: Ctx, leadId: string, ownerId: string): Promise<void> {
+  {
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.assign', lead.market_code)
     const ok = await tx`select 1 from crm.memberships m where m.user_id = ${ownerId} and m.market_code = ${lead.market_code}
@@ -368,7 +373,7 @@ export async function assignLead(ctx: Ctx, leadId: string, ownerId: string): Pro
     await tx`update crm.leads set owner_id = ${ownerId}, assigned_at = now() where id = ${leadId}`
     await audit(tx, ctx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: ownerId })
     await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ownerId, previous_owner_id: lead.owner_id, by: 'assignment', motor: lead.motor })
-  })
+  }
 }
 
 /** Antes de convertir se puede corregir el tipo de venta, el tipo de cuenta y el rol del contacto: un lead mal clasificado no se queda atascado. */

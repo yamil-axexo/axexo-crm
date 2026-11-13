@@ -4,14 +4,15 @@ import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
 import type { ActionResult } from '@/lib/errors'
+import { moveMessage } from '@/lib/steps'
 
 type R = ActionResult<unknown>
 
 export async function moveDealAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const reason = str(fd, 'reason')
-    await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), reason ? { reasonCode: reason, note: str(fd, 'note') } : undefined)
-    return { message: ['Etapa actualizada.', 'Stage updated.'] }
+    const out = await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), reason ? { reasonCode: reason, note: str(fd, 'note') } : undefined)
+    return { message: moveMessage(out, ['Etapa actualizada.', 'Stage updated.']) }
   })
 }
 
@@ -19,8 +20,8 @@ export async function moveDealAction(_: R | null, fd: FormData): Promise<R> {
 export async function boardMoveAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const step = str(fd, 'next_step')
-    await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, step ? { step, due: str(fd, 'next_step_due') } : undefined)
-    return { message: ['Etapa actualizada.', 'Stage updated.'] }
+    const out = await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, step ? { step, due: str(fd, 'next_step_due') } : undefined)
+    return { message: moveMessage(out, ['Etapa actualizada.', 'Stage updated.']) }
   })
 }
 
