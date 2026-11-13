@@ -23,6 +23,8 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
   const canMerge = (m: string) => ctx.can('account.merge', m)
   const scanMarkets = markets.filter((m) => canReview(m.code))
   const totalOpen = d.counts.filter((c) => !market || c.market_code === market).reduce((a, c) => a + c.open, 0)
+  // Las fechas se dicen en el día del mercado, no en el del servidor.
+  const tzOf = (code: string) => ctx.markets.find((x) => x.code === code)?.timezone ?? 'UTC'
   const kinds = (ks: string[]) => ks.map((k) => <Badge key={k} tone={k === 'name' ? 'neutral' : 'warn'}>{lab(t, MATCH_KIND[k], k)}</Badge>)
   const value = (s: Side, f: string): string | null => {
     if (f === 'territory_id') return s.territory
@@ -74,7 +76,7 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
                 {[picked.a, picked.b].map((s) => (
                   <td key={s.id} className="text-[13.5px] text-muted-2" data-testid="compare-counts">
                     <Link href={`/comercios/${s.id}`} className="font-medium text-blue-text underline">{t('Abrir ficha', 'Open record')}</Link>
-                    <span className="block">{lab(t, LIFECYCLE[s.lifecycle]?.label, s.lifecycle)} · {t(`creado el ${day(s.created_at, locale)}`, `created on ${day(s.created_at, locale)}`)}</span>
+                    <span className="block">{lab(t, LIFECYCLE[s.lifecycle]?.label, s.lifecycle)} · {t(`creado el ${day(s.created_at, locale, tzOf(picked.market_code))}`, `created on ${day(s.created_at, locale, tzOf(picked.market_code))}`)}</span>
                     <span className="block">{t(`${s.deals} negocios · ${s.activities} actividades · ${s.contacts} contactos · ${s.aliases} ID de otros sistemas`, `${s.deals} deals · ${s.activities} activities · ${s.contacts} contacts · ${s.aliases} IDs from other systems`)}</span>
                   </td>
                 ))}
@@ -159,9 +161,9 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
                   <span className="min-w-0 text-[14px]">
                     <span className="text-muted-2 [overflow-wrap:anywhere]">{e.source_name}</span><span className="mx-2 text-muted">{t('se fusionó en', 'was merged into')}</span>
                     <Link href={`/comercios/${e.target_id}`} className="font-semibold text-strong underline [overflow-wrap:anywhere]">{e.target_name}</Link>
-                    <span className="mt-1 block text-[13px] text-muted">{[e.merged_by, day(e.merged_at, locale), t(`${movedCount} registros movidos`, `${movedCount} records moved`)].filter(Boolean).join(' · ')}</span>
+                    <span className="mt-1 block text-[13px] text-muted">{[e.merged_by, day(e.merged_at, locale, tzOf(e.market_code)), t(`${movedCount} registros movidos`, `${movedCount} records moved`)].filter(Boolean).join(' · ')}</span>
                     {taken.length > 0 && <span className="mt-1 block text-[13px] text-muted-2" data-testid="merge-survivors">{t('Del archivado se tomó', 'Taken from the archived one')}: {taken.map(([f, v]) => `${lab(t, SURVIVOR_LABEL[f], f)} (${lab(t, SURVIVOR_REASON[v.reason])})`).join('; ')}</span>}
-                    {e.undone_at && <span className="mt-1 block text-[13px] text-amber-text" data-testid="merge-undone">{t(`Se deshizo el ${day(e.undone_at, locale)}: ${e.undo_reason ?? ''}`, `Undone on ${day(e.undone_at, locale)}: ${e.undo_reason ?? ''}`)}</span>}
+                    {e.undone_at && <span className="mt-1 block text-[13px] text-amber-text" data-testid="merge-undone">{t(`Se deshizo el ${day(e.undone_at, locale, tzOf(e.market_code))}: ${e.undo_reason ?? ''}`, `Undone on ${day(e.undone_at, locale, tzOf(e.market_code))}: ${e.undo_reason ?? ''}`)}</span>}
                   </span>
                   {!e.undone_at && ctx.can('account.merge') && (
                     <Dialog trigger={t('Deshacer', 'Undo')} title={t('Deshacer la fusión', 'Undo the merge')} size="sm" testId="merge-undo">
