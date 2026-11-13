@@ -262,7 +262,7 @@ test.describe('datos: personas en un negocio (DAT-02)', () => {
     await sql`insert into crm.account_contacts (account_id, contact_id, market_code, role, is_primary) values (${acc}, ${contact}, 'MX', 'owner', true)`
     const deal = (await sql<{ id: string }[]>`
       insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, next_step, next_step_due)
-      select 'MX', p.id, (select s.id from crm.stages s where s.pipeline_id = p.id and s.kind = 'open' order by position limit 1), ${acc}, ${marco}, 'Alta Vidriería Fresnos', 'MXN', 'Llamar', now()::date + 3
+      select 'MX', p.id, (select s.id from crm.stages s where s.pipeline_id = p.id and s.kind = 'open' order by position limit 1), ${acc}, ${marco}, 'Alta Vidriería Fresnos', 'MXN', 'Llamar al dueño para cerrar', now()::date + 3
         from crm.pipelines p where p.market_code = 'MX' and p.motor = 'd2d' returning id`)[0]!.id
     await loginAs(page, 'marco.pena')
     await page.goto(`/deals/${deal}`)
@@ -443,6 +443,8 @@ test.describe('datos: tablero de calidad (GOB-02)', () => {
     // un corte de hace diez días con otro número: la tendencia lo compara con hoy
     await sql`insert into crm.quality_snapshots (as_of, market_code, team_id, rule_code, total, failing) values (now()::date - 10, 'MX', null, 'deal_no_step', 90, 999)
               on conflict do nothing`
+    // "correr ahora" de las tareas programadas (zx-automatizaciones) ya pudo tomar el corte de hoy: esta regla parte sin cortes
+    await sql`delete from crm.quality_snapshots where rule_code = 'no_phone'`
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto('/datos?tab=calidad&mercado=MX')
     await expect(page.getByTestId('pill-MX')).toBeVisible()

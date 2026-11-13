@@ -26,7 +26,7 @@ export type LeadListItem = {
   store_count: string | null
 }
 
-export type LeadFilters = { /** Tipo de venta y equipo de quien lo lleva. */ motor?: string; team?: string; market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; /** Tipo de empresa, embudo de campaña y número de tiendas (mínimo y máximo). */ tipo?: string; embudo?: string; tiendas_min?: string; tiendas_max?: string; /** Día en que llegó el lead (zona del mercado), para abrir desde el Panel del LT los leads de un periodo. */ from?: string; to?: string }
+export type LeadFilters = { /** Tipo de venta y equipo de quien lo lleva. */ motor?: string; team?: string; market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; /** Tipo de empresa, embudo de campaña y número de tiendas (mínimo y máximo). */ tipo?: string; embudo?: string; tiendas_min?: string; tiendas_max?: string; /** Día en que llegó el lead (zona del mercado), para abrir desde el Panel del LT los leads de un periodo. */ from?: string; to?: string; /** E3.F3 y E3.F6: etiqueta, fuente o campaña (texto) y plataforma del clic de anuncio. */ etiqueta?: string; utm?: string; clic?: string }
 const isDay = (v: string | undefined): v is string => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
 const isCount = (v: string | undefined): v is string => /^\d{1,7}$/.test(v ?? '')
 export const LEAD_PAGE = 40
@@ -57,6 +57,9 @@ export async function listLeads(ctx: Ctx, f: LeadFilters, pageSize: number = LEA
       ${f.owner === 'me' ? tx`and l.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and l.owner_id is null` : isUuid(f.owner) ? tx`and l.owner_id = ${f.owner}` : tx``}
       ${f.source ? tx`and l.source = ${f.source}` : tx``}
       ${f.motor ? tx`and l.motor = ${f.motor}` : tx``}
+      ${f.etiqueta && /^[a-z][a-z0-9_]{1,30}$/.test(f.etiqueta) ? tx`and ${f.etiqueta} = any(l.labels)` : tx``}
+      ${f.utm && f.utm.trim() ? tx`and (l.utm_source ilike ${'%' + f.utm.trim().slice(0, 80).replace(/[%_\\]/g, '') + '%'} or l.utm_campaign ilike ${'%' + f.utm.trim().slice(0, 80).replace(/[%_\\]/g, '') + '%'})` : tx``}
+      ${f.clic === 'google' ? tx`and l.gclid is not null` : f.clic === 'meta' ? tx`and l.fbclid is not null` : f.clic === 'tiktok' ? tx`and l.ttclid is not null` : f.clic === 'linkedin' ? tx`and l.li_fat_id is not null` : f.clic === 'x' ? tx`and l.twclid is not null` : tx``}
       ${f.tipo && /^[a-z][a-z0-9_]{1,40}$/.test(f.tipo) ? tx`and l.account_type = ${f.tipo}` : tx``}
       ${f.embudo && /^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/.test(f.embudo) ? tx`and l.funnel = ${f.embudo}` : tx``}
       ${isCount(f.tiendas_min) ? tx`and app.store_count(l.custom) >= ${Number(f.tiendas_min)}` : tx``}

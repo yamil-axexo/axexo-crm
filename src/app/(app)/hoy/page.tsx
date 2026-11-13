@@ -216,7 +216,8 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
           <h2 className="px-4 py-3 text-[15px] font-semibold text-strong">{t(`Te avisaron (${notices.length})`, `You were notified (${notices.length})`)}</h2>
           {notices.map((n) => (
             <div key={n.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3" data-testid="hoy-notice">
-              <p className="min-w-[200px] flex-1 text-[14.5px] text-strong">
+              {/* El aviso se escribió en el idioma guardado de la persona (notify.ts): si la pantalla está en otro, lo dice el atributo lang. */}
+              <p className="min-w-[200px] flex-1 text-[14.5px] text-strong" lang={ctx.user.locale && ctx.user.locale !== locale ? ctx.user.locale : undefined}>
                 <span className="font-semibold">{n.title ?? n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
                 <span className="block text-muted-2">{n.body}</span>
               </p>

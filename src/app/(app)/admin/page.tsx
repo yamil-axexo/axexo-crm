@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Horario } from './horario'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { env } from '@/env'
 import { getConfig, getDataQuality, getIntake, getIntegrations } from '@/dal/admin'
@@ -22,6 +22,7 @@ import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
 import { ReportesTab, reportFilter } from './reportes'
 import { FxCard } from './fx'
+import { MercadosTab } from './mercados'
 import { CampaignConfig, TerritoryManagers, WinRules } from './mx'
 import { targetText } from '@/lib/response-target'
 import { mergeAction } from '@/app/(app)/comercios/actions'
@@ -31,22 +32,33 @@ import { readerTimeZone } from '@/server/timezone'
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
 
-const TABS = ['personas', 'territorios', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'reportes', 'auditoria'] as const
+const TABS = ['personas', 'territorios', 'mercados', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'reportes', 'auditoria'] as const
 type Tab = (typeof TABS)[number]
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; acceso?: string; reportes?: string } & AuditParams> }) {
   const ctx = await requireCtx()
   const admin = ctx.can('config.manage')
-  if (!admin && !ctx.can('audit.read')) notFound()
+  // SEG-01: Administración por partes. Cada sección la abre la parte que le toca; la administración completa las abre todas.
+  const sees: Record<Tab, boolean> = {
+    personas: ctx.can('access.manage'), territorios: admin, mercados: admin, embudos: admin || ctx.can('audit.read'), entrada: admin,
+    integraciones: ctx.can('integration.operate'), pipedrive: ctx.can('integration.operate'), calidad: admin,
+    reportes: ctx.can('report.manage'), auditoria: ctx.can('audit.read'),
+  }
+  const security = ctx.can('security.read') || ctx.can('access.manage') || ctx.can('integration.operate') || ctx.can('access.review')
+  const allowed: Tab[] = TABS.filter((k) => sees[k])
+  if (allowed.length === 0) {
+    if (security) redirect('/admin/seguridad')
+    notFound()
+  }
   const { t, locale } = ctx
   const sp = flat(await searchParams)
-  const allowed: Tab[] = admin ? [...TABS] : ['embudos', 'auditoria']
   const tab: Tab = allowed.includes(sp.tab as Tab) ? (sp.tab as Tab) : allowed[0]!
   // Pedir una sección que el rol no ve (por un enlace que alguien compartió) lo dice, en vez de abrir otra en silencio.
   const hidden = TABS.includes(sp.tab as Tab) && !allowed.includes(sp.tab as Tab) ? (sp.tab as Tab) : null
   const labels: Record<Tab, string> = {
     personas: t('Personas y acceso', 'People and access'),
     territorios: t('Territorios', 'Territories'),
+    mercados: t('Mercados y entidades', 'Markets and entities'),
     embudos: t('Embudos y campos', 'Pipelines and fields'),
     entrada: t('Formularios y turnos', 'Forms and rotation'),
     // Lo que llega de la Sales App y del archivo de ventas, con sus pruebas. Las llaves, los eventos y la API viven en "Eventos, API y datos".
@@ -69,6 +81,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         { key: 'ventas', label: t('Ventas y Operaciones', 'Sales and Operations'), items: [tabItem('embudos'), tabItem('entrada'),
           // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
           ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }] : []),
+          // Reglas de asignación de leads, requisitos de etapa con condición, motivos, etiquetas y lo que quedó en cola (paquete embudo).
+          ...(admin ? [{ key: 'embudo', href: '/admin/embudo', label: t('Asignación y embudo', 'Assignment and pipeline') }] : []),
           // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
           ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : [])] },
         { key: 'avisos', label: t('Avisos y soporte', 'Notices and support'), items: [
@@ -78,9 +92,15 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           // Datos (duplicados, registro de campos, productos y tablero de calidad): quien administra entra por aquí, no por el menú de la cuenta.
           ...(admin && (ctx.can('data.quality') || ctx.isGlobal) ? [{ key: 'datos', href: '/datos', label: t('Datos', 'Data') }] : [])] },
         { key: 'mercados', label: t('Mercados', 'Markets'), items: admin ? [
+          // Entidades legales, festivos, WhatsApp por mercado, datos de arriba de la ficha y secciones de campos (paquete mercados).
+          tabItem('mercados'),
           { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : [] },
         { key: 'control', label: t('Control', 'Oversight'), items: [tabItem('auditoria'),
-          ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : [])] },
+          ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : []),
+          // Seguridad y privacidad: alertas, accesos, datos reservados, llaves y la bitácora que escribe la base.
+          ...(security ? [{ key: 'seguridad', href: '/admin/seguridad', label: t('Seguridad', 'Security') }] : []),
+          // Gobierno: servicio, versiones, costos, datos de prueba y solicitudes. Lo leen administración y leadership.
+          ...(ctx.can('gov.read') ? [{ key: 'gobierno', href: '/admin/gobierno', label: t('Gobierno', 'Governance') }] : [])] },
       ].map((g) => ({ ...g, items: g.items.filter((x): x is AdminNavItem => x !== null) }))} />
       {hidden && (
         <p role="status" className="mb-6 rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] font-medium text-amber-text" data-testid="tab-hidden">
@@ -89,6 +109,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       )}
       {tab === 'personas' && <PeopleTab ctx={ctx} access={accessFilter(sp.acceso)} today={isoDay(new Date(), await readerTimeZone(ctx))} />}
       {tab === 'territorios' && <><TerritoriosTab ctx={ctx} /><TerritoryManagers ctx={ctx} /></>}
+      {tab === 'mercados' && <MercadosTab ctx={ctx} />}
       {tab === 'embudos' && <><Config />{admin && <WinRules ctx={ctx} />}</>}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}

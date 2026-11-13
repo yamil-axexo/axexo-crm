@@ -27,6 +27,8 @@ export default defineConfig({
       // SEG-10: las pruebas llenan un formulario público en milisegundos; el tiempo mínimo de llenado se prueba en un formulario
       // con su propio valor (zx-eventos-api.spec.ts) y en tests/db. Fuera de las pruebas rige el valor de la app (3 s).
       PUBLIC_FORM_MIN_SECONDS: '0',
+      // La suite manda más de diez formularios por minuto desde la misma dirección; el límite general se prueba en tests/db.
+      PUBLIC_FORM_SUBMITS_PER_MINUTE: '120',
     },
   },
 })

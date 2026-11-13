@@ -33,7 +33,7 @@ for (const w of WIDTHS) {
       await noSideScroll(page)
 
       await expect(page.getByTestId('view-map')).toHaveAttribute('aria-disabled', 'true')
-      await expect(page.getByTestId('view-map')).toHaveAttribute('title', 'El mapa llega después')
+      await expect(page.getByTestId('view-map')).toHaveAttribute('title', 'El mapa está apagado: usa Cerca de mí')
       await page.getByTestId('pill-all').click()
       await page.getByTestId('view-tree').click()
       await expect(page).toHaveURL(/vista=arbol/)

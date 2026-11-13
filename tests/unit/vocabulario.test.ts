@@ -22,7 +22,7 @@ const { es, en } = catalogs() as { es: Record<string, string>; en: Record<string
 const root = new URL('../..', import.meta.url).pathname
 
 // Nombres propios que sí llevan acento en un texto en inglés: personas y lugares de ejemplo, y el nombre de un idioma.
-const EN_ALLOW = ['Español', 'México', 'Peña', 'Lucía', 'Iván', 'Ríos', 'Méndez', 'Torreón', 'Yucatán', 'Querétaro', 'León', 'Mérida']
+const EN_ALLOW = ['Español', 'México', 'Peña', 'Lucía', 'Iván', 'Ríos', 'Méndez', 'Torreón', 'Yucatán', 'Querétaro', 'León', 'Mérida', 'El Salvador']
 
 /** Archivos de una carpeta, recursivo. */
 function files(dir: string, match = /\.(ts|tsx)$/, out: string[] = []): string[] {

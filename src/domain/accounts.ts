@@ -9,6 +9,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { toE164 } from '@/lib/format'
 import { accountRule, intakeError } from '@/domain/intake'
 import { notifyMany, peopleWithRole } from '@/domain/notify'
+import { resolveRecruiter } from '@/domain/store-record'
 
 /** `strong`: coincide una llave fuerte exacta (teléfono, correo, identificador externo, o nombre más dirección). */
 export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'email' | 'external_id' | 'name_address' | 'name'; strong: boolean }
@@ -29,6 +30,8 @@ const createInput = z.object({
   addressLine: z.string().trim().max(200).optional().default(''),
   /** El identificador que el comercio ya tiene en otro sistema, si quien captura lo conoce: también es llave de duplicado. */
   externalId: z.string().trim().max(80).optional().default(''),
+  /** E9.F12 (mercados con ficha de dealer): quién reclutó la tienda. 'field_team' o el id de una agencia o socio. Vacío: el equipo propio. */
+  recruitedBy: z.string().trim().max(40).optional().default(''),
   force: z.boolean().optional().default(false),
   /** Por qué se crea aunque se parezca a uno que ya existe. Sin motivo, el aviso no se salta. */
   reason: z.string().trim().max(400).optional().default(''),
@@ -38,6 +41,8 @@ export type NewAccount = {
   market: string; kind: string; accountType: string | null; name: string; segment: string; lifecycle: 'prospect' | 'onboarding'; parentId: string | null
   ownerId: string | null; territoryId: string | null; phone: string | null; locality: string | null; region: string | null; createdBy: string
   email?: string | null; addressLine?: string | null
+  /** E9.F12: quién la reclutó, fijo desde el alta. Sin dato, queda por definir (lo fija después quien dirige, una vez). */
+  recruitedBy?: 'field_team' | 'agency' | 'partner' | null; recruitedAgencyId?: string | null
 }
 
 /**
@@ -48,9 +53,12 @@ export async function insertAccountTx(tx: Tx, a: NewAccount): Promise<string> {
   const broken = accountRule({ name: a.name, phone: a.phone })
   if (broken) throw intakeError(broken)
   const id = await newId(tx)
-  await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, lifecycle, parent_id, owner_id, territory_id, phone, email, address_line, locality, region, country, created_by)
+  // E9.F5: en un mercado con ficha de dealer, una tienda que nace aquí (pantalla, Sales App, archivo) es un alta nueva. Se fija una vez.
+  await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, lifecycle, parent_id, owner_id, territory_id, phone, email, address_line, locality, region, country, created_by,
+                                     recruited_by, recruited_agency_id, merchant_origin)
            values (${id}, ${a.market}, ${a.kind}, ${a.accountType}, ${a.name.trim()}, ${a.segment}, ${a.lifecycle}, ${a.parentId}, ${a.ownerId}, ${a.territoryId}, ${a.phone},
-                   ${a.email ?? null}, ${a.addressLine ?? null}, ${a.locality}, ${a.region}, ${a.market}, ${a.createdBy})`
+                   ${a.email ?? null}, ${a.addressLine ?? null}, ${a.locality}, ${a.region}, ${a.market}, ${a.createdBy}, ${a.recruitedBy ?? null}, ${a.recruitedAgencyId ?? null},
+                   (select 'new_acquisition' from crm.markets m where m.code = ${a.market} and ${a.kind} = 'store' and coalesce((m.flags ->> 'dealer_record')::boolean, false)))`
   return id
 }
 
@@ -110,9 +118,12 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
       } else if (createInput.shape.kind.safeParse(v.accountType).success) kind = v.accountType
       else throw invalid('Ese tipo de cuenta no existe en este mercado.', 'That account type does not exist in this market.')
     }
+    // E9.F12: con ficha de dealer, quien crea la tienda en pantalla dice quién la reclutó (por defecto, el equipo propio). Queda fijo. Una carga por archivo no lo trae: queda por definir.
+    const recruiter = market.dealerRecord && kind === 'store' && v.recruitedBy ? await resolveRecruiter(tx, v.market, v.recruitedBy) : null
     // Sin territorio elegido, la base pone el de quien lo crea cuando tiene uno solo en este mercado (0011_distribution).
     const id = await insertAccountTx(tx, { market: v.market, kind, accountType, name: v.name, segment: v.segment, lifecycle: 'prospect', parentId: v.parentId || null,
-      ownerId: ctx.user.id, territoryId: v.territoryId || null, phone, locality: clean(v.locality), region: clean(v.region), email: clean(v.email), addressLine: clean(v.addressLine), createdBy: ctx.user.id })
+      ownerId: ctx.user.id, territoryId: v.territoryId || null, phone, locality: clean(v.locality), region: clean(v.region), email: clean(v.email), addressLine: clean(v.addressLine), createdBy: ctx.user.id,
+      recruitedBy: recruiter?.kind ?? null, recruitedAgencyId: recruiter?.agencyId ?? null })
     if (dups.length) {
       await tx`insert into crm.duplicate_bypasses (market_code, account_id, matched_ids, match_kinds, strong, reason, actor_id)
                values (${v.market}, ${id}, ${dups.map((d) => d.id)}::uuid[], ${[...new Set(dups.map((d) => d.match))]}::text[], ${dups.some((d) => d.strong)}, ${v.reason}, ${ctx.user.id})`

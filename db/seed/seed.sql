@@ -675,6 +675,64 @@ update crm.leads l set email = 'contacto' || (pg_temp.h('em' || l.id::text) % 90
        consent_at = l.created_at, consent_text = 'Acepto que axexo me escriba por correo sobre sus productos y novedades.'
  where l.market_code = 'MX' and l.status = 'disqualified' and pg_temp.h('cs' || l.id::text) % 2 = 0;
 alter table crm.leads enable trigger user;
+-- mercados
+-- Las entidades sintéticas quedan como las de por defecto de su mercado; la provisional que crea la migración 0026 para
+-- MX y US se retira (El Salvador conserva la suya, "por confirmar", para que se vea ese caso). Una tasa MXN antigua deja
+-- convertir los negocios que cerraron antes de ayer, y los comercios con dirección reciben una ubicación sintética.
+update crm.legal_entities set is_default = false where market_code in ('MX', 'US') and needs_review;
+update crm.legal_entities set is_default = true, tax_country = market_code where id in (pg_temp.uid('le-mx'), pg_temp.uid('le-us'));
+update crm.accounts a set legal_entity_id = case a.market_code when 'MX' then pg_temp.uid('le-mx') else pg_temp.uid('le-us') end
+ where a.market_code in ('MX', 'US') and a.legal_entity_id in (select id from crm.legal_entities where needs_review);
+update crm.deals d set legal_entity_id = a.legal_entity_id from crm.accounts a where a.id = d.account_id and d.legal_entity_id <> a.legal_entity_id;
+delete from crm.legal_entities e where e.needs_review and e.market_code in ('MX', 'US')
+   and not exists (select 1 from crm.accounts a where a.legal_entity_id = e.id) and not exists (select 1 from crm.deals d where d.legal_entity_id = e.id);
+insert into crm.fx_rates (currency, as_of, usd_rate, source) values ('MXN', current_date - 400, 0.05, 'synthetic') on conflict do nothing;
+select app.fx_restamp();
+update crm.accounts a set latitude = 25.6714 + (pg_temp.h(a.id::text) % 40) / 100000.0, longitude = -100.3090 - (pg_temp.h(a.name) % 40) / 100000.0,
+       geo_source = 'import', geo_at = now(), sublocality = 'Centro', locality = coalesce(a.locality, 'Monterrey'), region = coalesce(a.region, 'Nuevo León')
+ where a.address_line = 'Av. Principal 120, Centro';
+update crm.accounts set business_unit = 'mexico' where market_code = 'MX' and kind <> 'store';
+update crm.accounts set business_unit = 'usa' where market_code = 'US' and kind <> 'store';
+
+-- seguridad
+-- El consentimiento que el seed puso en leads con los triggers apagados queda también como registro propio (canal correo, promociones).
+insert into crm.consents (market_code, lead_id, channel, category, source, evidence, granted_at)
+select l.market_code, l.id, 'email', 'marketing', 'web_form', left(l.consent_text, 500), l.consent_at
+  from crm.leads l where l.consent_at is not null and not exists (select 1 from crm.consents c where c.lead_id = l.id);
+-- Una agencia de ejemplo en México, sin personas todavía, confinada al embudo de tiendas (nombre inventado).
+insert into crm.agencies (id, market_code, name, pipeline_id) values (pg_temp.uid('ag-mx-demo'), 'MX', 'Agencia Demo (sintética)', pg_temp.uid('p-mx-d2d'));
+-- Un dato reservado de ejemplo en una cadena de México, para que el revelado con motivo se pueda probar (texto inventado).
+insert into crm.account_sensitive (account_id, field_key, market_code, value)
+select a.id, 'commercial_terms', a.market_code, 'Pago a 30 días. Descuento por volumen desde 50 puntos de venta. Revisión anual.'
+  from crm.accounts a where a.market_code = 'MX' and a.segment = 'b2b' and a.owner_id = pg_temp.uid('diana.cruz') and a.archived_at is null
+ order by a.name, a.id limit 1;
+-- embudo
+-- Hitos de venta de los comercios sintéticos (PIPE-06): la primera transacción que ya traía el archivo de ventas de ejemplo
+-- queda como hito y como primer renglón de su historia; el primer fondeo, un día antes y con un método (datos inventados).
+insert into crm.account_milestones (account_id, market_code, first_txn_at, first_funding_at, funding_method, as_of)
+select m.account_id, a.market_code, min(m.first_txn_at), min(m.first_txn_at) - interval '1 day',
+       case when a.market_code = 'US' then 'ach' when pg_temp.h('fm' || m.account_id::text) % 2 = 0 then 'spei' else 'cash' end, max(m.as_of)
+  from crm.merchant_metrics_daily m join crm.accounts a on a.id = m.account_id
+ where m.first_txn_at is not null group by m.account_id, a.market_code
+on conflict (account_id) do nothing;
+insert into crm.milestone_events (account_id, market_code, kind, action, occurred_at, method, source)
+select account_id, market_code, 'first_funding', 'set', first_funding_at, funding_method, 's5' from crm.account_milestones where first_funding_at is not null
+union all
+select account_id, market_code, 'first_txn', 'set', first_txn_at, null, 's5' from crm.account_milestones where first_txn_at is not null;
+-- El primer toque de los leads sintéticos que traen campaña o clic de anuncio (LEAD-02), para que la atribución se pueda filtrar y reportar.
+insert into crm.source_touches (market_code, lead_id, touch, touched_at, source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid)
+select l.market_code, l.id, 'first', l.created_at, l.source, l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid
+  from crm.leads l where coalesce(l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid) is not null
+   and not exists (select 1 from crm.source_touches t where t.lead_id = l.id);
+
+-- us-ficha
+-- La ficha de dealer de US (épica E9): tipos de cuenta, tipos de negocio y zonas. Los carriers reales no se cargan en los datos
+-- sintéticos (aquí los proveedores son inventados); una agencia y un socio inventados para "Reclutado por".
+select crm.dealer_record_setup('US', false);
+update crm.ops_catalog set ref_label = 'North dealer code' where market_code = 'US' and kind = 'provider' and code = 'carrier_north';
+insert into crm.agencies (id, market_code, kind, name) values
+  (pg_temp.uid('ag-us-1'), 'US', 'agency', 'Agencia Ejemplo Uno (sintética)'),
+  (pg_temp.uid('ag-us-2'), 'US', 'partner', 'Socio Ejemplo (sintético)');
 
 -- integraciones-migracion
 -- Lo que el equipo armó en Pipedrive se reconstruye otra vez con los embudos y campos que el seed acaba de crear

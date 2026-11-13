@@ -13,8 +13,13 @@ export type FieldDef = {
   market_code: string | null
   /** Tipo de venta al que aplica el campo; null = todos. */
   motor: string | null
-  /** Bloque de la ficha: para calificar, términos comerciales o expediente. */
-  section: 'qualify' | 'terms' | 'file' | null
+  /** Bloque de la ficha: para calificar, términos comerciales, expediente o una sección que el mercado agregó (crm.field_sections). */
+  section: string | null
+  /** Nombre, equipo y orden de la sección, tal como los definió administración. Vacíos si el campo no tiene sección. */
+  section_es: string | null
+  section_en: string | null
+  section_team: string | null
+  section_pos: number | null
   /** El campo solo aplica cuando otro campo tiene este valor (por ejemplo, los documentos de una persona moral). */
   applies_when: { key: string; equals: string } | null
   in_intake: boolean
@@ -28,11 +33,15 @@ export async function fieldDefs(ctx: Ctx, object: 'account' | 'deal' | 'contact'
   return withUser(ctx.user.id, async (tx) => {
     // Un campo de un tipo de venta (por ejemplo, los de B2B) solo sale en registros de ese tipo de venta.
     const rows = await tx<FieldDef[]>`
-      select key, label_es, label_en, data_type, options, data_class, mapped_to, market_code, motor, section, applies_when, in_intake
-        from crm.field_definitions
-       where object = ${object} and is_active and (market_code is null or market_code = ${market ?? null})
-         and (motor is null or motor = ${motor ?? null})
-       order by position, label_en`
+      select f.key, f.label_es, f.label_en, f.data_type, f.options, f.data_class, f.mapped_to, f.market_code, f.motor, f.section, f.applies_when, f.in_intake,
+             fs.label_es as section_es, fs.label_en as section_en, fs.team as section_team, fs.position as section_pos
+        from crm.field_definitions f
+        left join lateral (select s.label_es, s.label_en, s.team, s.position from crm.field_sections s
+                            where s.code = f.section and s.is_active and (s.market_code is null or s.market_code = ${market ?? null})
+                            order by s.market_code nulls last limit 1) fs on true
+       where f.object = ${object} and f.is_active and (f.market_code is null or f.market_code = ${market ?? null})
+         and (f.motor is null or f.motor = ${motor ?? null})
+       order by f.position, f.label_en`
     return [...rows]
   })
 }

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
+import { recordStageGaps } from '@/domain/embudo/stage-conditions'
 import { assertNoProhibited } from '@/domain/guard'
 import { invalid, notFound } from '@/lib/errors'
 import { scrub } from '@/domain/pipedrive/mapping'
@@ -270,6 +271,8 @@ export async function archiveStage(ctx: Ctx, stageId: string, moveToStageId: str
       const to = stages.find((x) => x.id === moveToStageId && x.id !== stageId && (x.kind === 'open' || x.kind === 'awaiting_txn'))
       if (!to) throw invalid(`Esta etapa tiene ${deals.length === 1 ? '1 negocio abierto' : `${deals.length} negocios abiertos`}: elige a qué etapa pasan.`, `This stage has ${deals.length === 1 ? '1 open deal' : `${deals.length} open deals`}: choose the stage they move to.`)
       const ids = deals.map((d) => d.id)
+      // PIPE-01: es un movimiento forzado; lo que a un negocio le falte para la etapa nueva queda anotado, no en silencio.
+      await recordStageGaps(tx, 'admin')
       await tx`update crm.deals set stage_id = ${to.id}, stage_entered_at = now() where id = any(${ids}::uuid[])`
       await tx`insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause)
                select d.id, d.market_code, ${stageId}, ${to.id}, ${ctx.user.id}, 'admin' from crm.deals d where d.id = any(${ids}::uuid[])`
@@ -343,16 +346,21 @@ const fieldInput = z.object({
   purpose: z.string().trim().max(400).optional().default(''),
   /** Quién responde por el campo. Sin elegir, quien lo crea. */
   ownerId: z.guid().or(z.literal('')).optional().default(''),
+  /** E7.F6: si el campo nació de una solicitud aprobada (Pedir un cambio), va su identificador y la solicitud queda hecha. */
+  requestId: z.string().regex(/^[0-9a-f-]{36}$/i).or(z.literal('')).optional().default(''),
 })
 
 /**
  * Un campo nuevo para comercio, negocio o lead, por mercado y tipo de venta. Aparece en la ficha y, si se marca, en el alta.
  * Nace con su gobierno: la decisión que habilita, quién responde por él y una fecha de revisión a seis meses (se cambian en Datos, Campos).
+ * La decisión escrita queda además como el motivo del cambio en la bitácora (E7.F7).
  */
 export async function createField(ctx: Ctx, input: z.input<typeof fieldInput>): Promise<string> {
   ctx.assert('config.manage')
   const parsed = fieldInput.safeParse(input)
-  if (!parsed.success) throw invalid('El campo lleva nombre en español y en inglés (de 2 a 60 letras) y su tipo.', 'A field needs a name in Spanish and in English (2 to 60 characters) and its type.')
+  if (!parsed.success) {
+    throw invalid('El campo lleva nombre en español y en inglés (de 2 a 60 letras) y su tipo.', 'A field needs a name in Spanish and in English (2 to 60 characters) and its type.')
+  }
   const v = parsed.data
   assertAllowedLabel(v.labelEs, v.labelEn, ...v.options)
   const listed = v.dataType === 'select' || v.dataType === 'multiselect'
@@ -369,13 +377,22 @@ export async function createField(ctx: Ctx, input: z.input<typeof fieldInput>): 
       and (motor is null or ${v.motor || null}::text is null or motor = ${v.motor || null})
       and (lower(label_es) = lower(${v.labelEs}) or lower(label_en) = lower(${v.labelEn}))`
     if (clash[0]) throw invalid('Ya hay un campo con ese nombre.', 'There is already a field with that name.')
+    // Si nace de una solicitud, tiene que ser una de campo, aprobada y todavía sin crear.
+    if (v.requestId) {
+      const req = (await tx<{ kind: string; status: string; field_id: string | null }[]>`select kind, status, field_id from crm.config_requests where id = ${v.requestId} for update`)[0]
+      if (!req || req.kind !== 'field' || req.status !== 'approved' || req.field_id) throw invalid('Esa solicitud no está aprobada o ya tiene su campo.', 'That request is not approved or already has its field.')
+    }
     const key = await freeCode(slug(v.labelEn), async (k) => !!(await tx`select 1 from crm.field_definitions where object = ${v.object} and key = ${k}`)[0])
     const id = await newId(tx)
-    await tx`insert into crm.field_definitions (id, object, key, label_es, label_en, data_type, options, market_code, motor, in_intake, position, decision, purpose, owner_id, review_on, decided_by, decided_at)
+    await tx`insert into crm.field_definitions (id, object, key, label_es, label_en, data_type, options, market_code, motor, in_intake, position, decision, purpose, owner_id, review_on, decided_by, decided_at, request_id)
              values (${id}, ${v.object}, ${key}, ${v.labelEs}, ${v.labelEn}, ${v.dataType}, ${tx.json(options)}, ${market}, ${v.motor || null}, ${v.inIntake && v.object === 'account'},
                      (select coalesce(max(position), 0) + 1 from crm.field_definitions where object = ${v.object}),
-                     ${v.decision}, ${v.purpose || null}, ${v.ownerId || ctx.user.id}, (now() + interval '6 months')::date, ${ctx.user.id}, now())`
-    await audit(tx, ctx, 'field.created', 'field', id, market, null, { object: v.object, key, label_es: v.labelEs, data_type: v.dataType, motor: v.motor || null, decision: v.decision })
+                     ${v.decision}, ${v.purpose || null}, ${v.ownerId || ctx.user.id}, (now() + interval '6 months')::date, ${ctx.user.id}, now(), ${v.requestId || null})`
+    await audit(tx, ctx, 'field.created', 'field', id, market, null, { object: v.object, key, label_es: v.labelEs, data_type: v.dataType, motor: v.motor || null, decision: v.decision, shared: market === null, from_request: !!v.requestId })
+    // E7.F7: el porqué del cambio queda junto al evento, sin tener que anotarlo después.
+    await tx`insert into crm.change_reasons (event_id, reason, created_by)
+             select e.id, ${v.decision}, ${ctx.user.id} from crm.audit_events e where e.action = 'field.created' and e.object_id = ${id} order by e.at desc limit 1`
+    if (v.requestId) await tx`update crm.config_requests set status = 'done', field_id = ${id}, decided_by = ${ctx.user.id}, decided_at = now() where id = ${v.requestId}`
     return id
   })
 }

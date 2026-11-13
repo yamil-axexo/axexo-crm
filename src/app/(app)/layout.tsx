@@ -3,19 +3,23 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { after } from 'next/server'
 import { tickJobs } from '@/server/jobs/runner'
-import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
+import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, GitPullRequestArrow, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
 import { ReportLink } from '@/ui/problem-report'
 import { LogHost } from '@/ui/log'
+import { Beacon } from '@/ui/beacon'
 import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
 import { pinnedQueues } from '@/dal/reportes'
 import { VIEW_EN, VIEW_OBJECT_LABEL, viewHref } from '@/lib/report-catalog'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
+import { stopViewAsAction } from '@/app/(app)/admin/seguridad/view-as-actions'
+import { CommandPalette } from '@/ui/palette'
+import { readerTimeZone } from '@/server/timezone'
 import { unreadNotices } from '@/dal/notices'
 import { HideOn, ScreenHelpFooter } from '@/ui/notices'
 import { pendingAnnouncements } from '@/dal/announcements'
@@ -36,7 +40,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Tareas programadas, disparo oportunista: lo que ya toca corre después de responder, sin hacer esperar a nadie.
   after(() => tickJobs())
   const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
-  const showAdmin = ctx.can('config.manage') || ctx.can('audit.read')
+  const showAdmin = ctx.can('config.manage') || ctx.can('audit.read') || ctx.can('access.manage') || ctx.can('integration.operate') || ctx.can('security.read')
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
   const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
@@ -69,9 +73,24 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ]
   // Registrar una visita, una llamada o una nota empieza en el dock: quien trabaja en la calle no abre primero la ficha.
   const canLog = ctx.can('activity.write')
+  const viewAsUntil = ctx.viewAs ? new Intl.DateTimeFormat(ctx.locale === 'en' ? 'en-US' : 'es-MX', { hour: 'numeric', minute: '2-digit', timeZone: await readerTimeZone(ctx) }).format(new Date(ctx.viewAs.until)) : ''
   // Colas fijadas por la persona (vistas guardadas), con su contador.
   const queues = await pinnedQueues(ctx)
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
+  // UX-02: la paleta (Ctrl+K) ofrece los mismos destinos que la persona ya tiene en el dock y en su menú, ni uno más.
+  const palette = [
+    ...items.map((i) => ({ href: i.href, label: i.label })),
+    ...create,
+    ...(ctx.can('board.supervisor') ? [{ href: '/supervisor', label: m('top.team') }] : []),
+    ...(ctx.can('report.gallery') ? [{ href: '/reportes', label: t('Reportes', 'Reports') }] : []),
+    ...(ctx.can('board.lt') ? [{ href: '/panel-lt', label: m('top.leadership') }] : []),
+    ...(showAdmin ? [{ href: '/admin', label: m('top.admin') }] : []),
+    ...(ctx.can('security.read') || ctx.can('access.manage') ? [{ href: '/admin/seguridad', label: t('Seguridad', 'Security') }] : []),
+    ...(ctx.can('status.read') ? [{ href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : []),
+    { href: '/avisos', label: t('Avisos y anuncios', 'Notices and announcements') },
+    { href: '/bienvenida', label: m('top.firstSteps') },
+    { href: '/ayuda', label: m('top.help') },
+  ]
 
   return (
     <div className="min-h-full">
@@ -135,6 +154,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {!ctx.can('config.manage') && ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>
               <Link href="/ayuda" role="menuitem" className={menuLink} data-testid="nav-help"><CircleHelp size={20} strokeWidth={1.75} aria-hidden />{m('top.help')}</Link>
+              <Link href="/solicitudes" role="menuitem" className={menuLink} data-testid="nav-requests"><GitPullRequestArrow size={20} strokeWidth={1.75} aria-hidden />{t('Pedir un cambio', 'Request a change')}</Link>
               <ReportLink className={menuLink} testId="nav-report"><LifeBuoy size={20} strokeWidth={1.75} aria-hidden />{t('Reportar un problema', 'Report a problem')}</ReportLink>
             </div>
             {watchLeads && (
@@ -158,6 +178,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </AccountMenu>
         </div>
       </header>
+      {ctx.viewAs && (
+        <div role="status" className="sticky top-[60px] z-[35] flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-line bg-warn-bg px-4 py-2.5 text-[13.5px] font-medium text-amber-text md:top-[64px] desk:top-[72px]" data-testid="view-as-banner">
+          <span>
+            <Eye size={15} strokeWidth={1.75} aria-hidden className="mr-1.5 inline-block align-[-2px]" />
+            {t(`${ctx.viewAs.actorName}: estás viendo CONTIGO como ${ctx.user.name}. Solo lectura, hasta las ${viewAsUntil}.`, `${ctx.viewAs.actorName}: you are viewing CONTIGO as ${ctx.user.name}. Read-only, until ${viewAsUntil}.`)}
+          </span>
+          <form action={stopViewAsAction}>
+            <button className="inline-flex min-h-11 items-center rounded-full border border-current px-4 text-[13px] font-semibold" data-testid="view-as-stop">{t('Dejar de ver como', 'Stop viewing as')}</button>
+          </form>
+        </div>
+      )}
+      <CommandPalette items={palette} labels={{ title: t('Ir a una pantalla o buscar', 'Go to a screen or search'), placeholder: t('Escribe a dónde quieres ir o qué buscas', 'Type where you want to go or what you are looking for'), search: t('Buscar', 'Search for'), hint: t('Flechas para elegir, Enter para ir, Esc para cerrar', 'Arrows to choose, Enter to go, Esc to close'), close: t('Cerrar', 'Close') }} />
+      <Beacon />
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">
         {first && firstText && (

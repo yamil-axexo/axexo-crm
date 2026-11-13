@@ -4,7 +4,7 @@ import { withUser, marketToday, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import type { Role } from '@/domain/policy'
 import { isUuid } from '@/lib/ids'
-import { getFxRates, ownerFilter, teamFilter, type MarketPeriods, type ReportScope } from '@/dal/reports'
+import { ownerFilter, teamFilter, type FxRate, type MarketPeriods, type ReportScope } from '@/dal/reports'
 
 type Frag = postgres.Fragment
 
@@ -128,33 +128,47 @@ export async function getAgencyReport(ctx: Ctx, p: MarketPeriods, f: Filters): P
 }
 
 // ------------------------------------------------------------------ E8.F5 Finanzas
-export type FinanceRow = { month: string; market_code: string; currency: string; entity: string | null; n: number; with_amount: number; amount: string }
+export type FinanceRow = { month: string; market_code: string; currency: string; entity: string | null; n: number; with_amount: number; amount: string; amount_usd: string; unconverted: number }
 export async function getFinanceReport(ctx: Ctx, p: MarketPeriods, f: Filters) {
   const scope = wideScope(ctx)
-  const rates = await getFxRates(ctx)
+  // MULTI-01, una sola regla para sumar en USD: cada negocio ganado usa la tasa del día en que se ganó, que quedó guardada
+  // en él (crm.deals.fx_rate, fx_rate_date, fx_source, amount_usd_minor). No se usa la tasa "de hoy": el total de un mes
+  // cerrado no cambia cuando se carga una tasa nueva, y da lo mismo que el Consolidado en USD.
+  let rates: FxRate[] = []
   const rows = await withUser(ctx.user.id, async (tx) => {
     const r = await tx<FinanceRow[]>`
       select to_char(date_trunc('month', (d.won_at at time zone mk.timezone)), 'YYYY-MM') as month, d.market_code, trim(d.currency) as currency, le.name as entity,
-             count(*)::int as n, count(d.amount_minor)::int as with_amount, coalesce(sum(d.amount_minor), 0)::text as amount
+             count(*)::int as n, count(d.amount_minor)::int as with_amount, coalesce(sum(d.amount_minor), 0)::text as amount,
+             coalesce(sum(d.amount_usd_minor), 0)::text as amount_usd,
+             count(*) filter (where d.amount_minor is not null and d.amount_usd_minor is null)::int as unconverted
         from crm.deals d join crm.accounts a on a.id = d.account_id join crm.markets mk on mk.code = d.market_code
         join ${periodRows(tx, p)} pr on pr.market = d.market_code
         left join crm.legal_entities le on le.id = a.legal_entity_id
        where d.status = 'won' and d.market_code = any(${scope.full}::text[]) and (d.won_at at time zone mk.timezone)::date between pr.dfrom and pr.dto
          ${mkFilter(tx, 'd', f.market)} ${isUuid(f.pipeline) ? tx`and d.pipeline_id = ${f.pipeline}` : tx``}
        group by 1, 2, 3, 4 order by 1 desc, 2, 3, 4 nulls last`
+    // Las tasas que quedaron guardadas en esos negocios, de la más reciente a la más antigua (para decir cuáles se usaron).
+    rates = [...(await tx<FxRate[]>`
+      select distinct trim(d.currency) as currency, d.fx_rate_date::text as as_of, d.fx_rate::text as usd_rate, d.fx_source as source, null::text as loaded_by, max(d.fx_frozen_at) as loaded_at
+        from crm.deals d join crm.markets mk on mk.code = d.market_code
+        join ${periodRows(tx, p)} pr on pr.market = d.market_code
+       where d.status = 'won' and trim(d.currency) <> 'USD' and d.fx_rate is not null and d.amount_minor is not null
+         and d.market_code = any(${scope.full}::text[]) and (d.won_at at time zone mk.timezone)::date between pr.dfrom and pr.dto
+         ${mkFilter(tx, 'd', f.market)} ${isUuid(f.pipeline) ? tx`and d.pipeline_id = ${f.pipeline}` : tx``}
+       group by 1, 2, 3, 4 order by 1, 2 desc`)]
     return [...r]
   })
-  const byCurrency = new Map<string, { n: number; withAmount: number; amount: number }>()
+  const byCurrency = new Map<string, { n: number; withAmount: number; amount: number; usd: number; unconverted: number }>()
   for (const r of rows) {
-    const c = byCurrency.get(r.currency) ?? { n: 0, withAmount: 0, amount: 0 }
-    c.n += r.n; c.withAmount += r.with_amount; c.amount += Number(r.amount)
+    const c = byCurrency.get(r.currency) ?? { n: 0, withAmount: 0, amount: 0, usd: 0, unconverted: 0 }
+    c.n += r.n; c.withAmount += r.with_amount; c.amount += Number(r.amount); c.usd += Number(r.amount_usd); c.unconverted += r.unconverted
     byCurrency.set(r.currency, c)
   }
   const totals = [...byCurrency].map(([currency, v]) => ({ currency, ...v }))
-  // Consolidado: solo si cada moneda con monto tiene tasa. La tasa nunca se inventa.
-  const missing = totals.filter((x) => x.amount > 0 && x.currency !== 'USD' && !rates.some((r) => r.currency === x.currency)).map((x) => x.currency)
-  const usd = missing.length ? null : totals.reduce((sum, x) => sum + (x.currency === 'USD' ? x.amount : x.amount * Number(rates.find((r) => r.currency === x.currency)?.usd_rate ?? 0)), 0)
-  return { rows, totals, rates: rates.filter((r) => totals.some((x) => x.currency === r.currency)), usd, missing }
+  // Consolidado: solo si cada negocio con monto quedó convertido. La tasa nunca se inventa ni se toma prestada de otro día.
+  const missing = totals.filter((x) => x.unconverted > 0).map((x) => x.currency)
+  const usd = missing.length ? null : totals.reduce((sum, x) => sum + x.usd, 0)
+  return { rows, totals, rates, usd, missing }
 }
 
 // ------------------------------------------------------------------ REP-01 por nodo del árbol y cuentas clave

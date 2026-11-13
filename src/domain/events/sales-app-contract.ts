@@ -16,6 +16,8 @@ export const FIELD_MATRIX: MatrixRow[] = [
     rule: ['El evento los trae solo para crear el comercio la primera vez. Si ya existe, manda lo que dice CONTIGO.', 'The event carries them only to create the merchant the first time. If it exists, CONTIGO’s values win.'] },
   { field: ['Teléfono del comercio', 'Merchant phone'], owner: 'contigo', travels: 'store.created · onboarding.submitted',
     rule: ['Sirve para ligar al prospecto. No pisa el que ya está.', 'Used to link to the prospect. It does not overwrite the existing one.'] },
+  { field: ['Ubicación del punto de venta (latitud y longitud)', 'Store location (latitude and longitude)'], owner: 'contigo', travels: 'store.created',
+    rule: ['Opcional. La toma el teléfono de quien da de alta la tienda. Llena el hueco cuando el comercio no tiene ubicación; no pisa la que alguien ya guardó en CONTIGO.', 'Optional. Taken by the phone of whoever signs the store up. It fills the gap when the merchant has no location; it does not overwrite one already saved in CONTIGO.'] },
   { field: ['Quién lleva la cuenta, territorio, jerarquía y cartera', 'Account owner, territory, hierarchy and portfolio'], owner: 'contigo', travels: 'account.reassigned · account.territory_set',
     rule: ['Solo CONTIGO los cambia. El correo de quien vendió en el evento solo propone quién lo lleva cuando el comercio nace sin asignar.', 'Only CONTIGO changes them. The seller email in the event only suggests an owner when the merchant is born without one.'] },
   { field: ['Visita: fecha, duración, venta o no, motivo, decisor, revisita', 'Visit: date, duration, sale or not, reason, decision-maker, revisit'], owner: 'sales_app', travels: 'visit.checked_out',

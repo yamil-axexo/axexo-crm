@@ -1,3 +1,4 @@
+import { AccountDataPanel, AccountThreadPanel } from '@/app/(app)/embudo-panels'
 import Link from 'next/link'
 import { CalendarPlus, MapPinCheck, MessageCircle, MessageSquareText, Navigation, Phone, StickyNote, X } from 'lucide-react'
 import type { Ctx } from '@/server/context'
@@ -24,9 +25,15 @@ import { moveInTreeAction } from '@/app/(app)/datos/actions'
 import { accountIdentity, nodeTotals } from '@/dal/datos'
 import { contactRolesFor } from '@/lib/datos-labels'
 import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSection, ProductsSection, TreeTotals } from './datos-ficha'
+import { FichaFacts, FichaMercados } from './ficha-mercados'
+import { fichaRole, readerTeam } from '@/lib/markets'
+import { rolesIn } from '@/domain/policy'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
+import { storeRecord } from '@/dal/store-record'
+import { CarrierPortfolio, SalesFirst, StoreKeptFields, StoreProfileSection } from './tienda-us'
+import { resolveKept } from '@/lib/store-labels'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
 import { StagePicker } from '@/ui/ops'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
@@ -78,7 +85,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const today = isoDay(now, tz)
   const parent = ancestors[ancestors.length - 1]
   // El tipo de cuenta ya dice si es independiente: "Independiente" solo acompaña a un tipo que no lo dice.
-  const size = isParent ? m('merchants.size.children', { count: rollup.stores }) : parent ? m('merchants.size.under', { name: parent.name }) : a.account_type === 'store' ? null : m('merchants.size.independent')
+  const size = isParent ? m('merchants.size.children', { count: rollup.stores }) : parent ? m('merchants.size.under', { name: parent.name }) : a.account_type === 'store' || (market.dealerRecord && a.kind === 'store') ? null : m('merchants.size.independent')
   // Para llamar: el teléfono del comercio y, si no tiene, el de su contacto (primero quien decide).
   const callee = a.phone
     ? { phone: a.phone, who: null as string | null }
@@ -172,6 +179,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id) : null
   const canAlias = !a.archived_at && ctx.can('alias.manage', a.market_code)
   const canProducts = !a.archived_at && ctx.can('account.products', a.market_code)
+  // E9: en un mercado con ficha de dealer (US), la ficha abre con ventas e identificadores y lleva los datos de la tienda y sus carriers.
+  const store = market.dealerRecord ? await storeRecord(ctx, a.id, a.market_code) : null
+  // E9.F11: los campos que el equipo de US conserva van agrupados en su propia sección y no se repiten en "Campos adicionales".
+  const kept = store ? resolveKept(defs) : []
+  const keptKeys = new Set(kept.flatMap((g) => g.fields.map((d) => d.key)))
+  const otherDefs = defs.filter((d) => !keptKeys.has(d.key))
   const contactRoles = contactRolesFor(a.segment, Object.keys(CONTACT_ROLE))
   const config = tab === 'hilo' && canWrite && tasks.length ? sheetConfig(ctx, now) : null
 
@@ -238,6 +251,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </p>
         )}
 
+        {store && !isParent && <SalesFirst ctx={ctx} record={store} metrics={metrics} />}
+
         <div className={cx('mt-4 rounded-[12px] px-4 py-3.5', step ? 'bg-green-100' : calm ? 'bg-surface-2' : 'bg-warn-bg')} data-testid="ficha-next" data-state={step ? (stepLate ? 'late' : 'set') : calm ? 'calm' : 'none'}>
           <p className={cx('text-[13px]', step ? 'text-brand-text' : calm ? 'text-muted-2' : 'text-amber-text')}>{m('record.next')}</p>
           <p className="mt-0.5 text-[15px] leading-6 font-medium text-strong">{step ? step.text : calm ? m('record.next.calm') : m('record.next.none')}</p>
@@ -253,6 +268,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             )}
           </p>
         </div>
+        {/* UX-01: los datos de arriba dependen del rol de quien abre la ficha (crm.ficha_layouts). */}
+        <FichaFacts ctx={ctx} id={a.id} treeHref={href(a.id, 'arbol')} />
         <LastOrderLine ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
       </div>
 
@@ -369,6 +386,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </ol>
             </>
           )}
+          <AccountThreadPanel ctx={ctx} accountId={a.id} market={a.market_code} canWrite={canWrite} />
         </div>
       )}
 
@@ -499,6 +517,13 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </section>
           )}
 
+          {store && (
+            <>
+              <StoreProfileSection ctx={ctx} accountId={a.id} record={store} typeName={typeName} territory={a.territory} tz={tz}
+                can={{ ops: canProducts, edit: canEdit, origin: !a.archived_at && ctx.can('account.origin', a.market_code), recruiter: !a.archived_at && ctx.can('account.recruiter', a.market_code) }} />
+              {!isParent && <CarrierPortfolio ctx={ctx} accountId={a.id} record={store} canManage={canProducts} />}
+            </>
+          )}
           <AccountOrders ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
 
           <section className={section} data-testid="account-contacts">
@@ -569,18 +594,29 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             {identity && <AliasSection ctx={ctx} accountId={a.id} identity={identity} canManage={canAlias} canInternal={ctx.can('integration.operate', a.market_code)} tz={tz} />}
           </section>
 
-          {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={identity} canManage={canProducts} />}
+          {/* Con ficha de dealer, el alta con cada operador se lee en su portafolio; aquí quedan los productos. */}
+          {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={store && !isParent ? { ...identity, products: identity.products.filter((p) => p.product_id) } : identity} canManage={canProducts} />}
           {identity && <ProcessSection ctx={ctx} accountId={a.id} identity={identity} canEdit={canEdit} />}
           {identity && <MergeSection ctx={ctx} accountId={a.id} identity={identity} tz={tz} />}
+          <section className={section} data-testid="account-security">
+            <h3 className={cx(h3, 'mb-2')}>{t('Equipo y datos reservados', 'Team and restricted data')}</h3>
+            <p className="mb-3 text-[13px] text-muted">{t('Quién más trabaja esta cuenta, sus datos reservados y el consentimiento de sus contactos.', 'Who else works this account, its restricted data and its contacts’ consent.')}</p>
+            <LinkButton href={`/comercios/${a.id}/equipo`} size="sm" testId="account-security-open">{t('Abrir', 'Open')}</LinkButton>
+          </section>
 
-          {defs.length > 0 && (
+          {store && <StoreKeptFields ctx={ctx} groups={kept} values={a.custom}
+            action={canEdit ? <LinkButton href={`/comercios/${a.id}/campos`} size="sm" testId="kept-edit">{t('Editar', 'Edit')}</LinkButton> : undefined} />}
+
+          {otherDefs.length > 0 && (
             <section className={section} data-testid="account-custom">
               <h3 className={cx(h3, 'mb-2')}>{t('Campos adicionales', 'Additional fields')}</h3>
-              <CustomFields defs={defs.filter((d) => !d.section)} values={a.custom} t={t} locale={locale}
+              <CustomFields defs={otherDefs.filter((d) => !d.section)} values={a.custom} t={t} locale={locale}
                 action={canEdit ? <LinkButton href={`/comercios/${a.id}/campos`} size="sm" testId="custom-edit">{t('Editar campos', 'Edit fields')}</LinkButton> : undefined} />
-              <div className="mt-5"><FieldSections defs={defs} values={a.custom} t={t} locale={locale} /></div>
+              <div className="mt-5"><FieldSections defs={otherDefs} values={a.custom} t={t} locale={locale} team={readerTeam(fichaRole(rolesIn(ctx.memberships, a.market_code)))} /></div>
             </section>
           )}
+
+          <FichaMercados ctx={ctx} id={a.id} market={a.market_code} archived={!!a.archived_at} name={a.name} />
 
           {canEdit && (
             <section className={section}>
@@ -590,11 +626,10 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <Field label={t('Nombre', 'Name')}><input name="name" className="input" defaultValue={a.name} required data-testid="edit-name" /></Field>
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" defaultValue={a.phone ?? ''} data-testid="edit-phone" /></Field>
                 <Field label={t('Correo', 'Email')}><input name="email" className="input" defaultValue={a.email ?? ''} /></Field>
-                <Field label={t('Dirección', 'Address')}><input name="address_line" className="input" defaultValue={a.address_line ?? ''} /></Field>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label={t('Ciudad', 'City')}><input name="locality" className="input" defaultValue={a.locality ?? ''} /></Field>
-                  <Field label={t('Estado o región', 'State or region')}><input name="region" className="input" defaultValue={a.region ?? ''} /></Field>
-                </div>
+                {/* La dirección se edita arriba, en "Dirección y ubicación", con el formato del país; este formulario la conserva como está. */}
+                <input type="hidden" name="address_line" value={a.address_line ?? ''} />
+                <input type="hidden" name="locality" value={a.locality ?? ''} />
+                <input type="hidden" name="region" value={a.region ?? ''} />
                 <input type="hidden" name="postal_code" value={a.postal_code ?? ''} />
                 <div className="flex justify-end"><Submit variant="ghost" testId="edit-save">{t('Guardar', 'Save')}</Submit></div>
               </ActionForm>
@@ -629,6 +664,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               )}
             </section>
           )}
+          <AccountDataPanel ctx={ctx} accountId={a.id} market={a.market_code} canEdit={canEdit} />
         </div>
       )}
     </article>

@@ -219,7 +219,7 @@ test.describe('panel del LT', () => {
       await expect(page.getByTestId('lt-market-MX')).toContainText('MXN') // el mercado sigue en su moneda
       // leadership ve la tasa en Administración, pero no la carga
       await page.goto('/admin?tab=embudos')
-      await expect(page.getByTestId('fx-none')).toContainText('MXN: sin tasa cargada')
+      await expect(page.getByTestId('fx-none').filter({ hasText: 'MXN' })).toContainText('MXN: sin tasa cargada') // otra prueba ya dio de alta un mercado en COP
       await expect(page.getByTestId('fx-form')).toHaveCount(0)
 
       await loginAs(page, 'nora.salas', { stay: true })

@@ -32,6 +32,16 @@ export async function rateHit(bucket: string, limit: number, windowSeconds = 60)
   return { allowed: rows[0]?.allowed === true, retryAfter: rows[0]?.retry_after ?? windowSeconds }
 }
 
+/**
+ * Envíos por IP y por minuto de un formulario sin límite propio. Las pruebas de punta a punta mandan decenas de
+ * formularios desde la misma dirección y lo suben con PUBLIC_FORM_SUBMITS_PER_MINUTE; en producción rige el valor de la app.
+ */
+export function defaultFormSubmitsPerIp(): number {
+  const raw = process.env.PUBLIC_FORM_SUBMITS_PER_MINUTE
+  const n = raw === undefined || raw === '' ? NaN : Number(raw)
+  return Number.isInteger(n) && n >= 1 && n <= 600 && process.env.APP_ENV !== 'production' ? n : LIMITS.formSubmitsPerIp
+}
+
 /** Tiempo mínimo de llenado por defecto. Las pruebas automáticas de punta a punta lo bajan a 0 con PUBLIC_FORM_MIN_SECONDS. */
 export function defaultMinFillSeconds(): number {
   const raw = process.env.PUBLIC_FORM_MIN_SECONDS

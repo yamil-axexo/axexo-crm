@@ -21,7 +21,7 @@ export async function sysCtxOf(tx: Tx): Promise<Ctx> {
   const memberships: Membership[] = [{ market: null, role: 'admin', teamId: null }]
   const markets: Market[] = rows.map((m) => ({
     code: m.code, name: m.name, currency: m.currency.trim(), locale: m.default_locale, timezone: m.timezone, phoneCc: m.phone_cc, status: m.status,
-    closeByTransaction: m.flags?.close_by_transaction !== false, workdays: m.workdays?.length ? m.workdays : [1, 2, 3, 4, 5],
+    closeByTransaction: m.flags?.close_by_transaction !== false, dealerRecord: m.flags?.dealer_record === true, workdays: m.workdays?.length ? m.workdays : [1, 2, 3, 4, 5],
   }))
   return {
     user: { id: u.id, name: u.full_name, email: u.email, isSystem: true },

@@ -206,9 +206,10 @@ test.describe('histórico, conciliación y pronóstico (REP-02, REP-04, REP-03)'
     await expect(page.getByTestId('velocity')).toBeVisible()
     await expect(page.getByTestId('snapshot-file')).toContainText('Canal apagado')
     await expect(page.getByTestId('outbox-row').first()).toContainText('no salió')
-    // Estado de CONTIGO lista los dos canales, apagados, con lo que falta para encenderlos
+    // Estado de CONTIGO lista los dos canales, apagados, con lo que falta para encenderlos. Los reportes programados salen por
+    // el correo único de avisos (notify.ts): no hay un correo propio de reportes.
     await page.goto('/estado')
-    await expect(page.locator('main')).toContainText('Correo de reportes programados')
+    await expect(page.locator('main')).toContainText('Avisos por Correo')
     await expect(page.locator('main')).toContainText('Archivo de la foto diaria')
     await expect(page.locator('main')).toContainText('Tech Implementation Review')
     // supervisión: sin foto del mercado, con cohortes de su equipo
