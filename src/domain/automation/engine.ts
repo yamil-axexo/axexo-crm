@@ -151,9 +151,9 @@ function scope(tx: Tx, a: Automation): Frag {
 }
 const matching = (tx: Tx, a: Automation): Frag => tx`${scope(tx, a)} and ${allOf(tx, a.conditions.map((c) => conditionSql(tx, a.source, c)))}`
 
-/** Cada mercado nace con las reglas de base. Un mercado nuevo las recibe la primera vez que corre el motor. */
+/** Cada mercado nace con las reglas de base. Un mercado nuevo las recibe la primera vez que corre el motor. Lo reconstruido desde Pipedrive no cuenta como "ya tiene reglas". */
 export async function ensureDefaults(tx: Tx): Promise<number> {
-  const markets = await tx<{ code: string }[]>`select m.code from crm.markets m where not exists (select 1 from crm.automations a where a.market_code = m.code) order by m.code`
+  const markets = await tx<{ code: string }[]>`select m.code from crm.markets m where not exists (select 1 from crm.automations a where a.market_code = m.code and a.pipedrive_ref is null) order by m.code`
   let n = 0
   for (const m of markets) for (const d of DEFAULTS) n += await insertDefinition(tx, m.code, d, null, true)
   return n

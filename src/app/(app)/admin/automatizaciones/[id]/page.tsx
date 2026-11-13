@@ -97,7 +97,16 @@ export default async function AutomationPage({ params, searchParams }: { params:
             )}
           </Card>
 
-          {manage && (
+          {a.pipedrive_ref && (
+            <Card data-testid="auto-pd-note">
+              <CardTitle title={t('Viene de Pipedrive', 'Comes from Pipedrive')} hint={t(`En Pipedrive se llamaba "${a.pipedrive_ref}".`, `In Pipedrive it was called "${a.pipedrive_ref}".`)} />
+              {a.description_es && <p className="text-[14px] text-muted-2">{t(a.description_es, a.description_en ?? a.description_es)}</p>}
+              {!a.is_active && a.off_reason_es && <p className="mt-2 text-[14px] text-muted" data-testid="auto-pd-off">{t(a.off_reason_es, a.off_reason_en ?? a.off_reason_es)}</p>}
+              <p className="mt-2 text-[13px] text-muted">{t('Sus condiciones usan el embudo y los campos que vinieron de Pipedrive; aquí se enciende, se apaga y se revisa su bitácora. Para cambiar a quién va el negocio en la #1 (cola de Operaciones o una persona), pídelo a administración.', 'Its conditions use the pipeline and fields that came from Pipedrive; here it is switched on or off and its log is reviewed. To change who gets the deal in #1 (Operations queue or a person), ask administration.')}</p>
+            </Card>
+          )}
+
+          {manage && !a.pipedrive_ref && (
             <Card data-testid="auto-edit">
               <CardTitle title={t('Cambiar', 'Edit')} hint={t('El mercado, el tipo de registro y el disparador no cambian: para eso se crea otra automatización. Al guardar sube la versión.', 'The market, the kind of record and the trigger do not change: create another automation for that. Saving raises the version.')} />
               <ActionForm action={saveAutomationAction} className="space-y-6" testId="auto-form">

@@ -145,7 +145,8 @@ describe('AUT-03: las reglas son datos, por mercado, con bitácora propia', () =
   it('cada mercado nace con las reglas de base y los avisos quedan ligados a su automatización', async () => {
     const sys = await systemContext()
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
-    const per = await admin<{ market_code: string; n: number }[]>`select market_code, count(*)::int as n from crm.automations group by 1 order by 1`
+    // Las automatizaciones reconstruidas desde Pipedrive (integraciones-migracion) se cuentan aparte.
+    const per = await admin<{ market_code: string; n: number }[]>`select market_code, count(*)::int as n from crm.automations where pipedrive_ref is null group by 1 order by 1`
     expect(per).toEqual([{ market_code: 'MX', n: DEFAULTS.length }, { market_code: 'SV', n: DEFAULTS.length }, { market_code: 'US', n: DEFAULTS.length }])
     const loose = await one(admin<{ n: number }[]>`select count(*)::int as n from crm.exceptions e where e.resolved_at is null and e.kind <> 'unmatched_event'
       and (e.automation_id is null or not exists (select 1 from crm.automations a where a.id = e.automation_id and a.market_code = e.market_code))`)
