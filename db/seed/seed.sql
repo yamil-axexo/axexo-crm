@@ -733,3 +733,9 @@ update crm.ops_catalog set ref_label = 'North dealer code' where market_code = '
 insert into crm.agencies (id, market_code, kind, name) values
   (pg_temp.uid('ag-us-1'), 'US', 'agency', 'Agencia Ejemplo Uno (sintética)'),
   (pg_temp.uid('ag-us-2'), 'US', 'partner', 'Socio Ejemplo (sintético)');
+-- ciclo-cs
+-- Cuidado del comercio: una regla de expansión por mercado (productos de ejemplo), para que la tarea diaria abra oportunidades
+-- sobre los comercios activos de los datos de ejemplo. Las alertas quedan apagadas, como en un mercado recién configurado.
+insert into crm.expansion_rules (market_code, product_label, min_active_days, min_days_since_first, min_txn_30d) values
+  ('MX', 'Pago de servicios', 22, 30, 150),
+  ('US', 'Remesas', 22, 30, 150);

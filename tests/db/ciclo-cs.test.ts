@@ -35,7 +35,7 @@ afterAll(async () => {
 /** Una tienda de México a nombre de marco.pena, en la etapa y con la antigüedad en la etapa que pida la prueba. */
 async function store(lifecycle = 'active', stageDays = 10, kind: 'store' | 'chain' = 'store', as = 'marco.pena'): Promise<{ id: string; ctx: Ctx }> {
   const ctx = await ctxFor(as)
-  const acc = await createAccount(ctx, { market: 'MX', kind, name: `${kind === 'store' ? 'Abarrotes' : 'Cadena'} Cuidado ${tag()}`, segment: kind === 'store' ? 'd2d' : 'b2b', force: true })
+  const acc = await createAccount(ctx, { market: 'MX', kind, name: `${kind === 'store' ? 'Abarrotes' : 'Cadena'} Cuidado ${tag()}`, segment: kind === 'store' ? 'd2d' : 'b2b', force: true, reason: 'Comercio de prueba distinto' })
   const id = acc.id!
   await admin`update crm.accounts set lifecycle = ${lifecycle} where id = ${id}`
   await admin`update crm.accounts set lifecycle_at = now() - make_interval(days => ${stageDays}) where id = ${id}`
@@ -303,7 +303,7 @@ describe('CS-01 · entregas con dueño, fecha, lista y acuse', () => {
 
   it('la entrega a Operaciones nace sola cuando el negocio se gana con la primera transacción, y solo la ve quien ve el comercio', async () => {
     const diana = await ctxFor('diana.cruz')
-    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena Entrega ${tag()}`, segment: 'b2b' })
+    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena Entrega ${tag()}`, segment: 'b2b', force: true, reason: 'Comercio de prueba distinto' })
     const pipe = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b'`)
     const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Negocio con entrega', nextStep: 'Llamar', nextStepDue: '2030-01-10' })
     const ref = `MID-E${tag()}`
