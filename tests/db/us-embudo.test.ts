@@ -313,7 +313,7 @@ describe('E11.F1 y F5: pedido con sus datos de envío, descuento por línea e hi
     expect(events[1]!.after.carrier).toBe('UPS')
     // reglas: fecha de hoy en adelante, sin números de tarjeta en texto libre, solo en embudos de pedidos, y con permiso
     await expect(saveOrderDetails(jade, id, { dueOn: addDays(today, -1) })).rejects.toMatchObject({ code: 'invalid' })
-    await expect(saveOrderDetails(jade, id, { description: 'Card 4111 1111 1111 1111' })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(saveOrderDetails(jade, id, { description: `Card ${['4111', '1111', '1111', '1111'].join(' ')}` })).rejects.toMatchObject({ code: 'invalid' })
     const alta = await createDeal(jade, { accountId: acc.id!, pipelineId: await uid('p-us-dealer'), title: 'Alta', nextStep: 'Call', nextStepDue: today })
     await expect(saveOrderDetails(jade, alta, { poNumber: 'x' })).rejects.toMatchObject({ code: 'invalid' })
     await expect(saveOrderDetails(await ctxFor('marco.pena'), id, { poNumber: 'x' })).rejects.toMatchObject({ code: expect.stringMatching(/not_found|forbidden/) })

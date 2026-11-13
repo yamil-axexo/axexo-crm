@@ -98,8 +98,9 @@ test('Operaciones no ve "Marcar como ganado" en un negocio que Ventas no ha entr
   const contact = (await sql<{ id: string }[]>`insert into crm.contacts (market_code, full_name) values ('US', 'Dana Fox Ajuste') returning id`)[0]!
   await sql`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${acc.id}, ${contact.id}, 'US', 'owner')`
   const deal = (await sql<{ id: string }[]>`
-    insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, next_step, next_step_due, decision_maker_id, decision_maker_met, created_by)
-    values ('US', ${pipe}, ${await uid('s-us-dealer-application')}, ${acc.id}, ${jade}, ${name}, 'USD', 'Collect the application', (now() at time zone 'America/New_York')::date + 1, ${contact.id}, true, ${jade}) returning id`)[0]!
+    insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, next_step, next_step_due, decision_maker_id, decision_maker_met, custom, created_by)
+    values ('US', ${pipe}, ${await uid('s-us-dealer-application')}, ${acc.id}, ${jade}, ${name}, 'USD', 'Collect the application', (now() at time zone 'America/New_York')::date + 1, ${contact.id}, true,
+            ${sql.json({ products_requested: ['Domestic top-up'], contract_signed_on: '2026-11-01' })}, ${jade}) returning id`)[0]!
   try {
     await loginAs(page, 'tom.reyes')
     await page.goto(`/deals/${deal.id}`)
@@ -111,9 +112,11 @@ test('Operaciones no ve "Marcar como ganado" en un negocio que Ventas no ha entr
     await expect(page.getByTestId('gate-missing')).toContainText('ACH or prepaid account')
     await page.getByTestId('gate-open').click()
     await page.getByTestId('gate-amount').fill('900')
-    await page.getByTestId('gate-field-account_funding').selectOption('Prepaid')
+    // El alta de dealers de US ahora tiene nueve etapas (paquete us-embudo): la primera de Operaciones es Approvals, y el
+    // negocio de la prueba ya trae productos y fecha de contrato para que la hoja pida solo monto y tipo de cuenta.
+    await page.getByTestId('gate-field-account_funding').selectOption('Prepaid/Wallet')
     await page.getByTestId('gate-save').click()
-    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Carrier submission')
+    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Approvals')
     // ya entregado, Operaciones sí lo puede ganar
     await loginAs(page, 'tom.reyes')
     await page.goto(`/deals/${deal.id}`)
