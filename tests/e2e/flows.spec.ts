@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { fichaId, fichaTab, loginAs, openMenu } from './helpers'
+import { fichaId, fichaTab, loginAs, openMenu, testDb } from './helpers'
 
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()
 
@@ -122,7 +122,7 @@ test.describe('leads', () => {
     await page.getByTestId('lead-convert').click()
     await expect(page).toHaveURL(/\/deals\//)
     await expect(page.locator('h1')).toHaveText(`Alta: ${name}`)
-    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Tienda visitada')
+    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Prospecto')
     // ola 2: la tarea que el lead ya traía es el próximo paso del negocio; no se crea otra para lo mismo
     await expect(page.getByTestId('next-step')).toHaveValue(`Enviar propuesta a ${name}`)
     await page.getByTestId('deal-account').click()
@@ -218,15 +218,34 @@ test.describe('embudo', () => {
     await page.getByTestId('decision-maker-met').check()
     await page.getByTestId('deal-save').click()
     await expect(page.getByTestId('deal-edit').getByTestId('form-ok')).toBeVisible()
-    await page.getByTestId('deal-advance').click()
-    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Negociación')
-
-    // El embudo B2B de México trae las etapas del proceso corporativo después de negociar (paquete b2b, 12-nov-2026).
-    for (const stage of ['Integración', 'Pruebas', 'Certificación', 'Alta y capacitación', 'Contrato firmado, esperando primera venta']) {
+    const step = page.locator('[data-testid=stage-path] [aria-current=step]')
+    const advance = async (stage: string) => {
       await page.waitForTimeout(800)
       await page.getByTestId('deal-advance').click()
-      await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText(stage)
+      await expect(step).toHaveText(stage)
     }
+    // Lo que falta para entrar a una etapa (la fecha del NDA, la del contrato) se completa en la hoja y el negocio avanza.
+    const advanceWith = async (stage: string, field: string) => {
+      await page.waitForTimeout(800)
+      await page.getByTestId('gate-open').click()
+      const sheet = page.locator('dialog[open]')
+      await sheet.getByTestId(`gate-field-${field}`).fill(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date()))
+      await sheet.getByTestId('gate-save').click()
+      await expect(step).toHaveText(stage)
+    }
+    // El embudo B2B/ISO de México sigue el proceso corporativo (paquetes b2b y mx): propuesta, NDA, negociación, integración,
+    // pruebas, contrato, certificación, alta y capacitación, y espera de la primera venta.
+    await page.getByTestId('deal-advance').click()
+    await expect(step).toHaveText('Acuerdo de confidencialidad (NDA)')
+    await advance('Negociación')
+    await expect(page.getByTestId('gate-missing')).toContainText('NDA firmado el')
+    await advanceWith('Integración', 'b2b_nda_signed_on')
+    await advance('Pruebas')
+    await advance('Contrato')
+    await expect(page.getByTestId('gate-missing')).toContainText('Contrato firmado el')
+    await advanceWith('Certificación', 'b2b_contract_signed_on')
+    await advance('Alta y capacitación')
+    await advance('Contrato firmado, esperando primera venta')
     await expect(page.getByTestId('deal-move')).toContainText('nadie lo marca a mano')
     await expect(page.getByTestId('deal-advance')).toHaveCount(0)
   })
@@ -377,7 +396,10 @@ test.describe('cuentas', () => {
     await expect(page.getByTestId('breadcrumb')).toContainText('Grupo Abarrotero del Valle')
     await fichaTab(page, 'datos')
     await page.getByTestId('parent-select').selectOption({ label: 'Distribuidora La Central' })
+    // paquete datos (DAT-01): mover una cuenta que ya tiene matriz pide motivo
+    await page.getByTestId('parent-reason').fill('La tienda cambió de distribuidor')
     await page.getByTestId('parent-save').click()
+    await expect(page.getByTestId('parent-form').getByTestId('form-ok')).toContainText('Jerarquía actualizada')
     await fichaTab(page, 'arbol')
     await expect(page.getByTestId('breadcrumb')).toContainText('Distribuidora La Central')
     await page.goto('/comercios?q=Grupo+Abarrotero')
@@ -408,12 +430,22 @@ test.describe('cuentas', () => {
     await page.getByTestId('account-phone').fill(phone)
     await page.getByTestId('save-account').click()
     await expect(page.locator('dialog[open]').getByTestId('form-error')).toContainText('Parece que ya existe')
+    // paquete datos (DAT-04): el teléfono exacto es llave fuerte. Quien vende no crea otro ni marcando "crear de todos modos" con motivo.
     await page.getByTestId('account-force').check()
+    await page.getByTestId('account-reason').fill('Creo que es otro comercio distinto')
+    await page.waitForTimeout(800)
     await page.getByTestId('save-account').click()
-    await expect(page.getByTestId('account-facts')).toBeVisible()
+    await expect(page.locator('dialog[open]').getByTestId('form-error')).toContainText('No se crea otro')
   })
 
   test('administración fusiona el duplicado: uno sobrevive y el otro queda archivado', async ({ page }) => {
+    // paquete datos (DAT-04): quien vende ya no crea un segundo comercio con el mismo teléfono (la prueba anterior lo dejaba
+    // creado). El duplicado se prepara directo en la base: un comercio con el teléfono de otro que ya existe.
+    const db = testDb()
+    await db`insert into crm.accounts (market_code, kind, name, segment, owner_id, phone, country, created_by)
+             select market_code, 'store', 'Duplicado de prueba ' || left(md5(id::text), 6), segment, owner_id, phone, country, owner_id
+               from crm.accounts where market_code = 'MX' and kind = 'store' and phone is not null and owner_id is not null and archived_at is null order by created_at, id limit 1`
+    await db.end()
     await loginAs(page, 'nora.salas')
     await page.goto('/supervisor')
     await page.getByTestId('run-rules').click()

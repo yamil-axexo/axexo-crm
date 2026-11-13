@@ -9,6 +9,7 @@ import { completeItem } from '@/domain/queue'
 import { getQueue } from '@/dal/queue'
 import { getOpsQueue, myNotices, staleDeals } from '@/dal/ops'
 import { addDays, isoDay } from '@/lib/format'
+import { fillEnrollment } from '../support/us-enrollment'
 
 const admin = owner()
 afterAll(() => admin.end())
@@ -22,7 +23,7 @@ const stage = async (pipe: string, code: string) => (await one(admin<{ id: strin
 /** Un comercio nuevo de Jade (ventas US), con su id. */
 async function jadeAccount(segment: 'dealer' | 'orders' | 'event' | 'other' = 'dealer') {
   const jade = await ctxFor('jade.kim')
-  const out = await createAccount(jade, { market: 'US', kind: 'store', name: `Operaciones prueba ${tag()}`, segment, force: true })
+  const out = await createAccount(jade, { market: 'US', kind: 'store', name: `Operaciones prueba ${tag()}`, segment, force: true, reason: 'Prueba: es otro comercio' })
   return { jade, accountId: out.id! }
 }
 
@@ -34,15 +35,19 @@ describe('pedidos: varios negocios abiertos, líneas de producto y canales del f
     await expect(createAccount(jade, { market: 'US', kind: 'store', name: 'Canal raro', segment: 'nope' as 'orders' })).rejects.toMatchObject({ en: expect.stringContaining('Channel') })
   })
 
-  it('en el embudo de pedidos un comercio lleva dos negocios abiertos; en el de alta, uno', async () => {
+  it('en el embudo de pedidos un comercio lleva dos negocios abiertos; en uno de alta que no admite varios, uno', async () => {
     const { jade, accountId } = await jadeAccount('orders')
     const orders = await uid('p-us-orders')
     const dealer = await uid('p-us-dealer')
     const a = await createDeal(jade, { accountId, pipelineId: orders, title: 'Pedido uno', nextStep: 'Confirmar pedido', nextStepDue: today })
     const b = await createDeal(jade, { accountId, pipelineId: orders, title: 'Pedido dos', nextStep: 'Confirmar pedido', nextStepDue: today })
     expect(a).not.toBe(b)
+    // El alta de dealers de US admite varios (un negocio por servicio vendido, E10.F3, paquete us-embudo): la regla de "uno
+    // abierto por embudo" se prueba quitándole esa propiedad al embudo.
+    await admin`update crm.pipelines set multi_open = false where id = ${dealer}`
     await createDeal(jade, { accountId, pipelineId: dealer, title: 'Alta', nextStep: 'Llamar', nextStepDue: today })
     await expect(createDeal(jade, { accountId, pipelineId: dealer, title: 'Alta dos', nextStep: 'Llamar', nextStepDue: today })).rejects.toMatchObject({ code: 'invalid' })
+    await admin`update crm.pipelines set multi_open = true where id = ${dealer}`
   })
 
   it('el monto del negocio es la suma de sus líneas; sin líneas no entra a revisión de Operaciones', async () => {
@@ -114,6 +119,8 @@ describe('entrega de Ventas a Operaciones, cola y devolución', () => {
     // La entrega a Operaciones pide monto y "Cuenta ACH o prepago" (ola 4, ajustes-campo): un negocio listo para entregar ya los trae.
     await updateDeal(jade, id, { decisionMakerId: contact.id, decisionMakerMet: true, amount: 1200 })
     await updateCustom(jade, 'deal', id, { account_funding: 'ACH' })
+    // El alta de dealers de US tiene nueve etapas con sus candados (paquete us-embudo): este negocio ya trae lo que piden.
+    await fillEnrollment(admin, id)
     await moveDeal(jade, id, await stage('p-us-dealer', 'application'))
     return { jade, id, accountId }
   }
@@ -131,8 +138,9 @@ describe('entrega de Ventas a Operaciones, cola y devolución', () => {
     // sale de la cancha de quien vende: su tarea de próximo paso queda cumplida
     expect((await admin`select 1 from crm.activities where deal_id = ${id} and deal_step = 'sales' and done_at is null`).length).toBe(0)
     expect((await admin`select 1 from crm.audit_events where object_id = ${id} and action = 'deal.handed_to_ops'`).length).toBe(1)
-    const q = await getOpsQueue(tom, { view: 'unassigned' })
-    expect(q.rows.find((r) => r.id === id)).toMatchObject({ market_code: 'US', seller: 'Jade Kim', ops_owner: null })
+    // Entra a nombre de quien lidera Operaciones de este embudo (E10.F10, paquete us-embudo): Tom lo ve en "mías".
+    const q = await getOpsQueue(tom, { view: 'mine' })
+    expect(q.rows.find((r) => r.id === id)).toMatchObject({ market_code: 'US', seller: 'Jade Kim', ops_owner: 'Tom Reyes' })
     expect((await getOpsQueue(await ctxFor('valeria.soto'), { view: 'all' })).rows.some((r) => r.id === id)).toBe(false) // Operaciones de MX no ve US
     // quien vende no avanza ni aprueba su negocio dentro de Operaciones
     await expect(moveDeal(jade, id, awaiting)).rejects.toMatchObject({ code: 'ops_only' })
@@ -157,7 +165,7 @@ describe('entrega de Ventas a Operaciones, cola y devolución', () => {
     await moveDeal(tom, id, application, undefined, undefined, { ret: { reasonCode: 'docs_missing', note: 'Falta el permiso' } })
     const d = await one(admin<{ stage_id: string; title: string; next_step: string }[]>`select stage_id, title, next_step from crm.deals where id = ${id}`)
     expect(d.stage_id).toBe(application)
-    expect(d.next_step).toBe(`Operations sent back ${d.title}: Documents are missing. Falta el permiso`)
+    expect(d.next_step).toBe(`Operations sent back ${d.title}: Documents missing. Falta el permiso`)
     const row = (await getQueue(jade)).rows.find((r) => r.dealId === id)
     expect(row?.subject).toContain('Operaciones devolvió') // quien lee en español lo ve en español (ola 4); el texto guardado sigue en el idioma de la vendedora
     expect((await one(admin<{ after: { reason: string } }[]>`select after from crm.audit_events where object_id = ${id} and action = 'deal.returned_to_sales'`)).after.reason).toBe('docs_missing')
@@ -249,10 +257,10 @@ describe('avisos, cierre en bloque, ganar a mano y etapa inicial', () => {
     await expect(createDeal(jade, { accountId, pipelineId: dealer, title: 'Directo', nextStep: 'Llamar', nextStepDue: today, stageId: await stage('p-us-dealer', 'application') })).rejects.toMatchObject({ code: 'stage_gate' })
     await expect(createDeal(jade, { accountId, pipelineId: dealer, title: 'Directo', nextStep: 'Llamar', nextStepDue: today, stageId: await stage('p-us-dealer', 'carrier') })).rejects.toMatchObject({ code: 'invalid' })
     const marco = await ctxFor('marco.pena')
-    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Abarrotes prueba ${tag()}`, segment: 'd2d', force: true })
+    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Abarrotes prueba ${tag()}`, segment: 'd2d', force: true, reason: 'Prueba: es otro comercio' })
     const b2b = await uid('p-mx-b2b')
     const diana = await ctxFor('diana.cruz')
-    const acc2 = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena prueba ${tag()}`, segment: 'b2b', force: true })
+    const acc2 = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena prueba ${tag()}`, segment: 'b2b', force: true, reason: 'Prueba: es otro comercio' })
     const mxToday = isoDay(new Date(), 'America/Mexico_City')
     await expect(createDeal(diana, { accountId: acc2.id!, pipelineId: b2b, title: 'Con propuesta', nextStep: 'Enviar', nextStepDue: mxToday, stageId: await stage('p-mx-b2b', 'propuesta') })).rejects.toMatchObject({ code: 'stage_gate' })
     const id = await createDeal(diana, { accountId: acc2.id!, pipelineId: b2b, title: 'Con propuesta', amount: 5000, nextStep: 'Enviar', nextStepDue: mxToday, stageId: await stage('p-mx-b2b', 'propuesta') })

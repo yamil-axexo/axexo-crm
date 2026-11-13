@@ -253,14 +253,17 @@ test.describe('leadership y administración', () => {
 
   test.describe('con el navegador en hora de Puerto Rico', () => {
     test.use({ timezoneId: 'America/Puerto_Rico' })
-    test('Adopción muestra las horas en la zona de quien mira y lo dice una sola vez', async ({ page }) => {
+    // Cambiado a propósito por el paquete `reportes` (GOB-03): Adopción ya no muestra horas de ingreso (medir ingresos es lo que
+    // el catálogo pide no hacer). Las semanas se cuentan en la zona del mercado, y la pantalla lo dice en la definición.
+    test('Adopción no muestra horas de ingreso: cuenta por semana en la zona del mercado y lo dice', async ({ page }) => {
       await loginAs(page, 'luis.tovar', { stay: true })
       await page.goto('/reportes/adopcion')
-      await expect(page.getByTestId('period-text')).toContainText('hora de Puerto Rico (GMT-4)')
       const list = page.getByTestId('adoption-list')
-      await expect(list).toContainText('Las horas están en hora de Puerto Rico (GMT-4)')
-      await expect(list).not.toContainText('Hora en hora')
-      await expect(page.getByTestId('adoption-totals')).not.toContainText('UTC')
+      await expect(list).toBeVisible()
+      await expect(page.locator('main')).not.toContainText('UTC')
+      await expect(page.locator('main')).not.toContainText('Último ingreso')
+      await page.getByTestId('usage-activities').locator('summary').click()
+      await expect(page.getByTestId('usage-activities')).toContainText('en la zona horaria del mercado')
     })
   })
 })

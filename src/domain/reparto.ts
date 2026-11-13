@@ -1,8 +1,10 @@
 import 'server-only'
+import { applyTerritoryOwners } from '@/domain/mx-config'
 import { z } from 'zod'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, emit } from '@/domain/common'
+import { notify } from '@/domain/notify'
 import { rolesIn } from '@/domain/policy'
 import { invalid, notFound } from '@/lib/errors'
 import { isUuid } from '@/lib/ids'
@@ -72,6 +74,16 @@ async function moveAccounts(tx: Tx, ctx: Ctx, market: string, accs: Acc[], toUse
   await audit(tx, ctx, 'account.reassigned', 'account', null, market, { count: moved.length, from_user_ids: from },
     { to_user_id: toUserId, to_name: toName, deals: deals.count, tasks: tasks.count, account_ids: moved.slice(0, 50) })
   await emit(tx, 'account.reassigned', 'user', toUserId, market, { count: moved.length })
+  // E13.F2 (cambio de quién lo lleva): un solo aviso por reparto, no uno por comercio.
+  if (toUserId !== ctx.user.id) {
+    const one = moved.length === 1 ? (await tx<{ name: string }[]>`select name from crm.accounts where id = ${moved[0]!}`)[0]?.name ?? null : null
+    await notify(tx, ctx, {
+      to: toUserId, kind: 'lifecycle', market, template: 'owner_changed', link: one ? `/comercios/${moved[0]}` : '/comercios', accountId: one ? moved[0] : null, needsAction: false,
+      title: one ? [`Ahora llevas ${one}`, `You now own ${one}`] : [`Ahora llevas ${moved.length} comercios más`, `You now own ${moved.length} more merchants`],
+      body: [`${ctx.user.name} te los asignó, con sus negocios abiertos y sus tareas.`, `${ctx.user.name} assigned them to you, with their open deals and tasks.`],
+      vars: { comercio: one ?? `${moved.length}`, quien: ctx.user.name },
+    })
+  }
   return moved.length
 }
 
@@ -185,7 +197,11 @@ export async function setTerritory(ctx: Ctx, accountIds: string[], territoryId: 
     const market = markets[0]!
     ctx.assert('account.territory', market)
     const name = await assertTerritory(tx, market, territoryId)
-    return applyTerritory(tx, ctx, market, accs.filter((a) => a.territory_id !== territoryId).map((a) => a.id), territoryId, name)
+    const changed = accs.filter((a) => a.territory_id !== territoryId).map((a) => a.id)
+    const done = await applyTerritory(tx, ctx, market, changed, territoryId, name)
+    // E16.F2: al cambiar de territorio, la tienda de venta puerta a puerta pasa al gerente del territorio nuevo (si tiene).
+    await applyTerritoryOwners(tx, changed)
+    return done
   })
 }
 
@@ -201,6 +217,7 @@ export async function setTerritoryByFilter(ctx: Ctx, f: AccountFilters, territor
     const pending = tx`${where} and a.territory_id is distinct from ${territoryId}`
     const rows = await tx<{ id: string }[]>`select a.id from crm.accounts a where ${pending} order by a.name_norm, a.id limit ${size} for update of a`
     const moved = await applyTerritory(tx, ctx, market, rows.map((r) => r.id), territoryId, name)
+    await applyTerritoryOwners(tx, rows.map((r) => r.id))
     const left = await tx<{ n: number }[]>`select count(*)::int as n from crm.accounts a where ${pending}`
     return { moved, left: left[0]?.n ?? 0 }
   })
@@ -249,6 +266,12 @@ export async function reassignLeads(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
     await emit(tx, 'lead.reassigned', 'user', s.to, market, { count: ids.length })
     // Uno por lead, con el mismo nombre que la asignación individual: quien conecte un canal de avisos escucha un solo evento.
     for (const id of ids) await emit(tx, 'lead.assigned', 'lead', id, market, { owner_id: s.to, by: 'reassignment' })
+    if (ids.length && s.to !== ctx.user.id)
+      await notify(tx, ctx, {
+        to: s.to, kind: 'lead_arrived', market, link: '/leads', leadId: ids.length === 1 ? ids[0] : null,
+        title: [`Te ${ids.length === 1 ? 'pasaron un lead' : `pasaron ${ids.length} leads`}`, `${ids.length === 1 ? 'A lead was' : `${ids.length} leads were`} passed to you`],
+        body: [`${ctx.user.name} te los reasignó. Están en Leads y en Hoy.`, `${ctx.user.name} reassigned them to you. They are in Leads and in Today.`],
+      })
     const left = await tx<{ n: number }[]>`select count(*)::int as n from crm.leads l where ${pending}`
     return { moved: ids.length, left: left[0]?.n ?? 0 }
   })

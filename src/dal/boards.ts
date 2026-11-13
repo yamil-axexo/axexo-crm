@@ -206,6 +206,9 @@ export async function dockCounts(ctx: Ctx): Promise<{ leadsWaiting: number; late
 }
 
 export type LeadWatchRow = {
+  /** LEAD-04: 0 sin escalar, 1 avisado a supervisión, 2 avisado a quien lidera. */
+  escalation_level: number
+  escalated_at: Date | null
   id: string
   business_name: string
   market_code: string
@@ -228,7 +231,7 @@ export async function getLeadWatch(ctx: Ctx, f: { market?: string; team?: string
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<LeadWatchRow[]>`
       select l.id, l.business_name, l.market_code, l.motor, l.owner_id, u.full_name as owner_name, l.created_at, l.sla_due_at,
-             (l.sla_due_at < now()) as late,
+             (l.sla_due_at < now()) as late, l.escalation_level, l.escalated_at,
              coalesce((
                select round(sum(greatest(0, extract(epoch from (
                         least(l.sla_due_at at time zone mk.timezone, g.d + coalesce(h.closes, time '18:00'))

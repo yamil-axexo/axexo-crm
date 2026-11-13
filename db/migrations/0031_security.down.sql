@@ -80,7 +80,6 @@ drop table crm.account_team;
 drop function if exists app.security_scan();
 drop function if exists app.security_setting_set(text, jsonb);
 drop function if exists app.audit_archive_prepare(text);
-drop function if exists app.api_client_used(uuid, text);
 drop function if exists app.can_review_access(text);
 drop function if exists app.view_as_start(uuid, text, int);
 drop function if exists app.view_as_current(uuid, uuid);
@@ -107,12 +106,25 @@ delete from crm.settings where key like 'security.%' or key like 'privacy.%';
 
 drop trigger if exists api_clients_owner on crm.api_clients;
 drop function if exists crm.api_client_owner();
-alter table crm.api_clients drop column owner_id, drop column expires_at, drop column last_used_at, drop column use_count, drop column rotated_from;
+-- Las funciones de autenticación de llaves vuelven a como las dejó 0021.
 create or replace function app.api_client(p_hash text)
 returns table (id uuid, name text, scopes text[])
 language sql stable security definer set search_path = crm, app, pg_catalog as $$
-  select c.id, c.name, c.scopes from crm.api_clients c where c.key_hash = p_hash and c.revoked_at is null
+  select c.id, c.name, c.scopes from crm.api_clients c
+   where c.key_hash = p_hash and c.revoked_at is null and (c.retire_at is null or c.retire_at > now())
 $$;
+create or replace function app.api_key(p_hash text)
+returns table (id uuid, name text, scopes text[], market_code text, mode text, rate_per_minute int, created_by uuid)
+language plpgsql volatile security definer set search_path = crm, app, pg_catalog as $$
+begin
+  update crm.api_clients c set last_used_at = now()
+   where c.key_hash = p_hash and c.revoked_at is null and (c.retire_at is null or c.retire_at > now())
+     and (c.last_used_at is null or c.last_used_at < now() - interval '1 minute');
+  return query
+    select c.id, c.name, c.scopes, c.market_code, c.mode, c.rate_per_minute, c.created_by from crm.api_clients c
+     where c.key_hash = p_hash and c.revoked_at is null and (c.retire_at is null or c.retire_at > now());
+end $$;
+alter table crm.api_clients drop column owner_id, drop column expires_at;
 
 alter table crm.contacts drop column anonymized_at;
 alter table crm.deals drop column recruited_agency_id;

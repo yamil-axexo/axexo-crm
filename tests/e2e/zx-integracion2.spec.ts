@@ -112,7 +112,8 @@ test.describe('pedido: cola de Operaciones, devolución a Hoy y ganado a mano en
     await row.getByTestId('ops-row-take').click()
     await page.goto(`/deals/${dealId}`)
     await page.getByTestId('ops-return').click()
-    await page.getByTestId('return-reason').selectOption('data_incomplete')
+    // US tiene sus seis motivos de devolución (E10.F13, paquete us-embudo): "datos incompletos" ya no se ofrece ahí.
+    await page.getByTestId('return-reason').selectOption('docs_missing')
     await page.getByTestId('return-note').fill('Falta la dirección de entrega')
     await page.getByTestId('return-confirm').click()
     await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Pedido capturado')
@@ -160,7 +161,7 @@ test.describe('pedido: cola de Operaciones, devolución a Hoy y ganado a mano en
     await page.goto(`/reportes/cerrados?periodo=rango&desde=${today}&hasta=${today}&resultado=won`)
     await expect(page.getByTestId('closed-row').filter({ hasText: title })).toHaveCount(0)
     // el CSV de lo filtrado trae el negocio con la fecha de ayer
-    const res = await page.request.get(`/reportes/cerrados/export?${query}`)
+    const res = await page.request.get(`/reportes/cerrados/export?${query}&motivo=Revisi%C3%B3n+de+prueba+del+reporte`)
     expect(res.status()).toBe(200)
     const line = (await res.text()).split(/\r?\n/).find((l) => l.includes(title))
     expect(line, 'el negocio ganado a mano sale en el archivo').toBeTruthy()

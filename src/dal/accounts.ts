@@ -36,7 +36,7 @@ export type AccountCounts = { all: number; risk: number; idle: number; nostep: n
 export const ACCOUNT_PAGE = 40
 
 /** PERF-02 / PERF-05 / UX-02: lista por llave (nombre, id) y búsqueda por nombre, ciudad, estado, teléfono o cualquier alias. */
-export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items: AccountListItem[]; next: string | null; total: number; counts: AccountCounts }> {
+export async function listAccounts(ctx: Ctx, f: AccountFilters, pageSize: number = ACCOUNT_PAGE): Promise<{ items: AccountListItem[]; next: string | null; total: number; counts: AccountCounts }> {
   return withUser(ctx.user.id, async (tx) => {
     const { base, where, risk, idle, nostep, openDeal, keys } = accountFilter(tx, ctx, f)
     const [aName, aId] = (f.after ?? '').split('|')
@@ -55,15 +55,15 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items
         left join crm.accounts p on p.id = a.parent_id
         left join lateral (select m.last_txn_at, m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = a.id order by m.as_of desc limit 1) mm on true
        where ${where} ${cursor}
-       order by a.name_norm, a.id limit ${ACCOUNT_PAGE + 1}`
+       order by a.name_norm, a.id limit ${pageSize + 1}`
     const counts = await tx<AccountCounts[]>`
       select count(*)::int as "all", count(*) filter (where ${risk})::int as risk, count(*) filter (where ${idle})::int as idle, count(*) filter (where ${nostep})::int as nostep
         from crm.accounts a where ${base}`
     const c = counts[0]!
-    const items = rows.slice(0, ACCOUNT_PAGE)
+    const items = rows.slice(0, pageSize)
     const last = items[items.length - 1]
     const total = f.ver === 'riesgo' ? c.risk : f.ver === 'sin-transaccionar' ? c.idle : f.ver === 'sin-paso' ? c.nostep : c.all
-    return { items, next: rows.length > ACCOUNT_PAGE && last ? `${last.name_norm}|${last.id}` : null, total, counts: c }
+    return { items, next: rows.length > pageSize && last ? `${last.name_norm}|${last.id}` : null, total, counts: c }
   })
 }
 
@@ -152,7 +152,7 @@ export async function getAccount(ctx: Ctx, id: string) {
     const contacts = await tx<{ id: string; full_name: string; phone: string | null; email: string | null; role: string; valid_from: Date; is_primary: boolean; preferred_locale: string | null; sms_capable: boolean | null }[]>`
       select c.id, c.full_name, c.phone, c.email::text, ac.role, ac.valid_from, ac.is_primary, c.preferred_locale, c.sms_capable
         from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
-       where ac.account_id = ${id} and ac.valid_to is null order by ac.is_primary desc, ac.role, c.full_name`
+       where ac.account_id = ${id} and ac.valid_to is null and ac.deal_id is null order by ac.is_primary desc, ac.role, c.full_name`
     const aliases = await tx<{ system: string; external_id: string; valid_from: Date }[]>`
       select system, external_id, valid_from from crm.account_aliases where account_id = ${id} and valid_to is null order by system`
     const attributions = await tx<{ layer: string; party_label: string; party_kind: string; effective_from: Date; effective_to: Date | null }[]>`
@@ -186,8 +186,11 @@ export async function getAccount(ctx: Ctx, id: string) {
         select coalesce(a.done_at, a.created_at) as at, a.kind, ${stepSubject(tx, ctx.locale)} as title, a.body, u.full_name as actor,
                jsonb_build_object('done', a.done_at is not null, 'source', a.source, 'outcome', a.outcome, 'visited_by', a.visited_by,
                                   'origin', case when a.kind = 'visit' then 'manual' end, 'type_label', a.type_label,
-                                  'rejection', a.no_sale_code, 'rejection_es', nr.label_es, 'rejection_en', nr.label_en) as meta
-          from crm.activities a left join crm.users u on u.id = a.created_by left join crm.loss_reasons nr on nr.code = a.no_sale_code where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
+                                  'rejection', a.no_sale_code, 'rejection_es', nr.label_es, 'rejection_en', nr.label_en,
+                                  'purpose_es', vr.label_es, 'purpose_en', vr.label_en) as meta
+          from crm.activities a left join crm.users u on u.id = a.created_by left join crm.loss_reasons nr on nr.code = a.no_sale_code
+          left join lateral (select r.label_es, r.label_en from crm.visit_reasons r where r.code = a.visit_reason and (r.market_code is null or r.market_code = a.market_code) order by r.market_code nulls last limit 1) vr on true
+         where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
         union all
         select v.checked_in_at, 'visit', v.outcome, v.note, coalesce(u.full_name, v.salesperson_ref),
                jsonb_build_object('origin', 'sales_app', 'rejection', v.rejection_code, 'rejection_es', r.label_es, 'rejection_en', r.label_en,

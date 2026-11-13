@@ -48,3 +48,21 @@ export async function customValues(ctx: Ctx, object: 'account' | 'deal', id: str
     return rows[0] ?? null
   })
 }
+
+/**
+ * E10.F7: claves de los campos que la etapa actual de un negocio destaca y de los que pide la etapa siguiente.
+ * La pantalla de campos los pone primero y los marca, para que se llenen sin buscarlos entre todos.
+ */
+export async function stageFieldMarks(ctx: Ctx, dealId: string): Promise<{ stage_es: string; stage_en: string; highlight: string[]; next: string[]; next_es: string | null; next_en: string | null } | null> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ stage_es: string; stage_en: string; highlight: string[]; next: string[] | null; next_es: string | null; next_en: string | null }[]>`
+      select s.name_es as stage_es, s.name_en as stage_en, s.highlight_fields as highlight, n.required_fields as next, n.name_es as next_es, n.name_en as next_en
+        from crm.deals d join crm.stages s on s.id = d.stage_id
+        left join crm.stages n on n.pipeline_id = s.pipeline_id and n.position = s.position + 1 and n.archived_at is null and n.kind in ('open', 'awaiting_txn')
+       where d.id = ${dealId} and d.status = 'open'`
+    const r = rows[0]
+    if (!r) return null
+    const keys = (list: string[] | null) => (list ?? []).filter((x) => x.startsWith('field:')).map((x) => x.slice(6))
+    return { stage_es: r.stage_es, stage_en: r.stage_en, highlight: keys(r.highlight), next: keys(r.next), next_es: r.next_es, next_en: r.next_en }
+  })
+}

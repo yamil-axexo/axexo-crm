@@ -1,5 +1,5 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
@@ -53,7 +53,12 @@ function coerce(def: Def, raw: CustomInput[string]): unknown {
 
 /** DATA-08: edita los campos adicionales de una cuenta o un deal. Solo audita lo que cambió. */
 export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: string, input: CustomInput): Promise<number> {
-  return withUser(ctx.user.id, async (tx) => {
+  return withUser(ctx.user.id, (tx) => updateCustomTx(tx, ctx, object, id, input))
+}
+
+/** Lo mismo dentro de una transacción ya abierta (por ejemplo, al pasar a sus campos lo escrito en la nota de una visita). */
+export async function updateCustomTx(tx: Tx, ctx: Ctx, object: 'account' | 'deal', id: string, input: CustomInput): Promise<number> {
+  {
     const rows = object === 'account'
       ? await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`select market_code, custom, archived_at is not null as locked, segment as motor from crm.accounts where id = ${id} for update`
       : await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`
@@ -86,7 +91,7 @@ export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: str
     else await tx`update crm.deals set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
     await audit(tx, ctx, `${object}.custom_updated`, object, id, row.market_code, before, after)
     return changed
-  })
+  }
 }
 
 /** Configuración de un embudo: si cierra por primera transacción y qué etapa es la de espera. Solo administración (P11). */

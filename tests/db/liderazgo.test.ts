@@ -149,7 +149,7 @@ describe('exportar negocios cerrados', () => {
   it('trae solo las columnas de la tabla y deja el evento con filtros y filas', async () => {
     const ana = await ctxFor('ana.robles')
     const p = marketPeriods(ana, 'rango', '2026-10-01', '2026-11-30')
-    const out = await exportClosedDeals(ana, p, { result: 'lost' })
+    const out = await exportClosedDeals(ana, p, { result: 'lost' }, 'Revisión de prueba del reporte')
     const lines = out.csv.replace(/^﻿/, '').trimEnd().split('\r\n')
     expect(lines[0]).toBe('Comercio,Negocio,Mercado,Embudo,Equipo,Quién,Resultado,Fecha de cierre,Monto,Moneda,Motivo de pérdida,Cómo se ganó,Quién lo marcó')
     expect(lines.length - 1).toBe(out.rows)
@@ -164,20 +164,20 @@ describe('exportar negocios cerrados', () => {
   })
   it('leadership exporta aunque sea solo lectura; ventas y operaciones no, ni quien lidera otro mercado', async () => {
     const luis = await ctxFor('luis.tovar')
-    const out = await exportClosedDeals(luis, year(luis), { market: 'US' })
+    const out = await exportClosedDeals(luis, year(luis), { market: 'US' }, 'Revisión de prueba del reporte')
     expect(out.rows).toBeGreaterThan(0)
     expect((await lastExport())!.after).toMatchObject({ rows: out.rows, filters: { market: 'US' } })
     for (const k of ['marco.pena', 'valeria.soto']) {
       const c = await ctxFor(k)
-      await expect(exportClosedDeals(c, year(c), {})).rejects.toMatchObject({ code: 'forbidden' })
+      await expect(exportClosedDeals(c, year(c), {}, 'Revisión de prueba del reporte')).rejects.toMatchObject({ code: 'forbidden' })
     }
     const ana = await ctxFor('ana.robles')
-    await expect(exportClosedDeals(ana, year(ana), { market: 'US' })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(exportClosedDeals(ana, year(ana), { market: 'US' }, 'Revisión de prueba del reporte')).rejects.toMatchObject({ code: 'forbidden' })
   })
   it('supervisión exporta solo lo de su equipo', async () => {
     const fer = await ctxFor('fernando.ibarra')
     const seen = await getClosedDeals(fer, year(fer), {}, 5000)
-    const out = await exportClosedDeals(fer, year(fer), {})
+    const out = await exportClosedDeals(fer, year(fer), {}, 'Revisión de prueba del reporte')
     expect(out.rows).toBe(seen.total)
     expect(out.csv).not.toContain('B2B México')
     expect(out.csv).not.toContain('Dealer onboarding')
@@ -189,7 +189,7 @@ describe('exportar negocios cerrados', () => {
     try {
       const card = ['4111', '1111', '1111', '1111'].join(' ')
       await db`update crm.deals set title = ${`Pago ${card}`} where id = ${d!.id}`
-      const out = await exportClosedDeals(nora, year(nora), { market: 'US' })
+      const out = await exportClosedDeals(nora, year(nora), { market: 'US' }, 'Revisión de prueba del reporte')
       expect(out.csv).not.toContain(card)
       expect(out.csv).toContain('Pago ')
     } finally {
@@ -345,13 +345,13 @@ describe('resultados por semana y reporte de campo', () => {
   })
   it('exportar el reporte de campo deja evento y respeta el permiso', async () => {
     const fer = await ctxFor('fernando.ibarra')
-    const out = await exportFieldReport(fer, {}, 'visitas')
+    const out = await exportFieldReport(fer, {}, 'visitas', 'Revisión de prueba del reporte')
     expect(out.csv.replace(/^﻿/, '').split('\r\n')[0]).toBe('Semana (lunes),Mercado,Equipo,Persona,Quién visitó,Visitas,Visitas con venta')
     expect((await lastExport())!.after).toMatchObject({ report: 'field_visits', rows: out.rows, filters: { weeks: 8 } })
-    const stores = await exportFieldReport(fer, { by: 'plaza' }, 'comercios')
+    const stores = await exportFieldReport(fer, { by: 'plaza' }, 'comercios', 'Revisión de prueba del reporte')
     expect(stores.csv).toContain('Plaza')
     expect((await lastExport())!.after).toMatchObject({ report: 'field_stores', filters: { by: 'plaza' } })
-    await expect(exportFieldReport(await ctxFor('marco.pena'), {}, 'visitas')).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(exportFieldReport(await ctxFor('marco.pena'), {}, 'visitas', 'Revisión de prueba del reporte')).rejects.toMatchObject({ code: 'forbidden' })
   })
 })
 

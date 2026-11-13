@@ -604,7 +604,7 @@ async function Keys({ ctx, tz }: P) {
   return (
     <div className="space-y-8" data-testid="security-keys">
       <Card data-testid="keys-card">
-        <CardTitle title={t('Llaves de API', 'API keys')} hint={t('Cada llave tiene dueño, vencimiento y último uso. Rotar crea una llave nueva con los mismos permisos; la anterior deja de valer en 24 horas. Las llaves se crean y se revocan en Integraciones.', 'Each key has an owner, an expiry and a last use. Rotating creates a new key with the same scopes; the old one stops working in 24 hours. Keys are created and revoked in Integrations.')} />
+        <CardTitle title={t('Llaves de API', 'API keys')} hint={t('El inventario de llaves: de quién es cada una, cuándo vence, cuándo se usó por última vez y de cuál salió por rotación. Aquí se les pone dueño y vencimiento; se crean, se rotan y se revocan en Integraciones. Nunca se muestra el valor.', 'The key inventory: who owns each one, when it expires, when it was last used and which key it replaced. Set the owner and the expiry here; keys are created, rotated and revoked in Integrations. The value is never shown.')} />
         {d.keys.length === 0 ? <Empty title={t('Todavía no hay llaves', 'No keys yet')} hint={t('Se crean en Administración, Integraciones.', 'They are created in Administration, Integrations.')} /> : (
           <ul data-testid="key-list">
             {d.keys.map((k) => (
@@ -613,7 +613,7 @@ async function Keys({ ctx, tz }: P) {
                   <p className="text-[15px] font-semibold text-strong">{k.name} <code className="ml-1 text-[12px] font-normal text-muted">{k.key_prefix}…</code></p>
                   <Badge tone={k.revoked_at ? 'neutral' : k.expired ? 'bad' : 'good'}>{k.revoked_at ? t('Revocada', 'Revoked') : k.expired ? t('Vencida', 'Expired') : t('Vigente', 'Active')}</Badge>
                 </div>
-                <p className={small} data-testid="key-meta">{k.scopes.join(', ')} · {t(`dueño: ${k.owner ?? 'sin dueño'}`, `owner: ${k.owner ?? 'no owner'}`)} · {k.expires ? t(`vence el ${k.expires}`, `expires ${k.expires}`) : t('sin vencimiento', 'no expiry')} · {k.last_used_at ? t(`último uso ${dayTime(k.last_used_at, locale, tz)}, ${num(k.use_count, locale)} llamadas`, `last used ${dayTime(k.last_used_at, locale, tz)}, ${num(k.use_count, locale)} calls`) : t('sin uso', 'never used')}</p>
+                <p className={small} data-testid="key-meta">{k.scopes.join(', ')} · {t(`dueño: ${k.owner ?? 'sin dueño'}`, `owner: ${k.owner ?? 'no owner'}`)} · {k.expires ? t(`vence el ${k.expires}`, `expires ${k.expires}`) : t('sin vencimiento', 'no expiry')} · {k.retires ? t(`se retira el ${k.retires} por rotación · `, `retires ${k.retires} after rotation · `) : ''}{k.rotated_from ? t('salió de una rotación · ', 'came from a rotation · ') : ''}{k.last_used_at ? t(`último uso ${dayTime(k.last_used_at, locale, tz)}`, `last used ${dayTime(k.last_used_at, locale, tz)}`) : t('sin uso', 'never used')}</p>
                 {manage && !k.revoked_at && !k.expired && (
                   <div className="mt-3 flex flex-wrap items-end gap-3">
                     <ActionForm action={A.keyMetaAction} className="flex flex-wrap items-end gap-3">
@@ -622,13 +622,7 @@ async function Keys({ ctx, tz }: P) {
                       <Field label={t('Vence el', 'Expires on')} className="basis-44"><input type="date" name="expires" className="input" min={today} defaultValue={k.expires ?? ''} data-testid="key-expires" /></Field>
                       <Submit variant="ghost" testId="key-save">{t('Guardar', 'Save')}</Submit>
                     </ActionForm>
-                    <Dialog trigger={t('Rotar', 'Rotate')} title={t(`Rotar la llave ${k.name}`, `Rotate the key ${k.name}`)} size="md" variant="quiet" testId="key-rotate-open">
-                      <RevealOnce action={A.rotateKeyAction} label={t('Llave nueva: cópiala ahora, no se vuelve a mostrar. La anterior vale 24 horas más.', 'New key: copy it now, it is not shown again. The old one works for 24 more hours.')} copyLabel={t('Copiar', 'Copy')}>
-                        <input type="hidden" name="id" value={k.id} />
-                        <p className="mb-4 text-[14px] text-strong">{t('Nace una llave nueva con los mismos permisos. Cámbiala en el sistema que la usa antes de 24 horas.', 'A new key is created with the same scopes. Replace it in the system that uses it within 24 hours.')}</p>
-                        <Submit testId="key-rotate">{t('Rotar la llave', 'Rotate the key')}</Submit>
-                      </RevealOnce>
-                    </Dialog>
+                    <Link href="/admin/integraciones" className={buttonClass('quiet')} data-testid="key-rotate-link">{t('Rotar o revocar en Integraciones', 'Rotate or revoke in Integrations')}</Link>
                   </div>
                 )}
               </li>

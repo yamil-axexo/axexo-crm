@@ -76,6 +76,18 @@ export async function assertNoSaleReason(tx: Tx, market: string, raw: string | n
 }
 
 /**
+ * E12.F1: el propósito de la visita se elige de la lista del mercado. Un mercado con lista lo pide en toda visita hecha;
+ * uno sin lista no lo pide (devuelve null). Devuelve el código validado.
+ */
+export async function assertVisitReason(tx: Tx, market: string, raw: string | null | undefined): Promise<string | null> {
+  const code = (raw ?? '').trim()
+  const rows = await tx<{ code: string }[]>`select code from crm.visit_reasons where is_active and (market_code is null or market_code = ${market})`
+  if (rows.length === 0) return null
+  if (!rows.some((r) => r.code === code)) throw invalid('Elige el propósito de la visita.', 'Choose the purpose of the visit.')
+  return code
+}
+
+/**
  * Una visita registrada reemplaza la visita por hacer que la misma persona ya tenía para ese comercio: no quedan dos "Próximo".
  * La visita por hacer no se cuenta como otra visita: queda como tarea cerrada (la visita hecha es la que se acaba de registrar).
  */

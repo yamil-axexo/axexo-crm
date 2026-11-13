@@ -12,9 +12,10 @@ import { getAccountSecurity, getKeys, getMonitoring } from '@/dal/security'
 import {
   acknowledgeAlert, addAccountTeamMember, anonymizeSubject, applyRetention, closeAccessReview, createAgency, createSubjectRequest, decideReviewItem,
   exportSubject, grantAgencyAccess, liftOptOut, mayContact, openAccessReview, optOut, prepareAuditArchive, recordConsent, recordSeatApproval,
-  revealSensitive, rotateApiClient, runSecurityScan, setAdminAreas, setApiClientMeta, setMembershipEntity, setRetentionRule, setSensitive,
+  revealSensitive, runSecurityScan, setAdminAreas, setApiClientMeta, setMembershipEntity, setRetentionRule, setSensitive,
   setTeamParent, setThresholds, startViewAs, updateSubjectRequest,
 } from '@/domain/security'
+import { rotateApiKey } from '@/domain/api-keys'
 import { seguridadJobs } from '@/server/jobs/seguridad'
 import { JOBS } from '@/server/jobs/registry'
 import { simulateDirectoryGone } from '@/server/adapters/directory'
@@ -113,13 +114,13 @@ describe('SEG-03: la bitácora la escribe la base', () => {
   it('cada exportación queda en el registro de lecturas y pasar el umbral abre una alerta que se revisa con nota', async () => {
     const ana = await ctxFor('ana.robles')
     const nora = await ctxFor('nora.salas')
-    const out = await exportClosedDeals(ana, marketPeriods(ana, 'mes'), { market: 'MX' })
+    const out = await exportClosedDeals(ana, marketPeriods(ana, 'mes'), { market: 'MX' }, 'Cierre de mes para dirección')
     const read = await one(admin<{ kind: string; row_count: number; object: string; via: string }[]>`
       select kind, row_count, object, via from audit.read_log where actor_id = ${ana.user.id} and kind = 'export' order by id desc limit 1`)
     expect(read).toMatchObject({ kind: 'export', row_count: out.rows, object: 'closed_deals' })
 
     await setThresholds(nora, { exports_per_day: 1, export_rows_per_day: 5000, searches_per_hour: 120, reveals_per_day: 20, api_calls_per_hour: 2000, key_unused_days: 90, key_expiring_days: 14 })
-    await exportClosedDeals(ana, marketPeriods(ana, 'mes'), { market: 'MX' })
+    await exportClosedDeals(ana, marketPeriods(ana, 'mes'), { market: 'MX' }, 'Segundo corte del mismo cierre')
     expect(await runSecurityScan(nora)).toBeGreaterThan(0)
     const before = (await getMonitoring(nora)).alerts.filter((a) => a.kind === 'exports_per_day' && a.subject === 'Ana Robles')
     expect(before).toHaveLength(1)
@@ -574,32 +575,43 @@ describe('SEG-09: solicitudes de titulares', () => {
 })
 
 describe('SEG-08: llaves y secretos', () => {
-  it('una llave tiene dueño, vencimiento y último uso; rotarla deja la anterior viva 24 horas; vencida deja de valer', async () => {
+  it('una llave tiene dueño, vencimiento y último uso; la rotación conserva al dueño; vencida deja de valer', async () => {
     const nora = await ctxFor('nora.salas')
-    const made = await createApiClient(nora, `Llave rotación ${tag()}`, ['forms:write'])
+    const ana = await ctxFor('ana.robles')
+    const made = await createApiClient(nora, `Llave inventario ${tag()}`, ['forms:write'])
+    // Las dos funciones con las que se autentica una llave (la de entradas y la de la API de lectura).
     const lookup = async (key: string) => (await withoutUser((tx) => tx<{ id: string }[]>`select id from app.api_client(${hashKey(key)})`))[0]?.id ?? null
+    const auth = async (key: string) => (await withoutUser((tx) => tx<{ id: string }[]>`select id from app.api_key(${hashKey(key)})`))[0]?.id ?? null
     expect(await lookup(made.key)).toBe(made.id)
-    await withoutUser((tx) => tx`select app.api_client_used(${made.id}, 'forms:write')`)
-    await withoutUser((tx) => tx`select app.api_client_used(${made.id}, 'forms:write')`)
-    const keys = (await getKeys(nora))!
-    expect(keys.keys.find((k) => k.id === made.id)).toMatchObject({ use_count: 2, owner: 'Nora Salas', expired: false })
-    expect(keys.keys.find((k) => k.id === made.id)!.last_used_at).not.toBeNull()
-    expect((await admin`select 1 from audit.read_log where key_id = ${made.id} and kind = 'api'`).length).toBe(2)
+    expect((await getKeys(nora))!.keys.find((k) => k.id === made.id)).toMatchObject({ owner: 'Nora Salas', expired: false, last_used_at: null, expires: null })
+    expect(await auth(made.key)).toBe(made.id)
+    expect((await getKeys(nora))!.keys.find((k) => k.id === made.id)!.last_used_at).not.toBeNull()
     // El uso de la llave no llena la bitácora de configuración.
     expect((await admin`select 1 from audit.config_log where table_name = 'api_clients' and row_id = ${made.id} and op = 'U'`).length).toBe(0)
 
-    const rotated = await rotateApiClient(nora, made.id)
+    await expect(setApiClientMeta(nora, made.id, { ownerId: '', expires: '2020-01-01' })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(setApiClientMeta(ana, made.id, { ownerId: ana.user.id, expires: '2030-01-01' })).rejects.toMatchObject({ code: 'forbidden' })
+    await setApiClientMeta(nora, made.id, { ownerId: ana.user.id, expires: '2030-01-01' })
+    expect((await getKeys(nora))!.keys.find((k) => k.id === made.id)).toMatchObject({ owner: 'Ana Robles', expires: '2030-01-01' })
+    // Rotar (paquete eventos-api): la llave nueva hereda al dueño y la anterior queda con fecha de retiro.
+    const rotated = await rotateApiKey(nora, made.id, 7)
+    const after = (await getKeys(nora))!.keys
+    expect(after.find((k) => k.id === rotated.id)).toMatchObject({ owner: 'Ana Robles', rotated_from: made.id })
+    expect(after.find((k) => k.id === made.id)!.retires).not.toBeNull()
     expect(await lookup(rotated.key)).toBe(rotated.id)
     expect(await lookup(made.key)).toBe(made.id)
-    await admin`update crm.api_clients set expires_at = now() - interval '1 minute' where id = ${made.id}`
-    expect(await lookup(made.key)).toBeNull()
-    await expect(setApiClientMeta(nora, rotated.id, { ownerId: '', expires: '2020-01-01' })).rejects.toMatchObject({ code: 'invalid' })
-    await setApiClientMeta(nora, rotated.id, { ownerId: (await ctxFor('ana.robles')).user.id, expires: '2030-01-01' })
-    await expect(rotateApiClient(await ctxFor('ana.robles'), rotated.id)).rejects.toMatchObject({ code: 'forbidden' })
-    // Una llave que vence pronto abre su alerta.
+    // Vencida, deja de valer sola por las dos entradas.
+    await admin`update crm.api_clients set expires_at = now() - interval '1 minute' where id = ${rotated.id}`
+    expect(await lookup(rotated.key)).toBeNull()
+    expect(await auth(rotated.key)).toBeNull()
+    expect((await getKeys(nora))!.keys.find((k) => k.id === rotated.id)!.expired).toBe(true)
+    // Una llave que vence pronto abre su alerta; y muchas llamadas en una hora, la suya.
     await admin`update crm.api_clients set expires_at = now() + interval '3 days' where id = ${rotated.id}`
+    await admin`insert into crm.rate_counters (bucket, window_start, hits) values (${'api:key:' + rotated.id}, date_trunc('minute', now()), 5000)`
     await runSecurityScan(nora)
-    expect((await getMonitoring(nora)).alerts.some((a) => a.kind === 'key_expiring')).toBe(true)
+    const alerts = (await getMonitoring(nora)).alerts
+    expect(alerts.some((a) => a.kind === 'key_expiring')).toBe(true)
+    expect(alerts.find((a) => a.kind === 'api_calls_per_hour')).toMatchObject({ observed: 5000, threshold: 2000 })
   })
 
   it('el inventario de secretos no guarda valores y avisa cuando la rotación se pasó', async () => {

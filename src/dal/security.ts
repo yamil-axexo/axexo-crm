@@ -137,9 +137,10 @@ export async function getPrivacy(ctx: Ctx) {
 export async function getKeys(ctx: Ctx) {
   if (!ctx.can('integration.operate') && !ctx.can('security.read')) return null
   return withUser(ctx.user.id, async (tx) => {
-    const keys = await tx<{ id: string; name: string; key_prefix: string; scopes: string[]; owner_id: string | null; owner: string | null; created_at: Date; expires: string | null; expired: boolean; last_used_at: Date | null; use_count: number; revoked_at: Date | null; rotated_from: string | null }[]>`
+    const keys = await tx<{ id: string; name: string; key_prefix: string; scopes: string[]; owner_id: string | null; owner: string | null; created_at: Date; expires: string | null; expired: boolean; last_used_at: Date | null; revoked_at: Date | null; rotated_from: string | null; retires: string | null }[]>`
       select c.id, c.name, c.key_prefix, c.scopes, c.owner_id, u.full_name as owner, c.created_at, to_char((c.expires_at at time zone 'UTC') - interval '1 second', 'YYYY-MM-DD') as expires,
-             (c.expires_at is not null and c.expires_at <= now()) as expired, c.last_used_at, c.use_count::int, c.revoked_at, c.rotated_from
+             ((c.expires_at is not null and c.expires_at <= now()) or (c.retire_at is not null and c.retire_at <= now())) as expired, c.last_used_at, c.revoked_at, c.rotated_from,
+             case when c.retire_at > now() then to_char(c.retire_at at time zone 'UTC', 'YYYY-MM-DD') end as retires
         from crm.api_clients c left join crm.users u on u.id = c.owner_id order by (c.revoked_at is null) desc, c.created_at desc limit 60`
     const secrets = await tx<{ key: string; label_es: string; label_en: string; system_name: string; owner_id: string | null; owner: string | null; rotate_every_days: number | null; last_rotated_on: string | null; due: boolean; note: string | null }[]>`
       select s.key, s.label_es, s.label_en, s.system_name, s.owner_id, u.full_name as owner, s.rotate_every_days, to_char(s.last_rotated_on, 'YYYY-MM-DD') as last_rotated_on,

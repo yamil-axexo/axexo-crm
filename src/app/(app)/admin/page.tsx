@@ -6,6 +6,7 @@ import { env } from '@/env'
 import { getConfig, getDataQuality, getIntake, getIntegrations } from '@/dal/admin'
 import { sellers } from '@/dal/leads'
 import { API_SCOPES, STAGE_REQUIREMENTS } from '@/domain/admin'
+import { StageFieldPicker } from '@/ui/stage-fields'
 import { FIELD_LABEL } from '@/domain/deals'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
@@ -20,6 +21,8 @@ import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
 import { ReportesTab, reportFilter } from './reportes'
 import { FxCard } from './fx'
+import { CampaignConfig, TerritoryManagers, WinRules } from './mx'
+import { targetText } from '@/lib/response-target'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
@@ -69,7 +72,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <PageHeader title={t('Administración', 'Administration')} desc={t('La configuración se hace aquí y queda en la bitácora. Ventas opera; administración configura.', 'Configuration happens here and is logged. Sales operates; administration configures.')} />
       <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={tab} items={[...allowed.map((k) => ({ key: k as string, href: qs('/admin', { tab: k }), label: labels[k] })),
         // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
-        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }] : []),
+        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }, { key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }, { key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }, { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : []),
+        // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
+        ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : []),
         // Seguridad y privacidad: alertas, accesos, datos reservados, llaves y la bitácora que escribe la base.
         ...(security ? [{ key: 'seguridad', href: '/admin/seguridad', label: t('Seguridad', 'Security') }] : [])]} /></div>
       {hidden && (
@@ -78,8 +83,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </p>
       )}
       {tab === 'personas' && <PeopleTab ctx={ctx} access={accessFilter(sp.acceso)} today={isoDay(new Date(), await readerTimeZone(ctx))} />}
-      {tab === 'territorios' && <TerritoriosTab ctx={ctx} />}
-      {tab === 'embudos' && <Config />}
+      {tab === 'territorios' && <><TerritoriosTab ctx={ctx} /><TerritoryManagers ctx={ctx} /></>}
+      {tab === 'embudos' && <><Config />{admin && <WinRules ctx={ctx} />}</>}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}
       {tab === 'pipedrive' && <PipedriveTab ctx={ctx} />}
@@ -110,12 +115,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <tr key={s.position} className="table-row" data-testid="stage-row">
                   <td className="num text-muted">{s.position}</td>
                   <td><span className="font-semibold text-strong" data-testid="stage-name">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2" data-testid="stage-await"><Badge tone="info">{p.close_by_transaction ? t('espera la primera venta', 'waits for the first sale') : t('desde aquí se gana a mano', 'won by hand from here')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{p.close_by_transaction ? t('solo por transacción', 'by transaction only') : t('cierre manual', 'closed by hand')}</Badge></span>}</td>
-                  <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => { const def = f.startsWith('field:') ? d.fields.find((x) => x.object === 'deal' && x.key === f.slice(6)) : undefined; return def ? t(def.label_es, def.label_en) : f.startsWith('field:') ? t('un campo adicional del negocio', 'an additional deal field') : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}</td>
+                  <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => { const def = f.startsWith('field:') ? d.dealFields.find((x) => x.key === f.slice(6) && (x.market_code === null || x.market_code === p.market_code)) : undefined; return def ? t(def.label_es, def.label_en) : f.startsWith('field:') ? t('un campo adicional del negocio', 'an additional deal field') : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}
+                    {s.highlight_fields.length > 0 && <span className="mt-1 block text-[12.5px] text-muted" data-testid="stage-highlights">{t('Destaca sin exigir: ', 'Highlights without requiring: ')}{s.highlight_fields.map((f) => { const def = f.startsWith('field:') ? d.dealFields.find((x) => x.key === f.slice(6) && (x.market_code === null || x.market_code === p.market_code)) : undefined; return def ? t(def.label_es, def.label_en) : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ')}</span>}</td>
                   <td className="text-[13.5px] text-muted-2">{t(s.exit_es, s.exit_en) || t('sin nada escrito', 'nothing written')}</td>
                   <td className="num text-[13.5px]" data-testid="stage-rot">{s.rot_days ? t(`${s.rot_days} días`, `${s.rot_days} days`) : t('nunca', 'never')}</td>
                   {admin && (
                     <td className="text-right">
-                      <Dialog trigger={t('Editar', 'Edit')} title={t(`Editar la etapa "${s.name_es}"`, `Edit the "${s.name_en}" stage`)} size="sm" testId="stage-edit">
+                      <Dialog trigger={t('Editar', 'Edit')} title={t(`Editar la etapa "${s.name_es}"`, `Edit the "${s.name_en}" stage`)} testId="stage-edit">
                         <NoticeForm action={updateStageAction} className="grid grid-cols-2 gap-4 text-left" testId="stage-form">
                           <input type="hidden" name="stage_id" value={s.id} />
                           <Field label={t('Nombre en español', 'Name in Spanish')} className="col-span-2 sm:col-span-1"><input name="name_es" className="input" required minLength={2} maxLength={60} defaultValue={s.name_es} data-testid="stage-name-es" /></Field>
@@ -141,6 +147,29 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                                   })}
                                 </div>
                               </fieldset>
+                              <fieldset className="col-span-2">
+                                <legend className="mb-2 block text-[13px] font-semibold text-muted-2">{t('Destacar en esta etapa, sin exigirlo', 'Highlight in this stage, without requiring it')}</legend>
+                                <div className="flex flex-wrap gap-x-6">
+                                  {(['amount', 'decision_maker'] as const).map((r) => (
+                                    <label key={r} className="flex min-h-11 cursor-pointer items-center gap-3 text-[14px]">
+                                      <input type="checkbox" name="highlight" value={r} className="h-5 w-5 shrink-0" defaultChecked={s.highlight_fields.includes(r)} data-testid={`stage-hi-${r}`} />
+                                      <span>{t(FIELD_LABEL[r]?.es ?? r, FIELD_LABEL[r]?.en ?? r)}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </fieldset>
+                              <StageFieldPicker
+                                fields={d.dealFields.filter((x) => (x.market_code === null || x.market_code === p.market_code) && (x.motor === null || x.motor === p.motor)).map((x) => ({ key: x.key, label: t(x.label_es, x.label_en) }))}
+                                required={s.required_fields.filter((f) => f.startsWith('field:')).map((f) => f.slice(6))}
+                                highlight={s.highlight_fields.filter((f) => f.startsWith('field:')).map((f) => f.slice(6))}
+                                labels={{
+                                  legend: t('Campos del negocio', 'Deal fields'),
+                                  hint: t('Marca "Requisito" para que el negocio no entre a esta etapa sin ese campo, o "Destacado" para pedirlo a la vista sin frenar el avance.', 'Tick "Required" so a deal cannot enter this stage without that field, or "Highlighted" to ask for it in plain sight without holding the deal back.'),
+                                  filter: t('Buscar un campo', 'Find a field'), required: t('Requisito', 'Required'), highlight: t('Destacado', 'Highlighted'),
+                                  none: t('Este embudo todavía no tiene campos del negocio. Créalos en "Campos creados aquí".', 'This pipeline has no deal fields yet. Create them under "Fields created here".'),
+                                  picked: t('%r de requisito, %h destacados', '%r required, %h highlighted'),
+                                }}
+                              />
                             </>
                           )}
                           <div className="col-span-2 flex flex-wrap justify-end gap-3"><CloseDialog>{t('Cancelar', 'Cancel')}</CloseDialog><Submit testId="stage-save">{t('Guardar etapa', 'Save stage')}</Submit></div>
@@ -195,6 +224,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     return (
       <div className="space-y-8" data-testid="admin-intake">
         <Horario />
+        <CampaignConfig ctx={ctx} />
         <Card pad={false}>
           <div className="px-7 pt-7"><CardTitle title={t('Formularios web', 'Web forms')} hint={t('Cada formulario tiene una página lista para usar y una API para conectarlo desde el sitio web.', 'Each form has a ready-to-use page and an API to connect it from the website.')} /></div>
           <Table testId="form-table" head={<><th>{t('Formulario', 'Form')}</th><th>{t('Página', 'Page')}</th><th>API</th><th>{t('Reparte por', 'Routed by')}</th><th>{t('Leads 30 días', 'Leads, 30 days')}</th></>}>
@@ -221,8 +251,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <CardTitle
                 title={r.name}
                 hint={t(
-                  `Turno rotativo · respuesta en ${r.sla_minutes} min · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead queda sin asignar y lo ve todo el mercado'}`,
-                  `Round robin · response within ${r.sla_minutes} min · ${fallback ? `if nobody is left in the rotation, it goes to ${fallback}` : 'no fallback: if nobody is left in the rotation, the lead stays unowned and the whole market sees it'}`,
+                  `Turno rotativo · respuesta en ${targetText(t, r)} · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead queda sin asignar y lo ve todo el mercado'}`,
+                  `Round robin · response within ${targetText(t, r)} · ${fallback ? `if nobody is left in the rotation, it goes to ${fallback}` : 'no fallback: if nobody is left in the rotation, the lead stays unowned and the whole market sees it'}`,
                 )}
                 right={<Badge>{r.market_code}</Badge>}
               />
@@ -273,6 +303,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {t('CONTIGO ya recibe eventos de la Sales App y el archivo diario de ventas. Falta que los equipos que llevan esos sistemas acuerden el formato y los conecten.', 'CONTIGO already accepts Sales App events and the daily sales file. The teams that run those systems still need to agree on the format and connect them.')}
         </div>
 
+        <p className="rounded-[14px] border border-line px-5 py-4 text-[14px] text-muted-2" data-testid="integrations-more">
+          {t('Suscriptores y catálogo de eventos, llaves de lectura con rotación, documentación de la API, mensajes detenidos de la Sales App, protección de formularios e importaciones y exportaciones: ', 'Subscribers and the event catalog, read keys with rotation, the API documentation, held Sales App messages, form protection and imports and exports: ')}
+          <Link href="/admin/integraciones" className="font-medium text-blue-text underline" data-testid="integrations-more-link">{t('abrir Eventos, API y datos', 'open Events, API and data')}</Link>.
+        </p>
+
         {staging && (
           <Card data-testid="integration-lab">
             <CardTitle title={t('Probar el contrato (solo staging)', 'Try the contract (staging only)')} hint={t('Cada botón manda el mismo mensaje que mandaría el sistema real, por el mismo camino.', 'Each button sends the same message the real system would, down the same path.')} />
@@ -316,7 +351,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <p className="eyebrow mt-7 mb-3">{t('Archivos diarios de ventas', 'Daily sales files')}</p>
             <ul className="space-y-2.5">{d.batches.map((b) => <li key={b.id} className="flex items-center justify-between gap-3 text-[13.5px]" data-testid="batch-row"><span className="truncate"><code className="text-[12.5px]">{b.file_name}</code></span><span className="shrink-0 text-muted-2">{t(`${num(b.matched, locale)} de ${num(b.row_count, locale)} filas ligadas`, `${num(b.matched, locale)} of ${num(b.row_count, locale)} rows matched`)} · {day(b.as_of, locale)}</span></li>)}</ul>
           </Card>
-          <Card data-testid="outbox-log"><CardTitle title={t('Avisos para otros sistemas', 'Notices for other systems')} hint={t('Avisos que CONTIGO guarda para otros sistemas. Todavía nadie los consume: el número crece y no afecta el trabajo diario.', 'Notices CONTIGO keeps for other systems. Nobody consumes them yet: the number grows and it does not affect daily work.')} right={<Badge tone={d.outboxPending ? 'warn' : 'good'}>{t(`${num(d.outboxPending, locale)} por publicar`, `${num(d.outboxPending, locale)} to publish`)}</Badge>} />
+          <Card data-testid="outbox-log"><CardTitle title={t('Avisos para otros sistemas', 'Notices for other systems')} hint={t('Eventos que CONTIGO guarda para otros sistemas. El canal de entrega está apagado: quedan listos para publicar y no afectan el trabajo diario.', 'Events CONTIGO keeps for other systems. The delivery channel is off: they stay ready to publish and do not affect daily work.')} right={<Badge tone="neutral">{t(`${num(d.outboxPending, locale)} guardados`, `${num(d.outboxPending, locale)} stored`)}</Badge>} />
             <ul className="space-y-2.5">{d.outbox.map((o) => <li key={o.id} className="flex items-center justify-between gap-3 text-[13.5px]"><code className="text-[12.5px]">{o.event_type}</code><span className="text-muted-2">{o.market_code ?? <NoData locale={locale} />} · {ago(o.created_at, locale)}</span></li>)}</ul>
           </Card>
         </div>

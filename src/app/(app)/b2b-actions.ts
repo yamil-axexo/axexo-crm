@@ -91,7 +91,7 @@ export async function createFieldAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     await createField(ctx, {
       object: str(fd, 'object') as 'account', market: str(fd, 'market'), motor: str(fd, 'motor') as 'b2b', labelEs: str(fd, 'label_es'), labelEn: str(fd, 'label_en'),
-      dataType: str(fd, 'data_type') as 'text', options: lines(str(fd, 'options')), inIntake: fd.get('in_intake') === 'on',
+      dataType: str(fd, 'data_type') as 'text', options: lines(str(fd, 'options')), inIntake: fd.get('in_intake') === 'on', decision: str(fd, 'decision'),
     })
     return { message: ['Campo creado. Ya aparece en la ficha.', 'Field created. It now shows on the record.'] }
   })

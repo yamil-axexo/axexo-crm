@@ -10,7 +10,7 @@ const axe = async (page: Page, label: string) => {
 }
 const noSideScroll = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
 
-/** Deja un negocio de Marco en "Interés de quien decide" sin próximo paso y devuelve su comercio. */
+/** Deja un negocio de Marco en "Contactada" sin próximo paso y devuelve su comercio. */
 async function dealWithoutNextStep(): Promise<{ id: string; name: string }> {
   const sql = testDb()
   const [d] = await sql<{ id: string; name: string }[]>`
@@ -21,11 +21,11 @@ async function dealWithoutNextStep(): Promise<{ id: string; name: string }> {
     update crm.deals d set next_step = null, next_step_due = null from pick, crm.accounts a
      where d.id = pick.id and a.id = d.account_id returning d.id, a.name`
   await sql.end()
-  if (!d) throw new Error('el seed no dejó un negocio de Marco en "Interés de quien decide"')
+  if (!d) throw new Error('el seed no dejó un negocio de Marco en "Contactada"')
   return d
 }
 
-/** Un negocio de Marco en "Tienda visitada", con próximo paso pero sin haber hablado con quien decide. */
+/** Un negocio de Marco en "Prospecto", con próximo paso pero sin haber hablado con quien decide. */
 /** Arrastra una tarjeta a otra etapa. La tarjeta se centra primero: abajo, el dock flotante queda encima de la lista. */
 async function drag(page: Page, card: ReturnType<Page['locator']>, stage: string) {
   await expect(card).toHaveAttribute('draggable', 'true')
@@ -42,7 +42,7 @@ async function dealWithoutDecisionMaker(): Promise<string> {
     update crm.deals d set decision_maker_met = false, next_step = coalesce(d.next_step, 'Volver a visitar'), next_step_due = coalesce(d.next_step_due, current_date + 1)
       from pick where d.id = pick.id returning d.id`
   await sql.end()
-  if (!d) throw new Error('el seed no dejó un negocio de Marco en "Tienda visitada"')
+  if (!d) throw new Error('el seed no dejó un negocio de Marco en "Prospecto"')
   return d.id
 }
 
@@ -87,7 +87,7 @@ for (const w of WIDTHS) {
       } else {
         if (w.name === 'movil') await page.getByTestId('stage-tab-interes').click()
         await expect(card).toHaveAttribute('draggable', 'false')
-        await card.getByTestId('deal-stage-select').selectOption({ label: 'Tienda visitada' })
+        await card.getByTestId('deal-stage-select').selectOption({ label: 'Prospecto' })
       }
       const dialog = page.getByTestId('next-dialog')
       await expect(dialog).toBeVisible()
@@ -99,25 +99,25 @@ for (const w of WIDTHS) {
       await expect(page.getByTestId('stage-interes').locator(`[data-card="${deal.id}"]`)).toHaveCount(1)
 
       if (w.name === 'desktop') await drag(page, card, 'visitada')
-      else await card.getByTestId('deal-stage-select').selectOption({ label: 'Tienda visitada' })
+      else await card.getByTestId('deal-stage-select').selectOption({ label: 'Prospecto' })
       await page.getByTestId('next-dialog-step').fill('Volver con la dueña')
       await page.getByTestId('next-dialog-save').click()
-      await expect(page.getByTestId('toast')).toHaveText(`${deal.name} pasó a Tienda visitada.`)
+      await expect(page.getByTestId('toast')).toHaveText(`${deal.name} pasó a Prospecto.`)
       if (w.name === 'movil') await page.getByTestId('stage-tab-visitada').click()
       const moved = page.getByTestId('stage-visitada').locator(`[data-card="${deal.id}"]`)
       await expect(moved.getByTestId('deal-chip')).toContainText('Volver con la dueña')
       await expect(moved).not.toHaveAttribute('data-warn', '')
 
-      // "Interés de quien decide" exige haber hablado con quien decide: el tablero no lo deja pasar y explica qué falta
+      // "Contactada" exige haber hablado con quien decide: el tablero no lo deja pasar y explica qué falta
       const gated = await dealWithoutDecisionMaker()
       await page.reload()
       if (w.name === 'movil') await page.getByTestId('stage-tab-visitada').click()
       const other = page.locator(`[data-card="${gated}"]`)
       if (w.name === 'desktop') await drag(page, other, 'interes')
-      else await other.getByTestId('deal-stage-select').selectOption({ label: 'Interés de quien decide' })
+      else await other.getByTestId('deal-stage-select').selectOption({ label: 'Contactada' })
       // El candado de etapa se resuelve en una hoja ahí mismo (antes era un aviso): dice qué falta y la tarjeta no se mueve sola.
       await expect(page.getByTestId('gate-dialog')).toBeVisible()
-      await expect(page.getByTestId('gate-dialog')).toContainText('Interés de quien decide')
+      await expect(page.getByTestId('gate-dialog')).toContainText('Contactada')
       await expect(page.getByTestId('gate-fields')).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(page.getByTestId('gate-dialog')).toBeHidden()

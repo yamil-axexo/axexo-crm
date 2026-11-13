@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { isWebSource } from '@/lib/lead-source'
 import { requireCtx, systemCtx } from '@/server/context'
 import { track } from '@/dal/boards'
 import { getQueue, getTeamQueue, QUEUE_PAGE, type QueueRow } from '@/dal/queue'
@@ -119,7 +120,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
       return {
         ...base,
         title: m('action.callOf', { name }),
-        context: `${m(r.kind === 'web_form' ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
+        context: `${m(isWebSource(r.kind) ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
         chip: r.group === 'late' ? { text: m('today.chip.late'), tone: 'risk' } : { text: m('today.chip.today'), tone: 'warn' },
         clock: r.due ? r.due.toISOString() : null,
         results: resultOptions(ctx, ['reached', 'no_answer']),
@@ -216,14 +217,17 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
           {notices.map((n) => (
             <div key={n.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3" data-testid="hoy-notice">
               <p className="min-w-[200px] flex-1 text-[14.5px] text-strong">
-                <span className="font-semibold">{n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
+                <span className="font-semibold">{n.title ?? n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
                 <span className="block text-muted-2">{n.body}</span>
               </p>
-              <Link href={n.deal_id ? `/deals/${n.deal_id}` : `/comercios/${n.account_id}`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="hoy-notice-open">{t('Abrir', 'Open')}</Link>
-              <ActionForm action={noticeSeenAction}>
-                <input type="hidden" name="notice_id" value={n.id} />
-                <Submit variant="ghost" size="sm" testId="hoy-notice-seen">{t('Visto', 'Seen')}</Submit>
-              </ActionForm>
+              <Link href={n.link ?? (n.deal_id ? `/deals/${n.deal_id}` : n.account_id ? `/comercios/${n.account_id}` : '/avisos')} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="hoy-notice-open">{t('Abrir', 'Open')}</Link>
+              {/* Un anuncio con acuse se confirma en Anuncios: "Visto" no cuenta como acuse. */}
+              {n.kind !== 'announcement' && (
+                <ActionForm action={noticeSeenAction}>
+                  <input type="hidden" name="notice_id" value={n.id} />
+                  <Submit variant="ghost" size="sm" testId="hoy-notice-seen">{t('Visto', 'Seen')}</Submit>
+                </ActionForm>
+              )}
             </div>
           ))}
         </section>

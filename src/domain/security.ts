@@ -1,10 +1,8 @@
 import 'server-only'
 import { z } from 'zod'
-import { randomBytes } from 'node:crypto'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, clean, newId } from '@/domain/common'
-import { hashKey } from '@/domain/admin'
 import { ADMIN_AREAS, type AdminArea } from '@/domain/policy'
 import { assertNoProhibited } from '@/domain/guard'
 import { forbidden, invalid, notFound } from '@/lib/errors'
@@ -506,7 +504,7 @@ export async function closeAccessReview(ctx: Ctx, reviewId: string): Promise<{ k
 
 // ------------------------------------------------------------ SEG-08: llaves y secretos
 const keyMeta = z.object({ ownerId: uuid.or(z.literal('')), expires: isoDate.or(z.literal('')) })
-/** Dueño y vencimiento de una llave de API. Una llave vencida deja de valer sola. */
+/** Dueño y vencimiento de una llave de API. Una llave vencida deja de valer sola. La rotación (llave nueva, la anterior con fecha de retiro) vive en domain/api-keys.ts. */
 export async function setApiClientMeta(ctx: Ctx, id: string, input: z.input<typeof keyMeta>): Promise<void> {
   ctx.assert('integration.operate')
   const v = keyMeta.parse(input)
@@ -517,24 +515,6 @@ export async function setApiClientMeta(ctx: Ctx, id: string, input: z.input<type
     if (v.expires && (await tx<{ ok: boolean }[]>`select ${v.expires}::date > (now() at time zone 'UTC')::date as ok`)[0]?.ok !== true) throw invalid('El vencimiento tiene que ser una fecha futura.', 'The expiry has to be a future date.')
     await tx`update crm.api_clients set owner_id = ${v.ownerId || null}, expires_at = ${v.expires ? tx`(${v.expires}::date + 1)::timestamp at time zone 'UTC'` : null} where id = ${id}`
     await audit(tx, ctx, 'api_client.updated', 'api_client', id, null, before[0], { owner_id: v.ownerId || null, expires: v.expires || null })
-  })
-}
-
-/** Rotar: nace una llave nueva con los mismos permisos y la anterior deja de valer en 24 horas, para dar tiempo a cambiarla. */
-export async function rotateApiClient(ctx: Ctx, id: string): Promise<{ id: string; key: string }> {
-  ctx.assert('integration.operate')
-  const key = `ctg_${randomBytes(30).toString('base64url')}`
-  return withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ name: string; scopes: string[]; owner_id: string | null }[]>`
-      select name, scopes, owner_id from crm.api_clients where id = ${id} and revoked_at is null and (expires_at is null or expires_at > now()) for update`
-    const old = rows[0]
-    if (!old) throw notFound()
-    const newIdValue = await newId(tx)
-    await tx`insert into crm.api_clients (id, name, key_prefix, key_hash, scopes, created_by, owner_id, rotated_from)
-             values (${newIdValue}, ${old.name}, ${key.slice(0, 8)}, ${hashKey(key)}, ${old.scopes}, ${ctx.user.id}, ${old.owner_id ?? ctx.user.id}, ${id})`
-    await tx`update crm.api_clients set expires_at = now() + interval '24 hours' where id = ${id}`
-    await audit(tx, ctx, 'api_client.rotated', 'api_client', newIdValue, null, { replaced: id }, { name: old.name, scopes: old.scopes, old_key_valid_hours: 24 })
-    return { id: newIdValue, key }
   })
 }
 

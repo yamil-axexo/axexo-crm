@@ -104,7 +104,7 @@ begin
       select coalesce(array_agg(n.key order by n.key), '{}') into v_changed
         from jsonb_each(v_new) n where n.value is distinct from v_old -> n.key;
       -- Una fila que solo cambió su marca de último uso no es un cambio de datos.
-      if v_changed <@ array['last_seen_at','last_used_at','use_count']::text[] then return null; end if;
+      if v_changed <@ array['last_seen_at','last_used_at']::text[] then return null; end if;
     end if;
   end if;
   v_actor := nullif(current_setting('app.user_id', true), '')::uuid;
@@ -899,36 +899,40 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
 $$;
 
 -- ============================================================ 7) SEG-08: llaves e inventario de secretos, sin valores
+-- Las llaves de la API ya traen mercado, modo, límite, último uso y retiro por rotación (0021). Aquí ganan dueño y vencimiento.
 alter table crm.api_clients
   add column owner_id uuid references crm.users(id),
-  add column expires_at timestamptz,
-  add column last_used_at timestamptz,
-  add column use_count bigint not null default 0,
-  add column rotated_from uuid references crm.api_clients(id);
+  add column expires_at timestamptz;
 update crm.api_clients set owner_id = created_by where owner_id is null;
--- Una llave nace con dueño: quien la creó, salvo que se diga otra persona. Lo pone la base para que valga por cualquier vía.
+-- Una llave nace con dueño: quien la creó (o, si sale de una rotación, el dueño de la anterior), salvo que se diga otra persona. Lo pone la base para que valga por cualquier vía.
 create or replace function crm.api_client_owner() returns trigger
-language plpgsql set search_path = pg_catalog as $$
+language plpgsql security definer set search_path = crm, pg_catalog as $$
 begin
-  new.owner_id := coalesce(new.owner_id, new.created_by);
+  new.owner_id := coalesce(new.owner_id, (select c.owner_id from crm.api_clients c where c.id = new.rotated_from), new.created_by);
   return new;
 end $$;
 create trigger api_clients_owner before insert on crm.api_clients for each row execute function crm.api_client_owner();
 
+-- Las dos funciones con las que se autentica una llave (0021) suman la misma condición: una llave vencida deja de valer sola.
 create or replace function app.api_client(p_hash text)
 returns table (id uuid, name text, scopes text[])
 language sql stable security definer set search_path = crm, app, pg_catalog as $$
   select c.id, c.name, c.scopes from crm.api_clients c
-   where c.key_hash = p_hash and c.revoked_at is null and (c.expires_at is null or c.expires_at > now())
+   where c.key_hash = p_hash and c.revoked_at is null and (c.retire_at is null or c.retire_at > now())
+     and (c.expires_at is null or c.expires_at > now())
 $$;
-
-/** Cada llamada con una llave deja su último uso y una fila en el registro de lecturas, por llave. */
-create or replace function app.api_client_used(p_id uuid, p_scope text) returns void
-language plpgsql security definer set search_path = crm, app, audit, pg_catalog as $$
+create or replace function app.api_key(p_hash text)
+returns table (id uuid, name text, scopes text[], market_code text, mode text, rate_per_minute int, created_by uuid)
+language plpgsql volatile security definer set search_path = crm, app, pg_catalog as $$
 begin
-  update crm.api_clients set last_used_at = now(), use_count = use_count + 1 where id = p_id;
-  insert into audit.read_log (actor_id, key_id, via, kind, object, row_count, detail)
-  values (null, p_id, 'api', 'api', coalesce(p_scope, 'api'), 1, null);
+  update crm.api_clients c set last_used_at = now()
+   where c.key_hash = p_hash and c.revoked_at is null and (c.retire_at is null or c.retire_at > now())
+     and (c.expires_at is null or c.expires_at > now())
+     and (c.last_used_at is null or c.last_used_at < now() - interval '1 minute');
+  return query
+    select c.id, c.name, c.scopes, c.market_code, c.mode, c.rate_per_minute, c.created_by from crm.api_clients c
+     where c.key_hash = p_hash and c.revoked_at is null and (c.retire_at is null or c.retire_at > now())
+       and (c.expires_at is null or c.expires_at > now());
 end $$;
 
 -- Lo que CONTIGO usa para conectarse hacia afuera. Aquí vive el nombre de la variable, su dueño y su rotación; el valor, nunca.
@@ -1001,18 +1005,21 @@ begin
   on conflict (kind, subject_key, period) do update set observed = excluded.observed where crm.security_alerts.status = 'open';
   get diagnostics k = row_count; n := n + k;
 
+  -- Llamadas por llave y hora: salen de los contadores del límite de frecuencia (0021), que cuentan cada llamada.
   insert into crm.security_alerts (kind, subject_key, key_id, period, observed, threshold)
-  select 'api_calls_per_hour', r.key_id::text, r.key_id, to_char(r.at, 'YYYY-MM-DD HH24'), count(*)::int, (th ->> 'api_calls_per_hour')::int
-    from audit.read_log r where r.kind = 'api' and r.key_id is not null and r.at > now() - interval '1 day'
-   group by r.key_id, to_char(r.at, 'YYYY-MM-DD HH24')
-  having (th ->> 'api_calls_per_hour') is not null and count(*) > (th ->> 'api_calls_per_hour')::int
-  on conflict (kind, subject_key, period) do nothing;
+  select 'api_calls_per_hour', c.id::text, c.id, to_char(r.window_start, 'YYYY-MM-DD HH24'), sum(r.hits)::int, (th ->> 'api_calls_per_hour')::int
+    from crm.rate_counters r join crm.api_clients c on r.bucket = 'api:key:' || c.id::text
+   where r.window_start > now() - interval '1 day'
+   group by c.id, to_char(r.window_start, 'YYYY-MM-DD HH24')
+  having (th ->> 'api_calls_per_hour') is not null and sum(r.hits) > (th ->> 'api_calls_per_hour')::int
+  on conflict (kind, subject_key, period) do update set observed = excluded.observed where crm.security_alerts.status = 'open';
   get diagnostics k = row_count; n := n + k;
 
   insert into crm.security_alerts (kind, subject_key, key_id, period, observed, threshold)
   select 'key_expiring', c.id::text, c.id, to_char(c.expires_at, 'YYYY-MM-DD'), greatest((c.expires_at::date - now()::date), 0), (th ->> 'key_expiring_days')::int
     from crm.api_clients c
-   where c.revoked_at is null and c.expires_at is not null and (th ->> 'key_expiring_days') is not null
+   where c.revoked_at is null and c.expires_at is not null and c.expires_at > now() and (c.retire_at is null or c.retire_at > now())
+     and (th ->> 'key_expiring_days') is not null
      and c.expires_at < now() + make_interval(days => (th ->> 'key_expiring_days')::int)
   on conflict (kind, subject_key, period) do nothing;
   get diagnostics k = row_count; n := n + k;
@@ -1020,7 +1027,7 @@ begin
   insert into crm.security_alerts (kind, subject_key, key_id, period, observed, threshold)
   select 'key_unused', c.id::text, c.id, to_char(now(), 'YYYY-MM'), (now()::date - coalesce(c.last_used_at, c.created_at)::date), (th ->> 'key_unused_days')::int
     from crm.api_clients c
-   where c.revoked_at is null and (c.expires_at is null or c.expires_at > now()) and (th ->> 'key_unused_days') is not null
+   where c.revoked_at is null and (c.expires_at is null or c.expires_at > now()) and (c.retire_at is null or c.retire_at > now()) and (th ->> 'key_unused_days') is not null
      and coalesce(c.last_used_at, c.created_at) < now() - make_interval(days => (th ->> 'key_unused_days')::int)
   on conflict (kind, subject_key, period) do nothing;
   get diagnostics k = row_count; n := n + k;

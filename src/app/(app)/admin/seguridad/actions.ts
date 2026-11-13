@@ -10,7 +10,7 @@ import { ADMIN_AREAS, type AdminArea } from '@/domain/policy'
 import {
   acknowledgeAlert, addAccountTeamMember, anonymizeSubject, applyRetention, closeAccessReview, createAgency, createSensitiveField, createSubjectRequest,
   decideReviewItem, grantAgencyAccess, liftOptOut, openAccessReview, optOut, prepareAuditArchive, recordConsent, recordSeatApproval, removeAccountTeamMember,
-  revealSensitive, revokeConsent, rotateApiClient, runSecurityScan, setAdminAreas, setApiClientMeta, setDueDays, setMembershipEntity, setRetentionRule,
+  revealSensitive, revokeConsent, runSecurityScan, setAdminAreas, setApiClientMeta, setDueDays, setMembershipEntity, setRetentionRule,
   setSecretMeta, setSensitive, setTeamParent, setThresholds, startViewAs, updateSensitiveField, updateSubjectRequest, THRESHOLD_KEYS,
 } from '@/domain/security'
 import type { ActionResult } from '@/lib/errors'
@@ -199,10 +199,6 @@ export async function keyMetaAction(_: R | null, fd: FormData): Promise<R> {
     await setApiClientMeta(ctx, str(fd, 'id'), { ownerId: str(fd, 'owner_id'), expires: str(fd, 'expires') })
     return { message: ['Llave actualizada.', 'Key updated.'], revalidate: here }
   })
-}
-
-export async function rotateKeyAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction<string>(async (ctx) => ({ data: (await rotateApiClient(ctx, str(fd, 'id'))).key, revalidate: here }))
 }
 
 export async function secretMetaAction(_: R | null, fd: FormData): Promise<R> {

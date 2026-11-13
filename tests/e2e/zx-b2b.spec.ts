@@ -254,12 +254,15 @@ test.describe('administración configura desde la pantalla', () => {
     await dialog.getByTestId('field-new-market').selectOption('MX')
     await dialog.getByTestId('field-new-motor').selectOption('b2b')
     await dialog.getByTestId('field-new-options').fill('Referido\nEvento')
+    // paquete datos (GOB-01): sin decisión documentada no hay campo
+    await dialog.getByTestId('field-new-decision').fill('Decide por qué canal se le da seguimiento a la cuenta')
     await dialog.getByTestId('field-new-save').click()
     await expect(page.getByTestId('field-row').filter({ hasText: field })).toHaveCount(1)
     // un campo que pediría un dato que no se guarda no se crea
     await page.getByTestId('field-new').click()
     await page.locator('dialog[open]').getByTestId('b2b-label-es').fill('CLABE del comercio')
     await page.locator('dialog[open]').getByTestId('b2b-label-en').fill('Merchant CLABE')
+    await page.locator('dialog[open]').getByTestId('field-new-decision').fill('Decide a qué cuenta se le deposita')
     await page.waitForTimeout(800)
     await page.locator('dialog[open]').getByTestId('field-new-save').click()
     await expect(page.locator('dialog[open]').getByTestId('form-error')).toContainText('no guarda')

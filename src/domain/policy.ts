@@ -83,12 +83,64 @@ export const CAPABILITIES = {
   // Adopción: conteos de uso por persona. No la ve supervisión ni ventas.
   'adoption.read': ['admin', 'lt', 'market_lead'],
   'config.manage': ['admin'],
+  // Automatizaciones (AUT-03): las crea, cambia y pausa administración. Quien lidera un mercado y leadership las leen, con su bitácora.
+  'automation.manage': ['admin'],
+  'automation.read': ['admin', 'lt', 'market_lead'],
+  // Tareas programadas: "Correr ahora" es de administración. Las corridas las ve también quien responde por los controles (status.read).
+  'job.run': ['admin'],
   'integration.operate': ['admin'],
   // Página de estado: ambiente, versión, frescura de los datos e integraciones. La ven quien administra y quien responde por los controles.
   'status.read': ['admin', 'lt'],
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // Anuncios a la red con acuse (0020): publica administración o quien lidera (su mercado; supervisión, su equipo). Leerlos y dar
+  // acuse lo hace cualquier persona de la audiencia, también quien solo lee: el acuse es suyo (domain/announcements.ts).
+  'announcement.publish': MANAGERS,
+  // Importar comercios, contactos y leads por archivo: administración y quien lidera el mercado (en el suyo). Cada fila pasa
+  // por las mismas reglas que el alta a mano; la base repite el límite (app.can_import).
+  'data.import': ['admin', 'market_lead'],
+  // Página Reportes (paquete reportes): la ve todo el mundo, cada quien con lo de su alcance (RLS y el alcance del reporte deciden las filas).
+  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  // Guardar un reporte con sus filtros es de la persona (como reportar un problema): también quien solo lee. Compartirlo con el equipo es de quien dirige.
+  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'report.share': MANAGERS,
+  // Reportes de Finanzas y conciliación con el archivo de ventas. No existe un rol de Finanzas: hoy entran leadership, quien lidera y administración.
+  'report.finance': ['admin', 'lt', 'market_lead'],
+  'report.reconcile': ['admin', 'lt', 'market_lead'],
+  // "Lo que llevo": los números que alimentan el incentivo de quien vende (sin montos de comisión).
+  'report.carry': SELLERS,
+  // Uso real de CONTIGO por persona y equipo. Supervisión ve a su equipo; ventas y operaciones no.
+  'adoption.team': ['admin', 'lt', 'market_lead', 'supervisor'],
+  // Dueño de cada indicador: lo cambia administración.
+  'metric.owner': ['admin'],
+  // Vistas guardadas como colas: cada persona guarda y fija las suyas; compartir con el equipo es de quien dirige.
+  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'view.share': MANAGERS,
+  // Paquete datos (0023). Cola de duplicados: buscar en lote, descartar un par y revisar avisos saltados es de quien lidera el
+  // mercado o administra; fusionar y deshacer sigue siendo solo de administración ('account.merge').
+  'duplicate.review': ['admin', 'market_lead'],
+  // Identificadores de otros sistemas: los agrega y los cierra quien cuida los datos del mercado.
+  'alias.manage': ['admin', 'market_lead', 'ops'],
+  // Campos: quien lidera un mercado propone; administración aprueba ('config.manage'). Listas de proceso del mercado.
+  'field.propose': ['admin', 'market_lead'],
+  'process.define': ['admin', 'market_lead'],
+  // Tablero de calidad de datos: cada quien sobre lo que ve (supervisión, su equipo). Leadership también lo lee, por su
+  // alcance global (la pantalla lo deja entrar con `ctx.isGlobal`; aquí no se le da una capacidad que no sea de lectura declarada).
+  'data.quality': [...MANAGERS, 'ops'],
+  // Matriz de productos por comercio y su estado con cada proveedor: la mantiene Operaciones.
+  'account.products': ['admin', 'ops'],
+  // México (paquete mx). Mientras las hojas se retiran, quien dirige un equipo carga las visitas que el campo sigue anotando
+  // ahí; las tiendas ya migradas (un negocio ganado en su fecha real) las carga quien lidera el mercado o administración.
+  'visit.sheet_load': MANAGERS,
+  'deal.migrated_load': ['admin', 'market_lead'],
+  // Arranque del mercado (primero quienes lideran, pasos de capacitación): lo ve quien dirige y leadership; lo cambia
+  // administración y quien lidera el mercado.
+  'rollout.read': ['admin', 'lt', 'market_lead', 'supervisor'],
+  'rollout.manage': ['admin', 'market_lead'],
+  // Los leads descartados como base de correo: la descarga lleva correos, así que es de quien lidera el mercado y de
+  // administración, y solo trae a quien dio su consentimiento (domain/mx-reports.ts).
+  'lead.mailing_export': ['admin', 'market_lead'],
   // 0031 seguridad. Dar y quitar accesos, equipos, agencias, asientos y "ver como" es la parte Accesos de Administración.
   'access.manage': ['admin'],
   'user.view_as': ['admin'],

@@ -1,6 +1,9 @@
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { randomUUID } from 'node:crypto'
+import { headers } from 'next/headers'
+import { openPublicForm } from '@/domain/form-guard'
+import { clientIp } from '@/server/protect'
 import { withoutUser } from '@/server/db'
 import { translator, type Locale } from '@/lib/format'
 import { Field } from '@/ui/kit'
@@ -22,8 +25,24 @@ export default async function PublicForm({ params, searchParams }: { params: Pro
   const form = rows[0]
   if (!form) notFound()
   const t = translator(form.locale)
+  // SEG-10: cada vista cuenta contra el límite por IP; la llave de esta página queda anotada para aceptar su envío.
+  const renderKey = randomUUID()
+  const view = await openPublicForm(slug, clientIp(await headers()), renderKey)
+  if (!view.allowed) {
+    return (
+      <main className="mx-auto max-w-[560px] px-6 py-14">
+        <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={200} height={50} className="h-10 w-auto" />
+        <section className="card mt-8 p-8" data-testid="public-limited">
+          <h1 className="text-[22px] font-bold">{t('Demasiadas solicitudes', 'Too many requests')}</h1>
+          <p className="mt-2 text-[14px] text-muted-2">{t('Espera un minuto y vuelve a cargar la página.', 'Wait a minute and reload the page.')}</p>
+        </section>
+      </main>
+    )
+  }
   // Lo que este formulario pide además de lo básico (lo elige administración). Ninguno es obligatorio: el lead no se pierde por un campo.
   const extra = await withoutUser((tx) => tx<{ key: string; label_es: string; label_en: string; data_type: string; options: string[] }[]>`select key, label_es, label_en, data_type, options from app.form_fields(${slug})`)
+  // Tipo de empresa (E15.F3): el formulario de cadenas y distribuidores ofrece los tipos que administración eligió.
+  const companyTypes = await withoutUser((tx) => tx<{ code: string; label_es: string; label_en: string }[]>`select code, label_es, label_en from app.form_offer_types(${slug})`)
   return (
     <main className="mx-auto max-w-[560px] px-6 py-14">
       <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={200} height={50} className="h-10 w-auto" />
@@ -32,11 +51,19 @@ export default async function PublicForm({ params, searchParams }: { params: Pro
         <p className="mt-2 text-[14px] text-muted-2">{t('Déjanos tus datos y te contactamos.', 'Leave your details and we will reach out.')}</p>
         <ActionForm action={submitPublicForm} onOk="reset" className="mt-7 space-y-4" testId="public-form">
           <input type="hidden" name="slug" value={slug} />
-          <input type="hidden" name="idempotency_key" value={randomUUID()} />
+          <input type="hidden" name="idempotency_key" value={renderKey} />
           <input type="hidden" name="locale" value={form.locale === 'en' ? 'en' : 'es'} />
           {origin.map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
           <div className="hidden" aria-hidden><label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
           <Field label={t('Nombre del negocio', 'Business name')}><input name="business_name" className="input" required minLength={2} maxLength={120} /></Field>
+          {companyTypes.length > 0 && (
+            <Field label={t('Tipo de empresa', 'Company type')}>
+              <select name="company_type" className="input" defaultValue="" data-testid="public-company-type">
+                <option value="">{t('Elige una opción', 'Pick an option')}</option>
+                {companyTypes.map((c) => <option key={c.code} value={c.code}>{t(c.label_es, c.label_en)}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label={t('Tu nombre', 'Your name')}><input name="contact_name" className="input" required minLength={2} maxLength={120} /></Field>
           <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" required /></Field>
           <Field label={t('Correo (opcional)', 'Email (optional)')}><input name="email" type="email" className="input" /></Field>
