@@ -11,6 +11,8 @@ const daysAgo = (n: number) => iso(new Date(Date.now() - n * 86400000))
 
 async function check(page: Page, what: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${what}: se sale del ancho`).toBeLessThanOrEqual(0)
+  // El encabezado y el dock fijos tapan lo que quedó a medio desplazar: se mide con la página arriba.
+  await page.evaluate(() => window.scrollTo(0, 0))
   const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
   const bad = axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(bad.map((v) => `${v.id}: ${v.nodes[0]?.html.slice(0, 120)}`), `${what}: accesibilidad`).toEqual([])

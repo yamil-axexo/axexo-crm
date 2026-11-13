@@ -62,7 +62,7 @@ test.describe('paquete embudo', () => {
     await page.getByTestId('sim-run').click()
     await expect(page.getByTestId('sim-owner')).toContainText('Lucía Vega')
     await expect(page.getByTestId('sim-why')).toContainText(ruleName)
-    expect((await sql`select 1 from crm.assignment_log`).length).toBe(0)
+    expect((await sql`select 1 from crm.assignment_log where rule_name = ${ruleName}`).length).toBe(0) // otras pruebas ya asignaron leads en esta corrida
 
     // Un requisito de etapa con condición: se guarda y se lee en la misma pantalla; luego vuelve a "siempre".
     const cond = page.getByTestId('cond-form').first()

@@ -227,10 +227,10 @@ test.describe('panel del LT', () => {
       const form = page.getByTestId('fx-form')
       await form.getByTestId('fx-date').fill('2026-11-02')
       await form.getByTestId('fx-rate').fill('0.0541')
-      await form.getByTestId('fx-source').fill('Tasa de prueba del paquete liderazgo')
+      await form.getByTestId('fx-source').fill('Banxico FIX de prueba (liderazgo)')
       await form.getByTestId('fx-save').click()
       await expect(page.getByTestId('fx-value')).toHaveText('1 MXN = 0.0541 USD')
-      await expect(page.getByTestId('fx-meta')).toContainText('Tasa del 2 nov 2026. Fuente: Tasa de prueba del paquete liderazgo. La cargó Nora Salas.')
+      await expect(page.getByTestId('fx-meta')).toContainText('Tasa del 2 nov 2026. Fuente: Banxico FIX de prueba (liderazgo). La cargó Nora Salas.')
       // una tasa sin fuente o en cero no entra
       await page.waitForTimeout(800) // el formulario ignora un segundo envío inmediato después de guardar
       await form.getByTestId('fx-date').fill('2026-11-02')
@@ -240,7 +240,7 @@ test.describe('panel del LT', () => {
       await expect(form.getByTestId('form-error')).toContainText('Revisa la tasa')
 
       await page.goto('/panel-lt')
-      await expect(page.getByTestId('lt-fx')).toContainText('Tasa usada: 1 MXN = 0.0541 USD, con fecha del 2 nov 2026. Fuente: Tasa de prueba del paquete liderazgo.')
+      await expect(page.getByTestId('lt-fx')).toContainText('Tasa usada: 1 MXN = 0.0541 USD, con fecha del 2 nov 2026. Fuente: Banxico FIX de prueba (liderazgo).')
       await expect(page.getByTestId('lt-fx-missing')).toHaveCount(0)
       await page.goto('/admin?tab=auditoria&tipo=config')
       await expect(page.getByTestId('admin-audit')).toContainText('Cargó una tasa de cambio')
