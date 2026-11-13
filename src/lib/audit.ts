@@ -391,6 +391,7 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   csv_import: ['Importación por archivo', 'File import'],
   import_run: ['Importación de Pipedrive', 'Pipedrive import'],
   ingest_batch: ['Archivo de ventas', 'Sales file'],
+  data_load: ['Carga de datos', 'Data load'],
   assignment_rule: ['Regla de asignación', 'Assignment rule'],
   intake_retry: ['Envío de formulario retenido', 'Held form submission'],
   lead_label: ['Etiqueta de lead', 'Lead label'],

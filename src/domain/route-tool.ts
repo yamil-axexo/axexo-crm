@@ -72,7 +72,7 @@ export async function readRouteStores(key: ApiKey, params: URLSearchParams): Pro
       data: stores.map((s) => ({
         account_id: s.account_id, name: s.name, address: s.address, locality: s.locality, region: s.region, postal_code: s.postal_code,
         contact: s.contact, merchant_ref: s.merchant_ref, approved_products: s.approved_products,
-        performance: { txn_count_30d: s.txn_count_30d, activations_mtd: s.activations_mtd, activations_prev_month: s.activations_prev_month, sales_as_of: s.sales_as_of, last_visit_on: s.last_visit_on },
+        performance: { txn_count_30d: s.txn_count_30d, activations_mtd: s.activations_mtd ?? null, activations_prev_month: s.activations_prev_month ?? null, sales_as_of: s.sales_as_of ?? null, last_visit_on: s.last_visit_on },
       })),
     }
   })

@@ -33,7 +33,6 @@ const SKIP: Record<string, Pair> = {
   no_market: ['sin mercado identificable', 'no identifiable market'],
   // Reglas de entrada (las mismas de la pantalla y la API): la fila que no cumple no entra.
   rule_name: ['sin nombre válido', 'no valid name'],
-  no_deal: ['su negocio no está en CONTIGO', 'its deal is not in CONTIGO'],
   already_known: ['ya estaba en el historial', 'already in the history'],
   no_account: ['alguna de las dos organizaciones no está en CONTIGO', 'one of the two organizations is not in CONTIGO'],
   other_market: ['la matriz es de otro mercado', 'the parent is in another market'],

@@ -11,7 +11,7 @@ import { DomainError, invalid } from '@/lib/errors'
  * del mercado (no la configuración, los accesos, la bitácora ni las bajas de contacto) y deja el espejo de Pipedrive listo
  * para volver a cargarse con "aplicar el mapeo de nuevo"; un mercado que vino de hojas se recarga importando sus hojas.
  */
-export function resetAllowed(env: { APP_ENV?: string; TEST_RESET_ON_STAGING?: string } = process.env): boolean {
+export function resetAllowed(env: Record<string, string | undefined> = process.env): boolean {
   const app = env.APP_ENV ?? 'development'
   if (app === 'production') return false
   if (app === 'staging') return env.TEST_RESET_ON_STAGING === '1'
