@@ -8,6 +8,7 @@ import { track } from '@/dal/boards'
 import { getReportOptions } from '@/dal/reports'
 import { resultOptions, sheetConfig } from '@/server/sheet'
 import { Empty, Field, Pills, LinkButton, cx } from '@/ui/kit'
+import { DataTools } from '@/ui/data-tools'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { LeadCall } from '@/ui/lead-call'
 import { CONTACT_ROLE, LEAD_STATUS, MOTOR, SOURCE, lab, qs } from '@/lib/labels'
@@ -140,6 +141,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </Dialog>
         )}
       </header>
+      <DataTools t={t} canExport={ctx.can('report.export', sp.market)} canImport={ctx.can('data.import')} exportHref={qs('/leads/export', keep)} exportLabel={t('Exportar lo filtrado', 'Export what is filtered')} importHref="/importar?tipo=leads" />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Pills

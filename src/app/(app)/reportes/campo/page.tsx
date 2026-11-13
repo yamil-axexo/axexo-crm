@@ -50,8 +50,8 @@ export default async function FieldReportPage({ searchParams }: { searchParams: 
         title={t('Reporte semanal de campo', 'Weekly field report')}
         desc={t('Puntos de venta dados de alta y negocios ganados por semana y por territorio o plaza, y visitas por persona. La semana va de lunes a domingo, en la zona horaria del mercado.', 'Stores enrolled and deals won by week and by territory or city, and visits by person. The week runs Monday to Sunday, in the market’s time zone.')}
         actions={canExport ? <>
-          <ExportLink href={exportHref('comercios')} testId="export-stores">{t('Exportar altas y ganados', 'Export enrollments and wins')}</ExportLink>
-          <ExportLink href={exportHref('visitas')} testId="export-visits">{t('Exportar visitas', 'Export visits')}</ExportLink>
+          <ExportLink t={t} href={exportHref('comercios')} testId="export-stores">{t('Exportar altas y ganados', 'Export enrollments and wins')}</ExportLink>
+          <ExportLink t={t} href={exportHref('visitas')} testId="export-visits">{t('Exportar visitas', 'Export visits')}</ExportLink>
         </> : undefined}
       />
       <ReportFilters t={t} locale={locale} base="/reportes/campo" params={params} selects={[sel.market, sel.team, sel.owner]} />
@@ -126,7 +126,7 @@ export default async function FieldReportPage({ searchParams }: { searchParams: 
           </>
         )}
       </Card>
-      {canExport && <p className="mt-4 text-[13px] text-muted">{t('Los archivos traen las 8 semanas con los filtros de arriba. Cada exportación queda en la bitácora con tu nombre, los filtros y el número de filas.', 'The files hold the 8 weeks with the filters above. Each export is logged with your name, the filters and the number of rows.')}</p>}
+      {canExport && <p className="mt-4 text-[13px] text-muted">{t('Los archivos traen las 8 semanas con los filtros de arriba. Cada exportación pide un motivo y queda en la bitácora con tu nombre, los filtros y el número de filas.', 'The files hold the 8 weeks with the filters above. Each export asks for a reason and is logged with your name, the filters and the number of rows.')}</p>}
     </>
   )
 }

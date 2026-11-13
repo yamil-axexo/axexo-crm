@@ -55,7 +55,7 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 | SEC-03 | MUST | Met | No `NEXT_PUBLIC_` variable exists |
 | SEC-04 | MUST | Open | Patch policy needs an owner `[pending: Engineering]` |
 | SEC-05 | MUST | Met | CSP with per-request nonce, HSTS, `frame-ancestors 'none'`, Referrer-Policy, Permissions-Policy (E2E test). `style-src` allows inline styles |
-| SEC-06 | MUST | Not yet | No rate limiting in the app or at the edge |
+| SEC-06 | MUST | Partial | Rate limiting in the database (sliding window, `app.rate_hit`): API per key and per IP with `429` and `Retry-After`, failed keys per IP, public forms per IP and per form (views and submissions), minimum fill time, trap field and page key. Not yet: searches inside the app, an edge limit, and the live anti-bot service (adapter built, off) |
 | SEC-07 | MUST | Met | There are no exports |
 | SEC-08 | MUST | Partial | `scripts/scan-prohibited.mjs` scans the repo in CI and free-text columns with `--db`. At write time: card numbers and SSNs are removed from imported notes and refused in custom text fields (unit and DB tests). Not yet applied to every free-text input |
 | SEC-09 | MUST | Partial | Frozen lockfile, Dependabot, secret scan in CI. SAST and license check not configured |
@@ -77,9 +77,9 @@ Summary: 29 Met, 20 Partial, 12 Not yet, 19 Open, 6 N/A, out of 86 rules.
 |---|---|---|---|
 | REL-01, REL-02, REL-05 | SHOULD | Open | SLO, alerts, RPO and RTO `[pending: Dan]` |
 | REL-03, REL-04 | MUST | Open | Multi-AZ and tested restores come with the production platform |
-| REL-06 | MUST | Partial | Outbox written in the same transaction as the change. No publisher yet |
+| REL-06 | MUST | Partial | Outbox written in the same transaction as the change, insert only, with a versioned event catalog (`docs/contracts/domain-events-v1.md`). Publisher job built (fan-out per subscriber, signature, idempotent by event id). Real HTTP delivery is an adapter that stays off until the transport is approved |
 | REL-07 | MUST | Met | Idempotency keys for forms, Sales App events and S5 files (DB and E2E tests) |
-| REL-08 | MUST | Not yet | No retries or dead-letter queue, because nothing publishes yet |
+| REL-08 | MUST | Partial | Outbound: retries after 1, 5, 30 and 120 minutes, dead letters on the fifth failure, manual resend. Inbound (Sales App): messages outside the contract and messages for unknown stores are kept with a reason and can be reprocessed. Exercised with the simulated adapter only: no live subscriber yet |
 | REL-09 | MUST | Partial | Per-market flags exist (`close_by_transaction`); down migrations tested. No rehearsed rollback by a second person |
 | REL-10 | MUST | Partial | Schema, unique key, non-negative amounts, ±20% row band with quarantine, checksum (DB test). No manifest file |
 

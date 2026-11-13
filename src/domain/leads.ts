@@ -2,6 +2,7 @@ import 'server-only'
 import { saveFormAnswers } from '@/domain/b2b'
 import { CONTACT_ROLES } from '@/domain/accounts'
 import { z } from 'zod'
+import { markUntrusted, plainText } from '@/domain/untrusted'
 import { marketToday, marketWorkday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
@@ -107,7 +108,7 @@ async function insertLead(
   tx: Tx,
   ctx: Ctx,
   v: z.output<typeof leadInput>,
-  opts: { source: (typeof MANUAL_SOURCES)[number] | 'web_form'; formId: string | null; ownerId: string | null; slaMinutes: number; origin?: Origin; accountType?: string | null },
+  opts: { source: (typeof MANUAL_SOURCES)[number] | 'web_form' | 'import'; formId: string | null; ownerId: string | null; slaMinutes: number; origin?: Origin; accountType?: string | null },
 ): Promise<string> {
   // SEC-08: lo que captura una persona se rechaza con explicación; lo que llega del formulario público se guarda sin el dato
   // prohibido, para no perder el lead por un texto que escribió el comercio.
@@ -183,6 +184,20 @@ export async function leadArrived(tx: Tx, actor: { user: { id: string; name?: st
   })
 }
 
+/**
+ * AUT-07: un lead que entra por archivo. Pasa por las mismas reglas que el alta a mano (requeridos, teléfono, tipo de venta,
+ * datos prohibidos), nace con fuente "import", sin dueño (lo ve todo el mercado y se reparte) y con su marca de texto de fuera.
+ */
+export async function createImportedLead(ctx: Ctx, input: LeadInput): Promise<string> {
+  const v = leadInput.parse(input)
+  ctx.assert('data.import', v.market)
+  return withUser(ctx.user.id, async (tx) => {
+    const id = await insertLead(tx, ctx, { ...v, alreadyContacted: false }, { source: 'import', formId: null, ownerId: null, slaMinutes: 60 })
+    await markUntrusted(tx, 'lead', id, v.market, 'csv_import', ['business_name', 'contact_name', ...(v.locality ? ['locality'] : []), ...(v.message ? ['message'] : [])])
+    return id
+  })
+}
+
 export async function createLead(ctx: Ctx, input: LeadInput): Promise<string> {
   const v = leadInput.parse(input)
   ctx.assert('lead.create', v.market)
@@ -222,7 +237,7 @@ export const CONSENT_TEXT = {
 export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idempotencyKey: string): Promise<{ leadId: string; duplicate: boolean; merged?: boolean }> {
   const parsed = formPayload.safeParse(raw)
   if (!parsed.success) throw invalid('Revisa los datos del formulario.', 'Check the form fields.')
-  const p = parsed.data
+  const p = { ...parsed.data, business_name: plainText(parsed.data.business_name), contact_name: plainText(parsed.data.contact_name), locality: plainText(parsed.data.locality), message: plainText(parsed.data.message) }
   return withUser(sys.user.id, async (tx) => {
     const forms = await tx<{ id: string; market_code: string; motor: string; routing_rule_id: string | null; locale: string; account_type: string | null }[]>`
       select id, market_code, motor, routing_rule_id, locale, account_type from crm.web_forms where slug = ${slug} and is_active`
@@ -268,6 +283,9 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
     )
     // Lo que este formulario pide además de lo básico (por ejemplo, lo mínimo para calificar una cuenta B2B) queda en el lead.
     await saveFormAnswers(tx, leadId, form.id, raw)
+    // IA-07: todo lo que escribió quien llenó el formulario queda marcado con su origen (página pública o API del sitio).
+    await markUntrusted(tx, 'lead', leadId, form.market_code, idempotencyKey.startsWith('api:') ? 'api_form' : 'web_form',
+      ['business_name', 'contact_name', ...(p.locality ? ['locality'] : []), ...(p.message ? ['message'] : []), 'answers'])
     await tx`update crm.inbound_events set status = 'processed', processed_at = now(), payload = ${tx.json({ form: slug, lead_id: leadId })}
              where id = ${seen[0].id}`
     return { leadId, duplicate: false }

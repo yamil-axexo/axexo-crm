@@ -33,8 +33,8 @@ Markets with data: MX and US. SV is configured (market row and pipeline) with no
 |---|---|
 | Built | DAT-01, DAT-02, DAT-03, LEAD-03, CANAL-03, AUT-01, AUT-06, SEG-01, GOB-01, GOB-08 |
 | Partial | DAT-05 (registry of 5 objects fed by the Pipedrive import, values editable with type validation; no editor for definitions), CAMPO-01 (contract and intake built; no live connection), REP-02 (stage events; no snapshots), REP-04 (S5 figures with cut date; no reconciliation), AUT-02 (outbox written; no publisher), AUT-04 (three inbound endpoints with keys; no read API), MULTI-01 (minor units, dated rate; synthetic rates), MULTI-02 (legal entity, locale, time zone; UI in ES and EN), SEG-03 (immutable audit), SEG-08 (API keys hashed, shown once), GOB-02 (gaps and duplicates), GOB-04 (CI, migrations, PR template) |
-| Not in this PR | DAT-07, AUT-03, AUT-07, MULTI-03, MULTI-04, SEG-02, SEG-04, SEG-07, GOB-05, GOB-07, GOB-09, GOB-10 |
-| N/A | IA-07 (no AI features) |
+| Not in this PR | DAT-07, AUT-03, MULTI-03, MULTI-04, SEG-02, SEG-04, SEG-07, GOB-05, GOB-07, GOB-09, GOB-10 |
+| Built, external channel off (package eventos-api, migration 0021) | AUT-02 (versioned event catalog, every audited domain change emits, publisher job with retries, dead letters and resend; HTTP delivery adapter off), AUT-04 (read API v1 with one-market keys, scopes, cursor pagination, rate limit, rotation, test keys on synthetic data; no general write API, no partner tokens by subtree), AUT-07 (CSV import of merchants, contacts and leads with preview, per-row log and undo; exports with reason, cap per role and daily alert), SEG-10 (rate limit per IP and form, minimum fill time, trap field, page key; anti-bot adapter off), IA-07 (untrusted mark on incoming text and on free-text field definitions; no AI features exist, so egress allowlist, reader and actor split and red-team stay open) |
 
 ## Deliberately out, per the committee's "what not to build"
 Routing, check-in and GPS (Sales App), offline writes, commission calculation, KYB and OCR, WhatsApp inbox, visual workflow builder, free-form report builder, autonomous agents.

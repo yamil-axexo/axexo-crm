@@ -2,13 +2,15 @@ import 'server-only'
 import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import { withUser, type Tx } from '@/server/db'
-import type { Ctx } from '@/server/context'
-import { audit, emit } from '@/domain/common'
+import { systemCtx, type Ctx } from '@/server/context'
+import { audit, emit, newId } from '@/domain/common'
 import { insertAccountTx } from '@/domain/accounts'
 import { accountRule, skipReason } from '@/domain/intake'
 import { DomainError, invalid } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
 import { notify } from '@/domain/notify'
+import { scrub } from '@/domain/pipedrive/mapping'
+import { markUntrusted, plainText } from '@/domain/untrusted'
 
 // CAMPO-01: contrato de eventos v1 entre la Sales App y CONTIGO (propuesto).
 // Los nombres siguen los campos de VisitResponse de Sales Core. La visita se registra una sola vez, allá;
@@ -55,11 +57,50 @@ export const storeEvent = z.object({
   }),
 })
 
-export const salesAppEvent = z.discriminatedUnion('type', [visitEvent, storeEvent])
+// El alta del comercio se envió desde la Sales App. Si el PDV todavía no existe aquí, puede traer lo mínimo para ligarlo o crearlo.
+export const onboardingEvent = z.object({
+  event_id: z.string().min(8).max(80),
+  type: z.literal('onboarding.submitted'),
+  version: z.literal(1),
+  occurred_at: iso,
+  data: z.object({
+    customer_id: z.string().min(1).max(80),
+    submitted_at: iso,
+    market: z.string().length(2).optional(),
+    name: z.string().trim().min(2).max(160).optional(),
+    phone: z.string().max(30).nullable().optional(),
+    locality: z.string().max(120).nullable().optional(),
+    region: z.string().max(120).nullable().optional(),
+    salesperson_email: z.string().email().optional(),
+    documents_complete: z.boolean().nullable().optional(),
+  }),
+})
+
+// El comercio fue aprobado y ya tiene Merchant ID. No gana el negocio: eso lo hace la primera transacción.
+export const approvedEvent = z.object({
+  event_id: z.string().min(8).max(80),
+  type: z.literal('merchant.approved'),
+  version: z.literal(1),
+  occurred_at: iso,
+  data: z.object({
+    customer_id: z.string().min(1).max(80),
+    merchant_ref: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9._-]+$/),
+    approved_at: iso,
+  }),
+})
+
+export const salesAppEvent = z.discriminatedUnion('type', [visitEvent, storeEvent, onboardingEvent, approvedEvent])
+export const SALES_APP_EVENTS = [visitEvent, storeEvent, onboardingEvent, approvedEvent] as const
 export type SalesAppEvent = z.infer<typeof salesAppEvent>
 export type IngestResult = { status: 'processed' | 'duplicate' | 'unmatched'; detail?: string; accountId?: string }
+/** Reproceso: el mensaje ya tiene su fila en la bandeja de entrada; se procesa sobre esa misma fila. */
+type Replay = { id: string } | undefined
 
-async function openEvent(tx: Tx, ev: SalesAppEvent, market: string | null): Promise<string | null> {
+async function openEvent(tx: Tx, ev: SalesAppEvent, market: string | null, replay?: Replay): Promise<string | null> {
+  if (replay) {
+    await tx`update crm.inbound_events set event_type = ${ev.type}, market_code = coalesce(${market}, market_code), status = 'received', error = null where id = ${replay.id}`
+    return replay.id
+  }
   const rows = await tx<{ id: string }[]>`
     insert into crm.inbound_events (source, event_type, idempotency_key, market_code, payload)
     values ('sales_app', ${ev.type}, ${ev.event_id}, ${market}, ${tx.json(ev as never)})
@@ -67,24 +108,102 @@ async function openEvent(tx: Tx, ev: SalesAppEvent, market: string | null): Prom
   return rows[0]?.id ?? null
 }
 
-/** REL-07: procesar dos veces el mismo evento no cambia nada. Corre como usuario de sistema. */
-export async function ingestSalesAppEvent(sys: Ctx, raw: unknown): Promise<IngestResult> {
+/** Por qué un mensaje no cumple el contrato, en una línea corta y sin copiar su contenido. */
+export function contractProblem(raw: unknown): string {
+  const o = (raw ?? {}) as { type?: unknown; version?: unknown }
+  const known = SALES_APP_EVENTS.map((e) => e.shape.type.value as string)
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'not_an_object'
+  if (typeof o.type !== 'string' || !known.includes(o.type)) return 'unknown_type'
+  if (o.version !== 1) return 'unsupported_version'
   const parsed = salesAppEvent.safeParse(raw)
-  if (!parsed.success) throw invalid('El evento no cumple el contrato v1.', 'The event does not match contract v1.')
-  const ev = parsed.data
-  return withUser(sys.user.id, async (tx) => {
-    if (ev.type === 'store.created') return ingestStore(tx, sys, ev)
-    return ingestVisit(tx, sys, ev)
+  if (parsed.success) return ''
+  const issue = parsed.error.issues[0]
+  return `invalid_field:${(issue?.path ?? []).join('.').slice(0, 80) || 'body'}`
+}
+
+/** Copia del mensaje que se guarda en muertos: sin datos prohibidos, sin caracteres invisibles y con tope de tamaño. */
+function deadCopy(raw: unknown): Record<string, unknown> {
+  const clean = (v: unknown, depth: number): unknown => {
+    if (typeof v === 'string') return scrub(plainText(v)).slice(0, 500)
+    if (typeof v === 'number' || typeof v === 'boolean' || v === null) return v
+    if (depth > 4) return null
+    if (Array.isArray(v)) return v.slice(0, 20).map((x) => clean(x, depth + 1))
+    if (typeof v === 'object' && v) return Object.fromEntries(Object.entries(v as Record<string, unknown>).slice(0, 40).map(([k, x]) => [k.slice(0, 60), clean(x, depth + 1)]))
+    return null
+  }
+  const out = clean(raw, 0)
+  const body = typeof out === 'object' && out !== null && !Array.isArray(out) ? (out as Record<string, unknown>) : { value: out }
+  return JSON.stringify(body).length > 8000 ? { truncated: true, type: body.type ?? null, event_id: body.event_id ?? null } : body
+}
+
+/** Un mensaje que no se puede procesar no se pierde ni se descarta en silencio: queda en muertos con su motivo. */
+async function toDeadLetter(sys: Ctx, raw: unknown, reason: string): Promise<void> {
+  const o = (raw ?? {}) as { event_id?: unknown; type?: unknown }
+  const key = typeof o.event_id === 'string' && o.event_id.length >= 8 && o.event_id.length <= 80 ? o.event_id : `sha:${createHash('sha256').update(JSON.stringify(raw ?? null)).digest('hex').slice(0, 40)}`
+  const type = typeof o.type === 'string' ? o.type.slice(0, 60) : 'unknown'
+  await withUser(sys.user.id, async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      insert into crm.inbound_events (source, event_type, idempotency_key, payload, status, error, attempts, processed_at)
+      values ('sales_app', ${type}, ${key}, ${tx.json(deadCopy(raw) as never)}, 'dead', ${reason}, 1, now())
+      on conflict (source, idempotency_key) do nothing returning id`
+    if (rows[0]) await audit(tx, sys, 'integration.dead_letter', 'inbound_event', rows[0].id, null, null, { source: 'sales_app', type, reason })
   })
 }
 
-async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>): Promise<IngestResult> {
+/** REL-07: procesar dos veces el mismo evento no cambia nada. Corre como usuario de sistema. */
+export async function ingestSalesAppEvent(sys: Ctx, raw: unknown): Promise<IngestResult> {
+  const parsed = salesAppEvent.safeParse(raw)
+  if (!parsed.success) {
+    await toDeadLetter(sys, raw, contractProblem(raw) || 'invalid')
+    throw invalid('El evento no cumple el contrato v1. Quedó en mensajes muertos con su motivo.', 'The event does not match contract v1. It was kept in dead letters with the reason.')
+  }
+  const ev = parsed.data
+  return withUser(sys.user.id, (tx) => route(tx, sys, ev))
+}
+
+function route(tx: Tx, sys: Ctx, ev: SalesAppEvent, replay?: Replay): Promise<IngestResult> {
+  if (ev.type === 'store.created') return ingestStore(tx, sys, ev, replay)
+  if (ev.type === 'onboarding.submitted') return ingestOnboarding(tx, sys, ev, replay)
+  if (ev.type === 'merchant.approved') return ingestApproved(tx, sys, ev, replay)
+  return ingestVisit(tx, sys, ev, replay)
+}
+
+/**
+ * Reproceso de un mensaje muerto o sin comercio. Si ahora sí se puede procesar (por ejemplo, ya llegó la tienda), se
+ * procesa sobre su misma fila; si no, sigue donde estaba, con un intento más y el motivo de hoy.
+ */
+export async function replayInboundEvent(ctx: Ctx, id: string): Promise<IngestResult> {
+  ctx.assert('integration.operate')
+  const sys = await systemCtx()
+  const rows = await withUser(ctx.user.id, (tx) => tx<{ payload: unknown; status: string; market_code: string | null }[]>`
+    select payload, status, market_code from crm.inbound_events where id = ${id} and source = 'sales_app' and status in ('dead','rejected')`)
+  const row = rows[0]
+  if (!row) throw invalid('Ese mensaje ya se procesó o no existe.', 'That message was already processed or does not exist.')
+  const parsed = salesAppEvent.safeParse(row.payload)
+  const stamp = (tx: Tx, result: string, error: string | null) => audit(tx, ctx, 'inbound.replayed', 'inbound_event', id, row.market_code, { status: row.status }, { result, ...(error ? { reason: error } : {}) })
+  if (!parsed.success) {
+    const reason = contractProblem(row.payload) || 'invalid'
+    await withUser(ctx.user.id, async (tx) => {
+      await tx`update crm.inbound_events set attempts = attempts + 1, error = ${reason}, replayed_at = now(), replayed_by = ${ctx.user.id} where id = ${id}`
+      await stamp(tx, 'still_dead', reason)
+    })
+    return { status: 'unmatched', detail: reason }
+  }
+  const out = await withUser(sys.user.id, (tx) => route(tx, sys, parsed.data, { id }))
+  await withUser(ctx.user.id, async (tx) => {
+    await tx`update crm.inbound_events set attempts = attempts + 1, replayed_at = now(), replayed_by = ${ctx.user.id} where id = ${id}`
+    await stamp(tx, out.status, out.detail ?? null)
+  })
+  return out
+}
+
+async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>, replay?: Replay): Promise<IngestResult> {
   const d = ev.data
   const accs = await tx<{ id: string; market_code: string }[]>`
     select a.id, a.market_code from crm.account_aliases al join crm.accounts a on a.id = al.account_id
      where al.system = 'sales_core' and al.external_id = ${d.customer_id} and al.valid_to is null and a.archived_at is null`
   const acc = accs[0]
-  const eventId = await openEvent(tx, ev, acc?.market_code ?? null)
+  const eventId = await openEvent(tx, ev, acc?.market_code ?? null, replay)
   if (!eventId) return { status: 'duplicate' }
   if (!acc) {
     await tx`update crm.inbound_events set status = 'rejected', error = 'unknown customer_id', processed_at = now() where id = ${eventId}`
@@ -99,15 +218,19 @@ async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>): Pr
     if (!ok[0]) d.rejection_reason = null
   }
   const users = d.salesperson_email ? await tx<{ id: string }[]>`select id from crm.users where email = ${d.salesperson_email} and is_active` : []
-  await tx`insert into crm.visits (market_code, account_id, external_visit_id, salesperson_ref, user_id, business_date, checked_in_at, checked_out_at,
+  // IA-07 / SEC-08: la nota y el motivo los escribió alguien en otra app: sin datos prohibidos, sin caracteres invisibles y con su marca.
+  const note = d.note ? scrub(plainText(d.note)) : null
+  const revisitReason = d.revisit_reason ? scrub(plainText(d.revisit_reason)) : null
+  const visit = await tx<{ id: string }[]>`insert into crm.visits (market_code, account_id, external_visit_id, salesperson_ref, user_id, business_date, checked_in_at, checked_out_at,
                                    duration_seconds, outcome, rejection_code, revisit, revisit_reason, decision_maker_seen, auto_closed, note, inbound_event_id)
            values (${acc.market_code}, ${acc.id}, ${d.visit_id}, ${d.salesperson_id}, ${users[0]?.id ?? null}, ${d.business_date}, ${d.checked_in_at},
                    ${d.checked_out_at ?? null}, ${d.duration_seconds ?? null}, ${d.sale ? 'sale' : 'no_sale'}, ${d.sale ? null : (d.rejection_reason ?? null)},
-                   ${d.revisit}, ${d.revisit_reason ?? null}, ${d.decision_maker_present ?? null}, ${d.auto_closed}, ${d.note ?? null}, ${eventId})
-           on conflict (external_visit_id) do nothing`
+                   ${d.revisit}, ${revisitReason}, ${d.decision_maker_present ?? null}, ${d.auto_closed}, ${note}, ${eventId})
+           on conflict (external_visit_id) do nothing returning id`
+  if (visit[0] && (note || revisitReason)) await markUntrusted(tx, 'visit', visit[0].id, acc.market_code, 'sales_app', [...(note ? ['note'] : []), ...(revisitReason ? ['revisit_reason'] : [])])
   // PIPE-05: la revisita al decisor queda visible en el embudo, no escondida en una nota.
   if (d.revisit) {
-    await tx`update crm.deals set revisit_needed = true, revisit_reason = ${d.revisit_reason ?? d.rejection_reason ?? 'revisit'},
+    await tx`update crm.deals set revisit_needed = true, revisit_reason = ${revisitReason ?? d.rejection_reason ?? 'revisit'},
               revisit_due = ${d.business_date}::date + 2 where account_id = ${acc.id} and status = 'open'`
   } else if (d.decision_maker_present) {
     await tx`update crm.deals set revisit_needed = false, decision_maker_met = (decision_maker_id is not null) where account_id = ${acc.id} and status = 'open'`
@@ -117,44 +240,108 @@ async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>): Pr
   return { status: 'processed', accountId: acc.id }
 }
 
-async function ingestStore(tx: Tx, sys: Ctx, ev: z.infer<typeof storeEvent>): Promise<IngestResult> {
-  const d = ev.data
-  const eventId = await openEvent(tx, ev, d.market)
-  if (!eventId) return { status: 'duplicate' }
+type StoreData = { customer_id: string; market: string; name: string; phone?: string | null; locality?: string | null; region?: string | null; salesperson_email?: string }
+
+/**
+ * Un solo creador de PDV. El comercio se busca por el ID de Sales Core; si no está, por el teléfono dentro del mercado
+ * (el prospecto que CONTIGO ya tenía); solo si no existe se crea. Quien llega segundo se liga, nunca duplica.
+ */
+async function linkOrCreateStore(tx: Tx, sys: Ctx, d: StoreData): Promise<{ accountId: string; created: boolean } | { error: string }> {
   const existing = await tx<{ account_id: string }[]>`
     select account_id from crm.account_aliases where system = 'sales_core' and external_id = ${d.customer_id} and valid_to is null`
-  let accountId = existing[0]?.account_id
+  if (existing[0]) return { accountId: existing[0].account_id, created: false }
+  const mk = await tx<{ phone_cc: string }[]>`select phone_cc from crm.markets where code = ${d.market}`
+  if (!mk[0]) return { error: 'unknown market' }
+  const phone = toE164(d.phone ?? null, mk[0].phone_cc)
+  const match = phone ? await tx<{ id: string }[]>`select id from crm.accounts where market_code = ${d.market} and phone = ${phone} and archived_at is null order by created_at limit 1` : []
+  let accountId = match[0]?.id
+  const created = !accountId
   if (!accountId) {
-    const mk = await tx<{ phone_cc: string }[]>`select phone_cc from crm.markets where code = ${d.market}`
-    if (!mk[0]) {
-      await tx`update crm.inbound_events set status = 'rejected', error = 'unknown market', processed_at = now() where id = ${eventId}`
-      return { status: 'unmatched', detail: 'unknown market' }
-    }
-    const phone = toE164(d.phone ?? null, mk[0].phone_cc)
-    // Un solo creador de PDV: si el comercio ya existe como prospecto (mismo teléfono), se liga; no se duplica.
-    const match = phone ? await tx<{ id: string }[]>`select id from crm.accounts where market_code = ${d.market} and phone = ${phone} and archived_at is null order by created_at limit 1` : []
-    accountId = match[0]?.id
-    if (!accountId) {
-      const owner = d.salesperson_email ? await tx<{ id: string }[]>`select id from crm.users where email = ${d.salesperson_email} and is_active` : []
-      // AUT-01: el punto de venta nace por la misma función que el alta de la pantalla, con sus mismas reglas de entrada.
-      const broken = accountRule({ name: d.name, phone })
-      if (broken) {
-        await tx`update crm.inbound_events set status = 'rejected', error = ${skipReason(broken)}, processed_at = now() where id = ${eventId}`
-        return { status: 'unmatched', detail: skipReason(broken) }
-      }
-      accountId = await insertAccountTx(tx, { market: d.market, kind: 'store', accountType: null, name: d.name, segment: 'd2d', lifecycle: 'onboarding', parentId: null,
-        ownerId: owner[0]?.id ?? null, territoryId: null, phone, locality: d.locality ?? null, region: d.region ?? null, createdBy: sys.user.id })
-      await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
-               values (${accountId}, ${d.market}, 'origin', 'import', 'sales_app', 'Sales App', ${sys.user.id})`
-    } else {
-      await tx`update crm.accounts set lifecycle = 'onboarding' where id = ${accountId} and lifecycle = 'prospect'`
-    }
-    await tx`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${accountId}, ${d.market}, 'sales_core', ${d.customer_id})`
-    await emit(tx, 'account.alias_issued', 'account', accountId, d.market, { system: 'sales_core', external_id: d.customer_id, account_id: accountId })
+    const owner = d.salesperson_email ? await tx<{ id: string }[]>`select id from crm.users where email = ${d.salesperson_email} and is_active` : []
+    const name = scrub(plainText(d.name)).slice(0, 160)
+    const locality = d.locality ? scrub(plainText(d.locality)) : null
+    const region = d.region ? scrub(plainText(d.region)) : null
+    // AUT-01: el punto de venta nace por la misma función que el alta de la pantalla, con sus mismas reglas de entrada.
+    const broken = accountRule({ name, phone })
+    if (broken) return { error: skipReason(broken) }
+    accountId = await insertAccountTx(tx, { market: d.market, kind: 'store', accountType: null, name, segment: 'd2d', lifecycle: 'onboarding', parentId: null,
+      ownerId: owner[0]?.id ?? null, territoryId: null, phone, locality, region, createdBy: sys.user.id })
+    await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
+             values (${accountId}, ${d.market}, 'origin', 'import', 'sales_app', 'Sales App', ${sys.user.id})`
+    await markUntrusted(tx, 'account', accountId, d.market, 'sales_app', ['name', ...(locality ? ['locality'] : []), ...(region ? ['region'] : [])])
+  } else {
+    await tx`update crm.accounts set lifecycle = 'onboarding' where id = ${accountId} and lifecycle = 'prospect'`
+  }
+  await tx`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${accountId}, ${d.market}, 'sales_core', ${d.customer_id})`
+  await emit(tx, 'account.alias_issued', 'account', accountId, d.market, { system: 'sales_core', external_id: d.customer_id, account_id: accountId })
+  return { accountId, created }
+}
+
+async function ingestStore(tx: Tx, sys: Ctx, ev: z.infer<typeof storeEvent>, replay?: Replay): Promise<IngestResult> {
+  const d = ev.data
+  const eventId = await openEvent(tx, ev, d.market, replay)
+  if (!eventId) return { status: 'duplicate' }
+  const out = await linkOrCreateStore(tx, sys, d)
+  if ('error' in out) {
+    await tx`update crm.inbound_events set status = 'rejected', error = ${out.error}, processed_at = now() where id = ${eventId}`
+    return { status: 'unmatched', detail: out.error }
   }
   await tx`update crm.inbound_events set status = 'processed', processed_at = now() where id = ${eventId}`
-  await audit(tx, sys, 'integration.store_received', 'account', accountId, d.market, null, { customer_id: d.customer_id })
-  return { status: 'processed', accountId }
+  await audit(tx, sys, 'integration.store_received', 'account', out.accountId, d.market, null, { customer_id: d.customer_id })
+  return { status: 'processed', accountId: out.accountId }
+}
+
+const sysNote = (sys: Ctx, market: string, es: string, en: string) => (sys.market(market).locale === 'en' ? en : es)
+
+async function ingestOnboarding(tx: Tx, sys: Ctx, ev: z.infer<typeof onboardingEvent>, replay?: Replay): Promise<IngestResult> {
+  const d = ev.data
+  const known = await tx<{ id: string; market_code: string }[]>`
+    select a.id, a.market_code from crm.account_aliases al join crm.accounts a on a.id = al.account_id
+     where al.system = 'sales_core' and al.external_id = ${d.customer_id} and al.valid_to is null and a.archived_at is null`
+  let acc = known[0]
+  const eventId = await openEvent(tx, ev, acc?.market_code ?? d.market ?? null, replay)
+  if (!eventId) return { status: 'duplicate' }
+  if (!acc && d.market && d.name) {
+    // El alta llegó antes que la tienda: con nombre y mercado se liga al prospecto que ya existía o se crea, una sola vez.
+    const out = await linkOrCreateStore(tx, sys, { customer_id: d.customer_id, market: d.market, name: d.name, phone: d.phone, locality: d.locality, region: d.region, salesperson_email: d.salesperson_email })
+    if (!('error' in out)) acc = { id: out.accountId, market_code: d.market }
+  }
+  if (!acc) {
+    await tx`update crm.inbound_events set status = 'rejected', error = 'unknown customer_id', processed_at = now() where id = ${eventId}`
+    return { status: 'unmatched', detail: 'unknown customer_id' }
+  }
+  await tx`update crm.accounts set lifecycle = 'onboarding' where id = ${acc.id} and lifecycle = 'prospect'`
+  await tx`insert into crm.activities (market_code, account_id, kind, subject, done_at, created_by, source)
+           values (${acc.market_code}, ${acc.id}, 'system', ${sysNote(sys, acc.market_code, 'Alta enviada desde la Sales App', 'Onboarding submitted from the Sales App')}, ${d.submitted_at}, ${sys.user.id}, 'sales_app')`
+  await tx`update crm.inbound_events set status = 'processed', market_code = ${acc.market_code}, processed_at = now() where id = ${eventId}`
+  await audit(tx, sys, 'integration.onboarding_received', 'account', acc.id, acc.market_code, null, { customer_id: d.customer_id, documents_complete: d.documents_complete ?? null })
+  return { status: 'processed', accountId: acc.id }
+}
+
+async function ingestApproved(tx: Tx, sys: Ctx, ev: z.infer<typeof approvedEvent>, replay?: Replay): Promise<IngestResult> {
+  const d = ev.data
+  const known = await tx<{ id: string; market_code: string; merchant_ref: string | null }[]>`
+    select a.id, a.market_code, a.merchant_ref from crm.account_aliases al join crm.accounts a on a.id = al.account_id
+     where al.system = 'sales_core' and al.external_id = ${d.customer_id} and al.valid_to is null and a.archived_at is null for update of a`
+  const acc = known[0]
+  const eventId = await openEvent(tx, ev, acc?.market_code ?? null, replay)
+  if (!eventId) return { status: 'duplicate' }
+  const reject = async (error: string): Promise<IngestResult> => {
+    await tx`update crm.inbound_events set status = 'rejected', error = ${error}, processed_at = now() where id = ${eventId}`
+    return { status: 'unmatched', detail: error }
+  }
+  if (!acc) return reject('unknown customer_id')
+  // El Merchant ID lo decide quien aprueba (matriz del contrato). Uno que ya lleva otro comercio del mercado no se pisa: se revisa a mano.
+  const taken = await tx`select 1 from crm.accounts where market_code = ${acc.market_code} and merchant_ref is not null
+    and upper(btrim(merchant_ref)) = upper(${d.merchant_ref}) and id <> ${acc.id} and archived_at is null`
+  if (taken[0]) return reject('merchant_ref in use')
+  if (acc.merchant_ref !== d.merchant_ref) await tx`update crm.accounts set merchant_ref = ${d.merchant_ref} where id = ${acc.id}`
+  await tx`update crm.accounts set lifecycle = 'onboarding' where id = ${acc.id} and lifecycle = 'prospect'`
+  await tx`insert into crm.activities (market_code, account_id, kind, subject, done_at, created_by, source)
+           values (${acc.market_code}, ${acc.id}, 'system', ${sysNote(sys, acc.market_code, 'Comercio aprobado: ya tiene Merchant ID', 'Merchant approved: it now has a Merchant ID')}, ${d.approved_at}, ${sys.user.id}, 'sales_app')`
+  await tx`update crm.inbound_events set status = 'processed', processed_at = now() where id = ${eventId}`
+  await audit(tx, sys, 'integration.merchant_approved', 'account', acc.id, acc.market_code, { merchant_ref: acc.merchant_ref }, { merchant_ref: d.merchant_ref, customer_id: d.customer_id })
+  return { status: 'processed', accountId: acc.id }
 }
 
 // AUT-06 / REP-04: archivo diario de agregados del lakehouse (S5). Nunca transacciones individuales.

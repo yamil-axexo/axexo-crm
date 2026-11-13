@@ -9,6 +9,7 @@ import { RepartoBar } from '@/ui/reparto'
 import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
 import { isUuid } from '@/lib/ids'
 import { Empty, Field, LinkButton, Pills, cx } from '@/ui/kit'
+import { DataTools } from '@/ui/data-tools'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { FichaPanel } from '@/ui/panel'
 import { ago, num } from '@/lib/format'
@@ -121,6 +122,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
             </Dialog>
           )}
         </header>
+        <DataTools t={t} canExport={ctx.can('report.export', sp.market)} canImport={ctx.can('data.import')} exportHref={qs('/comercios/export', { ...base, vista: undefined, after: undefined, repartir: undefined })} exportLabel={t('Exportar lo filtrado', 'Export what is filtered')} importHref="/importar?tipo=accounts" />
 
         {!tree && <Pills
           label={m('merchants.filters')}

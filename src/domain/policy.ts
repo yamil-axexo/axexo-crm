@@ -79,6 +79,9 @@ export const CAPABILITIES = {
   // Anuncios a la red con acuse (0020): publica administración o quien lidera (su mercado; supervisión, su equipo). Leerlos y dar
   // acuse lo hace cualquier persona de la audiencia, también quien solo lee: el acuse es suyo (domain/announcements.ts).
   'announcement.publish': MANAGERS,
+  // Importar comercios, contactos y leads por archivo: administración y quien lidera el mercado (en el suyo). Cada fila pasa
+  // por las mismas reglas que el alta a mano; la base repite el límite (app.can_import).
+  'data.import': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
