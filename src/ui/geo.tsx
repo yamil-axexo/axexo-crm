@@ -126,7 +126,7 @@ export function NearMe({ action, labels, locale, radii }: { action: (lat: number
                   <span className="block truncate text-[15px] font-semibold text-strong">{a.name}</span>
                   <span className="block truncate text-[13px] text-muted-2">{[labels.lifecycle[a.lifecycle] ?? a.lifecycle, a.address_line ?? a.locality, a.owner_name ?? labels.noOwner].filter(Boolean).join(' · ')}</span>
                 </Link>
-                <span className="num shrink-0 text-[14px] font-semibold text-strong" data-testid="near-distance">{distanceText(a.distance_m, locale)}</span>
+                <span className="num shrink-0 text-[14px] font-semibold text-strong" data-testid="near-distance" data-m={a.distance_m}>{distanceText(a.distance_m, locale)}</span>
                 {a.phone && <a href={`tel:${a.phone}`} className="inline-flex min-h-11 shrink-0 items-center text-[14px] font-medium text-blue-text underline">{labels.call}</a>}
               </li>
             ))}
