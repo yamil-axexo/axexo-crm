@@ -1,7 +1,9 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { Activity, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { after } from 'next/server'
+import { tickJobs } from '@/server/jobs/runner'
+import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -10,8 +12,15 @@ import { ReportLink } from '@/ui/problem-report'
 import { LogHost } from '@/ui/log'
 import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
+import { pinnedQueues } from '@/dal/reportes'
+import { VIEW_EN, VIEW_OBJECT_LABEL, viewHref } from '@/lib/report-catalog'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
+import { unreadNotices } from '@/dal/notices'
+import { HideOn, ScreenHelpFooter } from '@/ui/notices'
+import { pendingAnnouncements } from '@/dal/announcements'
+import { markAnnouncementAction } from '@/app/(app)/anuncios/actions'
+import { ActionForm, Submit } from '@/ui/client'
 
 const initials = (name: string) =>
   name
@@ -24,11 +33,20 @@ const initials = (name: string) =>
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
+  // Tareas programadas, disparo oportunista: lo que ya toca corre después de responder, sin hacer esperar a nadie.
+  after(() => tickJobs())
   const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
   const showAdmin = ctx.can('config.manage') || ctx.can('audit.read')
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
   const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
+  // La campana: cuántos avisos sin leer tiene la persona (AUT-05).
+  const unread = ctx.user.isSystem ? 0 : await unreadNotices(ctx)
+  // Anuncios vigentes que la persona no ha leído o que piden acuse: los ve al entrar, en cualquier pantalla (GOB-06).
+  const announcements = ctx.user.isSystem ? [] : await pendingAnnouncements(ctx)
+  const first = announcements[0]
+  const firstText = first ? (first.locale === ctx.locale || !first.title_other || !first.body_other ? { title: first.title, body: first.body } : { title: first.title_other, body: first.body_other }) : null
+  const bellLabel = unread > 0 ? t(`Avisos: ${unread} sin leer`, `Notices: ${unread} unread`) : t('Avisos', 'Notices')
   // Quien trabaja o reparte leads: con la app abierta, el contador se actualiza solo y la pestaña avisa cuando llega uno.
   const watchLeads = !ctx.user.isSystem && (ctx.can('lead.work') || ctx.can('lead.assign'))
 
@@ -51,6 +69,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ]
   // Registrar una visita, una llamada o una nota empieza en el dock: quien trabaja en la calle no abre primero la ficha.
   const canLog = ctx.can('activity.write')
+  // Colas fijadas por la persona (vistas guardadas), con su contador.
+  const queues = await pinnedQueues(ctx)
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
 
   return (
@@ -70,6 +90,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/buscar" aria-label={m('top.searchLabel')} className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-strong md:hidden" data-testid="search-link">
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
+          <Link href="/avisos" aria-label={bellLabel} title={bellLabel} className={`press relative h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-strong hover:bg-green-50 ${readOnly ? 'hidden md:inline-flex' : 'inline-flex'}`} data-testid="bell">
+            <Bell size={20} strokeWidth={1.75} aria-hidden />
+            {unread > 0 && <span className="num absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="bell-count">{unread > 99 ? '99+' : unread}</span>}
+          </Link>
           <form action={setLocale}>
             <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />
             <button aria-label={`${ctx.locale.toUpperCase()}: ${m('top.language')}`} className="press hidden h-10 min-w-11 items-center justify-center rounded-full border border-line px-3 text-[13px] font-semibold text-strong hover:bg-green-50 md:inline-flex" data-testid="locale-toggle">
@@ -83,11 +107,26 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {readOnly && <p className="mt-1 text-[12.5px] text-muted-2" data-testid="me-read-only">{t('Solo lectura: ves todo y no cambias nada.', 'Read-only: you see everything and change nothing.')}</p>}
             </div>
             <div className="py-1">
+              {/* Quien solo lee no tiene la campana en la barra del teléfono (ahí va "Solo lectura"): entra a sus avisos desde aquí. */}
+              {readOnly && <Link href="/avisos" role="menuitem" className={menuLink} data-testid="nav-notices"><Bell size={20} strokeWidth={1.75} aria-hidden />{t('Avisos y anuncios', 'Notices and announcements')}{unread > 0 ? ` (${unread})` : ''}</Link>}
               {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
               {ctx.can('board.supervisor') ? <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>
                 : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}
+              {queues.length > 0 && (
+                <div className="border-b border-line pb-1" data-testid="nav-queues">
+                  <p className="px-3 pt-1 pb-0.5 text-[12px] font-semibold text-muted-2">{t('Mis colas', 'My queues')}</p>
+                  {queues.map((q) => (
+                    <Link key={q.id} href={viewHref(q)} role="menuitem" className={`${menuLink} justify-between`} data-testid="nav-queue">
+                      <span className="flex min-w-0 items-center gap-3"><ListFilter size={20} strokeWidth={1.75} aria-hidden className="shrink-0" /><span className="truncate">{t(q.name, VIEW_EN[q.name] ?? q.name)}</span><span className="sr-only">, {t(VIEW_OBJECT_LABEL[q.object][0], VIEW_OBJECT_LABEL[q.object][1])}</span></span>
+                      {q.count !== null && <span className="num shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[12.5px] font-semibold text-strong" data-testid="nav-queue-count">{q.count}</span>}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
+              {(ctx.can('data.quality') || ctx.isGlobal) && <Link href="/datos" role="menuitem" className={menuLink} data-testid="nav-data"><Database size={20} strokeWidth={1.75} aria-hidden />{t('Datos', 'Data')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}
               {ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>
@@ -116,7 +155,26 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
-      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
+      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">
+        {first && firstText && (
+          <HideOn prefixes={['/anuncios']}>
+            <aside aria-label={t('Anuncio', 'Announcement')} className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-l-4 border-l-[#24815f] px-4 py-3.5 md:px-5 print:hidden" data-testid="announce-banner">
+              <p className="min-w-[220px] flex-1 text-[14.5px] text-strong">
+                <span className="mr-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-brand-text"><Megaphone size={16} strokeWidth={1.75} aria-hidden />{first.topic === 'release' ? t('Novedades de CONTIGO', 'What is new in CONTIGO') : t('Anuncio', 'Announcement')}</span>
+                <span className="font-semibold [overflow-wrap:anywhere]" data-testid="announce-banner-title">{firstText.title}</span>
+                <span className="line-clamp-2 block text-[14px] text-muted-2 [overflow-wrap:anywhere]">{firstText.body}</span>
+              </p>
+              <Link href={`/anuncios#${first.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="announce-banner-open">
+                {announcements.length > 1 ? t(`Ver los ${announcements.length} anuncios`, `See all ${announcements.length} announcements`) : t('Leer completo', 'Read in full')}
+              </Link>
+              <ActionForm action={markAnnouncementAction}>
+                <input type="hidden" name="announcement_id" value={first.id} /><input type="hidden" name="ack" value={first.requires_ack ? '1' : '0'} />
+                <Submit variant={first.requires_ack ? 'primary' : 'ghost'} size="sm" testId="announce-banner-ack">{first.requires_ack ? t('Enterado', 'Got it') : t('Marcar leído', 'Mark as read')}</Submit>
+              </ActionForm>
+            </aside>
+          </HideOn>
+        )}
+        {children}<ScreenHelpFooter label={t('¿Cómo se usa esto?', 'How do I use this?')} /></main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} logLabel={canLog ? t('Registrar actividad', 'Log activity') : undefined} />
       {watchLeads && (
         <LeadWatch

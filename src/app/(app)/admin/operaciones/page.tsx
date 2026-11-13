@@ -4,7 +4,7 @@ import { requireCtx } from '@/server/context'
 import { getOpsConfig } from '@/dal/ops'
 import { Card, CardTitle, Field, PageHeader } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
-import { pipelineFlagsAction, saveCatalogAction, saveProductAction } from '@/app/(app)/operaciones/actions'
+import { pipelineFlagsAction, saveCatalogAction, saveProductAction, saveVisitReasonAction } from '@/app/(app)/operaciones/actions'
 
 /** Lo que administración mantiene para Operaciones: propiedades de embudos y etapas, productos y catálogos por mercado. */
 export default async function OpsConfigPage() {
@@ -16,7 +16,7 @@ export default async function OpsConfigPage() {
   const KINDS = [
     { kind: 'provider', title: t('Proveedores (carriers)', 'Providers (carriers)'), hint: t('Cada negocio lleva el estado de aprobación por proveedor.', 'Each deal carries the approval status per provider.') },
     { kind: 'document', title: t('Documentos requeridos', 'Required documents'), hint: t('Del documento se guarda el estado y un enlace a dónde está, nunca el archivo.', 'For each document we keep the status and a link to where it is, never the file.') },
-    { kind: 'return_reason', title: t('Motivos de devolución a Ventas', 'Reasons to send back to Sales'), hint: t('Sin mercado: vale en todos.', 'No market: applies to all.') },
+    { kind: 'return_reason', title: t('Motivos de devolución a Ventas', 'Reasons to send back to Sales'), hint: t('Sin mercado: vale en todos. Uno del mercado con el mismo nombre lo reemplaza ahí; si está inactivo, ese motivo no se ofrece en ese mercado.', 'No market: applies to all. A market one with the same name replaces it there; if inactive, that reason is not offered in that market.') },
   ] as const
 
   return (
@@ -45,6 +45,15 @@ export default async function OpsConfigPage() {
                     ))}
                   </div>
                 </fieldset>
+                {cfg.stages.some((s) => s.pipeline_id === p.id && s.is_ops) && (
+                  <Field label={t('Quién lidera Operaciones de este embudo', 'Operations lead for this pipeline')} className="mt-2 max-w-md"
+                    hint={t('Lo que entra a una etapa de Operaciones queda a su nombre desde ese momento. Sin líder, el negocio entra sin tomar.', 'What enters an Operations stage is theirs from that moment. With no lead, the deal comes in not taken.')}>
+                    <select name="ops_lead" className="input" defaultValue={p.ops_lead_id ?? ''} data-testid="ops-lead">
+                      <option value="">{t('Nadie: entra sin tomar', 'Nobody: it comes in not taken')}</option>
+                      {cfg.opsPeople.filter((u) => u.market_code === p.market_code).map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                    </select>
+                  </Field>
+                )}
                 <div className="mt-2 flex justify-end"><Submit variant="ghost" size="sm" testId="ops-pipeline-save">{t('Guardar', 'Save')}</Submit></div>
               </ActionForm>
             ))}
@@ -72,6 +81,34 @@ export default async function OpsConfigPage() {
             <Field label={t('Producto nuevo', 'New product')}><input name="name" className="input" required minLength={2} maxLength={120} data-testid="product-name" /></Field>
             <Field label={t('Precio unitario', 'Unit price')}><input name="price" className="input" inputMode="decimal" required data-testid="product-price" /></Field>
             <div className="col-span-2 flex justify-end md:col-span-1"><Submit testId="product-add">{t('Agregar', 'Add')}</Submit></div>
+          </ActionForm>
+        </Card>
+
+        <Card data-testid="ops-visit-reasons">
+          <CardTitle title={t('Propósitos de visita', 'Visit purposes')}
+            hint={t('La lista que elige quien registra una visita. Un mercado con lista la pide en cada visita; uno sin lista no la pregunta. Marca los que son de campaña.', 'The list people pick from when they log a visit. A market with a list asks for it on every visit; one without does not ask. Tick the campaign ones.')} />
+          {cfg.visitReasons.length === 0 && <p className="text-[14.5px] text-muted" data-testid="visit-reasons-empty">{t('Todavía no hay propósitos. Agrega el primero abajo.', 'No purposes yet. Add the first one below.')}</p>}
+          <ul className="divide-y divide-line">
+            {cfg.visitReasons.map((c) => (
+              <li key={c.id} className="py-3" data-testid="visit-reason-row">
+                <ActionForm action={saveVisitReasonAction} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="id" value={c.id} />
+                  <span className="inline-flex h-11 min-w-8 items-center text-[13px] font-semibold text-muted-2">{c.market_code ?? t('Todos', 'All')}</span>
+                  <input name="label_es" aria-label={t('Nombre en español', 'Name in Spanish')} className="input !w-auto min-w-[160px] flex-1" defaultValue={c.label_es} />
+                  <input name="label_en" aria-label={t('Nombre en inglés', 'Name in English')} className="input !w-auto min-w-[160px] flex-1" defaultValue={c.label_en} />
+                  <label className="flex min-h-11 items-center gap-2 text-[14px]"><input type="checkbox" name="campaign" defaultChecked={c.is_campaign} className="h-5 w-5" />{t('De campaña', 'Campaign')}</label>
+                  <label className="flex min-h-11 items-center gap-2 text-[14px]"><input type="checkbox" name="active" defaultChecked={c.is_active} className="h-5 w-5" />{t('Activo', 'Active')}</label>
+                  <Submit variant="ghost" size="sm">{t('Guardar', 'Save')}</Submit>
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+          <ActionForm action={saveVisitReasonAction} onOk="reset" className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4 md:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-end" testId="visit-reason-new">
+            <Field label={t('Mercado', 'Market')}><select name="market" className="input" data-testid="visit-reason-market">{markets.map((mk) => <option key={mk.code} value={mk.code}>{mk.code}</option>)}</select></Field>
+            <Field label={t('Nombre en español', 'Name in Spanish')}><input name="label_es" className="input" required minLength={2} maxLength={80} data-testid="visit-reason-es" /></Field>
+            <Field label={t('Nombre en inglés', 'Name in English')}><input name="label_en" className="input" required minLength={2} maxLength={80} data-testid="visit-reason-en" /></Field>
+            <label className="flex min-h-11 items-center gap-2 text-[14px]"><input type="checkbox" name="campaign" className="h-5 w-5" data-testid="visit-reason-campaign" />{t('De campaña', 'Campaign')}</label>
+            <div className="col-span-2 flex justify-end md:col-span-1"><Submit testId="visit-reason-add">{t('Agregar', 'Add')}</Submit></div>
           </ActionForm>
         </Card>
 

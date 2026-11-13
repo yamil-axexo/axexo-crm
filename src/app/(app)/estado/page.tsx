@@ -5,12 +5,19 @@ import { getStatus, getConfig } from '@/dal/admin'
 import { closeRuleChanges } from '@/dal/b2b'
 import { marketAdapterStatus } from '@/server/adapters/markets'
 import { pipedriveConfigured } from '@/server/adapters/pipedrive'
+import { deliveryMode } from '@/server/adapters/event-delivery'
+import { antibotMode } from '@/server/adapters/antibot'
+import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
+import { adapterQueue } from '@/dal/reportes'
+import { routesAdapter } from '@/server/adapters/routes'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
 import { day, dayTime, num } from '@/lib/format'
 import { zoneLabel } from '@/lib/audit'
 import { NOT_YET, UNDEFINED_ITEMS } from '@/content/status'
+import { channelStatus } from '@/server/adapters/channels'
+import { CHANNEL_LABEL } from '@/lib/notice-kinds'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +36,7 @@ export default async function StatusPage() {
   // Cómo se gana cada embudo y quién cambió esa regla por última vez (queda en la bitácora con cuántos negocios abiertos tocó).
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
+  const routes = routesAdapter()
   const version = deployedVersion()
   const when = (d: string | null | undefined) => (d ? dayTime(d, locale, tz) : null)
   const envName: Record<string, [string, string]> = {
@@ -50,6 +58,7 @@ export default async function StatusPage() {
         ? { tone: 'good', text: t('Conectada', 'Connected') }
         : { tone: 'warn', text: t('Llave creada, sin datos reales todavía', 'Key created, no real data yet') }
 
+  const reportQueue = await adapterQueue(ctx)
   const rows: { key: string; name: string; what: string; state: { tone: Tone; text: string }; last: string }[] = [
     {
       key: 'google',
@@ -90,12 +99,45 @@ export default async function StatusPage() {
       last: s.web_forms ? t(`Último lead web: ${when(s.web_forms.received_at)}`, `Last web lead: ${when(s.web_forms.received_at)}`) : t('No ha llegado ningún lead web', 'No web lead has arrived'),
     },
     {
-      key: 'outbox',
-      name: t('Avisos a otros sistemas', 'Notices to other systems'),
-      what: t('Lo que CONTIGO publica para que otros lo lean', 'What CONTIGO publishes for others to read'),
-      state: { tone: 'neutral', text: t('Sin conectar', 'Not connected') },
-      last: t(`${num(s.outbox_pending, locale)} guardados; nadie los recoge todavía`, `${num(s.outbox_pending, locale)} stored; nobody picks them up yet`),
+      key: 'routes',
+      name: t('Herramienta de rutas', 'Route tool'),
+      what: t('Tiendas de cada persona para planear su ruta', 'Each person’s stores to plan their route'),
+      state: routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`La lista de tiendas por persona ya se arma dentro de CONTIGO. Para encenderlo hace falta elegir la herramienta, su aprobación de tecnología y la variable ${routes.envVar}.`, `The store list per person is already built inside CONTIGO. Turning it on needs the tool chosen, its technology approval and the ${routes.envVar} variable.`),
     },
+    {
+      key: 'outbox',
+      name: t('Eventos para otros sistemas', 'Events for other systems'),
+      what: t('Lo que CONTIGO publica para que otros lo lean', 'What CONTIGO publishes for others to read'),
+      state: deliveryMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
+      last: t(`${num(s.outbox_pending, locale)} guardados, listos para publicar. Para encenderlo: aprobación del transporte, llave de firma y la variable CONTIGO_EVENT_DELIVERY`, `${num(s.outbox_pending, locale)} stored, ready to publish. To turn it on: transport approval, signing key and the CONTIGO_EVENT_DELIVERY variable`),
+    },
+    {
+      key: 'antibot',
+      name: t('Verificación anti-bot de formularios', 'Anti-bot check on forms'),
+      what: t('Un desafío para distinguir personas de programas', 'A challenge to tell people from programs'),
+      state: antibotMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
+      last: t('Activos sin él: límite por dirección, tiempo mínimo y campo trampa. Para encenderlo: aprobar el servicio y la variable CONTIGO_ANTIBOT', 'On without it: per-address limit, minimum time and trap field. To turn it on: approve the service and set the CONTIGO_ANTIBOT variable'),
+    },
+    // Canales de avisos (paquete avisos): construidos y apagados. Cada uno dice qué falta para encenderlo.
+    ...channelStatus().map((c) => ({
+      key: `channel_${c.channel}`,
+      name: t(`Avisos por ${CHANNEL_LABEL[c.channel][0]}`, `Notices by ${CHANNEL_LABEL[c.channel][1]}`),
+      what: t('Canal de salida. Dentro de CONTIGO los avisos ya llegan.', 'Outgoing channel. Inside CONTIGO notices already arrive.'),
+      state: c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Apagado', 'Off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
+      last: `${t(...c.needs)} ${t(`Se enciende con la variable ${c.envVar}, después de la aprobación.`, `It is turned on with the ${c.envVar} variable, after approval.`)}`,
+    })),
+    // Archivo de salida de Reportes: construido y apagado. El correo de reportes programados es el canal de correo de Avisos.
+    ...REPORT_ADAPTERS.map((a) => {
+      const q = reportQueue.find((x) => x.channel === a.key)
+      return {
+        key: a.key,
+        name: t(a.name[0], a.name[1]),
+        what: t(a.what[0], a.what[1]),
+        state: channelMode(a.key) === 'simulated' ? { tone: 'neutral' as Tone, text: t('Simulado (solo pruebas)', 'Simulated (tests only)') } : { tone: 'neutral' as Tone, text: t('Canal apagado', 'Channel off') },
+        last: t(`${num(q?.n ?? 0, locale)} en cola sin salir. Para encenderlo: ${a.needs[0]}`, `${num(q?.n ?? 0, locale)} queued, not sent. To turn it on: ${a.needs[1]}`),
+      }
+    }),
     // Adaptadores del paquete de mercados: construidos y apagados. Cada uno dice qué falta para encenderlo.
     ...marketAdapterStatus().map((a) => ({
       key: `adapter_${a.key}`,
@@ -105,6 +147,16 @@ export default async function StatusPage() {
       last: a.mode === 'ready' ? t('La llave está en el ambiente.', 'The key is in the environment.') : `${t(...a.needs)} ${t(`Se enciende con la variable ${a.envVar}, después de la aprobación.`, `It is turned on with the ${a.envVar} variable, after approval.`)}`,
     })),
   ]
+  // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
+  rows.push({
+    key: 'jobs',
+    name: t('Tareas programadas', 'Scheduled jobs'),
+    what: t('Disparo externo por horario', 'External scheduled trigger'),
+    state: e.CRON_SECRET ? { tone: 'good', text: t('Encendido', 'On') } : { tone: 'neutral', text: t('Apagado: falta el secreto', 'Off: the secret is missing') },
+    last: e.CRON_SECRET
+      ? t('La plataforma llama a la ruta de tareas con el secreto configurado', 'The platform calls the jobs route with the configured secret')
+      : t('Para encenderlo: configurar CRON_SECRET y que la plataforma llame a la ruta cada minuto. Mientras tanto corren con la app en uso', 'To turn it on: set CRON_SECRET and have the platform call the route every minute. Meanwhile they run while the app is in use'),
+  })
 
   return (
     <>

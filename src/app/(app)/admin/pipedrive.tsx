@@ -27,6 +27,12 @@ const PHASE: Record<string, Pair> = {
 }
 const SKIP: Record<string, Pair> = {
   no_market: ['sin mercado identificable', 'no identifiable market'],
+  // Reglas de entrada (las mismas de la pantalla y la API): la fila que no cumple no entra.
+  rule_name: ['sin nombre válido', 'no valid name'],
+  rule_prohibited: ['traía un dato que CONTIGO no guarda', 'it carried data CONTIGO does not store'],
+  rule_phone: ['teléfono inválido', 'invalid phone number'],
+  rule_amount: ['monto inválido', 'invalid amount'],
+  rule_lost_reason: ['perdido sin motivo', 'lost with no reason'],
   pipeline_out_of_scope: ['embudo fuera de US y MX', 'pipeline outside US and MX'],
   archived_open: ['archivado sin cerrar', 'archived while open'],
   deleted: ['borrado en Pipedrive', 'deleted in Pipedrive'],

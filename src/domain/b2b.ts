@@ -13,7 +13,7 @@ import { scrub } from '@/domain/pipedrive/mapping'
 export const MOTORS = ['d2d', 'b2b', 'dealer', 'event', 'orders', 'other'] as const
 export const LEVELS = ['store', 'chain', 'distributor', 'organization'] as const
 export const FIELD_OBJECTS = ['account', 'deal', 'lead'] as const
-export const FIELD_TYPES = ['text', 'number', 'select', 'date', 'boolean'] as const
+export const FIELD_TYPES = ['text', 'number', 'select', 'multiselect', 'date', 'boolean'] as const
 
 const label = z.string().trim().min(2).max(60)
 const slug = (s: string) =>
@@ -338,19 +338,31 @@ const fieldInput = z.object({
   dataType: z.enum(FIELD_TYPES),
   options: z.array(z.string().trim().min(1).max(60)).max(30).optional().default([]),
   inIntake: z.boolean().optional().default(false),
+  /** GOB-01: la decisión que el campo habilita. Sin decisión documentada no hay campo. */
+  decision: z.string().trim().max(400).optional().default(''),
+  purpose: z.string().trim().max(400).optional().default(''),
+  /** Quién responde por el campo. Sin elegir, quien lo crea. */
+  ownerId: z.guid().or(z.literal('')).optional().default(''),
 })
 
-/** Un campo nuevo para comercio, negocio o lead, por mercado y tipo de venta. Aparece en la ficha y, si se marca, en el alta. */
+/**
+ * Un campo nuevo para comercio, negocio o lead, por mercado y tipo de venta. Aparece en la ficha y, si se marca, en el alta.
+ * Nace con su gobierno: la decisión que habilita, quién responde por él y una fecha de revisión a seis meses (se cambian en Datos, Campos).
+ */
 export async function createField(ctx: Ctx, input: z.input<typeof fieldInput>): Promise<string> {
   ctx.assert('config.manage')
   const parsed = fieldInput.safeParse(input)
   if (!parsed.success) throw invalid('El campo lleva nombre en español y en inglés (de 2 a 60 letras) y su tipo.', 'A field needs a name in Spanish and in English (2 to 60 characters) and its type.')
   const v = parsed.data
   assertAllowedLabel(v.labelEs, v.labelEn, ...v.options)
-  const options = v.dataType === 'select' ? [...new Set(v.options)] : []
-  if (v.dataType === 'select' && options.length < 2) throw invalid('Una lista lleva al menos dos opciones, una por renglón.', 'A list needs at least two options, one per line.')
+  const listed = v.dataType === 'select' || v.dataType === 'multiselect'
+  const options = listed ? [...new Set(v.options)] : []
+  if (listed && options.length < 2) throw invalid('Una lista lleva al menos dos opciones, una por renglón.', 'A list needs at least two options, one per line.')
+  if (v.decision.length < 10) throw invalid('Escribe qué decisión habilita este campo (al menos 10 letras). Sin decisión no hay campo.', 'Say which decision this field enables (at least 10 characters). No decision, no field.')
+  assertNoProhibited(v.decision, v.purpose)
   return withUser(ctx.user.id, async (tx) => {
     const market = v.market || null
+    if (v.ownerId && !(await tx`select 1 from crm.users where id = ${v.ownerId} and is_active and not is_system`)[0]) throw invalid('Esa persona no está activa en CONTIGO.', 'That person is not active in CONTIGO.')
     if (market && !(await tx`select 1 from crm.markets where code = ${market}`)[0]) throw invalid('Ese mercado no existe.', 'That market does not exist.')
     const clash = await tx`select 1 from crm.field_definitions where object = ${v.object} and is_active
       and (market_code is null or ${market}::text is null or market_code = ${market})
@@ -359,10 +371,11 @@ export async function createField(ctx: Ctx, input: z.input<typeof fieldInput>): 
     if (clash[0]) throw invalid('Ya hay un campo con ese nombre.', 'There is already a field with that name.')
     const key = await freeCode(slug(v.labelEn), async (k) => !!(await tx`select 1 from crm.field_definitions where object = ${v.object} and key = ${k}`)[0])
     const id = await newId(tx)
-    await tx`insert into crm.field_definitions (id, object, key, label_es, label_en, data_type, options, market_code, motor, in_intake, position)
+    await tx`insert into crm.field_definitions (id, object, key, label_es, label_en, data_type, options, market_code, motor, in_intake, position, decision, purpose, owner_id, review_on, decided_by, decided_at)
              values (${id}, ${v.object}, ${key}, ${v.labelEs}, ${v.labelEn}, ${v.dataType}, ${tx.json(options)}, ${market}, ${v.motor || null}, ${v.inIntake && v.object === 'account'},
-                     (select coalesce(max(position), 0) + 1 from crm.field_definitions where object = ${v.object}))`
-    await audit(tx, ctx, 'field.created', 'field', id, market, null, { object: v.object, key, label_es: v.labelEs, data_type: v.dataType, motor: v.motor || null })
+                     (select coalesce(max(position), 0) + 1 from crm.field_definitions where object = ${v.object}),
+                     ${v.decision}, ${v.purpose || null}, ${v.ownerId || ctx.user.id}, (now() + interval '6 months')::date, ${ctx.user.id}, now())`
+    await audit(tx, ctx, 'field.created', 'field', id, market, null, { object: v.object, key, label_es: v.labelEs, data_type: v.dataType, motor: v.motor || null, decision: v.decision })
     return id
   })
 }

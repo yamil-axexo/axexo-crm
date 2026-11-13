@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
-import { addContact, createAccount, mergeAccounts, reassignAccounts, setParent, updateAccount } from '@/domain/accounts'
+import { addContactLinked, createAccount, mergeAccounts, reassignAccounts, setParent, updateAccount } from '@/domain/accounts'
 import { DomainError, invalid } from '@/lib/errors'
 import { updateCustom, type CustomInput } from '@/domain/custom'
 
@@ -23,14 +23,21 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
       locality: str(fd, 'locality'),
       region: str(fd, 'region'),
       territoryId: str(fd, 'territory_id'),
+      email: str(fd, 'email'),
+      addressLine: str(fd, 'address_line'),
       force: fd.get('force') === 'on',
+      reason: str(fd, 'reason'),
     })
     if (out.duplicates) {
       const names = out.duplicates.map((d) => `${d.name}${d.owner_name ? ` (${d.owner_name})` : ''}`).join('; ')
+      // DAT-04: una llave fuerte exacta (teléfono, correo, nombre y dirección) no se salta con un clic; lo parecido, solo con motivo.
+      const strong = out.duplicates.some((d) => d.strong)
+      if (strong && !ctx.can('account.reassign', str(fd, 'market')))
+        throw new DomainError('duplicate', `Parece que ya existe: ${names}. Coincide un dato exacto, así que no se crea otro: búscalo o pídeselo a tu supervisión.`, `It looks like this already exists: ${names}. An exact detail matches, so a second one is not created: look it up or ask your supervisor.`)
       throw new DomainError(
         'duplicate',
-        `Parece que ya existe: ${names}. Si es otro comercio, marca "Crear de todos modos".`,
-        `It looks like this already exists: ${names}. If it is a different merchant, tick "Create anyway".`,
+        `Parece que ya existe: ${names}. Si es otro comercio, marca "Crear de todos modos" y escribe por qué.`,
+        `It looks like this already exists: ${names}. If it is a different merchant, tick "Create anyway" and say why.`,
       )
     }
     id = out.id!
@@ -67,9 +74,10 @@ export async function updateAccountAction(_: R | null, fd: FormData): Promise<R>
 
 export async function addContactAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await addContact(ctx, str(fd, 'account_id'), { fullName: str(fd, 'full_name'), phone: str(fd, 'phone'), email: str(fd, 'email'), role: str(fd, 'role') as 'staff',
+    const out = await addContactLinked(ctx, str(fd, 'account_id'), { fullName: str(fd, 'full_name'), phone: str(fd, 'phone'), email: str(fd, 'email'), role: str(fd, 'role') as 'staff',
       locale: str(fd, 'locale') as 'es', sms: fd.get('sms') === 'on', primary: fd.get('primary') === 'on' })
-    return { message: ['Contacto agregado.', 'Contact added.'] }
+    // DAT-02: la misma persona en otra cuenta no se duplica; se liga la que ya existe y se dice.
+    return { message: out.linked ? [`${out.name} ya era contacto de otra cuenta con ese teléfono: quedó ligado también a esta.`, `${out.name} was already a contact of another account with that phone: now linked to this one too.`] : ['Contacto agregado.', 'Contact added.'] }
   })
 }
 

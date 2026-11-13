@@ -102,6 +102,8 @@ export async function updateStageAction(_: R | null, fd: FormData): Promise<R> {
       nameEn: str(fd, 'name_en'),
       rotDays: Number(str(fd, 'rot_days') || '0'),
       requiredFields: fd.getAll('required').filter((v): v is 'amount' => typeof v === 'string'),
+      // La hoja de la etapa ofrece los campos definidos del negocio: lo marcado como requisito y lo destacado viajan aquí.
+      ...(fd.has('fields_offered') ? { requiredCustom: fd.getAll('required_custom').map(String), highlight: fd.getAll('highlight').map(String) } : {}),
     })
     return { message: ['Etapa actualizada. El cambio quedó en la bitácora.', 'Stage updated. The change is in the audit log.'] }
   })

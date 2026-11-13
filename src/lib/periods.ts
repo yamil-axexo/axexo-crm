@@ -55,3 +55,10 @@ export function csvCell(v: string | number | null | undefined): string {
 
 export const toCsv = (head: string[], rows: (string | number | null | undefined)[][]): string =>
   '﻿' + [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n'
+
+/** Último día de un mes dado como 'AAAA-MM'. Aritmética de calendario pura: no depende de la hora ni de la zona del servidor. */
+export function monthEnd(month: string): string {
+  const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))]
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return `${month}-${String(days).padStart(2, '0')}`
+}

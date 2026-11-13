@@ -213,6 +213,9 @@ export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipeline
                 <Field label={t('Mercado', 'Market')}>{marketSelect('field-new-market')}</Field>
                 <Field label={t('Tipo de venta', 'Sale type')}>{motorSelect('field-new-motor')}</Field>
                 <Field label={t('Opciones (solo para listas), una por renglón', 'Options (lists only), one per line')} className="col-span-2"><textarea name="options" rows={3} className="input !h-auto py-3" data-testid="field-new-options" /></Field>
+                <Field label={t('¿Qué decisión habilita este campo?', 'Which decision does this field enable?')} className="col-span-2" hint={t('Sin una decisión escrita no se crea. Quien lo crea queda como responsable; el resto de su gobierno se completa en Datos, Campos.', 'It is not created without a written decision. Whoever creates it becomes its owner; the rest of its governance is completed under Data, Fields.')}>
+                  <textarea name="decision" rows={2} required minLength={10} maxLength={400} className="input !h-auto py-3" data-testid="field-new-decision" />
+                </Field>
                 <label className="col-span-2 flex min-h-11 cursor-pointer items-center gap-3 text-[14px]"><input type="checkbox" name="in_intake" className="h-5 w-5 shrink-0" data-testid="field-new-intake" />{t('Pedirlo al dar de alta un comercio', 'Ask for it when a merchant is created')}</label>
                 <div className="col-span-2 flex justify-end"><Submit testId="field-new-save">{t('Crear campo', 'Create field')}</Submit></div>
               </ActionForm>

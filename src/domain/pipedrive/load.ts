@@ -1,6 +1,8 @@
 import 'server-only'
 import type { Tx } from '@/server/db'
 import { evaluateRules } from '@/domain/rules'
+import { accountRule, dealRule, leadRule, skipReason } from '@/domain/intake'
+import { missingForStage } from '@/domain/deals'
 import * as M from './mapping'
 import { SRC, accountsByOrg, bump, ensureLossReason, loadRefs, markLoaded, newIds, refMap, saveRefs, sid, type Json, type Raw, type Refs } from './refs'
 
@@ -210,6 +212,12 @@ const loadOrganizations: Loader = async (tx, runId, sysId) => {
       custom: customOf(plans, p, refs, used),
       created_at: M.isoTime(p.add_time),
     }
+    // AUT-01: la importación aplica las mismas reglas de entrada que la pantalla y la API. La fila que no cumple se salta, con su motivo.
+    const broken = accountRule({ name: String(rec.name), phone: rec.phone as string | null })
+    if (broken) {
+      tally.skip(r.external_id, skipReason(broken))
+      continue
+    }
     const emidaPlan = plans.find((x) => x.mappedTo === 'alias:emida')
     const emidaId = emidaPlan ? str(String(M.rawValue(p, emidaPlan) ?? ''), 80) : ''
     if (prior) changed.push(rec)
@@ -366,6 +374,7 @@ const loadDeals: Loader = async (tx, runId, sysId) => {
   const placeholders = await refMap(tx, 'deal_account', ids)
   const lossCodes = new Map<string, string>()
   const tally = new Tally()
+  let needsStep = 0
   const fresh: Rec[] = []
   const changed: Rec[] = []
   const newAccounts: Rec[] = []
@@ -429,10 +438,19 @@ const loadDeals: Loader = async (tx, runId, sysId) => {
       stage_entered_at: wonAt ?? lostAt ?? M.isoTime(p.stage_change_time) ?? created, won_at: wonAt, lost_at: lostAt,
       closed_by: status === 'open' ? null : 'manual', custom: customOf(plans, p, refs, new Set()), created_at: created,
     }
+    const broken = dealRule({ title, amount_minor: rec.amount_minor as number | null, status, loss_reason_code: lossCode, loss_note: lossNote })
+    if (broken) {
+      tally.skip(r.external_id, skipReason(broken))
+      continue
+    }
+    // Un negocio abierto lleva próximo paso (la misma función que revisa la pantalla). Pipedrive no lo trae: el negocio entra,
+    // se cuenta aquí y la regla "sin próximo paso" lo pone en la cola de avisos al terminar la corrida. No se inventa un paso.
+    if (status === 'open' && !id && missingForStage({ amount_minor: rec.amount_minor as number | null, next_step: null, next_step_due: null, decision_maker_id: null, decision_maker_met: false }, { kind: 'open', required_fields: [] }).includes('next_step')) needsStep++
     if (id) changed.push(rec)
     else fresh.push(rec)
     tally.ok(r.external_id, !id)
   }
+  if (needsStep) await bump(tx, runId, ['created', 'deal_needs_next_step'], needsStep)
 
   if (newAccounts.length) {
     await tx`insert into crm.accounts (id, market_code, kind, name, lifecycle, owner_id, custom, created_by, created_at)
@@ -533,6 +551,11 @@ const loadLeads: Loader = async (tx, runId) => {
       contact_name: contact?.full_name ?? '(sin contacto)', phone: contact?.phone ?? null, email: contact?.email ?? null,
       message: title && title !== business ? title : null, status: archived ? 'disqualified' : 'new', disqualify_code: archived ? 'pd_archived' : null,
       owner_id: refs.users.get(sid(p.owner_id) ?? '')?.id ?? null, custom, created_at: created,
+    }
+    const broken = leadRule({ business_name: String(rec.business_name), contact_name: String(rec.contact_name), phone: rec.phone as string | null, message: rec.message as string | null })
+    if (broken) {
+      tally.skip(r.external_id, skipReason(broken))
+      continue
     }
     if (id) changed.push(rec)
     else fresh.push(rec)

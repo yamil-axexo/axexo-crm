@@ -72,9 +72,9 @@ describe('mercados: permisos, bitácora y metadata de la ficha', () => {
   it('cada acción nueva tiene nombre en español y en inglés, sin guiones largos, y cae en un grupo de la bitácora', () => {
     const like = (action: string, pattern: string) => new RegExp(`^${pattern.replace(/[.]/g, '\\.').replace(/%/g, '.*')}$`).test(action)
     const actions: Record<'config' | 'records' | 'access', string[]> = {
-      config: ['market.created', 'market.status_changed', 'market.holiday_added', 'market.holiday_removed', 'entity.created', 'entity.updated', 'whatsapp.account_saved', 'whatsapp.template_saved',
+      config: ['market.created', 'market.holiday_added', 'market.holiday_removed', 'entity.created', 'entity.updated', 'whatsapp.account_saved', 'whatsapp.template_saved',
         'whatsapp.template_status', 'whatsapp.rate_saved', 'ficha.layout_set', 'field_section.created', 'field.section_set'],
-      records: ['contact.updated', 'contact.ended', 'account.profile_set', 'account.address_set', 'account.located', 'account.location_cleared', 'account.whatsapp_window', 'taxid.captured', 'taxid.reviewed'],
+      records: ['account.profile_set', 'account.address_set', 'account.located', 'account.location_cleared', 'account.whatsapp_window', 'taxid.captured', 'taxid.reviewed'],
       access: ['user.entity_set'],
     }
     for (const [group, list] of Object.entries(actions)) {

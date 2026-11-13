@@ -1,12 +1,16 @@
 import 'server-only'
 import { z } from 'zod'
-import { withUser, type Tx } from '@/server/db'
+import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
-import { invalid, notFound } from '@/lib/errors'
+import { DomainError, invalid, notFound } from '@/lib/errors'
+import { assertNoProhibited } from '@/domain/guard'
 import { toE164 } from '@/lib/format'
+import { accountRule, intakeError } from '@/domain/intake'
+import { notifyMany, peopleWithRole } from '@/domain/notify'
 
-export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'name' }
+/** `strong`: coincide una llave fuerte exacta (teléfono, correo, identificador externo, o nombre más dirección). */
+export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'email' | 'external_id' | 'name_address' | 'name'; strong: boolean }
 
 const createInput = z.object({
   market: z.string().length(2),
@@ -20,8 +24,34 @@ const createInput = z.object({
   locality: z.string().trim().max(120).optional().default(''),
   region: z.string().trim().max(120).optional().default(''),
   territoryId: z.guid().or(z.literal('')).optional(),
+  email: z.string().trim().max(160).optional().default(''),
+  addressLine: z.string().trim().max(200).optional().default(''),
+  /** El identificador que el comercio ya tiene en otro sistema, si quien captura lo conoce: también es llave de duplicado. */
+  externalId: z.string().trim().max(80).optional().default(''),
   force: z.boolean().optional().default(false),
+  /** Por qué se crea aunque se parezca a uno que ya existe. Sin motivo, el aviso no se salta. */
+  reason: z.string().trim().max(400).optional().default(''),
 })
+
+export type NewAccount = {
+  market: string; kind: string; accountType: string | null; name: string; segment: string; lifecycle: 'prospect' | 'onboarding'; parentId: string | null
+  ownerId: string | null; territoryId: string | null; phone: string | null; locality: string | null; region: string | null; createdBy: string
+  email?: string | null; addressLine?: string | null
+}
+
+/**
+ * AUT-01: el alta de un comercio, una sola vez. La usan la pantalla (`createAccount`) y la Sales App (`ingestStore`):
+ * las dos pasan por las mismas reglas de entrada antes de escribir.
+ */
+export async function insertAccountTx(tx: Tx, a: NewAccount): Promise<string> {
+  const broken = accountRule({ name: a.name, phone: a.phone })
+  if (broken) throw intakeError(broken)
+  const id = await newId(tx)
+  await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, lifecycle, parent_id, owner_id, territory_id, phone, email, address_line, locality, region, country, created_by)
+           values (${id}, ${a.market}, ${a.kind}, ${a.accountType}, ${a.name.trim()}, ${a.segment}, ${a.lifecycle}, ${a.parentId}, ${a.ownerId}, ${a.territoryId}, ${a.phone},
+                   ${a.email ?? null}, ${a.addressLine ?? null}, ${a.locality}, ${a.region}, ${a.market}, ${a.createdBy})`
+  return id
+}
 
 /** DAT-04: antes de crear, se busca el duplicado en todo el mercado. Si aparece, se devuelve y no se crea. */
 export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>): Promise<{ id?: string; duplicates?: Duplicate[] }> {
@@ -42,10 +72,21 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
   const market = ctx.market(v.market)
   const phone = v.phone ? toE164(v.phone, market.phoneCc) : null
   if (v.phone && !phone) throw invalid('El teléfono no parece válido.', 'The phone number does not look valid.')
+  if (v.email && !z.string().email().safeParse(v.email).success) throw invalid('El correo no parece válido.', 'The email does not look valid.')
+  assertNoProhibited(v.reason, v.externalId)
   return withUser(ctx.user.id, async (tx) => {
-    if (!v.force) {
-      const dups = await tx<Duplicate[]>`select id, name, locality, owner_name, lifecycle, match from app.duplicate_candidates(${v.market}, ${v.name}, ${phone})`
-      if (dups.length) return { duplicates: [...dups] }
+    // DAT-04: se busca en todo el mercado por llaves fuertes y por nombre parecido. Una llave fuerte exacta bloquea a quien
+    // vende (solo quien dirige puede crear, con motivo); lo demás es un aviso que se salta con motivo. Cada salto queda para revisión.
+    const dups = await tx<Duplicate[]>`select id, name, locality, owner_name, lifecycle, match, strong
+      from app.duplicate_matches(${v.market}, ${v.name}, ${phone}, ${clean(v.email)}, ${clean(v.addressLine)}, ${clean(v.locality)}, ${clean(v.externalId)})`
+    if (dups.length) {
+      if (!v.force) return { duplicates: [...dups] }
+      const strong = dups.find((d) => d.strong)
+      if (strong && !ctx.can('account.reassign', v.market))
+        throw new DomainError('duplicate_blocked',
+          `"${strong.name}" ya existe con ese mismo dato${strong.owner_name ? ` (lo lleva ${strong.owner_name})` : ''}. No se crea otro: búscalo o pídeselo a tu supervisión.`,
+          `"${strong.name}" already exists with that same detail${strong.owner_name ? ` (owner: ${strong.owner_name})` : ''}. A second one is not created: look it up or ask your supervisor.`)
+      if (v.reason.length < 10) throw invalid('Escribe por qué es otro comercio (al menos 10 letras). Sin motivo no se crea.', 'Say why this is a different merchant (at least 10 characters). It is not created without a reason.')
     }
     if (v.parentId) {
       const p = await tx`select 1 from crm.accounts where id = ${v.parentId} and market_code = ${v.market} and kind <> 'store'`
@@ -68,18 +109,28 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
       } else if (createInput.shape.kind.safeParse(v.accountType).success) kind = v.accountType
       else throw invalid('Ese tipo de cuenta no existe en este mercado.', 'That account type does not exist in this market.')
     }
-    const id = await newId(tx)
     // Sin territorio elegido, la base pone el de quien lo crea cuando tiene uno solo en este mercado (0011_distribution).
-    await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, parent_id, owner_id, territory_id, phone, locality, region, country, created_by)
-             values (${id}, ${v.market}, ${kind}, ${accountType}, ${v.name}, ${v.segment}, ${v.parentId || null}, ${ctx.user.id}, ${v.territoryId || null}, ${phone},
-                     ${clean(v.locality)}, ${clean(v.region)}, ${v.market}, ${ctx.user.id})`
+    const id = await insertAccountTx(tx, { market: v.market, kind, accountType, name: v.name, segment: v.segment, lifecycle: 'prospect', parentId: v.parentId || null,
+      ownerId: ctx.user.id, territoryId: v.territoryId || null, phone, locality: clean(v.locality), region: clean(v.region), email: clean(v.email), addressLine: clean(v.addressLine), createdBy: ctx.user.id })
+    if (dups.length) {
+      await tx`insert into crm.duplicate_bypasses (market_code, account_id, matched_ids, match_kinds, strong, reason, actor_id)
+               values (${v.market}, ${id}, ${dups.map((d) => d.id)}::uuid[], ${[...new Set(dups.map((d) => d.match))]}::text[], ${dups.some((d) => d.strong)}, ${v.reason}, ${ctx.user.id})`
+      await audit(tx, ctx, 'duplicate.bypassed', 'account', id, v.market, null, { matched: dups.map((d) => d.id), kinds: [...new Set(dups.map((d) => d.match))], reason: v.reason })
+    }
     if (v.parentId) await tx`insert into crm.account_links (child_id, parent_id, created_by) values (${id}, ${v.parentId}, ${ctx.user.id})`
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
       (${id}, ${v.market}, 'origin', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id}),
       (${id}, ${v.market}, 'channel', 'team', ${v.segment}, ${v.segment.toUpperCase()}, ${ctx.user.id}),
       (${id}, ${v.market}, 'owner', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id})`
-    await audit(tx, ctx, 'account.created', 'account', id, v.market, null, { kind, account_type: accountType, name: v.name, forced_duplicate: v.force })
+    await audit(tx, ctx, 'account.created', 'account', id, v.market, null, { kind, account_type: accountType, name: v.name, forced_duplicate: dups.length > 0 })
     await emit(tx, 'account.created', 'account', id, v.market, { kind })
+    // E13.F2 (cuenta nueva): Operaciones del mercado se entera. No pide acción: no aparece en Hoy.
+    await notifyMany(tx, ctx, await peopleWithRole(tx, v.market, ['ops']), {
+      kind: 'lifecycle', market: v.market, template: 'account_new', link: `/comercios/${id}`, accountId: id, needsAction: false,
+      title: [`Cuenta nueva: ${v.name}`, `New account: ${v.name}`],
+      body: [`${ctx.user.name} creó la cuenta en ${ctx.market(v.market).name}.`, `${ctx.user.name} created the account in ${ctx.market(v.market).name}.`],
+      vars: { comercio: v.name, quien: ctx.user.name, mercado: ctx.market(v.market).name },
+    })
     return { id }
   })
 }
@@ -117,14 +168,23 @@ export async function updateAccount(ctx: Ctx, id: string, input: z.input<typeof 
   })
 }
 
-/** DAT-01: mover una cuenta en el árbol cierra el vínculo anterior con fecha y abre el nuevo. */
-export async function setParent(ctx: Ctx, id: string, parentId: string | null): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
+/**
+ * DAT-01: mover una cuenta en el árbol es una transición con motivo y fecha efectiva: cierra el vínculo anterior en esa fecha
+ * y abre el nuevo. La cuenta conserva su historia, su atribución y a quien la lleva; el árbol no crece más de lo que admite el
+ * tipo de su raíz. Poner por primera vez una cuenta independiente bajo una matriz no pide motivo; cambiarla o sacarla, sí.
+ */
+export async function setParent(ctx: Ctx, id: string, parentId: string | null, opts: { reason?: string; effectiveOn?: string } = {}): Promise<{ ownerDiffers: boolean }> {
+  const reason = (opts.reason ?? '').trim()
+  const effectiveOn = (opts.effectiveOn ?? '').trim()
+  if (effectiveOn && !/^\d{4}-\d{2}-\d{2}$/.test(effectiveOn)) throw invalid('La fecha efectiva no es válida.', 'The effective date is not valid.')
+  assertNoProhibited(reason)
+  return withUser(ctx.user.id, async (tx) => {
     const a = await loadAccount(tx, id)
     ctx.assert('account.tree', a.market_code)
     // Quien vende arma el árbol de SUS cuentas: la que mueve y la matriz son suyas. Quien dirige mueve cualquiera de su alcance.
     const manages = ctx.can('account.reassign', a.market_code)
     if (!manages && a.owner_id !== ctx.user.id) throw invalid('Solo puedes mover en el árbol las cuentas que son tuyas.', 'You can only move accounts that are yours in the tree.')
+    let parentOwner: string | null = null
     if (parentId) {
       const p = await tx<{ owner_id: string | null; ancestor_ids: string[] }[]>`
         select owner_id, ancestor_ids from crm.accounts where id = ${parentId} and market_code = ${a.market_code} and kind <> 'store' and archived_at is null`
@@ -132,43 +192,42 @@ export async function setParent(ctx: Ctx, id: string, parentId: string | null): 
       if (!manages && p[0].owner_id !== ctx.user.id) throw invalid('La cuenta matriz también tiene que ser tuya. Si no lo es, pídeselo a quien supervisa.', 'The parent account must be yours too. If it is not, ask your supervisor.')
       // La base también lo impide (crm.account_tree_before); aquí se explica antes de llegar.
       if (parentId === id || p[0].ancestor_ids.includes(id)) throw invalid('Esa cuenta cuelga de esta: no puede ser su matriz.', 'That account sits under this one: it cannot be its parent.')
+      parentOwner = p[0].owner_id
     }
-    if (parentId === a.parent_id) return
-    await tx`update crm.account_links set valid_to = now() where child_id = ${id} and valid_to is null`
-    await tx`update crm.accounts set parent_id = ${parentId} where id = ${id}`
-    if (parentId) await tx`insert into crm.account_links (child_id, parent_id, created_by) values (${id}, ${parentId}, ${ctx.user.id})`
-    await audit(tx, ctx, 'account.parent_changed', 'account', id, a.market_code, { parent_id: a.parent_id }, { parent_id: parentId })
+    if (parentId === a.parent_id) return { ownerDiffers: false }
+    if (a.parent_id && (reason.length < 5 || reason.length > 300)) throw invalid('Escribe por qué se mueve esta cuenta en el árbol (de 5 a 300 letras).', 'Say why this account is moving in the tree (5 to 300 characters).')
+    // Fecha efectiva: hoy o un día pasado (un cambio que ya ocurrió y se registra tarde). Un cambio a futuro no se agenda aquí.
+    const when = await tx<{ at: Date; future: boolean; early: boolean }[]>`
+      with w as (
+        select case when ${effectiveOn || null}::date is null or ${effectiveOn || null}::date = ${marketToday(tx, a.market_code)} then now()
+                    else (${effectiveOn || null}::date + time '12:00') at time zone (select timezone from crm.markets where code = ${a.market_code}) end as at
+      )
+      select w.at, coalesce(${effectiveOn || null}::date > ${marketToday(tx, a.market_code)}, false) as future,
+             exists (select 1 from crm.account_links l where l.child_id = ${id} and l.valid_from > w.at) as early
+        from w`
+    if (when[0]!.future) throw invalid('La fecha efectiva no puede ser futura. Regístralo el día que ocurra.', 'The effective date cannot be in the future. Record it on the day it happens.')
+    if (when[0]!.early) throw invalid('La fecha efectiva es anterior al vínculo que tiene hoy. Elige una fecha posterior.', 'The effective date is earlier than its current link. Pick a later date.')
+    const at = when[0]!.at
+    await tx`update crm.account_links set valid_to = ${at} where child_id = ${id} and valid_to is null`
+    try {
+      await tx.savepoint((sp) => sp`update crm.accounts set parent_id = ${parentId} where id = ${id}`)
+    } catch (e) {
+      const pg = e as { code?: string; message?: string }
+      if (pg.code === '23514' && /too deep/.test(pg.message ?? '')) throw invalid('Ese árbol ya tiene todos los niveles que admite su tipo de cuenta. Administración puede cambiar el límite en Datos.', 'That tree already has every level its account type allows. Administration can change the limit under Data.')
+      throw e
+    }
+    if (parentId) await tx`insert into crm.account_links (child_id, parent_id, valid_from, created_by, reason) values (${id}, ${parentId}, ${at}, ${ctx.user.id}, ${clean(reason)})`
+    const ownerDiffers = !!parentId && !!a.owner_id && !!parentOwner && parentOwner !== a.owner_id
+    await audit(tx, ctx, 'account.parent_changed', 'account', id, a.market_code, { parent_id: a.parent_id }, { parent_id: parentId, reason: clean(reason), effective_on: effectiveOn || null, owner_kept: a.owner_id, owner_differs_from_parent: ownerDiffers })
+    return { ownerDiffers }
   })
 }
 
 // Reasignar comercios (uno, una selección o todo un filtro) vive en domain/reparto.ts, con el resto del reparto de cartera.
 export { reassignAccounts } from '@/domain/reparto'
 
-/** DAT-04: fusionar no borra. La cuenta duplicada queda archivada y apunta a la que sobrevive. */
-export async function mergeAccounts(ctx: Ctx, sourceId: string, targetId: string): Promise<void> {
-  if (sourceId === targetId) throw invalid('Elige dos comercios distintos.', 'Pick two different merchants.')
-  await withUser(ctx.user.id, async (tx) => {
-    const s = await loadAccount(tx, sourceId)
-    const t = await loadAccount(tx, targetId)
-    ctx.assert('account.merge', s.market_code)
-    if (s.market_code !== t.market_code) throw invalid('Solo se fusionan comercios del mismo mercado.', 'Only merchants in the same market can be merged.')
-    await tx`update crm.deals set account_id = ${targetId} where account_id = ${sourceId}`
-    await tx`update crm.activities set account_id = ${targetId} where account_id = ${sourceId}`
-    await tx`update crm.visits set account_id = ${targetId} where account_id = ${sourceId}`
-    await tx`update crm.leads set account_id = ${targetId} where account_id = ${sourceId}`
-    await tx`update crm.account_contacts set account_id = ${targetId} where account_id = ${sourceId}`
-    await tx`update crm.account_aliases set account_id = ${targetId} where account_id = ${sourceId}`
-    await tx`update crm.account_attributions set account_id = ${targetId} where account_id = ${sourceId}`
-    await tx`update crm.exceptions set resolved_at = now(), resolved_by = ${ctx.user.id}, resolution = 'merged'
-              where resolved_at is null and (account_id = ${sourceId} or (kind = 'duplicate_suspect' and account_id = ${targetId}))`
-    await tx`update crm.merchant_metrics_daily m set account_id = ${targetId} where account_id = ${sourceId}
-              and not exists (select 1 from crm.merchant_metrics_daily x where x.account_id = ${targetId} and x.as_of = m.as_of)`
-    await tx`update crm.accounts set parent_id = ${targetId} where parent_id = ${sourceId}`
-    await tx`update crm.accounts set merged_into = ${targetId}, archived_at = now(), phone = null where id = ${sourceId}`
-    await audit(tx, ctx, 'account.merged', 'account', targetId, s.market_code, { source_id: sourceId, source_name: s.name }, { target_id: targetId })
-    await emit(tx, 'account.merged', 'account', targetId, s.market_code, { source_id: sourceId })
-  })
-}
+// DAT-04: la fusión (con foto previa, reglas de supervivencia y deshacer) vive en domain/datos.ts.
+export { mergeAccounts } from '@/domain/datos'
 
 /** Roles de un contacto: los de tienda y los de una cuenta corporativa (dirección, compras, finanzas, tecnología, legal, operación). */
 export const CONTACT_ROLES = ['owner', 'decision_maker', 'manager', 'staff', 'billing', 'executive', 'purchasing', 'finance', 'technology', 'legal', 'operations'] as const
@@ -185,6 +244,14 @@ const contactInput = z.object({
 
 /** DAT-02: el contacto se liga a la cuenta con rol y vigencia. */
 export async function addContact(ctx: Ctx, accountId: string, input: z.input<typeof contactInput>): Promise<string> {
+  return (await addContactLinked(ctx, accountId, input)).id
+}
+
+/**
+ * Igual que `addContact`, y además dice si la persona ya existía. La misma persona no se captura dos veces: si su teléfono ya es
+ * de un contacto del mercado, ese contacto se liga a esta cuenta con su rol aquí (un contacto, varias cuentas).
+ */
+export async function addContactLinked(ctx: Ctx, accountId: string, input: z.input<typeof contactInput>): Promise<{ id: string; linked: boolean; name: string }> {
   const parsed = contactInput.safeParse(input)
   if (!parsed.success) throw invalid('Revisa nombre y rol del contacto.', 'Check the contact name and role.')
   const v = parsed.data
@@ -194,16 +261,22 @@ export async function addContact(ctx: Ctx, accountId: string, input: z.input<typ
     const phone = v.phone ? toE164(v.phone, ctx.market(a.market_code).phoneCc) : null
     if (v.phone && !phone) throw invalid('El teléfono no parece válido.', 'The phone number does not look valid.')
     if (v.email && !z.string().email().safeParse(v.email).success) throw invalid('El correo no parece válido.', 'The email does not look valid.')
-    const id = await newId(tx)
-    // "Móvil que recibe SMS" solo tiene sentido con teléfono; sin teléfono queda sin dato.
-    await tx`insert into crm.contacts (id, market_code, full_name, phone, email, preferred_locale, sms_capable, created_by)
-             values (${id}, ${a.market_code}, ${v.fullName}, ${phone}, ${clean(v.email)}, ${v.locale || null}, ${phone ? v.sms : null}, ${ctx.user.id})`
+    const known = phone ? (await tx<{ id: string; full_name: string }[]>`select id, full_name from app.contact_by_phone(${a.market_code}, ${phone})`)[0] : undefined
+    const id = known?.id ?? (await newId(tx))
+    if (known) {
+      const here = await tx`select 1 from crm.account_contacts where account_id = ${accountId} and contact_id = ${id} and valid_to is null and deal_id is null`
+      if (here[0]) throw invalid(`${known.full_name} ya es contacto de esta cuenta con ese teléfono.`, `${known.full_name} is already a contact of this account with that phone.`)
+    } else {
+      // "Móvil que recibe SMS" solo tiene sentido con teléfono; sin teléfono queda sin dato.
+      await tx`insert into crm.contacts (id, market_code, full_name, phone, email, preferred_locale, sms_capable, created_by)
+               values (${id}, ${a.market_code}, ${v.fullName}, ${phone}, ${clean(v.email)}, ${v.locale || null}, ${phone ? v.sms : null}, ${ctx.user.id})`
+    }
     // El primer contacto de una cuenta queda como principal; después, solo si se pide.
     const others = await tx`select 1 from crm.account_contacts where account_id = ${accountId} and valid_to is null limit 1`
     const primary = v.primary || !others[0]
     if (primary) await tx`update crm.account_contacts set is_primary = false where account_id = ${accountId} and is_primary and valid_to is null`
     await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role, is_primary) values (${accountId}, ${id}, ${a.market_code}, ${v.role}, ${primary})`
-    await audit(tx, ctx, 'contact.added', 'account', accountId, a.market_code, null, { contact_id: id, role: v.role, primary })
-    return id
+    await audit(tx, ctx, 'contact.added', 'account', accountId, a.market_code, null, { contact_id: id, role: v.role, primary, linked_existing: !!known })
+    return { id, linked: !!known, name: known?.full_name ?? v.fullName }
   })
 }

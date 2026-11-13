@@ -1,3 +1,4 @@
+import { DealPeople } from './people'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
@@ -7,7 +8,7 @@ import { accountPhone } from '@/dal/field'
 import { CallLink } from '@/ui/log'
 import type { MessageKey } from '@/lib/messages'
 import { fieldDefs } from '@/dal/fields'
-import { CustomFields } from '@/ui/fields'
+import { CustomFields, fieldText } from '@/ui/fields'
 import { lossReasonsFor } from '@/dal/b2b'
 import { pauseDealAction, resumeDealAction } from '@/app/(app)/b2b-actions'
 import { FIELD_LABEL, winMissingText } from '@/domain/deals'
@@ -19,7 +20,9 @@ import { moveDealAction, updateDealAction } from '@/app/(app)/pipelines/actions'
 import { gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
 import { GateFields } from '@/ui/ops'
 import { getDealOps, notifyOptions } from '@/dal/ops'
-import { DealItems, DealOpsCard } from './ops'
+import { DealItems, DealOpsCard, OrderDetailsCard } from './ops'
+import { DealSteps } from './steps'
+import { TrainingAgenda } from './training'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
@@ -29,7 +32,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getDeal(ctx, id)
   if (!data) notFound()
-  const { deal, stages, contacts, events, activities, items, current, next, missingNext, missingWin, gateDefs } = data
+  const { deal, stages, contacts, events, activities, items, current, next, missingNext, missingWin, gateDefs, highlights } = data
   const defs = await fieldDefs(ctx, 'deal', deal.market_code, deal.motor)
   const ops = (await getDealOps(ctx, id))!
   const canEditFields = ctx.can('deal.edit', deal.market_code)
@@ -122,6 +125,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
           )}
+
+          {deal.status === 'open' && <DealSteps ctx={ctx} dealId={deal.id} canEdit={canEdit} market={market} />}
 
           {deal.status === 'open' && current && (
             <Card data-testid="deal-move">
@@ -224,6 +229,33 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </Card>
           )}
 
+          {highlights.length > 0 && current && (
+            <Card data-testid="deal-highlights">
+              <CardTitle
+                title={t('Destacado en esta etapa', 'Highlighted in this stage')}
+                hint={t(`En "${current.name_es}" conviene dejar esto lleno. No frena el avance: es lo que el equipo va a necesitar más adelante.`, `In "${current.name_en}" it helps to fill these in. It does not hold the deal back: it is what the team will need later.`)}
+              />
+              <p className="mb-3 text-[13px] text-muted-2" data-testid="highlights-count">
+                {(() => { const done = highlights.filter((h) => !h.pending).length; return t(`${done} de ${highlights.length} con dato`, `${done} of ${highlights.length} filled in`) })()}
+              </p>
+              <ul className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+                {highlights.map((h) => {
+                  const def = h.token.startsWith('field:') ? defs.find((d) => d.key === h.token.slice(6)) : undefined
+                  const value = def ? fieldText(def, deal.custom[def.key], t, locale) : ''
+                  return (
+                    <li key={h.token} className="min-w-0 border-t border-line pt-2" data-testid="highlight-item" data-pending={h.pending ? 'yes' : 'no'}>
+                      <p className="text-[12.5px] font-medium text-muted">{missingName(h.token)}</p>
+                      <p className={h.pending ? 'mt-0.5 text-[14px] text-amber-text' : 'mt-0.5 text-[14px] break-words text-strong'}>{h.pending ? t('Falta', 'Missing') : value || t('Listo', 'Done')}</p>
+                    </li>
+                  )
+                })}
+              </ul>
+              {canEditFields && highlights.some((h) => h.token.startsWith('field:')) && (
+                <div className="mt-5"><LinkButton href={`/deals/${deal.id}/campos?ver=destacados`} size="sm" testId="highlights-fill">{t('Llenar lo destacado', 'Fill in the highlighted fields')}</LinkButton></div>
+              )}
+            </Card>
+          )}
+
           {deal.status === 'lost' && (
             <Card><p className="text-[14.5px]">{t('Motivo: ', 'Reason: ')}<strong>{(() => { const r = reasons.find((x) => x.code === deal.loss_reason_code); return r ? t(r.label_es, r.label_en) : deal.loss_reason_code })()}</strong>{deal.loss_note ? ` · ${deal.loss_note}` : ''}</p></Card>
           )}
@@ -252,10 +284,14 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           {(ops.has_items || items.length > 0) && <DealItems ctx={ctx} dealId={deal.id} open={deal.status === 'open'} items={items} ops={ops} currency={deal.currency} />}
+          {ops.has_items && <OrderDetailsCard ctx={ctx} dealId={deal.id} open={deal.status === 'open'} ops={ops} today={today} />}
+
+          <DealPeople ctx={ctx} dealId={deal.id} accountId={deal.account_id} segment={deal.motor ?? null} canEdit={canEditFields} />
 
           {(ops.pipelineHasOps || ops.is_ops || ops.merchant_ref || ctx.can('deal.ops', deal.market_code)) && (
             <DealOpsCard ctx={ctx} dealId={deal.id} open={deal.status === 'open'} title={deal.title} ops={ops} today={today} />
           )}
+          {ops.checklist && <TrainingAgenda ctx={ctx} dealId={deal.id} market={deal.market_code} open={deal.status !== 'lost'} today={today} />}
 
           {defs.length > 0 && (
             <Card data-testid="deal-custom">
@@ -314,6 +350,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             <dl>
               <KeyVal k={t('Comercio', 'Merchant')}><Link href={`/comercios/${deal.account_id}`} className="text-blue-text underline" data-testid="deal-account">{deal.account_name}</Link></KeyVal>
               <KeyVal k={t('Quién lo lleva', 'Owner')}>{deal.owner_name ?? <NoData locale={locale} />}</KeyVal>
+              {(ops.pipelineHasOps || ops.sales_rep_frozen) && ops.sales_rep && (
+                <KeyVal k={t('Quién lo vendió', 'Sales rep')}><span data-testid="deal-sales-rep" title={ops.sales_rep_frozen ? t('Quedó fijo al entregarlo a Operaciones', 'Fixed when it was handed over to Operations') : t('Sigue a quien lleva el negocio hasta la entrega a Operaciones', 'Follows the owner until the handoff to Operations')}>{ops.sales_rep}{ops.sales_rep_frozen ? t(' (fijo)', ' (fixed)') : ''}</span></KeyVal>
+              )}
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
               <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>

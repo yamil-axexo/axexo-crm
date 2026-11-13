@@ -1,5 +1,7 @@
 import { requireCtx } from '@/server/context'
 import { myReports } from '@/dal/problem-reports'
+import { ReportTimes } from '@/ui/report-times'
+import { marketComms } from '@/dal/notices'
 import { screenPath } from '@/domain/problem-reports'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
@@ -58,8 +60,12 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
         </ActionForm>
       </Card>
 
+      <p className="mt-4 rounded-[14px] bg-surface-3 px-5 py-4 text-[14px] text-strong" role="note" data-testid="report-whatsapp">
+        {t('Soporte por WhatsApp: canal apagado.', 'Support over WhatsApp: channel turned off.')}{' '}
+        {(await marketComms(ctx)).some((c) => c.support_whatsapp) ? t('El número ya está configurado; se enciende cuando se apruebe el canal. Por ahora, repórtalo aquí.', 'The number is already set; it turns on once the channel is approved. For now, report it here.') : t('Todavía no hay número de soporte definido. Por ahora, repórtalo aquí.', 'No support number has been defined yet. For now, report it here.')}
+      </p>
       <Card className="mt-8" data-testid="report-mine">
-        <CardTitle title={t('Tus reportes', 'Your reports')} hint={t('Solo tú y administración los ven. CONTIGO no manda aviso: la respuesta aparece aquí.', 'Only you and administration see them. CONTIGO sends no notice: the answer shows up here.')} />
+        <CardTitle title={t('Tus reportes', 'Your reports')} hint={t('Solo tú y administración los ven. Cuando lo empiecen a revisar y cuando lo respondan, te llega un aviso a la campana.', 'Only you and administration see them. When they start reviewing it and when they answer, a notice reaches your bell.')} />
         {rows.length === 0 ? (
           <Empty title={t('Todavía no has reportado nada', 'You have not reported anything yet')} hint={t('Cuando mandes un reporte, queda aquí con su respuesta.', 'When you send a report, it stays here with its answer.')} />
         ) : (
@@ -67,10 +73,11 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
             {rows.map((r) => (
               <li key={r.id} className="border-t border-line py-5 first:border-t-0 first:pt-0" data-testid="report-row" data-status={r.status}>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={r.status === 'answered' ? 'good' : 'warn'}>{r.status === 'answered' ? t('Atendido', 'Handled') : t('Abierto', 'Open')}</Badge>
+                  <Badge tone={r.status === 'answered' ? 'good' : 'warn'}>{r.status === 'answered' ? t('Atendido', 'Handled') : r.taken_at ? t('En revisión', 'Under review') : t('Recibido', 'Received')}</Badge>
                   <span className="text-[13px] text-muted">{kind[r.kind]} · {urgency[r.urgency]} · {screenLabel(t, r.screen)} · {dayTime(r.created_at, locale, tz)}</span>
                 </div>
                 <p className="mt-2 text-[15px] leading-6 whitespace-pre-wrap text-strong">{r.body}</p>
+                <ReportTimes t={t} locale={locale} tz={tz} r={r} />
                 {r.answer && (
                   <div className="mt-3 rounded-[14px] bg-green-50 px-4 py-3" data-testid="report-answer">
                     <p className="text-[12.5px] font-semibold text-brand-text">{t(`Respuesta de ${r.answered_by_name ?? 'administración'}`, `Answer from ${r.answered_by_name ?? 'administration'}`)}{r.answered_at ? ` · ${dayTime(r.answered_at, locale, tz)}` : ''}</p>

@@ -1,3 +1,4 @@
+import { metricOwners } from '@/dal/reportes'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx, systemCtx } from '@/server/context'
@@ -21,6 +22,8 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
   const market = scope.some((m) => m.code === sp.mercado) ? sp.mercado : undefined
   const [data, fx] = await Promise.all([getLeadershipPanel(ctx, period, market), getFxRates(ctx)])
   await track(ctx, 'view.panel-lt')
+  // REP-01: cada indicador con su dueño; el que cargó administración manda sobre el dueño por defecto.
+  const owners = await metricOwners(ctx)
   // Cómo cuenta un ganado depende de cómo está configurado cada embudo: a mano, o con la primera venta.
   const rules = await closeRules(ctx, market ? [market] : scope.map((m) => m.code))
   const wonRule = rules.byTransaction === 0
@@ -93,18 +96,18 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
 
       <h2 className="mb-3 text-[15px] font-semibold text-strong">{t(`En el periodo: ${when}`, `In the period: ${when}`)}</h2>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="lt-kpis">
-        <Metric t={t} k="leads" testId="lt-leads" value={num(sum('leads'), locale)} href={qs('/leads', { market, status: 'all', from: period.first.from, to: period.first.to })} />
-        <Metric t={t} k="won" testId="lt-won" tone="good" value={num(sum('won'), locale)} href={closed({ resultado: 'won' })} />
-        <Metric t={t} k="lost" testId="lt-lost" value={num(sum('lost'), locale)} href={closed({ resultado: 'lost' })} />
-        <Metric t={t} k="attempt" testId="lt-attempt-all" value={pct(sum('sla_met'), sum('sla_judged'), locale)} hint={t(`${num(sum('sla_met'), locale)} de ${num(sum('sla_judged'), locale)} leads juzgados. Contacto logrado: ${pct(sum('reached'), sum('sla_judged'), locale)}.`, `${num(sum('sla_met'), locale)} of ${num(sum('sla_judged'), locale)} judged leads. Reached: ${pct(sum('reached'), sum('sla_judged'), locale)}.`)} />
+        <Metric t={t} owners={owners} k="leads" testId="lt-leads" value={num(sum('leads'), locale)} href={qs('/leads', { market, status: 'all', from: period.first.from, to: period.first.to })} />
+        <Metric t={t} owners={owners} k="won" testId="lt-won" tone="good" value={num(sum('won'), locale)} href={closed({ resultado: 'won' })} />
+        <Metric t={t} owners={owners} k="lost" testId="lt-lost" value={num(sum('lost'), locale)} href={closed({ resultado: 'lost' })} />
+        <Metric t={t} owners={owners} k="attempt" testId="lt-attempt-all" value={pct(sum('sla_met'), sum('sla_judged'), locale)} hint={t(`${num(sum('sla_met'), locale)} de ${num(sum('sla_judged'), locale)} leads juzgados. Contacto logrado: ${pct(sum('reached'), sum('sla_judged'), locale)}.`, `${num(sum('sla_met'), locale)} of ${num(sum('sla_judged'), locale)} judged leads. Reached: ${pct(sum('reached'), sum('sla_judged'), locale)}.`)} />
       </div>
 
       <h2 className="mt-8 mb-3 text-[15px] font-semibold text-strong">{t('Hoy (foto de este momento)', 'Today (a snapshot of right now)')}</h2>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Metric t={t} k="active" testId="lt-active" value={num(sum('accounts_active'), locale)} href={qs('/comercios', { market, lifecycle: 'active' })} />
-        <Metric t={t} k="open" testId="lt-open" value={num(sum('deals_open'), locale)} href="/pipelines" />
-        <Metric t={t} k="awaiting" testId="lt-awaiting" tone={sum('activation_risk') ? 'warn' : undefined} value={num(sum('awaiting_txn'), locale)} hint={t(`${sum('activation_risk')} llevan más de 7 días`, `${sum('activation_risk')} past 7 days`)} />
-        <Metric t={t} k="risk" testId="lt-risk" value={`${num(sum('accounts_at_risk'), locale)} / ${num(sum('accounts_inactive'), locale)}`} href={qs('/comercios', { market, ver: 'riesgo' })} />
+        <Metric t={t} owners={owners} k="active" testId="lt-active" value={num(sum('accounts_active'), locale)} href={qs('/comercios', { market, lifecycle: 'active' })} />
+        <Metric t={t} owners={owners} k="open" testId="lt-open" value={num(sum('deals_open'), locale)} href="/pipelines" />
+        <Metric t={t} owners={owners} k="awaiting" testId="lt-awaiting" tone={sum('activation_risk') ? 'warn' : undefined} value={num(sum('awaiting_txn'), locale)} hint={t(`${sum('activation_risk')} llevan más de 7 días`, `${sum('activation_risk')} past 7 days`)} />
+        <Metric t={t} owners={owners} k="risk" testId="lt-risk" value={`${num(sum('accounts_at_risk'), locale)} / ${num(sum('accounts_inactive'), locale)}`} href={qs('/comercios', { market, ver: 'riesgo' })} />
       </div>
 
       <h2 className="mt-8 mb-3 text-[15px] font-semibold text-strong">{asOf ? t(`Ventas del archivo diario: 30 días al ${day(asOf, locale)}`, `Sales from the daily file: 30 days to ${day(asOf, locale)}`) : t('Ventas del archivo diario', 'Sales from the daily file')}</h2>
@@ -124,7 +127,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
                 ))}
               </ul>
             ) : <p className="mt-2 text-[13.5px] text-muted" data-testid="lt-fx">{t('Todo el volumen ya está en USD: no se usa ninguna tasa.', 'All of the volume is already in USD: no rate is used.')}</p>}
-            <Def t={t} k="volumeUsd" />
+            <Def t={t} owners={owners} k="volumeUsd" />
             <p className="mt-2 text-[13.5px]"><Link href="/reportes/consolidado" className="font-medium text-blue-text underline" data-testid="lt-consolidated">{t('Negocios abiertos y ganados en USD, por mercado, entidad o unidad de negocio', 'Open and won deals in USD, by market, entity or business unit')}</Link></p>
           </div>
           <div>
@@ -134,7 +137,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
                 <li key={m.code} className="flex flex-wrap items-baseline justify-between gap-x-4 py-2 text-[14px]"><span className="text-muted-2">{m.name}</span><span className="num font-semibold text-strong">{money(Number(m.volume_30d), m.currency, locale, true)}{m.currency !== 'USD' && rate(m.currency) !== null ? ` · ${money(Math.round(Number(m.volume_30d) * rate(m.currency)!), 'USD', locale, true)}` : ''}</span></li>
               ))}
             </ul>
-            <Def t={t} k="volume" />
+            <Def t={t} owners={owners} k="volume" />
           </div>
         </div>
       </Card>
@@ -170,9 +173,9 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
                 <div><dt className="text-[12.5px] text-muted">{t('En riesgo / inactivos (hoy)', 'At risk / inactive (today)')}</dt><dd className="num mt-1 text-[20px] font-semibold text-strong">{m.accounts_at_risk} / {m.accounts_inactive}</dd></div>
               </dl>
               <div className="mt-3 flex flex-wrap gap-x-5">
-                <Def t={t} k="reached" testId={`def-reached-${m.code}`} named />
-                <Def t={t} k="days" testId={`def-days-${m.code}`} named />
-                <Def t={t} k="revisits" testId={`def-revisits-${m.code}`} named />
+                <Def t={t} owners={owners} k="reached" testId={`def-reached-${m.code}`} named />
+                <Def t={t} owners={owners} k="days" testId={`def-days-${m.code}`} named />
+                <Def t={t} owners={owners} k="revisits" testId={`def-revisits-${m.code}`} named />
               </div>
             </Card>
           )
@@ -200,7 +203,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
               ))}
             </ul>
           )}
-          <Def t={t} k="lossReasons" />
+          <Def t={t} owners={owners} k="lossReasons" />
         </Card>
         <Card data-testid="lt-nosale">
           <CardTitle title={t('Por qué una visita no termina en venta', 'Why a visit ends with no sale')} hint={t(`Motivos que captura la Sales App, ${when}.`, `Reasons captured by the Sales App, ${when}.`)} />
@@ -213,7 +216,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
               ))}
             </ul>
           )}
-          <Def t={t} k="noSale" />
+          <Def t={t} owners={owners} k="noSale" />
         </Card>
       </div>
     </>

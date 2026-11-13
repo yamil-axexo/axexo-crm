@@ -2,27 +2,12 @@
 
 import { runAction, str } from '@/server/action'
 import {
-  addHoliday, createEntity, createFieldSection, createMarket, removeHoliday, saveWhatsappAccount, saveWhatsappRate, saveWhatsappTemplate, setFichaLayout, setFieldSection,
-  setMarketStatus, setUserEntity, setWhatsappTemplateStatus, updateEntity,
+  addHoliday, createEntity, createFieldSection, removeHoliday, saveWhatsappAccount, saveWhatsappRate, saveWhatsappTemplate, setFichaLayout, setFieldSection,
+  setUserEntity, setWhatsappTemplateStatus, updateEntity,
 } from '@/domain/markets'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
-
-export async function createMarketAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction(async (ctx) => {
-    const code = await createMarket(ctx, { code: str(fd, 'code'), name: str(fd, 'name'), currency: str(fd, 'currency'), locale: str(fd, 'locale') as 'es', timezone: str(fd, 'timezone'), phoneCc: str(fd, 'phone_cc'), entityName: str(fd, 'entity_name') })
-    return { message: [`Mercado ${code} agregado, en preparación. Créale su embudo y dale acceso a su equipo; después ábrelo.`, `Market ${code} added, in preparation. Create its pipeline and give its team access; then open it.`] }
-  })
-}
-
-export async function setMarketStatusAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction(async (ctx) => {
-    const status = str(fd, 'status') === 'live' ? 'live' : 'planned'
-    await setMarketStatus(ctx, str(fd, 'code'), status)
-    return { message: status === 'live' ? ['Mercado abierto: ya aparece en las listas de trabajo.', 'Market opened: it now shows in the work lists.'] : ['Mercado de vuelta en preparación.', 'Market back in preparation.'] }
-  })
-}
 
 export async function addHolidayAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {

@@ -11,7 +11,7 @@ import { FICHA_FACT_LABEL, MARKET_ZONES, distanceText, type FichaFact } from '@/
 import { TAX_ID_TYPES, TAX_STATUS, maskedTaxId, taxIdTypeFor } from '@/lib/tax-id'
 import { whatsappMarketMode } from '@/server/adapters/markets'
 import {
-  captureTaxIdAction, clearLocationAction, endContactAction, openWhatsappWindowAction, reviewTaxIdAction, setAccountProfileAction, setLocationAction, updateAddressAction, updateContactAction,
+  captureTaxIdAction, clearLocationAction, openWhatsappWindowAction, reviewTaxIdAction, setAccountProfileAction, setLocationAction, updateAddressAction,
 } from './mercados-actions'
 
 /**
@@ -65,34 +65,6 @@ export async function FichaFacts({ ctx, id, treeHref }: { ctx: Ctx; id: string; 
         <p className="mt-1 text-[13px] font-medium text-brand-text" data-testid="fact-whatsapp-window">{t(`WhatsApp: le puedes responder sin plantilla hasta ${dayTime(h.whatsapp_until, locale, h.timezone)}.`, `WhatsApp: you can reply without a template until ${dayTime(h.whatsapp_until, locale, h.timezone)}.`)}</p>
       )}
     </div>
-  )
-}
-
-type Contact = { id: string; full_name: string; phone: string | null; email: string | null; role: string; preferred_locale: string | null }
-
-/** E2.F4: corregir o dar de baja un contacto, desde su renglón. */
-export function ContactEdit({ ctx, accountId, c }: { ctx: Ctx; accountId: string; c: Contact }) {
-  const { t, m } = ctx
-  return (
-    <span className="flex flex-wrap items-center gap-2">
-      <Dialog trigger={t('Editar', 'Edit')} title={t(`Editar a ${c.full_name}`, `Edit ${c.full_name}`)} size="sm" variant="quiet" testId="contact-edit">
-        <ActionForm action={updateContactAction} onOk="close" className="grid grid-cols-2 gap-4" testId="contact-edit-form">
-          <input type="hidden" name="account_id" value={accountId} /><input type="hidden" name="contact_id" value={c.id} />
-          <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="full_name" className="input" required minLength={2} defaultValue={c.full_name} data-testid="contact-edit-name" /></Field>
-          <Field label={t('Rol', 'Role')}><select name="role" className="input" defaultValue={c.role} data-testid="contact-edit-role">{Object.entries(CONTACT_ROLE).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
-          <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" defaultValue={c.phone ?? ''} data-testid="contact-edit-phone" /></Field>
-          <Field label={t('Correo', 'Email')} className="col-span-2"><input name="email" type="email" className="input" defaultValue={c.email ?? ''} /></Field>
-          <Field label={t('Idioma preferido', 'Preferred language')} className="col-span-2 sm:col-span-1">
-            <select name="locale" className="input" defaultValue={c.preferred_locale ?? ''}><option value="">{t('Sin dato', 'Not set')}</option><option value="es">{t('Español', 'Spanish')}</option><option value="en">{t('Inglés', 'English')}</option></select>
-          </Field>
-          <div className="col-span-2 flex justify-end"><Submit testId="contact-edit-save">{t('Guardar', 'Save')}</Submit></div>
-        </ActionForm>
-      </Dialog>
-      <ConfirmButton action={endContactAction} fields={{ account_id: accountId, contact_id: c.id }} label={t('Dar de baja', 'Remove')} variant="quiet"
-        title={t(`¿Dar de baja a ${c.full_name}?`, `Remove ${c.full_name}?`)}
-        body={t('Deja de aparecer como contacto de este comercio. No se borra: queda en la historia con la fecha de hoy.', 'They stop showing as a contact of this merchant. Nothing is deleted: it stays in the history with today’s date.')}
-        confirm={t('Sí, dar de baja', 'Yes, remove')} cancel={m('action.cancel')} testId="contact-end" />
-    </span>
   )
 }
 

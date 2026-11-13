@@ -39,7 +39,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
       <PageHeader
         title={own ? t('Mis negocios cerrados', 'My closed deals') : t('Negocios cerrados', 'Closed deals')}
         desc={<>{t('Ganados y perdidos por persona y periodo. La fecha de cierre es el día en la zona horaria del mercado. Los montos se suman por moneda, sin convertir.', 'Won and lost by person and period. The close date is the day in the market’s time zone. Amounts add up by currency, with no conversion.')}{ctx.can('board.lt') && <>{' '}<Link href="/reportes/consolidado?ver=ganados" className="font-medium text-blue-text underline" data-testid="closed-consolidated">{t('Ver el total en USD', 'See the total in USD')}</Link></>}</>}
-        actions={canExport ? <ExportLink href={qs('/reportes/cerrados/export', params)}>{t('Exportar CSV', 'Export CSV')}</ExportLink> : undefined}
+        actions={canExport ? <ExportLink t={t} href={qs('/reportes/cerrados/export', params)}>{t('Exportar CSV', 'Export CSV')}</ExportLink> : undefined}
       />
       <ReportFilters t={t} locale={locale} base="/reportes/cerrados" params={params} period={period.first} selects={[sel.market, sel.pipeline, sel.team, sel.owner, sel.result]} />
 
@@ -108,7 +108,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
           </>
         )}
       </Card>
-      {canExport && <p className="mt-4 text-[13px] text-muted" data-testid="export-note">{t('El archivo trae las mismas columnas de esta tabla, sin teléfonos, correos ni contactos. Cada exportación queda en la bitácora con tu nombre, los filtros y el número de filas.', 'The file has the same columns as this table, with no phones, emails or contacts. Each export is logged with your name, the filters and the number of rows.')}</p>}
+      {canExport && <p className="mt-4 text-[13px] text-muted" data-testid="export-note">{t('El archivo trae las mismas columnas de esta tabla, sin teléfonos, correos ni contactos. Cada exportación pide un motivo y queda en la bitácora con tu nombre, los filtros y el número de filas.', 'The file has the same columns as this table, with no phones, emails or contacts. Each export asks for a reason and is logged with your name, the filters and the number of rows.')}</p>}
     </>
   )
 }

@@ -87,15 +87,19 @@ export async function getConfig(ctx: Ctx) {
       select p.id, p.market_code, p.motor, p.name, p.close_by_transaction,
              (select count(*)::int from crm.deals d where d.pipeline_id = p.id and d.status = 'open') as open_deals
         from crm.pipelines p where p.is_active order by p.market_code, p.position`
-    const stages = await tx<{ id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; probability: number; rot_days: number; required_fields: string[]; exit_es: string; exit_en: string; edited_at: Date | null }[]>`
-      select id, pipeline_id, position, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, edited_at from crm.stages where archived_at is null order by pipeline_id, position`
+    const stages = await tx<{ id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; probability: number; rot_days: number; required_fields: string[]; highlight_fields: string[]; exit_es: string; exit_en: string; edited_at: Date | null }[]>`
+      select id, pipeline_id, position, name_es, name_en, kind, probability, rot_days, required_fields, highlight_fields, exit_es, exit_en, edited_at from crm.stages where archived_at is null order by pipeline_id, position`
+    // Campos definidos del negocio (creados aquí o importados): una etapa puede pedir o destacar cualquiera de su mercado y tipo de venta.
+    const dealFields = await tx<{ key: string; label_es: string; label_en: string; market_code: string | null; motor: string | null }[]>`
+      select key, label_es, label_en, market_code, motor from crm.field_definitions
+       where object = 'deal' and is_active and data_class <> 'confidential' order by position, label_en`
     const reasons = await tx<{ code: string; kind: string; label_es: string; label_en: string }[]>`
       select code, kind, label_es, label_en from crm.loss_reasons where is_active order by kind, label_es`
     const fields = await tx<{ object: string; key: string; label_es: string; label_en: string; data_type: string; market_code: string | null; data_class: string }[]>`
       select object, key, label_es, label_en, data_type, market_code, data_class from crm.field_definitions where is_active and source = 'manual' order by object, key`
     const imported = await tx<{ object: string; n: number }[]>`
       select object, count(*)::int as n from crm.field_definitions where is_active and source <> 'manual' group by object order by object`
-    return { pipelines: [...pipelines], stages: [...stages], reasons: [...reasons], fields: [...fields], imported: [...imported] }
+    return { pipelines: [...pipelines], stages: [...stages], reasons: [...reasons], fields: [...fields], imported: [...imported], dealFields: [...dealFields] }
   })
 }
 

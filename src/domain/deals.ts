@@ -6,6 +6,8 @@ import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 import { day as dayLabel, isoDay } from '@/lib/format'
+import { cancelPendingApproval, transitionGate } from '@/domain/automation/transitions'
+import { notify, notifyMany, peopleWithRole } from '@/domain/notify'
 
 export type StageKind = 'open' | 'awaiting_txn' | 'won' | 'lost'
 
@@ -75,6 +77,19 @@ export function missingForStage(deal: GateDeal, stage: { kind: StageKind; requir
   }
   return missing
 }
+
+/**
+ * E10.F7: campos destacados de una etapa. No son requisito para entrar: es lo que conviene ir llenando mientras el negocio
+ * está ahí. Devuelve los que la etapa destaca y todavía están vacíos (misma lectura de "lleno" que el candado).
+ */
+export function pendingHighlights(deal: GateDeal, stage: { highlight_fields?: string[] | null }): string[] {
+  const tokens = [...new Set(stage.highlight_fields ?? [])]
+  return missingForStage(deal, { kind: 'won', required_fields: tokens })
+}
+
+/** Etiquetas de los requisitos fijos, para listarlos junto a los campos definidos (pantalla de etapas). */
+export const BUILTIN_TOKENS = ['amount', 'decision_maker', 'next_step', 'items'] as const
+export const isStageToken = (t: string): boolean => (BUILTIN_TOKENS as readonly string[]).includes(t) || /^field:[a-z][a-z0-9_]{1,40}$/.test(t)
 
 type DealRow = GateDeal & {
   id: string
@@ -181,7 +196,14 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
 /** Fecha (AAAA-MM-DD) de un valor que puede venir como Date de la base. */
 export const isoDate = (v: string | Date | null): string | null => (v === null ? null : v instanceof Date ? isoDay(v, 'UTC') : String(v).slice(0, 10))
 
+/** Qué pasó al pedir el movimiento: se movió, o quedó esperando la aprobación de alguien (PIPE-02). */
+export type MoveResult = { status: 'moved' } | { status: 'pending'; approver: string }
+
 export type MoveExtra = {
+  /** La aprobación ya decidida que autoriza este movimiento (lo pone `decideApproval`, nunca la pantalla). */
+  approvalId?: string
+  /** El movimiento lo pide una automatización: no cruza etapas de Operaciones ni pasos que piden aprobación de una persona. */
+  byRule?: boolean
   /** Día real en que se ganó (AAAA-MM-DD), de hoy hacia atrás en la zona del mercado. Vacío es hoy. */
   wonOn?: string
   /** Motivo al devolver el negocio de Operaciones a Ventas. */
@@ -196,8 +218,16 @@ export type MoveExtra = {
  * Dentro de esas etapas solo avanza Operaciones, nunca quien lo vendió (la base lo repite con un trigger).
  * Regresarlo a una etapa de Ventas pide motivo y le deja a quien vende una tarea para hoy.
  */
-export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }, extra?: MoveExtra): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
+export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }, extra?: MoveExtra): Promise<MoveResult> {
+  return withUser(ctx.user.id, (tx) => moveDealTx(tx, ctx, dealId, toStageId, loss, next, extra))
+}
+
+/**
+ * El mismo movimiento, dentro de una transacción que ya existe: lo usan la pantalla (por `moveDeal`), la decisión de una
+ * aprobación y las automatizaciones. Una sola función decide si un negocio cambia de etapa (AUT-01).
+ */
+export async function moveDealTx(tx: Tx, ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }, extra?: MoveExtra): Promise<MoveResult> {
+  {
     const d = await loadDeal(tx, dealId)
     if (next) {
       const step = clean(next.step)
@@ -214,7 +244,7 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     }
     ctx.assert('deal.move', d.market_code)
     if (d.status !== 'open') throw invalid('Este negocio ya está cerrado.', 'This deal is already closed.')
-    if (toStageId === d.stage_id) return
+    if (toStageId === d.stage_id) return { status: 'moved' }
     const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string; position: number; is_ops: boolean }[]>`
       select id, kind, required_fields, name_es, name_en, position, is_ops from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id} and archived_at is null`
     const stage = stages[0]
@@ -236,10 +266,11 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     let reason: { label_es: string; label_en: string } | undefined
     if (returning) {
       const code = extra?.ret?.reasonCode ?? ''
-      const rows = code ? await tx<{ label_es: string; label_en: string }[]>`
-        select label_es, label_en from crm.ops_catalog where kind = 'return_reason' and code = ${code} and is_active and (market_code is null or market_code = ${d.market_code})
+      // El motivo del mercado manda sobre el general con el mismo código; si el del mercado está inactivo, ese motivo no se ofrece ahí.
+      const rows = code ? await tx<{ label_es: string; label_en: string; is_active: boolean }[]>`
+        select label_es, label_en, is_active from crm.ops_catalog where kind = 'return_reason' and code = ${code} and (market_code is null or market_code = ${d.market_code})
          order by market_code nulls last limit 1` : []
-      reason = rows[0]
+      reason = rows[0]?.is_active ? rows[0] : undefined
       if (!reason) throw new DomainError('return_reason_required', 'Para devolver el negocio a Ventas, elige el motivo.', 'To send the deal back to Sales, pick the reason.')
       assertNoProhibited(extra?.ret?.note)
       if ((extra?.ret?.note ?? '').trim().length > 300) throw invalid('Deja la nota del motivo en 300 caracteres o menos.', 'Keep the reason note to 300 characters or fewer.')
@@ -297,13 +328,17 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
         throw new DomainError(missing.length === 1 && missing[0] === 'next_step' ? 'next_step_required' : 'stage_gate',
           `Para pasar a "${stage.name_es}" falta: ${es}.`, `To move to "${stage.name_en}" you still need: ${en}.`)
       }
+      // PIPE-02: el paso puede tener dueño, pedir evidencia o la aprobación de alguien. Si queda esperando, el negocio no se mueve.
+      const held = await transitionGate(tx, ctx, d, { id: toStageId, name_es: stage.name_es, name_en: stage.name_en, crossesOps: await crossesOps(tx, d.pipeline_id, cur.position, stage.position) }, { next, extra })
+      if (held) return held
       await tx`update crm.deals set stage_id = ${toStageId}, stage_entered_at = now(),
                 status = ${stage.kind === 'won' ? 'won' : 'open'}, won_at = ${stage.kind === 'won' ? wonAt : null},
                 closed_by = ${stage.kind === 'won' ? 'manual' : null},
                 ops_entered_at = ${entering ? tx`now()` : tx`ops_entered_at`} where id = ${dealId}`
     }
     await tx`insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause)
-             values (${dealId}, ${d.market_code}, ${d.stage_id}, ${toStageId}, ${ctx.user.id}, 'user')`
+             values (${dealId}, ${d.market_code}, ${d.stage_id}, ${toStageId}, ${ctx.user.id}, ${extra?.byRule ? 'rule' : 'user'})`
+    await cancelPendingApproval(tx, dealId, extra?.approvalId ?? null)
     await audit(tx, ctx, 'deal.stage_changed', 'deal', dealId, d.market_code, { stage_id: d.stage_id },
       { stage_id: toStageId, kind: stage.kind, reason: loss?.reasonCode ?? null, ...(stage.kind === 'won' && extra?.wonOn ? { won_on: extra.wonOn } : {}) })
     await emit(tx, 'deal.stage_changed', 'deal', dealId, d.market_code, { from: d.stage_id, to: toStageId, kind: stage.kind })
@@ -312,6 +347,28 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       // Sale de la cancha de quien vende: su próximo paso queda cumplido y el negocio entra a la cola de Operaciones.
       await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and deal_step = 'sales' and done_at is null`
       await audit(tx, ctx, 'deal.handed_to_ops', 'deal', dealId, d.market_code, null, { stage_id: toStageId })
+      // E10.F10: si el embudo tiene líder de Operaciones y nadie lleva el negocio ahí, queda a su nombre desde que entra
+      // (también cuando vuelve a entrar después de una devolución). Quien vendió lo sigue viendo y queda fijo como quien lo vendió.
+      if (!d.ops_owner_id) {
+        const lead = await tx<{ id: string }[]>`
+          select u.id from crm.pipelines p join crm.users u on u.id = p.ops_lead_id
+           where p.id = ${d.pipeline_id} and u.is_active
+             and exists (select 1 from crm.memberships m where m.user_id = u.id and m.role in ('ops', 'admin') and (m.market_code is null or m.market_code = ${d.market_code})
+                          and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now()))`
+        if (lead[0]) {
+          await tx`update crm.deals set ops_owner_id = ${lead[0].id} where id = ${dealId}`
+          await audit(tx, ctx, 'deal.ops_assigned', 'deal', dealId, d.market_code, { ops_owner_id: null }, { ops_owner_id: lead[0].id, by: 'pipeline_lead' })
+          d.ops_owner_id = lead[0].id
+        }
+      }
+      // E13.F1: Operaciones del mercado se entera en el momento, sin tener que revisar la cola.
+      const accName = (await tx<{ name: string }[]>`select name from crm.accounts where id = ${d.account_id}`)[0]?.name ?? d.title
+      await notifyMany(tx, ctx, await peopleWithRole(tx, d.market_code, ['ops']), {
+        kind: 'handoff', market: d.market_code, template: 'ops_handoff', link: `/deals/${dealId}`, accountId: d.account_id, dealId,
+        title: [`Negocio entregado a Operaciones: ${d.title}`, `Deal handed over to Operations: ${d.title}`],
+        body: [`${ctx.user.name} entregó ${d.title} (${accName}).`, `${ctx.user.name} handed over ${d.title} (${accName}).`],
+        vars: { negocio: d.title, comercio: accName, quien: ctx.user.name, mercado: d.market_code },
+      })
       await syncDealStep(tx, ctx, d, 'ops', (await tx<{ s: string | null }[]>`select ops_next_step as s from crm.deals where id = ${dealId}`)[0]?.s ?? null,
         isoDate((await tx<{ d: string | Date | null }[]>`select ops_next_step_due as d from crm.deals where id = ${dealId}`)[0]?.d ?? null), d.ops_owner_id)
     }
@@ -330,6 +387,13 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       await tx`update crm.activities set custom = custom || ${tx.json({ ops_return: { code: extra!.ret!.reasonCode, note: note ?? '', title: d.title } } as never)}
                 where deal_id = ${dealId} and deal_step = 'sales' and done_at is null`
       await audit(tx, ctx, 'deal.returned_to_sales', 'deal', dealId, d.market_code, { stage_id: d.stage_id }, { stage_id: toStageId, reason: extra!.ret!.reasonCode, note })
+      // La tarea ya está en Hoy; el aviso llega además a la campana y a los canales que la persona eligió.
+      if (d.owner_id && d.owner_id !== ctx.user.id)
+        await notify(tx, ctx, {
+          to: d.owner_id, kind: 'returned', market: d.market_code, link: `/deals/${dealId}`, accountId: d.account_id, dealId, needsAction: false,
+          title: [`Operaciones devolvió ${d.title}`, `Operations sent back ${d.title}`],
+          body: [`${reason.label_es}${note ? `. ${note}` : ''}`, `${reason.label_en}${note ? `. ${note}` : ''}`],
+        })
     }
     if (stage.kind === 'won' || stage.kind === 'lost') {
       // Un negocio cerrado no deja nada pendiente: se cierran su próximo paso y las tareas y visitas por hacer que quedaban abiertas.
@@ -340,16 +404,33 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     }
     if (stage.kind === 'won' && d.owner_id && d.owner_id !== ctx.user.id) {
       // Quien vendió se entera en Hoy cuando otra persona (Operaciones) gana su negocio. El aviso va en su idioma.
-      const row = await tx<{ locale: string | null; on: string }[]>`
-        select (select u.locale from crm.users u where u.id = ${d.owner_id}) as locale,
-               (select (x.won_at at time zone ${ctx.market(d.market_code).timezone})::date::text from crm.deals x where x.id = ${dealId}) as on`
-      const en = row[0]?.locale === 'en'
-      const when = dayLabel(row[0]!.on, en ? 'en' : 'es')
-      const body = en ? `${ctx.user.name} marked ${d.title} as won, with close date ${when}.` : `${ctx.user.name} marcó ${d.title} como ganado, con cierre el ${when}.`
-      await tx`insert into crm.notices (market_code, user_id, from_user_id, kind, account_id, deal_id, body)
-               values (${d.market_code}, ${d.owner_id}, ${ctx.user.id}, 'mention', ${d.account_id}, ${dealId}, ${body.slice(0, 600)})`
+      const row = await tx<{ on: string; account: string | null }[]>`
+        select (select (x.won_at at time zone ${ctx.market(d.market_code).timezone})::date::text from crm.deals x where x.id = ${dealId}) as on,
+               (select a.name from crm.accounts a where a.id = ${d.account_id}) as account`
+      const on = row[0]!.on
+      await notify(tx, ctx, {
+        to: d.owner_id, kind: 'deal_won', market: d.market_code, template: 'dealer_active', link: `/deals/${dealId}`, accountId: d.account_id, dealId,
+        title: [`Negocio ganado: ${d.title}`, `Deal won: ${d.title}`],
+        body: [`${ctx.user.name} marcó ${d.title} como ganado, con cierre el ${dayLabel(on, 'es')}.`, `${ctx.user.name} marked ${d.title} as won, with close date ${dayLabel(on, 'en')}.`],
+        vars: { comercio: row[0]!.account ?? d.title, negocio: d.title, quien: ctx.user.name, fecha: on },
+      })
     }
-  })
+    if (stage.kind === 'lost' && d.owner_id && d.owner_id !== ctx.user.id) {
+      // E13.F2: quien llevaba el negocio se entera cuando otra persona lo cierra sin alta.
+      const row = await tx<{ account: string | null; on: string; reason_es: string | null; reason_en: string | null }[]>`
+        select (select a.name from crm.accounts a where a.id = ${d.account_id}) as account, ${marketToday(tx, d.market_code)}::text as on,
+               (select r.label_es from crm.loss_reasons r where r.code = ${loss?.reasonCode ?? null} order by r.market_code nulls last limit 1) as reason_es,
+               (select r.label_en from crm.loss_reasons r where r.code = ${loss?.reasonCode ?? null} order by r.market_code nulls last limit 1) as reason_en`
+      const r = row[0]!
+      await notify(tx, ctx, {
+        to: d.owner_id, kind: 'lifecycle', market: d.market_code, template: 'dealer_closed', link: `/deals/${dealId}`, accountId: d.account_id, dealId,
+        title: [`Negocio cerrado sin alta: ${d.title}`, `Deal closed without sign-up: ${d.title}`],
+        body: [`${ctx.user.name} lo cerró como perdido${r.reason_es ? `: ${r.reason_es}` : ''}.`, `${ctx.user.name} closed it as lost${r.reason_en ? `: ${r.reason_en}` : ''}.`],
+        vars: { comercio: r.account ?? d.title, negocio: d.title, quien: ctx.user.name, fecha: r.on, detalle: r.reason_es ?? 's/d' },
+      })
+    }
+    return { status: 'moved' }
+  }
 }
 
 const createInput = z.object({
@@ -379,7 +460,7 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
   return withUser(ctx.user.id, async (tx) => {
     const range = await tx<{ ok: boolean }[]>`select ${v.nextStepDue}::date >= ${marketToday(tx, tx`(select market_code from crm.accounts where id = ${v.accountId})`)} as ok`
     if (!range[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
-    const accs = await tx<{ market_code: string; owner_id: string | null }[]>`select market_code, owner_id from crm.accounts where id = ${v.accountId} and archived_at is null`
+    const accs = await tx<{ market_code: string; owner_id: string | null; lifecycle: string }[]>`select market_code, owner_id, lifecycle from crm.accounts where id = ${v.accountId} and archived_at is null`
     const acc = accs[0]
     if (!acc) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
     ctx.assert('deal.create', acc.market_code)
@@ -393,7 +474,16 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
     if (first.kind !== 'open' || all.some((x) => x.is_ops && x.position <= first.position)) {
       throw invalid('Un negocio nuevo nace en una etapa de Ventas. A Operaciones llega cuando lo entregas.', 'A new deal starts in a Sales stage. It reaches Operations when you hand it over.')
     }
-    const need = [...new Set(all.filter((x) => x.position <= first.position && x.position > all[0]!.position).flatMap((x) => x.required_fields))]
+    const needAll = [...new Set(all.filter((x) => x.position <= first.position && x.position > all[0]!.position).flatMap((x) => x.required_fields))]
+    // E10.F4: los campos de investigación que piden las etapas anteriores (y la de arranque) no se pueden traer al crear.
+    // Una tienda que ya trabaja con axexo y firma un servicio nuevo empieza más adelante sin ellos; una tienda nueva no se los salta.
+    const fieldGates = needAll.filter((x) => fieldKey(x))
+    if (fieldGates.length > 0 && !['active', 'at_risk', 'inactive'].includes(acc.lifecycle)) {
+      throw new DomainError('stage_gate',
+        `Este comercio todavía no trabaja con axexo: su negocio empieza al inicio del embudo y avanza llenando lo que pide cada etapa. Empezar en "${first.name_es}" es para tiendas que ya operan y firman un servicio nuevo.`,
+        `This store does not work with axexo yet: its deal starts at the beginning of the pipeline and moves on as each stage’s fields are filled in. Starting in "${first.name_en}" is for stores already operating that sign a new service.`)
+    }
+    const need = needAll.filter((x) => !fieldKey(x))
     const missing = missingForStage({ amount_minor: v.amount == null ? null : Math.round(v.amount * 100), next_step: v.nextStep, next_step_due: v.nextStepDue, decision_maker_id: null, decision_maker_met: false, items_count: 0 }, { kind: 'open', required_fields: need })
     if (missing.length) {
       throw new DomainError('stage_gate',

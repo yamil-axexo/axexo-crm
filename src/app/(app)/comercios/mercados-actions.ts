@@ -1,7 +1,7 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
-import { captureTaxId, clearLocation, endContact, openWhatsappWindow, reviewTaxId, setAccountProfile, setLocation, updateAddress, updateContact } from '@/domain/markets'
+import { captureTaxId, clearLocation, openWhatsappWindow, reviewTaxId, setAccountProfile, setLocation, updateAddress } from '@/domain/markets'
 import { accountsNear, type NearAccount } from '@/dal/markets'
 import { distanceText } from '@/lib/markets'
 import { invalid, type ActionResult } from '@/lib/errors'
@@ -74,23 +74,6 @@ export async function openWhatsappWindowAction(_: R | null, fd: FormData): Promi
     const kind = str(fd, 'kind') === 'ad_72h' ? 'ad_72h' : 'service_24h'
     await openWhatsappWindow(ctx, str(fd, 'id'), kind)
     return { message: kind === 'ad_72h' ? ['Anotado: tienes 72 horas para responderle sin plantilla.', 'Noted: you have 72 hours to reply without a template.'] : ['Anotado: tienes 24 horas para responderle sin plantilla.', 'Noted: you have 24 hours to reply without a template.'] }
-  })
-}
-
-export async function updateContactAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction(async (ctx) => {
-    await updateContact(ctx, str(fd, 'account_id'), str(fd, 'contact_id'), {
-      fullName: str(fd, 'full_name'), phone: str(fd, 'phone'), email: str(fd, 'email'), role: str(fd, 'role') as 'owner', locale: str(fd, 'locale') as 'es',
-    })
-    return { message: ['Contacto actualizado.', 'Contact updated.'] }
-  })
-}
-
-type Done = { toast: string }
-export async function endContactAction(_: ActionResult<Done> | null, fd: FormData): Promise<ActionResult<Done>> {
-  return runAction<Done>(async (ctx) => {
-    await endContact(ctx, str(fd, 'account_id'), str(fd, 'contact_id'))
-    return { data: { toast: ctx.t('Contacto dado de baja. Queda en la historia del comercio.', 'Contact removed. It stays in the merchant’s history.') } }
   })
 }
 

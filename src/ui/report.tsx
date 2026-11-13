@@ -8,7 +8,7 @@ import { NavSelect } from '@/ui/board'
 import { buttonClass, cx, shown } from '@/ui/kit'
 
 /** "Cómo se calcula": la definición de una cifra, a un toque y sin salir de la pantalla. */
-export function Def({ t, k, testId, named }: { t: T; k: MetricKey; testId?: string; named?: boolean }) {
+export function Def({ t, k, testId, named, owners }: { t: T; k: MetricKey; testId?: string; named?: boolean; owners?: Record<string, string> }) {
   const d = METRICS[k]
   const row = (label: string, text: string) => (
     <div className="mt-2 first:mt-0"><dt className="text-[12px] font-semibold text-muted-2">{label}</dt><dd className="text-[13px] text-strong">{text}</dd></div>
@@ -22,13 +22,14 @@ export function Def({ t, k, testId, named }: { t: T; k: MetricKey; testId?: stri
         {'den' in d && row(t('Denominador', 'Denominator'), t(d.den[0], d.den[1]))}
         {row(t('Ventana', 'Window'), t(d.window[0], d.window[1]))}
         {row(t('Fuente', 'Source'), t(d.source[0], d.source[1]))}
+        {row(t('Quién responde por este número', 'Who answers for this number'), owners?.[k] ?? t(d.owner[0], d.owner[1]))}
       </dl>
     </details>
   )
 }
 
 /** Una cifra con su nombre, su enlace a la lista que la respalda y su definición. */
-export function Metric({ t, k, value, hint, href, label, tone, testId }: { t: T; k: MetricKey; value: ReactNode; hint?: string; href?: string; label?: string; tone?: 'good' | 'warn'; testId?: string }) {
+export function Metric({ t, k, value, hint, href, label, tone, testId, owners }: { t: T; k: MetricKey; value: ReactNode; hint?: string; href?: string; label?: string; tone?: 'good' | 'warn'; testId?: string; owners?: Record<string, string> }) {
   const d = METRICS[k]
   const text = <span className={cx('num text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[26px] md:leading-9', tone === 'good' ? 'text-brand-text' : tone === 'warn' ? 'text-amber-text' : 'text-strong')}>{shown(value)}</span>
   return (
@@ -42,7 +43,7 @@ export function Metric({ t, k, value, hint, href, label, tone, testId }: { t: T;
         ) : text}
       </p>
       {hint && <p className="text-[13px] text-muted">{hint}</p>}
-      <Def t={t} k={k} />
+      <Def t={t} k={k} owners={owners} />
     </div>
   )
 }
@@ -103,9 +104,28 @@ export function ReportFilters({ t, locale, base, params, period, periods = PERIO
   )
 }
 
-/** Enlace de descarga. Es un <a> normal: la descarga la responde una ruta del servidor, que valida el permiso y deja el evento. */
-export function ExportLink({ href, children, testId }: { href: string; children: ReactNode; testId?: string }) {
-  return <a href={href} download className={buttonClass('ghost')} data-testid={testId ?? 'export-csv'}>{children}</a>
+/**
+ * Exportar con motivo (AUT-07). Es un <details> con un formulario GET normal: la descarga la responde una ruta del servidor,
+ * que valida el permiso, exige el motivo, aplica el tope del rol y deja el evento. Funciona sin JavaScript.
+ */
+export function ExportLink({ href, children, testId, t }: { href: string; children: ReactNode; testId?: string; t: T }) {
+  const [path, query = ''] = href.split('?')
+  const params = [...new URLSearchParams(query)]
+  const id = testId ?? 'export-csv'
+  return (
+    <details className="relative max-md:w-full" data-testid={`${id}-box`}>
+      <summary className={cx(buttonClass('ghost'), 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')} data-testid={id} data-href={href}>{children}</summary>
+      <form method="get" action={path} className="card z-30 mt-2 space-y-3 p-4 text-left shadow-lg max-md:w-full md:absolute md:right-0 md:w-[22rem]" data-testid={`${id}-form`}>
+        {params.map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+        <label className="block text-[13px] font-semibold text-muted-2">
+          {t('¿Para qué necesitas el archivo?', 'What do you need the file for?')}
+          <input name="motivo" className="input mt-1.5" required minLength={8} maxLength={300} autoComplete="off" data-testid={`${id}-reason`} />
+        </label>
+        <p className="text-[12.5px] text-muted">{t('El motivo queda en la bitácora con tu nombre, los filtros y el número de filas. El archivo tiene un tope de filas según tu rol.', 'The reason is logged with your name, the filters and the number of rows. The file has a row limit that depends on your role.')}</p>
+        <button type="submit" className={buttonClass('primary', 'sm')} data-testid={`${id}-go`}>{t('Descargar archivo', 'Download file')}</button>
+      </form>
+    </details>
+  )
 }
 
 /** De dónde sale una tasa, en palabras. El valor del ambiente de prueba se dice como lo que es: un ejemplo. */

@@ -25,42 +25,8 @@ async function loadAcc(tx: Tx, id: string): Promise<Acc> {
 
 // ---------------------------------------------------------------- mercados (E1.F1)
 
-const marketInput = z.object({
-  code: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
-  name: z.string().trim().min(2).max(60),
-  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/),
-  locale: z.enum(['es', 'en', 'pt']),
-  timezone: z.string().trim().min(3).max(60),
-  phoneCc: z.string().trim().regex(/^\+[1-9][0-9]{0,3}$/),
-  entityName: z.string().trim().min(2).max(120),
-})
-
-/** Un mercado nuevo se agrega aquí, sin tocar los que ya operan. Nace "en preparación": no aparece en las listas de trabajo hasta abrirlo. */
-export async function createMarket(ctx: Ctx, input: z.input<typeof marketInput>): Promise<string> {
-  ctx.assert('config.manage')
-  const parsed = marketInput.safeParse(input)
-  if (!parsed.success) {
-    const f = String(parsed.error.issues[0]?.path[0] ?? '')
-    if (f === 'code') throw invalid('Código: las dos letras del país, por ejemplo CO.', 'Code: the two letters of the country, for example CO.')
-    if (f === 'currency') throw invalid('Moneda: las tres letras, por ejemplo COP.', 'Currency: the three letters, for example COP.')
-    if (f === 'phoneCc') throw invalid('Prefijo telefónico: con signo de más, por ejemplo +57.', 'Phone prefix: with a plus sign, for example +57.')
-    if (f === 'entityName') throw invalid('Entidad legal: escribe el nombre con el que axexo opera en ese mercado.', 'Legal entity: enter the name axexo operates under in that market.')
-    throw invalid('Revisa nombre, idioma y zona horaria del mercado.', 'Check the market name, language and time zone.')
-  }
-  const v = parsed.data
-  assertNoProhibited(v.name, v.entityName)
-  return withUser(ctx.user.id, async (tx) => {
-    if ((await tx`select 1 from crm.markets where code = ${v.code}`)[0]) throw invalid('Ese mercado ya existe.', 'That market already exists.')
-    if (!(await tx`select 1 from pg_timezone_names where name = ${v.timezone}`)[0]) throw invalid('Esa zona horaria no existe. Usa el nombre completo, por ejemplo America/Bogota.', 'That time zone does not exist. Use the full name, for example America/Bogota.')
-    const locales = v.locale === 'es' ? ['es'] : [v.locale, 'es']
-    await tx`insert into crm.markets (code, name, currency, default_locale, locales, timezone, phone_cc, status)
-             values (${v.code}, ${v.name}, ${v.currency}, ${v.locale}, ${locales}, ${v.timezone}, ${v.phoneCc}, 'planned')`
-    await tx`insert into crm.legal_entities (market_code, name, is_default, currency, default_locale, tax_country) values (${v.code}, ${v.entityName}, true, ${v.currency}, ${v.locale}, ${v.code})`
-    await audit(tx, ctx, 'market.created', 'market', null, v.code, null, { code: v.code, name: v.name, currency: v.currency, timezone: v.timezone, entity: v.entityName })
-    return v.code
-  })
-}
-
+// Agregar un mercado y abrirlo vive en un solo lugar: domain/gobierno.ts (createMarket, updateMarket), pantalla Datos.
+// Aquí queda lo que ese mercado necesita para operar: su entidad legal, sus festivos y la lista de lo que le falta.
 export type MarketReadiness = { pipelines: number; territories: number; people: number; entity: boolean; rate: boolean }
 export async function marketReadiness(tx: Tx, code: string): Promise<MarketReadiness> {
   const rows = await tx<MarketReadiness[]>`
@@ -72,27 +38,6 @@ export async function marketReadiness(tx: Tx, code: string): Promise<MarketReadi
       from crm.markets m where m.code = ${code}`
   if (!rows[0]) throw notFound('No encontramos ese mercado.', 'We could not find that market.')
   return rows[0]
-}
-
-/** Abrir un mercado ("en operación") pide lo mínimo para trabajar: un embudo con etapas, una entidad legal confirmada y al menos una persona. */
-export async function setMarketStatus(ctx: Ctx, code: string, status: 'live' | 'planned'): Promise<void> {
-  ctx.assert('config.manage')
-  await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ status: string }[]>`select status from crm.markets where code = ${code} for update`
-    if (!rows[0]) throw notFound('No encontramos ese mercado.', 'We could not find that market.')
-    if (rows[0].status === status) return
-    if (status === 'live') {
-      const r = await marketReadiness(tx, code)
-      if (r.pipelines === 0) throw invalid('Antes de abrirlo, créale un embudo con etapas en "Embudos y campos".', 'Before opening it, create a pipeline with stages for it under "Pipelines and fields".')
-      if (!r.entity) throw invalid('Antes de abrirlo, confirma el nombre de su entidad legal.', 'Before opening it, confirm the name of its legal entity.')
-      if (r.people === 0) throw invalid('Antes de abrirlo, dale acceso al menos a una persona en "Personas y acceso".', 'Before opening it, give at least one person access under "People and access".')
-    } else {
-      const open = await tx<{ n: number }[]>`select count(*)::int as n from crm.deals where market_code = ${code} and status = 'open'`
-      if ((open[0]?.n ?? 0) > 0) throw invalid('Ese mercado tiene negocios abiertos: no se puede regresar a preparación.', 'That market has open deals: it cannot go back to preparation.')
-    }
-    await tx`update crm.markets set status = ${status} where code = ${code}`
-    await audit(tx, ctx, 'market.status_changed', 'market', null, code, { status: rows[0].status }, { status })
-  })
 }
 
 const holidayInput = z.object({ market: z.string().length(2), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), name: z.string().trim().min(2).max(80) })
@@ -559,58 +504,7 @@ export async function setFichaLayout(ctx: Ctx, role: string, facts: string[]): P
   })
 }
 
-// ---------------------------------------------------------------- contactos (E2.F4)
-
-const CONTACT_ROLES = ['owner', 'decision_maker', 'manager', 'staff', 'billing', 'executive', 'purchasing', 'finance', 'technology', 'legal', 'operations'] as const
-const contactEdit = z.object({
-  fullName: z.string().trim().min(2).max(120),
-  phone: z.string().trim().max(30).optional().default(''),
-  email: z.string().trim().max(160).optional().default(''),
-  role: z.enum(CONTACT_ROLES),
-  locale: z.enum(['es', 'en']).or(z.literal('')).optional().default(''),
-})
-/** Corrige un contacto del comercio: nombre, teléfono, correo, rol e idioma. Lo hace el equipo que lleva la cuenta, sin pedirlo a nadie. */
-export async function updateContact(ctx: Ctx, accountId: string, contactId: string, input: z.input<typeof contactEdit>): Promise<void> {
-  const parsed = contactEdit.safeParse(input)
-  if (!parsed.success) throw invalid('Revisa nombre y rol del contacto.', 'Check the contact name and role.')
-  const v = parsed.data
-  assertNoProhibited(v.fullName)
-  await withUser(ctx.user.id, async (tx) => {
-    const a = await loadAcc(tx, accountId)
-    ctx.assert('account.edit', a.market_code)
-    const link = await tx<{ id: string; role: string; full_name: string; phone: string | null; email: string | null }[]>`
-      select ac.id, ac.role, c.full_name, c.phone, c.email::text from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
-       where ac.account_id = ${accountId} and ac.contact_id = ${contactId} and ac.valid_to is null for update of ac`
-    if (!link[0]) throw notFound('Ese contacto ya no está en este comercio.', 'That contact is no longer on this merchant.')
-    const phone = v.phone ? toE164(v.phone, ctx.market(a.market_code).phoneCc) : null
-    if (v.phone && !phone) throw invalid('El teléfono no parece válido.', 'The phone number does not look valid.')
-    if (v.email && !z.string().email().safeParse(v.email).success) throw invalid('El correo no parece válido.', 'The email does not look valid.')
-    await tx`update crm.contacts set full_name = ${v.fullName}, phone = ${phone}, email = ${clean(v.email)}, preferred_locale = ${v.locale || null},
-              sms_capable = case when ${phone}::text is null then null else sms_capable end where id = ${contactId}`
-    if (v.role !== link[0].role) await tx`update crm.account_contacts set role = ${v.role} where id = ${link[0].id}`
-    await audit(tx, ctx, 'contact.updated', 'account', accountId, a.market_code, { name: link[0].full_name, role: link[0].role, had_phone: link[0].phone !== null, had_email: link[0].email !== null },
-      { contact_id: contactId, name: v.fullName, role: v.role, has_phone: phone !== null, has_email: !!v.email })
-  })
-}
-
-/** Da de baja a un contacto del comercio. No se borra: el vínculo se cierra con fecha y queda en la historia. */
-export async function endContact(ctx: Ctx, accountId: string, contactId: string): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
-    const a = await loadAcc(tx, accountId)
-    ctx.assert('account.edit', a.market_code)
-    const link = await tx<{ id: string; is_primary: boolean; full_name: string }[]>`
-      select ac.id, ac.is_primary, c.full_name from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
-       where ac.account_id = ${accountId} and ac.contact_id = ${contactId} and ac.valid_to is null for update of ac`
-    if (!link[0]) throw notFound('Ese contacto ya no está en este comercio.', 'That contact is no longer on this merchant.')
-    await tx`update crm.account_contacts set valid_to = now(), is_primary = false where id = ${link[0].id}`
-    // Si era el principal, pasa a serlo el contacto vigente más antiguo.
-    if (link[0].is_primary) {
-      await tx`update crm.account_contacts set is_primary = true where id = (select id from crm.account_contacts where account_id = ${accountId} and valid_to is null order by valid_from limit 1)`
-    }
-    await tx`update crm.deals set decision_maker_id = null where account_id = ${accountId} and decision_maker_id = ${contactId} and status = 'open'`
-    await audit(tx, ctx, 'contact.ended', 'account', accountId, a.market_code, { contact_id: contactId, name: link[0].full_name, primary: link[0].is_primary }, null)
-  })
-}
+// Contactos (E2.F4): corregir y dar de baja vive en domain/datos.ts (updateContact, endContact), un solo modelo.
 
 // ---------------------------------------------------------------- secciones de campos (E2.F5)
 

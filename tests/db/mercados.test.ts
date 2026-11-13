@@ -4,9 +4,10 @@ import { withUser, marketWorkday } from '@/server/db'
 import { createAccount, addContact } from '@/domain/accounts'
 import { searchAll, getAccount } from '@/dal/accounts'
 import { setFxRate } from '@/domain/reports'
+import { createMarket, updateMarket } from '@/domain/gobierno'
 import {
-  addHoliday, captureTaxId, createEntity, createFieldSection, createMarket, endContact, openWhatsappWindow, reviewTaxId, saveWhatsappAccount, saveWhatsappRate, saveWhatsappTemplate,
-  setAccountProfile, setFichaLayout, setFieldSection, setLocation, setMarketStatus, setUserEntity, updateAddress, updateContact, updateEntity,
+  addHoliday, captureTaxId, createEntity, createFieldSection, openWhatsappWindow, reviewTaxId, saveWhatsappAccount, saveWhatsappRate, saveWhatsappTemplate,
+  setAccountProfile, setFichaLayout, setFieldSection, setLocation, setUserEntity, updateAddress, updateEntity,
 } from '@/domain/markets'
 import { accountByRef, accountsByTaxId, accountsNear, getAccountHeader, getAccountMarketData, getConsolidated, getMarketsAdmin } from '@/dal/markets'
 import { fxRestampJob } from '@/server/jobs/mercados'
@@ -230,27 +231,30 @@ describe('MULTI-02: entidad legal, límite por entidad, zona horaria y festivos'
 })
 
 describe('E1.F1 y E1.F4: mercado nuevo por configuración y unidad de negocio', () => {
-  it('administración agrega un mercado en preparación y lo abre cuando tiene embudo, entidad y equipo', async () => {
+  it('un mercado nuevo (Datos, Mercados y catálogos) nace con su entidad por confirmar y Administración dice qué le falta', async () => {
     const admin = await ctxFor('nora.salas')
-    expect(await code(createMarket(await ctxFor('ana.robles'), { code: 'CO', name: 'Colombia', currency: 'COP', locale: 'es', timezone: 'America/Bogota', phoneCc: '+57', entityName: 'Entidad CO de prueba' }))).toBe('forbidden')
-    expect(await code(createMarket(admin, { code: 'CO', name: 'Colombia', currency: 'COP', locale: 'es', timezone: 'America/Bogotazo', phoneCc: '+57', entityName: 'Entidad CO de prueba' }))).toBe('invalid')
     const before = (await db<{ n: number }[]>`select count(*)::int as n from crm.accounts`)[0]!.n
-    await createMarket(admin, { code: 'co', name: 'Colombia', currency: 'cop', locale: 'es', timezone: 'America/Bogota', phoneCc: '+57', entityName: 'Entidad CO de prueba' })
-    const m = (await getMarketsAdmin(admin)).markets.find((x) => x.code === 'CO')!
-    expect(m).toMatchObject({ status: 'planned', currency: 'COP', ready: { pipelines: 0, entity: true, people: 0, rate: false } })
-    expect(await code(createMarket(admin, { code: 'CO', name: 'Colombia', currency: 'COP', locale: 'es', timezone: 'America/Bogota', phoneCc: '+57', entityName: 'Otra' }))).toBe('invalid')
+    // Agregar y abrir un mercado tiene un solo modelo: domain/gobierno.ts. Este paquete le da su entidad legal y la lista de lo que falta.
+    expect(await code(createMarket(await ctxFor('ana.robles'), { code: 'GT', name: 'Guatemala', currency: 'GTQ', locale: 'es', timezone: 'America/Guatemala', phoneCc: '+502' }))).toBe('forbidden')
+    await createMarket(admin, { code: 'gt', name: 'Guatemala', currency: 'gtq', locale: 'es', timezone: 'America/Guatemala', phoneCc: '+502' })
+    let m = (await getMarketsAdmin(admin)).markets.find((x) => x.code === 'GT')!
+    expect(m).toMatchObject({ status: 'planned', currency: 'GTQ', ready: { pipelines: 0, entity: false, people: 0, rate: false } })
+    const entity = (await db<{ id: string; needs_review: boolean; is_default: boolean }[]>`select id, needs_review, is_default from crm.legal_entities where market_code = 'GT'`)
+    expect(entity).toHaveLength(1)
+    expect(entity[0]).toMatchObject({ needs_review: true, is_default: true })
     // Sin embudo no se abre, y se dice por qué.
-    expect(await code(setMarketStatus(admin, 'CO', 'live'))).toBe('invalid')
-    const pipe = (await db<{ id: string }[]>`insert into crm.pipelines (market_code, motor, name) values ('CO', 'd2d', 'D2D Colombia') returning id`)[0]!.id
+    expect(await code(updateMarket(admin, 'GT', { name: 'Guatemala', status: 'live' }))).toBe('invalid')
+    await updateEntity(admin, entity[0]!.id, { name: 'Entidad GT de prueba', makeDefault: true })
+    const pipe = (await db<{ id: string }[]>`insert into crm.pipelines (market_code, motor, name) values ('GT', 'd2d', 'D2D Guatemala') returning id`)[0]!.id
     await db`insert into crm.stages (pipeline_id, position, code, name_es, name_en, kind) values (${pipe}, 1, 'new', 'Nuevo', 'New', 'open'), (${pipe}, 2, 'won', 'Ganado', 'Won', 'won'), (${pipe}, 3, 'lost', 'Perdido', 'Lost', 'lost')`
-    expect(await code(setMarketStatus(admin, 'CO', 'live'))).toBe('invalid') // falta una persona
-    await db`insert into crm.memberships (user_id, market_code, role) values (${await personaId('ana.robles')}, 'CO', 'market_lead')`
-    await setMarketStatus(admin, 'CO', 'live')
-    expect((await db<{ status: string }[]>`select status from crm.markets where code = 'CO'`)[0]!.status).toBe('live')
+    await db`insert into crm.memberships (user_id, market_code, role) values (${await personaId('ana.robles')}, 'GT', 'market_lead')`
+    await setFxRate(admin, { currency: 'GTQ', asOf: iso(-1), rate: '0.13', source: 'Banco de prueba' })
+    m = (await getMarketsAdmin(admin)).markets.find((x) => x.code === 'GT')!
+    expect(m.ready).toMatchObject({ pipelines: 1, entity: true, people: 1, rate: true })
+    await updateMarket(admin, 'GT', { name: 'Guatemala', status: 'live' })
+    expect((await db<{ status: string }[]>`select status from crm.markets where code = 'GT'`)[0]!.status).toBe('live')
     // Los mercados que ya operaban no se tocaron.
     expect((await db<{ n: number }[]>`select count(*)::int as n from crm.accounts`)[0]!.n).toBe(before)
-    const events = await db<{ action: string }[]>`select action from crm.audit_events where action like 'market.%' and market_code = 'CO' order by at`
-    expect(events.map((e) => e.action)).toEqual(['market.created', 'market.status_changed'])
   })
 
   it('la unidad de negocio trae las ocho opciones, va en el comercio y sus negocios abiertos la siguen', async () => {
@@ -519,33 +523,7 @@ describe('UX-04: enlace directo a la ficha desde otro sistema', () => {
   })
 })
 
-describe('E2.F4 y E2.F5: contactos editables y secciones de campos por mercado', () => {
-  it('quien lleva la cuenta corrige un contacto y lo da de baja; no se borra y el principal pasa al siguiente', async () => {
-    const marco = await ctxFor('marco.pena')
-    const store = await storeOf('marco.pena', 13)
-    await db`update crm.account_contacts set valid_to = now(), is_primary = false where account_id = ${store.id} and valid_to is null`
-    const a = await addContact(marco, store.id, { fullName: 'Rosa Prueba', role: 'owner', phone: '81 1000 2000' })
-    const b = await addContact(marco, store.id, { fullName: 'Hugo Prueba', role: 'staff' })
-    await updateContact(marco, store.id, a, { fullName: 'Rosa Prueba Díaz', role: 'decision_maker', phone: '81 1000 2001', email: 'rosa@prueba.test', locale: 'es' })
-    const got = (await getAccount(marco, store.id))!.contacts
-    expect(got.find((c) => c.id === a)).toMatchObject({ full_name: 'Rosa Prueba Díaz', role: 'decision_maker', phone: '+528110002001', email: 'rosa@prueba.test', is_primary: true, preferred_locale: 'es' })
-    expect(await code(updateContact(marco, store.id, a, { fullName: 'R', role: 'owner' }))).toBe('invalid')
-    expect(await code(updateContact(marco, store.id, a, { fullName: 'Rosa', role: 'owner', phone: '123' }))).toBe('invalid')
-    // Otra persona que vende no edita los contactos de un comercio que no es suyo.
-    expect(await code(updateContact(await ctxFor('lucia.vega'), store.id, a, { fullName: 'Rosa X', role: 'owner' }))).toBe('not_found')
-    expect(await code(updateContact(await ctxFor('luis.tovar'), store.id, a, { fullName: 'Rosa X', role: 'owner' }))).toBe('forbidden')
-
-    await endContact(marco, store.id, a)
-    const after = (await getAccount(marco, store.id))!.contacts
-    expect(after.map((c) => c.id)).toEqual([b])
-    expect(after[0]!.is_primary).toBe(true)
-    expect((await db<{ n: number }[]>`select count(*)::int as n from crm.contacts where id = ${a}`)[0]!.n).toBe(1)
-    expect((await db<{ ended: boolean }[]>`select valid_to is not null as ended from crm.account_contacts where account_id = ${store.id} and contact_id = ${a}`)[0]!.ended).toBe(true)
-    expect(await code(endContact(marco, store.id, a))).toBe('not_found')
-    const actions = await db<{ action: string }[]>`select action from crm.audit_events where object_id = ${store.id} and action in ('contact.updated', 'contact.ended') order by at`
-    expect(actions.map((x) => x.action)).toEqual(['contact.updated', 'contact.ended'])
-  })
-
+describe('E2.F5: secciones de campos por mercado', () => {
   it('las secciones comunes son las mismas en todos los mercados y un mercado agrega la suya', async () => {
     const admin = await ctxFor('nora.salas')
     const base = (await getMarketsAdmin(admin)).sections

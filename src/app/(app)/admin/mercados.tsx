@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Ctx } from '@/server/context'
 import { getMarketsAdmin } from '@/dal/markets'
 import { Badge, Card, CardTitle, Field } from '@/ui/kit'
@@ -7,8 +8,8 @@ import { day, isoDay, num, zoneName } from '@/lib/format'
 import { FICHA_FACTS, FICHA_FACT_LABEL, WA_CATEGORY, WA_STATUS } from '@/lib/markets'
 import { whatsappMarketMode } from '@/server/adapters/markets'
 import {
-  addHolidayAction, createEntityAction, createFieldSectionAction, createMarketAction, removeHolidayAction, saveWhatsappAccountAction, saveWhatsappRateAction, saveWhatsappTemplateAction,
-  setFichaLayoutAction, setFieldSectionAction, setMarketStatusAction, setUserEntityAction, setWhatsappTemplateStatusAction, updateEntityAction,
+  addHolidayAction, createEntityAction, createFieldSectionAction, removeHolidayAction, saveWhatsappAccountAction, saveWhatsappRateAction, saveWhatsappTemplateAction,
+  setFichaLayoutAction, setFieldSectionAction, setUserEntityAction, setWhatsappTemplateStatusAction, updateEntityAction,
 } from './mercados-actions'
 
 const TEAM: Record<string, [string, string]> = { sales: ['Ventas', 'Sales'], ops: ['Operaciones', 'Operations'], support: ['Soporte', 'Support'], finance: ['Finanzas', 'Finance'], all: ['Todos', 'Everyone'] }
@@ -27,7 +28,7 @@ export async function MercadosTab({ ctx }: { ctx: Ctx }) {
   return (
     <div className="space-y-8" data-testid="admin-markets">
       <Card data-testid="markets-card">
-        <CardTitle title={t('Mercados', 'Markets')} hint={t('Un mercado nuevo se agrega aquí, sin tocar los que ya operan. Nace en preparación; se abre cuando tiene embudo, entidad legal confirmada y equipo.', 'A new market is added here, without touching the ones already running. It starts in preparation; it opens once it has a pipeline, a confirmed legal entity and a team.')} />
+        <CardTitle title={t('Mercados', 'Markets')} hint={t('Lo que cada mercado necesita para operar. Uno nuevo nace en preparación y conviene abrirlo cuando tiene embudo, entidad legal confirmada y equipo.', 'What each market needs to operate. A new one starts in preparation and is best opened once it has a pipeline, a confirmed legal entity and a team.')} />
         <ul className="divide-y divide-line">
           {d.markets.map((m) => (
             <li key={m.code} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 py-4" data-testid="market-row" data-market={m.code}>
@@ -44,25 +45,10 @@ export async function MercadosTab({ ctx }: { ctx: Ctx }) {
                   </ul>
                 )}
               </div>
-              <ActionForm action={setMarketStatusAction} testId="market-status-form">
-                <input type="hidden" name="code" value={m.code} /><input type="hidden" name="status" value={m.status === 'live' ? 'planned' : 'live'} />
-                <Submit variant="ghost" size="sm" testId="market-toggle">{m.status === 'live' ? t('Regresar a preparación', 'Back to preparation') : t('Abrir mercado', 'Open market')}</Submit>
-              </ActionForm>
             </li>
           ))}
         </ul>
-        <Dialog trigger={t('Agregar mercado', 'Add market')} title={t('Mercado nuevo', 'New market')} size="sm" testId="market-add">
-          <ActionForm action={createMarketAction} onOk="close" className="grid grid-cols-2 gap-4" testId="market-form">
-            <Field label={t('Código del país', 'Country code')} hint={t('Dos letras, por ejemplo CO.', 'Two letters, for example CO.')}><input name="code" className="input" required minLength={2} maxLength={2} autoCapitalize="characters" data-testid="market-code" /></Field>
-            <Field label={t('Nombre', 'Name')}><input name="name" className="input" required minLength={2} maxLength={60} data-testid="market-name" /></Field>
-            <Field label={t('Moneda', 'Currency')} hint={t('Tres letras, por ejemplo COP.', 'Three letters, for example COP.')}><input name="currency" className="input" required minLength={3} maxLength={3} autoCapitalize="characters" data-testid="market-currency" /></Field>
-            <Field label={t('Idioma', 'Language')}><select name="locale" className="input" defaultValue="es" data-testid="market-locale"><option value="es">{t('Español', 'Spanish')}</option><option value="en">{t('Inglés', 'English')}</option><option value="pt">{t('Portugués', 'Portuguese')}</option></select></Field>
-            <Field label={t('Zona horaria', 'Time zone')} hint={t('Nombre completo, por ejemplo America/Bogota.', 'Full name, for example America/Bogota.')}><input name="timezone" className="input" required data-testid="market-timezone" /></Field>
-            <Field label={t('Prefijo telefónico', 'Phone prefix')} hint={t('Por ejemplo +57.', 'For example +57.')}><input name="phone_cc" className="input" required data-testid="market-phone-cc" /></Field>
-            <Field label={t('Entidad legal', 'Legal entity')} className="col-span-2" hint={t('El nombre con el que axexo opera en ese mercado.', 'The name axexo operates under in that market.')}><input name="entity_name" className="input" required minLength={2} maxLength={120} data-testid="market-entity" /></Field>
-            <div className="col-span-2 flex justify-end"><Submit testId="market-save">{t('Agregar mercado', 'Add market')}</Submit></div>
-          </ActionForm>
-        </Dialog>
+        <p className="mt-4 text-[13.5px] text-muted">{t('Un mercado se agrega y se abre en ', 'A market is added and opened under ')}<Link href="/datos?tab=catalogos" className="font-medium text-blue-text underline" data-testid="markets-catalog-link">{t('Datos, Mercados y catálogos', 'Data, Markets and catalogs')}</Link>{t('. Aquí se confirma su entidad legal, se cargan sus festivos y se ve lo que le falta.', '. Here you confirm its legal entity, load its holidays and see what it still needs.')}</p>
       </Card>
 
       <Card data-testid="entities-card">
