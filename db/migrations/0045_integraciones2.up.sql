@@ -258,7 +258,8 @@ declare
     'milestone_events','account_milestones','conversion_events','source_touches','deal_evidence','deal_ops_checks','deal_orders','order_dispatches','deal_items',
     'deal_stage_gaps','deal_stage_events','approvals','assignment_log','lead_escalation','exceptions','import_conflicts','import_baselines','duplicate_bypasses',
     'duplicate_pairs','merge_events','ticket_refs','tax_id_verifications','tax_ids','account_sensitive','account_product_events','account_products',
-    'account_team','account_attributions','contact_primary_history','visits','activities','deals','leads','account_contacts','account_aliases','accounts','contacts'];
+    'account_team','account_attributions','contact_primary_history','process_memberships','training_sessions','whatsapp_windows','source_touches',
+    'referral_codes','consents','visits','activities','deals','leads','account_contacts','account_aliases','accounts','contacts'];
   v_counts jsonb := '{}'::jsonb;
   v_left text[];
   t text;
@@ -267,6 +268,14 @@ declare
 begin
   if not app.is_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
   if not exists (select 1 from crm.markets where code = p_market) then raise exception 'unknown market' using errcode = '22023'; end if;
+  -- Tablas sin mercado que apuntan a registros del mercado.
+  delete from crm.account_links l where exists (select 1 from crm.accounts a where a.market_code = p_market and (a.id = l.child_id or a.id = l.parent_id));
+  if to_regclass('crm.intake_retries') is not null then
+    execute 'delete from crm.intake_retries r where exists (select 1 from crm.leads x where x.id = r.lead_id and x.market_code = $1)' using p_market;
+  end if;
+  if to_regclass('crm.synthetic_accounts') is not null then
+    execute 'delete from crm.synthetic_accounts s where exists (select 1 from crm.accounts x where x.id = s.account_id and x.market_code = $1)' using p_market;
+  end if;
   for pass in 1..12 loop
     v_left := '{}';
     foreach t in array v_tables loop

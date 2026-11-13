@@ -14,7 +14,7 @@ export async function storeSales(ctx: Ctx, accountId: string): Promise<StoreSale
        where l.account_id = ${accountId} and l.as_of = (select max(x.as_of) from crm.store_sales_lines x where x.account_id = ${accountId})
        order by l.line_kind, l.line_key`
     if (!rows[0]) return null
-    return { as_of: rows[0].as_of, lines: rows.map(({ as_of: _a, ...l }) => l) }
+    return { as_of: rows[0].as_of, lines: rows.map((l) => ({ line_kind: l.line_kind, line_key: l.line_key, mtd: l.mtd, prev_month: l.prev_month, d90: l.d90, currency: l.currency })) }
   })
 }
 

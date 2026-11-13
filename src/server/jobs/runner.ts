@@ -4,7 +4,7 @@ import { runVia, withSystem } from '@/server/db'
 import { env } from '@/env'
 import { JOBS } from './registry'
 import type { Job } from './types'
-import { finishLoad, startLoad } from '@/server/loads'
+import { finishLoad, startLoad, type LoadStart } from '@/server/loads'
 
 // El corredor de las tareas programadas. Decide a cuál le toca, no deja que la misma corra dos veces a la vez
 // (candado de la base, por transacción: sirve también detrás de un pooler) y deja cada corrida en `crm.job_runs`:
@@ -42,7 +42,7 @@ async function runLoadJob(job: Job, trigger: Trigger, opts: { force?: boolean; a
       select coalesce(max(started_at) > now() - make_interval(mins => ${job.everyMinutes}), false) as recent from crm.job_runs where job_key = ${job.key}`)
     if (recent[0]?.recent) return { key: job.key, status: 'not_due' }
   }
-  let start
+  let start: LoadStart
   try {
     start = await withSystem((tx) => startLoad(tx, job.load!, trigger, opts.actorId ?? null))
   } catch (e) {

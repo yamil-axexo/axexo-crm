@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
     })
     const blocked = 'batchId' in out || 'lines' in out ? null : loadBlocked(out as never)
     if (blocked) throw new DomainError('busy', blocked[0], blocked[1], 409)
-    const { done: _done, ...result } = out as { done: number }
+    const result: Record<string, unknown> = { ...(out as object) }
+    delete result.done
     return result
   })
 }

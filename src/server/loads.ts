@@ -10,7 +10,8 @@ import { notify, peopleWithRole } from '@/domain/notify'
  *  - nunca corre junto con otra carga (la base admite una sola fila "running"; una carga colgada más de 2 horas se da por caída);
  *  - si falla, avisa a su responsable (o a administración si no tiene) por el servicio de avisos;
  *  - al terminar con algo hecho, publica qué hizo (aviso a su responsable y "Estado de CONTIGO").
- * La revisión de las que no llegaron a su hora la hace la tarea `integraciones2.load_watch`.
+ * La revisión de las que no llegaron a su hora la hace la tarea `integraciones2.load_watch`. La Sales App no corre por lotes:
+ * sus eventos entran sueltos por la API; cuenta como llegada si hoy entró al menos uno, y su detalle está en Integraciones.
  */
 export const LOAD_KEYS = ['pipedrive', 'sales_file', 'store_sales', 'sales_app', 'imports'] as const
 export type LoadKey = (typeof LOAD_KEYS)[number]
@@ -120,7 +121,10 @@ export async function watchLateLoads(tx: Tx, actorId: string): Promise<number> {
      where l.expected_by is not null
        and (now() at time zone m.timezone)::time > l.expected_by
        and not exists (select 1 from crm.load_runs r where r.load_key = l.key and r.status in ('ok','late')
-                          and (r.started_at at time zone m.timezone)::date = (now() at time zone m.timezone)::date)`
+                          and (r.started_at at time zone m.timezone)::date = (now() at time zone m.timezone)::date)
+       -- La Sales App manda eventos sueltos todo el día: llegó si hoy entró al menos uno.
+       and not (l.key = 'sales_app' and exists (select 1 from crm.inbound_events e where e.source = 'sales_app'
+                  and (e.received_at at time zone m.timezone)::date = (now() at time zone m.timezone)::date))`
   for (const l of late) {
     await tx`insert into crm.load_runs (load_key, trigger, status, finished_at, note) values (${l.key}, 'watch', 'late', now(), ${'expected_by:' + l.expected})`
     for (const to of await owners(tx, l))
