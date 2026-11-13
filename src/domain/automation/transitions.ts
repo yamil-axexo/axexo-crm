@@ -137,7 +137,7 @@ export async function addEvidence(ctx: Ctx, dealId: string, input: z.input<typeo
   const parsed = evidenceInput.safeParse(input)
   if (!parsed.success) throw invalid('Elige la etapa, pega el enlace y escribe una nota corta (2 a 300 letras).', 'Pick the stage, paste the link and write a short note (2 to 300 characters).')
   const v = parsed.data
-  if (!/^https:\/\/\S{4,480}$/.test(v.url)) throw invalid('El enlace tiene que empezar con https:// y no llevar espacios.', 'The link must start with https:// and have no spaces.')
+  if (!/^https:\/\/\S{4,480}$/.test(v.url) || v.url.length < 12) throw invalid('El enlace tiene que empezar con https:// y no llevar espacios.', 'The link must start with https:// and have no spaces.')
   assertNoProhibited(v.note, v.url)
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string; pipeline_id: string; status: string }[]>`select market_code, pipeline_id, status from crm.deals where id = ${dealId} for update`

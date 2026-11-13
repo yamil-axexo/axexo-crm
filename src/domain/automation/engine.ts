@@ -341,7 +341,7 @@ export async function runEvents(tx: Tx, sys: Ctx): Promise<{ events: number; act
   const cur = await tx<{ v: string | null }[]>`select value #>> '{}' as v from crm.settings where key = 'automation_event_cursor' for update`
   if (!cur[0]) {
     // Primera vez: se empieza desde ahora. Los eventos viejos no disparan automatizaciones que no existían.
-    await tx`insert into crm.settings (key, value) select 'automation_event_cursor', to_jsonb(coalesce((select max(id)::text from crm.outbox_events), '00000000-0000-0000-0000-000000000000')) on conflict do nothing`
+    await tx`insert into crm.settings (key, value) select 'automation_event_cursor', to_jsonb(coalesce((select o.id::text from crm.outbox_events o order by o.id desc limit 1), '00000000-0000-0000-0000-000000000000')) on conflict do nothing`
     return { events: 0, acted: 0 }
   }
   const events = await tx<{ id: string; event_type: string; aggregate_id: string; market_code: string | null }[]>`

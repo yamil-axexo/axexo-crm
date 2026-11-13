@@ -106,7 +106,7 @@ create table crm.deal_evidence (
   deal_id       uuid not null references crm.deals(id),
   market_code   text not null references crm.markets(code),
   to_stage_id   uuid not null references crm.stages(id),
-  url           text not null check (url ~ '^https://[^[:space:]]{4,480}$'),
+  url           text not null check (url ~ '^https://[^[:space:]]+$' and length(url) between 12 and 490),
   note          text not null check (length(btrim(note)) between 2 and 300),
   added_by      uuid not null references crm.users(id),
   added_at      timestamptz not null default now()

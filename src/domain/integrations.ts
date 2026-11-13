@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
-import { audit, emit, newId } from '@/domain/common'
+import { audit, emit } from '@/domain/common'
+import { insertAccountTx } from '@/domain/accounts'
+import { accountRule, skipReason } from '@/domain/intake'
 import { DomainError, invalid } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
 
@@ -133,9 +135,14 @@ async function ingestStore(tx: Tx, sys: Ctx, ev: z.infer<typeof storeEvent>): Pr
     accountId = match[0]?.id
     if (!accountId) {
       const owner = d.salesperson_email ? await tx<{ id: string }[]>`select id from crm.users where email = ${d.salesperson_email} and is_active` : []
-      accountId = await newId(tx)
-      await tx`insert into crm.accounts (id, market_code, kind, name, segment, lifecycle, owner_id, phone, locality, region, country, created_by)
-               values (${accountId}, ${d.market}, 'store', ${d.name}, 'd2d', 'onboarding', ${owner[0]?.id ?? null}, ${phone}, ${d.locality ?? null}, ${d.region ?? null}, ${d.market}, ${sys.user.id})`
+      // AUT-01: el punto de venta nace por la misma función que el alta de la pantalla, con sus mismas reglas de entrada.
+      const broken = accountRule({ name: d.name, phone })
+      if (broken) {
+        await tx`update crm.inbound_events set status = 'rejected', error = ${skipReason(broken)}, processed_at = now() where id = ${eventId}`
+        return { status: 'unmatched', detail: skipReason(broken) }
+      }
+      accountId = await insertAccountTx(tx, { market: d.market, kind: 'store', accountType: null, name: d.name, segment: 'd2d', lifecycle: 'onboarding', parentId: null,
+        ownerId: owner[0]?.id ?? null, territoryId: null, phone, locality: d.locality ?? null, region: d.region ?? null, createdBy: sys.user.id })
       await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
                values (${accountId}, ${d.market}, 'origin', 'import', 'sales_app', 'Sales App', ${sys.user.id})`
     } else {
