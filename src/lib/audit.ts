@@ -17,6 +17,20 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'account.territory_set': ['Cambió el territorio de comercios', 'Changed the territory of merchants'],
   'account.merged': ['Fusionó un comercio duplicado', 'Merged a duplicate merchant'],
   'contact.added': ['Agregó un contacto', 'Added a contact'],
+  // Paquete datos2 (0040)
+  'contact.merged': ['Fusionó un contacto duplicado', 'Merged a duplicate contact'],
+  'contact.merge_undone': ['Deshizo la fusión de un contacto', 'Undid a contact merge'],
+  'contact.pair_dismissed': ['Marcó que dos contactos no son la misma persona', 'Marked two contacts as different people'],
+  'decision.set': ['Cambió una decisión de negocio', 'Changed a business decision'],
+  'lead.held': ['Retuvo una solicitud sin dueño', 'Held a request with no owner'],
+  'lead.held_released': ['Liberó una solicitud retenida', 'Released a held request'],
+  'account.owner_followed_parent': ['El comercio tomó el dueño de su cuenta de arriba', 'The merchant took the owner of the record above'],
+  'field.promotion_requested': ['Pidió pasar un campo a columna', 'Requested promoting a field to a column'],
+  'expansion.deal_opened': ['Abrió un negocio de expansión', 'Opened an expansion deal'],
+  'product.entity_set': ['Cambió la entidad legal de un producto', 'Changed a product’s legal entity'],
+  'account.timezone_set': ['Cambió la zona horaria de un comercio', 'Changed a merchant’s time zone'],
+  'seat.requested': ['Pidió un asiento para una persona', 'Requested a seat for a person'],
+  'market.reset_blocked': ['Intentó borrar y recargar un mercado en producción', 'Tried to wipe and reload a market in production'],
   'contact.updated': ['Corrigió los datos de un contacto', 'Edited a contact'],
   'contact.ended': ['Dio de baja a un contacto en una cuenta', 'Removed a contact from an account'],
   'account.unmerged': ['Deshizo una fusión de comercios', 'Undid a merchant merge'],
@@ -474,6 +488,9 @@ export const isAuditGroup = (v: string | undefined): v is AuditGroup => v !== un
 
 /** Tipos de registro por los que se filtra, con su nombre. */
 export const AUDIT_OBJECT: Record<string, Pair> = {
+  contact_pair: ['Par de contactos', 'Contact pair'],
+  decision: ['Decisión de negocio', 'Business decision'],
+  held_lead: ['Solicitud retenida', 'Held request'],
   onboarding_file: ['Expediente de alta', 'Enrollment file'],
   threshold: ['Umbral', 'Threshold'],
   reassignment_plan: ['Plan de reparto', 'Reassignment plan'],

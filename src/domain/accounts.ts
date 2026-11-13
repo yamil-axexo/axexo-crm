@@ -10,6 +10,8 @@ import { toE164 } from '@/lib/format'
 import { accountRule, intakeError } from '@/domain/intake'
 import { notifyMany, peopleWithRole } from '@/domain/notify'
 import { resolveRecruiter } from '@/domain/store-record'
+import { checkTaxId, TAX_ID_TYPES } from '@/lib/tax-id'
+import { blindIndex } from '@/server/adapters/markets'
 
 /** `strong`: coincide una llave fuerte exacta (teléfono, correo, identificador externo, o nombre más dirección). */
 export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'email' | 'external_id' | 'name_address' | 'name'; strong: boolean }
@@ -32,6 +34,11 @@ const createInput = z.object({
   externalId: z.string().trim().max(80).optional().default(''),
   /** E9.F12 (mercados con ficha de dealer): quién reclutó la tienda. 'field_team' o el id de una agencia o socio. Vacío: el equipo propio. */
   recruitedBy: z.string().trim().max(40).optional().default(''),
+  /** DAT-04: el identificador fiscal, si quien captura lo tiene a la mano. Aquí solo sirve para buscar el duplicado (por su huella); se registra en la ficha. */
+  taxId: z.string().trim().max(40).optional().default(''),
+  /** DAT-04: coordenadas, si las manda la Sales App o el teléfono. Opcionales: sin ellas no hay llave de ubicación. */
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
   force: z.boolean().optional().default(false),
   /** Por qué se crea aunque se parezca a uno que ya existe. Sin motivo, el aviso no se salta. */
   reason: z.string().trim().max(400).optional().default(''),
@@ -62,6 +69,13 @@ export async function insertAccountTx(tx: Tx, a: NewAccount): Promise<string> {
   return id
 }
 
+/** Huellas del identificador fiscal escrito, probado contra cada tipo conocido: solo para comparar, nunca se guarda el texto. */
+function taxBlinds(raw: string): string[] {
+  if (!raw.trim()) return []
+  return TAX_ID_TYPES.filter((x) => x.type !== 'other').map((x) => ({ type: x.type, check: checkTaxId(x.type, raw) })).filter((x) => x.check.formatOk)
+    .map((x) => blindIndex(x.type, x.check.normalized)).filter((b): b is string => b !== null)
+}
+
 /** DAT-04: antes de crear, se busca el duplicado en todo el mercado. Si aparece, se devuelve y no se crea. */
 export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>): Promise<{ id?: string; duplicates?: Duplicate[] }> {
   const parsed = createInput.safeParse(input)
@@ -86,8 +100,11 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
   return withUser(ctx.user.id, async (tx) => {
     // DAT-04: se busca en todo el mercado por llaves fuertes y por nombre parecido. Una llave fuerte exacta bloquea a quien
     // vende (solo quien dirige puede crear, con motivo); lo demás es un aviso que se salta con motivo. Cada salto queda para revisión.
+    const blinds = taxBlinds(v.taxId)
+    const geo = v.latitude != null && v.longitude != null ? { lat: v.latitude, lon: v.longitude } : null
     const dups = await tx<Duplicate[]>`select id, name, locality, owner_name, lifecycle, match, strong
-      from app.duplicate_matches(${v.market}, ${v.name}, ${phone}, ${clean(v.email)}, ${clean(v.addressLine)}, ${clean(v.locality)}, ${clean(v.externalId)})`
+      from app.duplicate_matches(${v.market}, ${v.name}, ${phone}, ${clean(v.email)}, ${clean(v.addressLine)}, ${clean(v.locality)}, ${clean(v.externalId)}, null,
+                                 ${blinds.length ? blinds : null}::text[], ${geo?.lat ?? null}::numeric, ${geo?.lon ?? null}::numeric)`
     if (dups.length) {
       if (!v.force) return { duplicates: [...dups] }
       const strong = dups.find((d) => d.strong)
@@ -124,6 +141,7 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
     const id = await insertAccountTx(tx, { market: v.market, kind, accountType, name: v.name, segment: v.segment, lifecycle: 'prospect', parentId: v.parentId || null,
       ownerId: ctx.user.id, territoryId: v.territoryId || null, phone, locality: clean(v.locality), region: clean(v.region), email: clean(v.email), addressLine: clean(v.addressLine), createdBy: ctx.user.id,
       recruitedBy: recruiter?.kind ?? null, recruitedAgencyId: recruiter?.agencyId ?? null })
+    if (geo) await tx`update crm.accounts set latitude = ${geo.lat}, longitude = ${geo.lon}, geo_source = 'device', geo_at = now(), geo_by = ${ctx.user.id} where id = ${id}`
     if (dups.length) {
       await tx`insert into crm.duplicate_bypasses (market_code, account_id, matched_ids, match_kinds, strong, reason, actor_id)
                values (${v.market}, ${id}, ${dups.map((d) => d.id)}::uuid[], ${[...new Set(dups.map((d) => d.match))]}::text[], ${dups.some((d) => d.strong)}, ${v.reason}, ${ctx.user.id})`

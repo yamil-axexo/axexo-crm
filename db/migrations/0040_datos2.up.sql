@@ -1,0 +1,276 @@
+-- 0040_datos2: residuos del paquete datos (ola 6).
+-- DAT-02 teléfono único por mercado en contactos: limpieza de duplicados con fusión sugerida, cola, fusión con foto y deshacer.
+-- Decisiones de negocio configurables con dueño (valor propuesto y pendiente de quién lo decide), listadas en Estado de CONTIGO.
+
+-- ================================================================ DAT-02 contactos: un teléfono, una persona
+alter table crm.contacts
+  add column merged_into  uuid references crm.contacts(id),
+  add column archived_at  timestamptz,
+  -- Teléfono en espera: el de un contacto que repetía el de otro. Queda guardado (no se pierde) hasta que una persona decide el par.
+  add column held_phone   text check (held_phone is null or held_phone ~ '^\+[1-9][0-9]{6,14}$');
+
+-- Pares de contactos que parecen la misma persona. Nada se fusiona solo: una persona decide cada par.
+create table crm.contact_pairs (
+  id            uuid primary key default app.uuid_v7(),
+  market_code   text not null references crm.markets(code),
+  a_id          uuid not null references crm.contacts(id),
+  b_id          uuid not null references crm.contacts(id),
+  match_kind    text not null default 'phone' check (match_kind in ('phone')),
+  -- El que se sugiere conservar: el más antiguo, que es el que se quedó con el teléfono.
+  suggested_keep uuid not null references crm.contacts(id),
+  source        text not null check (source in ('cleanup','lead','form','pipedrive','sales_app','manual')),
+  status        text not null default 'open' check (status in ('open','merged','dismissed')),
+  decision_note text check (decision_note is null or char_length(decision_note) <= 300),
+  decided_by    uuid references crm.users(id),
+  decided_at    timestamptz,
+  detected_at   timestamptz not null default now(),
+  check (a_id < b_id),
+  check (suggested_keep in (a_id, b_id)),
+  unique (a_id, b_id)
+);
+create index contact_pairs_open_idx on crm.contact_pairs (market_code, detected_at) where status = 'open';
+
+-- Fusión de contactos: foto previa y lo que se movió, para deshacer.
+create table crm.contact_merge_events (
+  id            uuid primary key default app.uuid_v7(),
+  market_code   text not null references crm.markets(code),
+  source_id     uuid not null references crm.contacts(id),
+  target_id     uuid not null references crm.contacts(id),
+  snapshot      jsonb not null,
+  moved         jsonb not null,
+  merged_by     uuid not null references crm.users(id),
+  merged_at     timestamptz not null default now(),
+  undone_at     timestamptz,
+  undone_by     uuid references crm.users(id),
+  undo_reason   text
+);
+create index contact_merge_events_idx on crm.contact_merge_events (market_code, merged_at desc);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['contact_pairs','contact_merge_events'] loop
+    execute format('alter table crm.%I enable row level security', t);
+    execute format('alter table crm.%I force row level security', t);   -- AUTHZ-03
+    execute format('revoke all on crm.%I from contigo_app', t);
+    execute format('grant select, insert, update on crm.%I to contigo_app', t);
+    execute format('create policy %I on crm.%I for select to contigo_app using (market_code = any((select app.my_markets())::text[]))', t || '_read', t);
+    execute format('create policy %I on crm.%I for insert to contigo_app with check (market_code = any((select app.write_markets())::text[]))', t || '_ins', t);
+    execute format('create policy %I on crm.%I for update to contigo_app using (market_code = any((select app.write_markets())::text[])) with check (market_code = any((select app.write_markets())::text[]))', t || '_upd', t);
+  end loop;
+end $$;
+
+-- Encola un par (si no estaba decidido ya). Lo usan la limpieza, la conversión de leads, los formularios y la carga de Pipedrive.
+create or replace function app.contact_pair_queue(p_market text, p_keep uuid, p_other uuid, p_source text) returns void
+language sql volatile security definer set search_path = crm, app, pg_catalog as $$
+  insert into crm.contact_pairs (market_code, a_id, b_id, suggested_keep, source)
+  select p_market, least(p_keep, p_other), greatest(p_keep, p_other), p_keep, p_source
+   where p_keep <> p_other
+  on conflict (a_id, b_id) do nothing
+$$;
+revoke execute on function app.contact_pair_queue(text, uuid, uuid, text) from public;
+grant execute on function app.contact_pair_queue(text, uuid, uuid, text) to contigo_app;
+
+-- Limpieza: en cada grupo de contactos del mismo mercado con el mismo teléfono, el más antiguo conserva el teléfono; los demás
+-- lo pasan a "en espera" y quedan en la cola con la fusión sugerida hacia el más antiguo. No borra ni fusiona nada.
+create or replace function app.contact_phone_cleanup() returns int
+language plpgsql volatile security definer set search_path = crm, app, pg_catalog as $$
+declare n int := 0; r record;
+begin
+  for r in
+    select c.id, c.market_code, c.phone,
+           first_value(c.id) over (partition by c.market_code, c.phone order by c.created_at, c.id) as keep_id
+      from crm.contacts c
+     where c.phone is not null and c.archived_at is null
+  loop
+    continue when r.id = r.keep_id;
+    update crm.contacts set held_phone = phone, phone = null where id = r.id;
+    perform app.contact_pair_queue(r.market_code, r.keep_id, r.id, 'cleanup');
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke execute on function app.contact_phone_cleanup() from public;
+
+select app.contact_phone_cleanup();
+drop index if exists crm.contacts_phone_idx;
+create unique index contacts_phone_uq on crm.contacts (market_code, phone) where phone is not null;
+
+-- Busca, para una lista de teléfonos de un mercado, el contacto que ya los tiene. Mira todo el mercado aunque quien carga no vea
+-- esos contactos (la carga de Pipedrive corre como usuario de sistema); devuelve lo mínimo.
+create or replace function app.contacts_by_phones(p_market text, p_phones text[])
+returns table (id uuid, phone text, full_name text)
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select c.id, c.phone, c.full_name from crm.contacts c
+   where (p_market = any(app.my_markets()) or app.current_user_id() = app.system_user_id())
+     and c.market_code = p_market and c.phone = any(p_phones)
+$$;
+grant execute on function app.contacts_by_phones(text, text[]) to contigo_app;
+
+-- Un contacto fusionado no vuelve a aparecer en la búsqueda por teléfono.
+create or replace function app.contact_by_phone(p_market text, p_phone text)
+returns table (id uuid, full_name text)
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select c.id, c.full_name from crm.contacts c
+   where p_market = any(app.my_markets()) and c.market_code = p_market and p_phone is not null and c.phone = p_phone and c.archived_at is null
+   order by c.created_at limit 1
+$$;
+
+-- ================================================================ decisiones de negocio con dueño
+-- Un valor que decide otra persona (metas, reglas, plazos): se construye con un valor propuesto conservador, se guarda como dato y
+-- se ve en pantalla como "Valor propuesto, pendiente de <dueño>". `proposed` pasa a falso cuando la persona dueña lo confirma.
+create table crm.decision_settings (
+  id           uuid primary key default app.uuid_v7(),
+  key          text not null check (key ~ '^[a-z][a-z0-9_.]{2,60}$'),
+  market_code  text references crm.markets(code),
+  value        jsonb not null,
+  proposed     boolean not null default true,
+  owner_label  text not null check (char_length(btrim(owner_label)) between 2 and 120),
+  note         text check (note is null or char_length(note) <= 300),
+  updated_by   uuid references crm.users(id),
+  updated_at   timestamptz not null default now()
+);
+create unique index decision_settings_key_uq on crm.decision_settings (key, coalesce(market_code, '*'));
+alter table crm.decision_settings enable row level security;
+alter table crm.decision_settings force row level security;   -- AUTHZ-03
+revoke all on crm.decision_settings from contigo_app;
+grant select, insert, update on crm.decision_settings to contigo_app;
+create policy decision_settings_read on crm.decision_settings for select to contigo_app using ((select app.current_user_id()) is not null);
+create policy decision_settings_ins on crm.decision_settings for insert to contigo_app with check ((select app.is_admin()));
+create policy decision_settings_upd on crm.decision_settings for update to contigo_app using ((select app.is_admin())) with check ((select app.is_admin()));
+
+-- ================================================================ DAT-04 llaves: identificador fiscal y ubicación
+-- Geohash de una coordenada (celda de unos 38 x 19 metros con 8 caracteres). Sin coordenadas, no hay llave.
+create or replace function app.geohash(p_lat numeric, p_lon numeric, p_len int default 8) returns text
+language plpgsql immutable set search_path = pg_catalog as $$
+declare
+  b32 constant text := '0123456789bcdefghjkmnpqrstuvwxyz';
+  la0 float8 := -90; la1 float8 := 90; lo0 float8 := -180; lo1 float8 := 180;
+  nbit int := 0; ch int := 0; even boolean := true; res text := ''; mid float8;
+begin
+  if p_lat is null or p_lon is null then return null; end if;
+  while length(res) < p_len loop
+    if even then
+      mid := (lo0 + lo1) / 2;
+      if p_lon::float8 >= mid then ch := ch * 2 + 1; lo0 := mid; else ch := ch * 2; lo1 := mid; end if;
+    else
+      mid := (la0 + la1) / 2;
+      if p_lat::float8 >= mid then ch := ch * 2 + 1; la0 := mid; else ch := ch * 2; la1 := mid; end if;
+    end if;
+    even := not even; nbit := nbit + 1;
+    if nbit = 5 then res := res || substr(b32, ch + 1, 1); nbit := 0; ch := 0; end if;
+  end loop;
+  return res;
+end $$;
+grant execute on function app.geohash(numeric, numeric, int) to contigo_app;
+
+-- Pares de comercios que parecen el mismo, con todas las llaves: teléfono, correo, nombre y dirección, identificador fiscal
+-- (por su huella), misma celda de ubicación con nombre parecido, y nombre parecido en la misma ciudad. Con p_ids, solo los
+-- pares de esas cuentas contra el resto (alta por conversión de lead o por carga); sin p_ids, todo el mercado.
+create or replace function app.account_pairs_for(p_market text, p_ids uuid[])
+returns table (market_code text, a_id uuid, b_id uuid, kinds text[], sim real)
+language sql stable security definer set search_path = crm, app, public, extensions, pg_catalog as $$
+  with live as (
+    select id, market_code, name_norm, phone, email, locality, app.addr_key(address_line, locality) as addr,
+           tax_id_blind_ix as tax, app.geohash(latitude, longitude, 8) as geo
+      from crm.accounts where archived_at is null and (p_market is null or market_code = p_market)
+  ), found as (
+    select a.market_code, least(a.id, b.id) as a_id, greatest(a.id, b.id) as b_id,
+           array_remove(array[
+             case when a.phone is not null and a.phone = b.phone then 'phone' end,
+             case when a.email is not null and a.email = b.email then 'email' end,
+             case when a.addr is not null and a.addr = b.addr and a.name_norm = b.name_norm then 'name_address' end,
+             case when a.tax is not null and a.tax = b.tax then 'tax_id' end,
+             case when a.geo is not null and a.geo = b.geo and similarity(a.name_norm, b.name_norm) > 0.45 then 'geo' end,
+             case when similarity(a.name_norm, b.name_norm) > 0.62 then 'name' end], null) as kinds,
+           similarity(a.name_norm, b.name_norm) as sim
+      from live a join live b on b.market_code = a.market_code and a.id <> b.id
+       and ((p_ids is null and a.id < b.id) or (p_ids is not null and a.id = any(p_ids) and (not (b.id = any(p_ids)) or a.id < b.id)))
+       and ((a.phone is not null and a.phone = b.phone)
+            or (a.email is not null and a.email = b.email)
+            or (a.addr is not null and a.addr = b.addr and a.name_norm = b.name_norm)
+            or (a.tax is not null and a.tax = b.tax)
+            or (a.geo is not null and a.geo = b.geo)
+            or (length(a.name_norm) >= 4 and a.name_norm % b.name_norm and similarity(a.name_norm, b.name_norm) > 0.62
+                and app.norm(a.locality) = app.norm(b.locality)))
+  )
+  select market_code, a_id, b_id, kinds, sim from found where cardinality(kinds) > 0
+$$;
+revoke execute on function app.account_pairs_for(text, uuid[]) from public;
+
+create or replace function app.scan_duplicates(p_market text default null) returns int
+language plpgsql security definer set search_path = crm, app, public, extensions, pg_catalog as $$
+declare n int;
+begin
+  if app.current_user_id() is not null and app.current_user_id() is distinct from app.system_user_id()
+     and not (app.is_admin() or (p_market is not null and p_market = any(app.lead_markets()))) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  with ins as (
+    insert into crm.duplicate_pairs (market_code, a_id, b_id, match_kinds, strong, score)
+    select f.market_code, f.a_id, f.b_id, f.kinds, f.kinds && array['phone','email','name_address','tax_id','geo'], round(f.sim::numeric, 3)
+      from app.account_pairs_for(p_market, null) f
+    on conflict (a_id, b_id) do update set match_kinds = excluded.match_kinds, strong = excluded.strong, score = excluded.score
+      where crm.duplicate_pairs.status = 'open'
+    returning 1
+  )
+  select count(*) into n from ins;
+  update crm.duplicate_pairs p set status = 'dismissed', decision_note = 'archived', decided_at = now()
+   where p.status = 'open' and exists (select 1 from crm.accounts a where a.id in (p.a_id, p.b_id) and a.archived_at is not null);
+  return n;
+end $$;
+
+-- Al nacer un comercio por conversión de lead, por carga de Pipedrive o al capturar su identificador fiscal, sus pares entran a
+-- la cola en ese momento (no esperan la búsqueda de la noche). No bloquea ni fusiona: una persona decide.
+create or replace function app.queue_account_matches(p_ids uuid[]) returns int
+language plpgsql volatile security definer set search_path = crm, app, public, extensions, pg_catalog as $$
+declare n int;
+begin
+  if app.current_user_id() is null then raise exception 'not allowed' using errcode = '42501'; end if;
+  with ins as (
+    insert into crm.duplicate_pairs (market_code, a_id, b_id, match_kinds, strong, score)
+    select f.market_code, f.a_id, f.b_id, f.kinds, f.kinds && array['phone','email','name_address','tax_id','geo'], round(f.sim::numeric, 3)
+      from app.account_pairs_for(null, p_ids) f
+     where f.market_code = any(app.write_markets()) or app.current_user_id() = app.system_user_id()
+    on conflict (a_id, b_id) do update set match_kinds = excluded.match_kinds, strong = excluded.strong, score = excluded.score
+      where crm.duplicate_pairs.status = 'open'
+    returning 1
+  )
+  select count(*) into n from ins;
+  return n;
+end $$;
+grant execute on function app.queue_account_matches(uuid[]) to contigo_app;
+
+-- Coincidencias al capturar, ahora también por identificador fiscal (huellas de lo escrito) y por ubicación.
+drop function app.duplicate_matches(text, text, text, text, text, text, text, uuid);
+create function app.duplicate_matches(p_market text, p_name text, p_phone text, p_email text, p_address text, p_locality text,
+                                      p_external_id text default null, p_exclude uuid default null,
+                                      p_tax_blinds text[] default null, p_lat numeric default null, p_lon numeric default null)
+returns table (id uuid, name text, locality text, owner_name text, lifecycle text, match text, strong boolean)
+language sql stable security definer set search_path = crm, app, public, extensions, pg_catalog as $$
+  with m as (
+    select a.id, a.name, a.locality, a.owner_id, a.lifecycle,
+           case when p_phone is not null and a.phone = p_phone then 'phone'
+                when nullif(btrim(p_email), '') is not null and a.email = btrim(p_email)::citext then 'email'
+                when p_tax_blinds is not null and a.tax_id_blind_ix = any(p_tax_blinds) then 'tax_id'
+                when nullif(btrim(p_external_id), '') is not null and exists (
+                       select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and lower(al.external_id) = lower(btrim(p_external_id))) then 'external_id'
+                when nullif(btrim(p_external_id), '') is not null and upper(btrim(a.merchant_ref)) = upper(btrim(p_external_id)) then 'external_id'
+                when app.addr_key(p_address, p_locality) is not null and a.name_norm = app.norm(p_name)
+                     and app.addr_key(a.address_line, a.locality) = app.addr_key(p_address, p_locality) then 'name_address'
+                when p_lat is not null and app.geohash(a.latitude, a.longitude, 8) = app.geohash(p_lat, p_lon, 8)
+                     and similarity(a.name_norm, app.norm(p_name)) > 0.45 then 'geo'
+                when length(app.norm(p_name)) >= 4 and similarity(a.name_norm, app.norm(p_name)) > 0.62 then 'name'
+           end as match,
+           similarity(a.name_norm, app.norm(p_name)) as sim
+      from crm.accounts a
+     where p_market = any(app.my_markets()) and a.market_code = p_market and a.archived_at is null
+       and (p_exclude is null or a.id <> p_exclude)
+  )
+  select m.id, m.name, m.locality, u.full_name, m.lifecycle, m.match, m.match <> 'name'
+    from m left join crm.users u on u.id = m.owner_id
+   where m.match is not null
+   order by (m.match <> 'name') desc, m.sim desc
+   limit 5
+$$;
+grant execute on function app.duplicate_matches(text, text, text, text, text, text, text, uuid, text[], numeric, numeric) to contigo_app;

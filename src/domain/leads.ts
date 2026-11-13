@@ -1,4 +1,5 @@
 import 'server-only'
+import { resolveContact } from '@/domain/contacts-dedup'
 import { saveFormAnswers } from '@/domain/b2b'
 import { CONTACT_ROLES } from '@/domain/accounts'
 import { z } from 'zod'
@@ -353,9 +354,11 @@ async function repeatRequest(
     const person: ExtraContact = { name, phone, email, at: new Date().toISOString() }
     await tx`update crm.leads set extra_contacts = ${tx.json([...lead.extra_contacts, person].slice(-10))} where id = ${lead.id}`
     if (lead.account_id) {
-      const contactId = await newId(tx)
-      await tx`insert into crm.contacts (id, market_code, full_name, phone, email, created_by) values (${contactId}, ${form.market_code}, ${name}, ${phone}, ${email}, ${sys.user.id})`
-      await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${lead.account_id}, ${contactId}, ${form.market_code}, 'staff')`
+      // DAT-02: la misma detección por teléfono que el alta a mano; si ya es contacto de la cuenta, no se liga dos veces.
+      const r = await resolveContact(tx, sys.user.id, { market: form.market_code, name, phone, email, source: 'form' })
+      await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role)
+               select ${lead.account_id}, ${r.id}, ${form.market_code}, 'staff'
+                where not exists (select 1 from crm.account_contacts ac where ac.account_id = ${lead.account_id} and ac.contact_id = ${r.id} and ac.valid_to is null)`
     }
   }
   const deals = lead.account_id ? await tx<{ id: string }[]>`select id from crm.deals where lead_id = ${lead.id} and status = 'open' order by created_at desc limit 1` : []
@@ -656,11 +659,14 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
         { name: lead.contact_name, phone: lead.phone, email: lead.email, role: role.data },
         ...lead.extra_contacts.map((c) => ({ name: c.name, phone: c.phone, email: c.email, role: 'staff' })),
       ]
+      // DAT-02: cada persona pasa por la detección por teléfono. La que ya existe en el mercado se liga (un contacto, varias
+      // cuentas); un teléfono repetido con otro nombre queda en espera y el par va a Datos, Duplicados.
+      const seen = new Set<string>()
       for (const person of people) {
-        const contactId = await newId(tx)
-        await tx`insert into crm.contacts (id, market_code, full_name, phone, email, created_by)
-                 values (${contactId}, ${lead.market_code}, ${person.name}, ${person.phone}, ${person.email}, ${ctx.user.id})`
-        await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${contactId}, ${lead.market_code}, ${person.role})`
+        const r = await resolveContact(tx, ctx.user.id, { market: lead.market_code, name: person.name, phone: person.phone, email: person.email, source: 'lead' })
+        if (seen.has(r.id)) continue
+        seen.add(r.id)
+        await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${r.id}, ${lead.market_code}, ${person.role})`
       }
       await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
         (${accountId}, ${lead.market_code}, 'origin', ${isWebSource(lead.source) ? 'form' : 'user'}, ${lead.form_id ?? ctx.user.id},
@@ -698,6 +704,8 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     }
     // E16.F2: una tienda de venta puerta a puerta es del gerente de su territorio, también cuando nace de un lead.
     if (!opts.linkAccountId) await applyTerritoryOwners(tx, [accountId])
+    // DAT-04: el comercio que nace de un lead pasa por las mismas llaves que el alta a mano; sus pares entran a la cola ya.
+    if (!opts.linkAccountId) await tx`select app.queue_account_matches(${[accountId]}::uuid[])`
     // LEAD-02: la atribución del lead viaja al comercio y al negocio.
     await carryTouches(tx, leadId, accountId, dealId)
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`

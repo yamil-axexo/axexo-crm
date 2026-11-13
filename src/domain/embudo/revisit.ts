@@ -1,4 +1,5 @@
 import 'server-only'
+import { resolveContact } from '@/domain/contacts-dedup'
 import { z } from 'zod'
 import type { Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
@@ -34,8 +35,8 @@ export async function saveDecisionMaker(tx: Tx, sys: Ctx, acc: { id: string; mar
   if (contactId) {
     await tx`update crm.contacts set best_time = coalesce(${bestTime}, best_time), phone = coalesce(phone, ${phone}) where id = ${contactId}`
   } else {
-    contactId = await newId(tx)
-    await tx`insert into crm.contacts (id, market_code, full_name, phone, best_time, created_by) values (${contactId}, ${acc.market_code}, ${name}, ${phone}, ${bestTime}, ${sys.user.id})`
+    // DAT-02: si el teléfono ya es de otra persona del mercado, la misma detección que en todas las vías.
+    contactId = (await resolveContact(tx, sys.user.id, { market: acc.market_code, name, phone, email: null, source: 'sales_app', extra: { bestTime } })).id
     await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${acc.id}, ${contactId}, ${acc.market_code}, ${raw.role})`
     await audit(tx, sys, 'contact.added', 'account', acc.id, acc.market_code, null, { contact_id: contactId, role: raw.role, source: 'sales_app' })
   }
