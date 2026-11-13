@@ -64,10 +64,11 @@ export default async function FinanceReportPage({ searchParams }: { searchParams
         </Card>
       )}
       {ctx.can('visit.reimbursement') && (
-        <p className="mt-6 flex flex-wrap items-center gap-3 text-[14px]" data-testid="finance-visits">
+        // Un <div>, no un <p>: el enlace de exportación lleva un <details> con formulario y dentro de un <p> rompe la hidratación.
+        <div className="mt-6 flex flex-wrap items-center gap-3 text-[14px]" data-testid="finance-visits">
           <span className="text-muted">{t('Para cruzar visitas con reembolsos de millas:', 'To cross visits with mileage reimbursements:')}</span>
           <ExportLink t={t} href={qs('/reportes/visitas/export', { mercado: r.f.market })} testId="finance-visit-detail">{t('Detalle de visitas, 31 días (reembolsos)', 'Visit detail, 31 days (reimbursements)')}</ExportLink>
-        </p>
+        </div>
       )}
       {exportNote(r)}
     </>
