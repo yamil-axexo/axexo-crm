@@ -99,13 +99,14 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
 
       <Card pad={false} data-testid="pair-queue">
         <div className="px-5 pt-6 md:px-7 md:pt-7">
-          <CardTitle title={t('Pares por decidir', 'Pairs to decide')} hint={t('Primero los que comparten una llave fuerte: teléfono, correo, o nombre y dirección iguales. Después, los de nombre parecido en la misma ciudad.', 'First the ones that share a strong key: same phone, same email, or same name and address. Then the ones with a similar name in the same city.')}
-            right={scanMarkets.length > 0 ? (
-              <NoticeForm action={scanDuplicatesAction} className="flex items-end gap-2" testId="scan-form">
+          <CardTitle title={t('Pares por decidir', 'Pairs to decide')} hint={t('Primero los que comparten una llave fuerte: teléfono, correo, o nombre y dirección iguales. Después, los de nombre parecido en la misma ciudad.', 'First the ones that share a strong key: same phone, same email, or same name and address. Then the ones with a similar name in the same city.')} />
+          {scanMarkets.length > 0 && (
+              <NoticeForm action={scanDuplicatesAction} className="mb-5 flex flex-wrap items-end gap-2" testId="scan-form">
                 {scanMarkets.length > 1 ? <select name="market" className="input !w-auto" defaultValue={market ?? scanMarkets[0]!.code} aria-label={t('Mercado donde buscar', 'Market to search')}>{scanMarkets.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select> : <input type="hidden" name="market" value={scanMarkets[0]!.code} />}
                 <Submit variant="ghost" size="sm" testId="scan-run">{t('Buscar ahora', 'Search now')}</Submit>
               </NoticeForm>
-            ) : undefined} />
+          )}
+
         </div>
         {d.pairs.length === 0 ? (
           <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('No hay pares por decidir', 'No pairs to decide')} hint={t('La búsqueda corre una vez al día. Con "Buscar ahora" corre en este momento.', 'The search runs once a day. "Search now" runs it right away.')} /></div>

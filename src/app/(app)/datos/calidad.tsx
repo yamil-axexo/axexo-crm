@@ -52,7 +52,7 @@ export async function CalidadTab({ ctx, market, team, rule }: { ctx: Ctx; market
           <CardTitle title={t(`Reglas de calidad en ${current.name}`, `Quality rules in ${current.name}`)}
             hint={worst === 0 ? t('Todo en orden: ninguna regla tiene registros por corregir.', 'All clear: no rule has records to fix.') : t(`${worst === 1 ? '1 regla tiene' : `${worst} reglas tienen`} registros por corregir. Toca el número para ver cuáles son.`, `${worst === 1 ? '1 rule has' : `${worst} rules have`} records to fix. Tap the number to see which.`)} />
         </div>
-        <Table testId="quality-table" label={t('Reglas de calidad', 'Quality rules')} head={<><th>{t('Regla', 'Rule')}</th><th>{t('Responde', 'Owner')}</th><th>{t('Por corregir', 'To fix')}</th><th className="min-w-[150px]">{t('Completo', 'Complete')}</th><th>{t('Tendencia', 'Trend')}</th>{admin && <th><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
+        <Table testId="quality-table" label={t('Reglas de calidad', 'Quality rules')} head={<><th>{t('Regla', 'Rule')}</th><th>{t('Responde', 'Owner')}</th><th>{t('Por corregir', 'To fix')}</th><th className="min-w-[150px]">{t('Completo', 'Complete')}</th><th>{t('Tendencia', 'Trend')}</th>{admin && <th className="relative"><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
           {rules.map((r) => {
             const s = sum(r.code)
             const f = teamKey === '' ? first(r.code) : undefined

@@ -44,7 +44,7 @@ export async function CatalogosTab({ ctx }: { ctx: Ctx }) {
                 </Dialog>
               } />
           </div>
-          <Table label={t('Mercados', 'Markets')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('Moneda', 'Currency')}</th><th>{t('Zona horaria', 'Time zone')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Estado', 'Status')}</th><th><span className="sr-only">{t('Editar', 'Edit')}</span></th></>}>
+          <Table label={t('Mercados', 'Markets')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('Moneda', 'Currency')}</th><th>{t('Zona horaria', 'Time zone')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Estado', 'Status')}</th><th className="relative"><span className="sr-only">{t('Editar', 'Edit')}</span></th></>}>
             {d.markets.map((m) => (
               <tr key={m.code} className="table-row" data-testid="market-row" data-code={m.code}>
                 <td><span className="font-semibold text-strong">{m.name}</span> <span className="text-muted">{m.code}</span></td>
