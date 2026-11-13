@@ -37,7 +37,7 @@ export type NotifyInput = {
 
 type Target = { id: string; full_name: string; email: string; locale: string; prefs: Prefs; daily_digest: boolean }
 type Template = { key: string; version: number; is_active: boolean; needs_consent: boolean; subject_es: string; body_es: string; subject_en: string; body_en: string }
-type Status = 'delivered' | 'queued_off' | 'simulated' | 'held_hours' | 'held_digest' | 'held_limit' | 'skipped_consent' | 'skipped_no_address' | 'blocked_template'
+type Status = 'delivered' | 'queued_off' | 'simulated' | 'sent' | 'failed' | 'held_hours' | 'held_digest' | 'held_limit' | 'skipped_consent' | 'skipped_no_address' | 'blocked_template'
 
 /** Cuántos mensajes a la misma persona por el mismo canal en una hora antes de juntarlos en un resumen. */
 export const BURST_LIMIT = 5
@@ -86,7 +86,7 @@ async function place(
     if (p.userId) {
       const recent = await tx<{ n: number }[]>`
         select count(*)::int as n from crm.notifications
-         where recipient_user_id = ${p.userId} and channel = ${p.channel} and created_at > now() - interval '60 minutes' and status in ('queued_off', 'simulated')`
+         where recipient_user_id = ${p.userId} and channel = ${p.channel} and created_at > now() - interval '60 minutes' and status in ('queued_off', 'simulated', 'sent')`
       if ((recent[0]?.n ?? 0) >= BURST_LIMIT && !p.urgent) return { status: 'held_digest', ...none }
     }
   }
@@ -94,15 +94,17 @@ async function place(
   if (price.limit !== null) {
     const today = await tx<{ n: number }[]>`
       select count(*)::int as n from crm.notifications
-       where market_code = ${p.market} and channel = 'whatsapp' and status in ('queued_off', 'simulated')
+       where market_code = ${p.market} and channel = 'whatsapp' and status in ('queued_off', 'simulated', 'sent')
          and created_at >= date_trunc('day', now() at time zone coalesce((select timezone from crm.markets where code = ${p.market}), 'UTC')) at time zone coalesce((select timezone from crm.markets where code = ${p.market}), 'UTC')`
     if ((today[0]?.n ?? 0) >= price.limit) return { status: 'held_limit', ...none }
   }
   const sent = await channelAdapter(p.channel).send({ to: p.address, subject: p.subject, body: p.body })
   // El costo se anota cuando el mensaje sale de verdad (o en la simulación de pruebas). En la cola apagada no se ha gastado nada.
-  return sent.status === 'simulated'
-    ? { status: 'simulated', releaseAt: null, cost: price.cost, currency: price.cost ? price.currency : null, sentAt: true }
-    : { status: 'queued_off', ...none }
+  // Con el conector encendido (live) el mensaje sale de verdad: "sent" con su costo, o "failed" si el proveedor lo rechazó.
+  if (sent.status === 'simulated' || sent.status === 'sent')
+    return { status: sent.status, releaseAt: null, cost: price.cost, currency: price.cost ? price.currency : null, sentAt: true }
+  if (sent.status === 'failed' || sent.status === 'blocked_template') return { status: sent.status, ...none }
+  return { status: 'queued_off', ...none }
 }
 
 export type NotifyResult = { noticeId: string | null; channels: Partial<Record<Channel, Status>> }

@@ -16,6 +16,14 @@ export async function slackPost(channel: string, text: string): Promise<{ ts: st
   if (!j.ok) throw new ConnectorError('slack', j.error === 'ratelimited' ? 'rate_limited' : j.error === 'invalid_auth' || j.error === 'not_authed' ? 'unauthorized' : 'bad_request', res.status)
   return { ts: j.ts ?? '' }
 }
+/** Con un correo, primero encuentra a la persona en Slack (users.lookupByEmail) y le escribe directo. */
+export async function slackLookupAndPost(to: string, text: string): Promise<{ ts: string }> {
+  if (!to.includes('@')) return slackPost(to, text)
+  const res = await http({ connector: 'slack', url: `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(to)}`, allowHosts: SLACK_HOSTS, minIntervalMs: 1000, headers: { authorization: `Bearer ${process.env.SLACK_BOT_TOKEN ?? ''}` } })
+  const j = res.json<{ ok: boolean; error?: string; user?: { id?: string } }>()
+  if (!j.ok || !j.user?.id) throw new ConnectorError('slack', j.error === 'users_not_found' ? 'not_found' : 'bad_request', res.status)
+  return slackPost(j.user.id, text)
+}
 export async function slackAuthTest(): Promise<string> {
   const res = await http({ connector: 'slack', url: 'https://slack.com/api/auth.test', method: 'POST', allowHosts: SLACK_HOSTS, headers: { authorization: `Bearer ${process.env.SLACK_BOT_TOKEN ?? ''}` } })
   const j = res.json<{ ok: boolean; team?: string }>()

@@ -1,4 +1,7 @@
 import 'server-only'
+import { gate, type ConnectorMode } from './live/gate'
+import { deliverEvent } from './live/providers'
+import { errorCode } from './live/http'
 
 /**
  * AUT-02: entrega de eventos a suscriptores. Adaptador APAGADO por defecto: no llama a nada y el evento queda
@@ -8,7 +11,10 @@ import 'server-only'
  */
 export type DeliveryRequest = { destination: string; body: string; headers: Record<string, string> }
 export type DeliveryResult = { kind: 'off' } | { kind: 'ok'; status: number } | { kind: 'failed'; error: string }
-export type DeliveryMode = 'off' | 'simulated'
+export type DeliveryMode = ConnectorMode
+/** `live`: CONTIGO_EVENT_DELIVERY=live, la llave de firma (CONTIGO_EVENT_SIGNING_KEY) y la aprobación. Solo sale por HTTPS a
+ * direcciones públicas (nunca a una IP, a localhost ni a una red interna). */
+export const EVENT_DELIVERY_GATE = { envVar: 'CONTIGO_EVENT_DELIVERY', credentials: ['CONTIGO_EVENT_SIGNING_KEY'] } as const
 export interface EventDeliveryAdapter {
   mode: DeliveryMode
   deliver(req: DeliveryRequest): Promise<DeliveryResult>
@@ -28,10 +34,24 @@ const simulated: EventDeliveryAdapter = {
   },
 }
 
-export function deliveryMode(): DeliveryMode {
-  return process.env.CONTIGO_EVENT_DELIVERY === 'simulated' && process.env.APP_ENV === 'test' ? 'simulated' : 'off'
+const live: EventDeliveryAdapter = {
+  mode: 'live',
+  deliver: async (req) => {
+    try {
+      return { kind: 'ok', status: await deliverEvent(req.destination, req.body, req.headers) }
+    } catch (e) {
+      return { kind: 'failed', error: errorCode(e) }
+    }
+  },
 }
-export const eventDelivery = (): EventDeliveryAdapter => (deliveryMode() === 'simulated' ? simulated : off)
+
+export function deliveryMode(): DeliveryMode {
+  return gate(EVENT_DELIVERY_GATE).mode
+}
+export const eventDelivery = (): EventDeliveryAdapter => {
+  const m = deliveryMode()
+  return m === 'live' ? live : m === 'simulated' ? simulated : off
+}
 
 /** Llave del servidor para firmar. Sin ella no se firma ni se muestra ningún secreto. En pruebas hay una fija. */
 export function signingKey(): string | null {

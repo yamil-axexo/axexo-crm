@@ -100,8 +100,10 @@ export async function generateDocument(ctx: Ctx, raw: z.input<typeof input>): Pr
     const row = (await tx<{ id: string }[]>`
       insert into crm.generated_documents (market_code, account_id, deal_id, kind, title, body, created_by)
       values (${a.market_code}, ${d.accountId}, ${d.dealId}, ${d.kind}, ${d.title}, ${d.body}, ${ctx.user.id}) returning id`)[0]!
-    const stored = await documentVault().store({ id: row.id, title: d.title })
-    await tx`update crm.generated_documents set vault_status = ${stored.status}, vault_ref = ${stored.ref} where id = ${row.id}`
+    const stored = await documentVault().store({ id: row.id, title: d.title, content: `${d.title}\n\n${d.body}` })
+    // Si la bóveda encendida falla, el documento queda en CONTIGO como "no guardado afuera" (channel_off) y la falla en la bitácora.
+    const vaultStatus = stored.status === 'failed' ? 'channel_off' : stored.status
+    await tx`update crm.generated_documents set vault_status = ${vaultStatus}, vault_ref = ${stored.ref}, vault_sha256 = ${stored.sha256 ?? null} where id = ${row.id}`
     await audit(tx, ctx, 'document.generated', 'account', d.accountId, a.market_code, null, { document_id: row.id, kind: d.kind, vault: stored.status })
     return row.id
   })

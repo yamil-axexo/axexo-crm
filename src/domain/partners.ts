@@ -6,7 +6,7 @@ import type { Ctx } from '@/server/context'
 import { audit, clean, newId } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
 import { forbidden, invalid, notFound } from '@/lib/errors'
-import { esignAdapter, externalIdentityAdapter } from '@/server/adapters/partners'
+import { esignAdapter, externalIdentityAdapter, type ExternalState } from '@/server/adapters/partners'
 import { queueExternal } from '@/domain/external-queue'
 
 /**
@@ -133,14 +133,21 @@ export async function createContract(ctx: Ctx, accountId: string, renewedFrom?: 
 }
 
 /** Enviar: la firma electrónica está apagada, así que el envío queda en la cola con "Canal apagado" y el documento sale por tu medio. */
-export async function sendContract(ctx: Ctx, id: string): Promise<'channel_off' | 'simulated'> {
+const signerInput = z.object({ signerEmail: z.string().trim().toLowerCase().email().max(160), signerName: z.string().trim().min(2).max(120), documentUrl: z.string().trim().regex(/^https:\/\/[^ ]{4,400}$/) })
+export async function sendContract(ctx: Ctx, id: string, signer?: { signerEmail?: string; signerName?: string; documentUrl?: string }): Promise<ExternalState> {
+  // Con la firma electrónica encendida hacen falta quién firma y el documento; apagada, el envío queda en la cola.
+  const es = esignAdapter()
+  const who = es.mode === 'live' ? signerInput.safeParse(signer ?? {}) : null
+  if (who && !who.success) throw invalid('Para mandar a firmar escribe el correo y el nombre de quien firma y el enlace del documento.', 'To send for signature enter the signer’s email and name and the document link.')
   return withUser(ctx.user.id, async (tx) => {
     const c = await contract(tx, id)
     ctx.assert('contract.manage', c.market_code)
     if (c.status !== 'draft') throw invalid('Solo se envía un contrato en borrador.', 'Only a draft contract can be sent.')
-    const state = await esignAdapter().requestSignature({ contractId: c.id })
+    const state = await es.requestSignature({ contractId: c.id, title: `Contrato ${c.id.slice(0, 8)}`, ...(who?.success ? who.data : {}) })
     await queueExternal(tx, ctx.user.id, { adapter: 'esign', object: 'contract', objectId: c.id, market: c.market_code, summary: 'Solicitud de firma electrónica de un contrato', status: state })
-    await tx`update crm.contracts set status = 'sent', sent_at = now(), esign_state = ${state}, updated_at = now() where id = ${c.id}`
+    // Si el proveedor de firma rechazó el envío, el contrato sigue en borrador y la falla queda anotada.
+    if (state === 'failed') await tx`update crm.contracts set esign_state = 'failed', updated_at = now() where id = ${c.id}`
+    else await tx`update crm.contracts set status = 'sent', sent_at = now(), esign_state = ${state}, updated_at = now() where id = ${c.id}`
     await audit(tx, ctx, 'contract.status_changed', 'account', c.account_id, c.market_code, { contract_id: c.id, status: c.status }, { contract_id: c.id, status: 'sent' })
     return state
   })
@@ -237,11 +244,15 @@ export async function grantPartnerAccess(ctx: Ctx, input: { userId: string; acco
 }
 
 /** Invitar a una persona de afuera: la identidad de externos está apagada, la invitación queda en la cola con "Canal apagado". */
-export async function invitePartnerUser(ctx: Ctx, accountId: string): Promise<'channel_off' | 'simulated'> {
+const externalEmail = z.string().trim().toLowerCase().email().max(160)
+export async function invitePartnerUser(ctx: Ctx, accountId: string, email?: string | null): Promise<ExternalState> {
   ctx.assert('access.manage')
+  const ext = externalIdentityAdapter()
+  const mail = ext.mode === 'live' ? externalEmail.safeParse(email ?? '') : null
+  if (mail && !mail.success) throw invalid('Escribe el correo de la persona a invitar.', 'Enter the email of the person to invite.')
   return withUser(ctx.user.id, async (tx) => {
     const a = await account(tx, accountId)
-    const state = await externalIdentityAdapter().invite({ accountId: a.id })
+    const state = await ext.invite({ accountId: a.id, email: mail?.success ? mail.data : null })
     await queueExternal(tx, ctx.user.id, { adapter: 'external_identity', object: 'account', objectId: a.id, market: a.market_code, summary: `Invitación de acceso externo al portal de partners: ${a.name}`.slice(0, 300), status: state })
     await audit(tx, ctx, 'partner.invite_queued', 'account', a.id, a.market_code, null, { channel: state })
     return state
@@ -376,12 +387,15 @@ export async function updateMilestone(ctx: Ctx, id: string, raw: z.input<typeof 
 }
 
 /** Compartir el plan con el cliente: su acceso es la misma identidad de externos, apagada. Queda pedido y en la cola. */
-export async function sharePlan(ctx: Ctx, planId: string): Promise<'channel_off' | 'simulated'> {
+export async function sharePlan(ctx: Ctx, planId: string, email?: string | null): Promise<ExternalState> {
+  const ext = externalIdentityAdapter()
+  const mail = ext.mode === 'live' ? externalEmail.safeParse(email ?? '') : null
+  if (mail && !mail.success) throw invalid('Escribe el correo de la persona del cliente.', 'Enter the client person’s email.')
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ account_id: string; market_code: string; title: string }[]>`select account_id, market_code, title from crm.integration_plans where id = ${uuid.parse(planId)} for update`
     if (!rows[0]) throw notFound()
     ctx.assert('plan.manage', rows[0].market_code)
-    const state = await externalIdentityAdapter().invite({ accountId: rows[0].account_id })
+    const state = await ext.invite({ accountId: rows[0].account_id, email: mail?.success ? mail.data : null })
     await queueExternal(tx, ctx.user.id, { adapter: 'external_identity', object: 'integration_plan', objectId: planId, market: rows[0].market_code, summary: `Acceso del cliente al plan de integración: ${rows[0].title}`.slice(0, 300), status: state })
     await tx`update crm.integration_plans set client_access = 'requested' where id = ${planId}`
     await audit(tx, ctx, 'plan.shared', 'account', rows[0].account_id, rows[0].market_code, null, { plan_id: planId, channel: state })

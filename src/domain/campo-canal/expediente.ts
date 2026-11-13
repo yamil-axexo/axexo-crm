@@ -174,17 +174,18 @@ export async function decideFile(ctx: Ctx, fileId: string, decision: string, raw
 }
 
 /** Pedir abrir un documento: queda en la bitácora de lectura. Con la bóveda apagada no hay archivo; si hay enlace, se devuelve. */
-export async function openDocument(ctx: Ctx, docId: string): Promise<{ outcome: 'vault_off' | 'simulated' | 'link'; url: string | null }> {
+export async function openDocument(ctx: Ctx, docId: string): Promise<{ outcome: 'vault_off' | 'simulated' | 'link' | 'signed'; url: string | null }> {
   return withUser(ctx.user.id, async (tx) => {
     const d = (await tx<{ id: string; market_code: string; file_id: string; link: string | null; storage_ref: string | null; requirement: string }[]>`
       select id, market_code, file_id, link, storage_ref, requirement from crm.onboarding_documents where id = ${docId}`)[0]
     if (!d) throw notFound('No encontramos ese documento.', 'We could not find that document.')
     if (!ctx.can('onboarding.review', d.market_code) && !ctx.can('onboarding.capture', d.market_code)) throw notFound()
-    let outcome: 'vault_off' | 'simulated' | 'link' = 'vault_off'
+    let outcome: 'vault_off' | 'simulated' | 'link' | 'signed' = 'vault_off'
     let url: string | null = null
     if (d.storage_ref) {
       const s = await documentVault().signedUrl(d.storage_ref)
       if (s.status === 'simulated') { outcome = 'simulated'; url = s.url }
+      else if (s.status === 'signed') { outcome = 'signed'; url = s.url }
     } else if (d.link) { outcome = 'link'; url = d.link }
     await tx`insert into crm.document_reads (document_id, market_code, user_id, outcome) values (${d.id}, ${d.market_code}, ${ctx.user.id}, ${outcome})`
     await audit(tx, ctx, 'onboarding.document_opened', 'onboarding_file', d.file_id, d.market_code, null, { requirement: d.requirement, outcome })

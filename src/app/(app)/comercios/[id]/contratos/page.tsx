@@ -6,6 +6,7 @@ import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader } from '@/
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { day, num } from '@/lib/format'
 import * as A from '@/app/(app)/partners/actions'
+import { esignAdapter } from '@/server/adapters/partners'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +18,7 @@ const TONE = { draft: 'neutral', sent: 'info', signed: 'accent', active: 'good',
 export default async function ContractsPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
+  const esignLive = esignAdapter().mode === 'live'
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const d = await accountContracts(ctx, id)
@@ -138,7 +140,20 @@ export default async function ContractsPage({ params }: { params: Promise<{ id: 
                 </div>
                 {canContract && (
                   <div className="flex flex-wrap gap-2">
-                    {c.status === 'draft' && (
+                    {c.status === 'draft' && esignLive && (
+                      <Dialog trigger={t('Mandar a firmar', 'Send for signature')} title={t('Mandar a firmar', 'Send for signature')} size="sm" testId="contract-esign-open">
+                        <ActionForm action={A.sendContractAction} onOk="close" testId="contract-esign-form">
+                          <input type="hidden" name="id" value={c.id} /><input type="hidden" name="account_id" value={id} />
+                          <div className="grid gap-4">
+                            <Field label={t('Correo de quien firma', 'Signer’s email')}><input name="signer_email" type="email" className="input" required maxLength={160} /></Field>
+                            <Field label={t('Nombre de quien firma', 'Signer’s name')}><input name="signer_name" className="input" required maxLength={120} /></Field>
+                            <Field label={t('Enlace al documento', 'Link to the document')} hint={t('El documento que se firma (empieza con https://).', 'The document to be signed (starts with https://).')}><input name="document_url" type="url" className="input" required placeholder="https://" /></Field>
+                          </div>
+                          <div className="mt-5"><Submit testId="contract-esign-send">{t('Mandar', 'Send')}</Submit></div>
+                        </ActionForm>
+                      </Dialog>
+                    )}
+                    {c.status === 'draft' && !esignLive && (
                       <ActionForm action={A.sendContractAction}>
                         <input type="hidden" name="id" value={c.id} /><input type="hidden" name="account_id" value={id} />
                         <Submit size="sm" variant="ghost" testId="contract-send">{t('Marcar enviado', 'Mark as sent')}</Submit>
