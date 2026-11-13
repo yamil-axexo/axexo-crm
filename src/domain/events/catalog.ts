@@ -114,6 +114,8 @@ const SILENT: [prefix: string, why: Pair][] = [
   // la carga de una red (cada comercio promovido emite account.created) y la invitación en cola de un externo.
   ['partner_token.', WHY.plumbing], ['partner_tier.', WHY.internal], ['network_load.', WHY.migration], ['partner.invite_queued', WHY.notice],
   ['partner.crossmatch_run', WHY.quality],
+  // Paquete campo2: la política de reversos y el avance de capacitación son configuración y seguimiento internos.
+  ['channel_policy.', WHY.internal], ['enablement.', WHY.internal],
   // integraciones2: la bitácora de cargas y su horario, los documentos generados, el respaldo de Pipedrive y el borrado de un
   // mercado de prueba. Lo que una carga cambia emite lo suyo; un documento o un respaldo no cambian registros.
   ['load.', WHY.jobs], ['document.', WHY.read], ['pipedrive.', WHY.read], ['market.reset_test', WHY.migration],
@@ -147,7 +149,9 @@ const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exceptio
   // integración y el registro de una cuenta como partner.
   'terms.', 'contract.', 'plan.', 'partner.',
   // Paquete datos2: un negocio de expansión abierto desde la base de expansión.
-  'expansion.']
+  'expansion.',
+  // Paquete campo2: el resumen semanal de comentarios sale como evento para P&T; el estado de comisión publicado, para quien paga.
+  'feedback.', 'commission_statement.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {

@@ -512,7 +512,8 @@ export async function closeAlert(ctx: Ctx, id: string, reason: 'done' | 'dismiss
 /** Pesos por grupo de señales. Cada grupo aporta como mucho su peso; con peso cero o apagado, no cuenta. */
 export async function saveHealthWeights(ctx: Ctx, market: string | null, weights: Record<string, { weight: number; active: boolean }>): Promise<void> {
   if (market) { ctx.assert('care.manage', market); ctx.market(market) } else if (!ctx.isAdmin) throw forbidden()
-  const list = HEALTH_GROUPS.map((g) => ({ grp: g, weight: Math.round(Number(weights[g]?.weight)), active: weights[g]?.active !== false }))
+  // Un grupo que no viene en el formulario conserva lo que tenía (campo2 sumó el punto de venta perfecto).
+  const list = HEALTH_GROUPS.filter((g) => weights[g] !== undefined).map((g) => ({ grp: g, weight: Math.round(Number(weights[g]?.weight)), active: weights[g]?.active !== false }))
   if (list.some((w) => !Number.isFinite(w.weight) || w.weight < 0 || w.weight > 100)) throw invalid('Cada peso va de 0 a 100.', 'Each weight goes from 0 to 100.')
   if (!list.some((w) => w.active && w.weight > 0)) throw invalid('Al menos un grupo tiene que pesar.', 'At least one group must carry weight.')
   await withUser(ctx.user.id, async (tx) => {

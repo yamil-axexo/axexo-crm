@@ -7,6 +7,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { notify, notifyMany, peopleWithRole } from '@/domain/notify'
 import { invalid, notFound } from '@/lib/errors'
 import { threshold } from './thresholds'
+import { channelPolicyTx } from './canal2'
 import { fundingFeed, type FundingRow } from '@/server/adapters/funding-feed'
 
 const UUID = /^[0-9a-f-]{36}$/i
@@ -111,6 +112,9 @@ export async function resolveDispute(ctx: Ctx, id: string, decision: string, raw
     ctx.assert('dispute.arbitrate', d.market_code)
     if (d.status !== 'open') throw invalid('Esa disputa ya se resolvió.', 'That dispute was already resolved.')
     if (d.claimant_id === ctx.user.id) throw invalid('No puedes arbitrar una disputa que levantaste tú. La resuelve otra persona que lidere el mercado o administración.', 'You cannot arbitrate a dispute you raised. Another market lead or administration resolves it.')
+    // CANAL-08: si la política escrita del mercado nombra a quien arbitra, solo esa persona (o administración) resuelve.
+    const pol = await channelPolicyTx(tx, d.market_code)
+    if (pol?.arbiter_id && pol.arbiter_id !== ctx.user.id && !ctx.isAdmin) throw invalid(`La política del mercado nombra a ${pol.arbiter ?? 'otra persona'} como quien arbitra.`, `The market policy names ${pol.arbiter ?? 'someone else'} as the arbiter.`)
     let correctionId: string | null = null
     if (decision === 'approve') {
       correctionId = await correctAttributionTx(tx, ctx, d.account_id, { layer: d.layer, partyKind: d.claimed_kind, partyRef: d.claimed_ref, partyLabel: d.claimed_label, reason: `Disputa aprobada: ${resolution}`.slice(0, 300) })

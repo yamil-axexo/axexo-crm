@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
-import { partnerPortal, partnersAdmin } from '@/dal/partners'
+import { partnerExtras, partnerPortal, partnersAdmin, partnersCampo2 } from '@/dal/partners'
+import { crossmatchWhere } from '@/domain/campo-canal/canal2'
+import { StatementList } from './statements'
 import { LIFECYCLE } from '@/lib/labels'
 import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader, Table } from '@/ui/kit'
 import { ActionForm, RevealOnce, Submit } from '@/ui/client'
@@ -26,12 +28,13 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   const lc = (k: string) => (LIFECYCLE[k] ? t(...LIFECYCLE[k].label) : k)
 
   if (ctx.can('partner.portal') && !ctx.can('partner.manage')) {
-    const p = await partnerPortal(ctx)
+    const [p, x] = await Promise.all([partnerPortal(ctx), partnerExtras(ctx)])
     const stores = p.nodes.filter((n) => n.kind === 'store')
+    const canClaim = ctx.can('claim.partner_register') && p.roots.length > 0
     return (
       <div className="mx-auto max-w-[960px] space-y-8">
         <PageHeader eyebrow={t('Portal de partners', 'Partner portal')} title={p.roots.map((r) => r.name).join(', ') || t('Tu red', 'Your network')}
-          desc={t('Lo que ves es tu red: tu nodo y lo que cuelga de él, con el estado del alta de cada punto. Solo lectura.', 'What you see is your network: your node and everything under it, with each store’s onboarding status. Read-only.')} />
+          desc={t('Lo que ves es tu red: tu nodo y lo que cuelga de él, con el estado del alta de cada punto. Aquí también registras tiendas nuevas y ves tu estado de comisión.', 'What you see is your network: your node and everything under it, with each store’s onboarding status. Here you also register new stores and see your commission statement.')} />
         <div className="grid gap-4 sm:grid-cols-3">
           <Card data-testid="portal-nodes"><p className={small}>{t('Nodos', 'Nodes')}</p><p className="text-[26px] font-semibold">{num(p.nodes.length, locale)}</p></Card>
           <Card data-testid="portal-active"><p className={small}>{t('Puntos activos', 'Active stores')}</p><p className="text-[26px] font-semibold">{num(stores.filter((s) => s.lifecycle === 'active').length, locale)}</p></Card>
@@ -54,10 +57,51 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
             </Table>
           )}
         </Card>
+        <Card data-testid="portal-claims">
+          <CardTitle title={t('Tus registros de tiendas', 'Your store registrations')} hint={t('Registra la tienda que estás trabajando: queda protegida para tu canal mientras dure la ventana. La venta directa no ve tus registros.', 'Register the store you are working on: it stays protected for your channel while the window lasts. Direct sales does not see your registrations.')} />
+          {x.rules.map((r) => (
+            <div key={r.market_code} className="mb-4 rounded-[14px] bg-surface-2 px-4 py-3 text-[13.5px] text-strong" data-testid="portal-rules">
+              <p className="font-semibold">{t('Reglas', 'Rules')}{x.rules.length > 1 ? ` · ${r.market_code}` : ''}</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                <li>{t(`Una tienda queda protegida ${r.window_days} días desde que la registras.`, `A store stays protected for ${r.window_days} days from when you register it.`)}</li>
+                <li>{t(`Se puede extender ${r.max_extensions} veces, ${r.extension_days} días cada vez, con evidencia de actividad (visita, propuesta, llamada).`, `It can be extended ${r.max_extensions} times, ${r.extension_days} days each, with evidence of activity (visit, proposal, call).`)}</li>
+                <li>{t('Una tienda que ya es cliente o que ya tiene registro vigente de otro canal no se registra; te decimos hasta cuándo, no de quién.', 'A store that is already a customer or already registered by another channel is not registered; we tell you until when, not by whom.')}</li>
+                {r.policy_es && <li>{t(`Disputas y reversos: ${r.policy_es}`, `Disputes and reversals: ${r.policy_en}`)}</li>}
+              </ul>
+            </div>
+          ))}
+          {canClaim && (
+            <ActionForm action={A.partnerClaimAction} className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4 md:items-end" testId="portal-claim-form">
+              {p.roots.length > 1
+                ? <Field label={t('A nombre de', 'On behalf of')}><select name="root" className="input" required>{p.roots.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></Field>
+                : <input type="hidden" name="root" value={p.roots[0]!.id} />}
+              <Field label={t('Tienda', 'Store')}><input name="storeName" className="input" required minLength={2} maxLength={160} data-testid="portal-claim-store" /></Field>
+              <Field label={t('Ciudad', 'City')}><input name="city" className="input" required minLength={2} maxLength={80} data-testid="portal-claim-city" /></Field>
+              <Submit testId="portal-claim-save">{t('Registrar', 'Register')}</Submit>
+            </ActionForm>
+          )}
+          {x.claims.length === 0 ? <Empty title={t('Sin registros todavía', 'No registrations yet')} /> : (
+            <ul>{x.claims.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-3 text-[14px] first:border-t-0" data-testid="portal-claim-row" data-status={c.status}>
+                <span className="font-medium text-strong">{c.store_name}</span>
+                <span className="text-[13px] text-muted">{c.status === 'active' ? t(`Protegida hasta el ${day(c.expires_at, locale)}`, `Protected until ${day(c.expires_at, locale)}`) : c.status === 'rejected' ? t(`No se registró: ${c.rejection_reason ?? ''}`, `Not registered: ${c.rejection_reason === 'La tienda ya es cliente' ? 'the store is already a customer' : c.rejection_reason === 'Ya tiene registro vigente de otro canal' ? 'it is already registered by another channel' : (c.rejection_reason ?? '')}`) : c.status === 'expired' ? t('Venció', 'Expired') : t('Liberada', 'Released')}</span>
+              </li>
+            ))}</ul>
+          )}
+        </Card>
+        <Card data-testid="portal-statements">
+          <CardTitle title={t('Tu estado de comisión', 'Your commission statement')} hint={t('Conteos de tu red, sin montos. El estimado se vuelve publicado cuando axexo lo publica con las reglas escritas.', 'Counts for your network, no amounts. The estimate becomes published when axexo publishes it under the written rules.')} />
+          <StatementList t={t} locale={locale} rows={x.statements} testId="portal-statement-list" />
+        </Card>
         <Card data-testid="portal-materials">
           <CardTitle title={t('Material de tu nivel', 'Material for your tier')} hint={t('Los cursos viven en Kore Academy.', 'The courses live in Kore Academy.')} />
           {p.materials.length === 0 ? <Empty title={t('Sin material asignado todavía', 'No material assigned yet')} /> : (
             <ul className="space-y-2">{p.materials.map((m) => <li key={m.url}><a href={m.url} target="_blank" rel="noreferrer noopener" className="text-blue-text underline">{t(m.title_es, m.title_en)}</a></li>)}</ul>
+          )}
+          {x.progress.length > 0 && (
+            <ul className="mt-4 border-t border-line pt-3" data-testid="portal-progress">{x.progress.map((g, i) => (
+              <li key={i} className="py-1.5 text-[13.5px]"><span className="font-medium text-strong">{t(g.material_es, g.material_en)}</span> · {g.learner_ref} · <span className="num">{g.progress_pct}%</span>{g.completed_on ? t(` · terminado el ${day(g.completed_on, locale)}`, ` · finished on ${day(g.completed_on, locale)}`) : ''}</li>
+            ))}</ul>
           )}
         </Card>
       </div>
@@ -68,7 +112,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   if (markets.length === 0) notFound()
   const q = flat(await searchParams).m
   const market = markets.find((m) => m.code === q)?.code ?? markets[0]!.code
-  const d = await partnersAdmin(ctx, market)
+  const [d, c2, where] = await Promise.all([partnersAdmin(ctx, market), partnersCampo2(ctx, market), crossmatchWhere(market)])
   const tierName = (code: string | null) => {
     const x = d.tiers.find((tt) => tt.code === code)
     return x ? t(x.name_es, x.name_en) : t('Sin nivel', 'No tier')
@@ -213,10 +257,44 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         </div>
       </Card>
 
+      {ctx.can('statement.manage', market) && (
+        <Card data-testid="statements-admin">
+          <CardTitle title={t('Estado de comisión por persona y aliado', 'Commission statement per person and partner')} hint={t('Conteos del mes, sin montos. Se publica solo con las reglas escritas y aprobadas; lo publicado ya no cambia.', 'Counts for the month, no amounts. It is published only under the written, approved rules; what is published no longer changes.')}
+            right={<ActionForm action={A.estimateStatementsAction}><input type="hidden" name="market" value={market} /><Submit size="sm" variant="ghost" testId="statements-estimate">{t('Calcular ahora', 'Calculate now')}</Submit></ActionForm>} />
+          <StatementList t={t} locale={locale} rows={c2.statements} testId="statements-admin-list" />
+          {c2.statements.some((s) => s.status === 'estimate') && (
+            <ActionForm action={A.publishStatementAction} className="mt-4 grid grid-cols-1 gap-3 border-t border-line pt-4 md:grid-cols-3 md:items-end" testId="statement-publish">
+              <Field label={t('Estado', 'Statement')}><select name="id" className="input" required defaultValue="">{[<option key="" value="" disabled>{t('Elige', 'Choose')}</option>, ...c2.statements.filter((s) => s.status === 'estimate').map((s) => <option key={s.id} value={s.id}>{s.month} · {s.party_label}</option>)]}</select></Field>
+              <Field label={t('Reglas escritas (enlace o documento aprobado)', 'Written rules (link or approved document)')}><input name="rules" className="input" required minLength={3} maxLength={200} /></Field>
+              <Submit variant="ghost" testId="statement-publish-btn">{t('Publicar', 'Publish')}</Submit>
+            </ActionForm>
+          )}
+        </Card>
+      )}
+
+      {ctx.can('enablement.record', market) && (
+        <Card data-testid="progress-admin">
+          <CardTitle title={t('Avance de capacitación de aliados', 'Partner training progress')} hint={t('Llega de Kore Academy cuando la conexión se encienda; mientras tanto se anota aquí.', 'It arrives from Kore Academy once the connection is on; meanwhile it is recorded here.')} />
+          {c2.progress.length === 0 ? <Empty title={t('Sin avance registrado', 'No progress recorded')} /> : (
+            <ul>{c2.progress.map((g, i) => <li key={i} className="border-t border-line py-2 text-[13.5px] first:border-t-0" data-testid="progress-row">{g.partner} · {t(g.material_es, g.material_en)} · {g.learner_ref} · <span className="num">{g.progress_pct}%</span> · {g.source === 'kore_academy' ? 'Kore Academy' : t('a mano', 'by hand')}</li>)}</ul>
+          )}
+          {d.profiles.length > 0 && c2.materials.length > 0 && (
+            <ActionForm action={A.enablementProgressAction} className="mt-4 grid grid-cols-1 gap-3 border-t border-line pt-4 md:grid-cols-5 md:items-end" testId="progress-form">
+              <Field label={t('Aliado', 'Partner')}><select name="partner" className="input" required>{d.profiles.map((p) => <option key={p.account_id} value={p.account_id}>{p.name}</option>)}</select></Field>
+              <Field label={t('Material', 'Material')}><select name="material" className="input" required>{c2.materials.map((m) => <option key={m.id} value={m.id}>{t(m.title_es, m.title_en)}</option>)}</select></Field>
+              <Field label={t('Quién lo toma', 'Who takes it')}><input name="learner" className="input" required minLength={2} maxLength={80} /></Field>
+              <Field label={t('Avance (%)', 'Progress (%)')}><input name="pct" type="number" min={0} max={100} className="input" required /></Field>
+              <Submit variant="ghost">{t('Anotar', 'Record')}</Submit>
+            </ActionForm>
+          )}
+        </Card>
+      )}
+
       {ctx.can('partner.crossmatch', market) && (
         <Card data-testid="overlaps-card">
           <CardTitle title={t('Cruce de bases', 'Base cross-match')} hint={t('Puntos de la red de un partner que ya están en nuestra cartera, por teléfono, ID de otro sistema o identificador fiscal. Solo lo ve quien maneja partners.', 'Stores in a partner’s network that are already in our portfolio, by phone, ID from another system or tax ID. Only whoever manages partners sees it.')}
             right={<ActionForm action={A.crossMatchAction}><input type="hidden" name="market" value={market} /><Submit size="sm" variant="ghost" testId="crossmatch-run">{t('Cruzar ahora', 'Match now')}</Submit></ActionForm>} />
+          <p className={`${small} mb-3`} data-testid="crossmatch-where">{where === 'lakehouse' ? t('El cruce corre en el lakehouse de Data y Reportería.', 'The match runs in the Data and Reporting lakehouse.') : t('Hoy el cruce corre dentro de CONTIGO, con índice ciego y acceso restringido. Pasarlo al lakehouse espera a Data y Reportería (ver Estado de CONTIGO).', 'Today the match runs inside CONTIGO, with a blind index and restricted access. Moving it to the lakehouse waits on Data and Reporting (see CONTIGO status).')}</p>
           {d.overlaps.length === 0 ? <Empty title={t('Sin coincidencias', 'No matches')} hint={t('El cruce corre cada día y también a mano.', 'The match runs daily and by hand too.')} /> : (
             <Table label={t('Coincidencias', 'Matches')} testId="overlaps-table" head={<><th>{t('Partner', 'Partner')}</th><th>{t('Su punto', 'Their store')}</th><th>{t('Nuestro comercio', 'Our merchant')}</th><th>{t('Por', 'By')}</th></>}>
               {d.overlaps.map((o, i) => (

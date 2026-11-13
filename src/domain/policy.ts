@@ -273,6 +273,14 @@ export const CAPABILITIES = {
   'activity.correct': [...FIELD, 'ops'],
   // embudo2 (UX-03): publicar una vista como cola oficial de un rol.
   'view.official': ['admin'],
+  // Paquete campo2 (0039). El aliado registra tiendas a nombre de su propio nodo (la base lo limita a su nodo).
+  'claim.partner_register': ['partner'],
+  // Estado de comisión (conteos, sin montos): lo calcula y lo publica con sus reglas escritas quien lidera el mercado.
+  'statement.manage': ['admin', 'market_lead'],
+  // Política de reversos y árbitro de disputas: escrita y versionada por quien lidera el mercado; se aprueba con Finanzas y Ventas.
+  'channel_policy.manage': ['admin', 'market_lead'],
+  // Avance de capacitación de aliados mientras Kore Academy no lo manda.
+  'enablement.record': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

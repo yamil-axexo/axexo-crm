@@ -112,13 +112,14 @@ export const MESSAGE_STATUS: Record<string, Pair> = {
   held_limit: ['En espera: se alcanzó el límite del día', 'On hold: the daily limit was reached'],
 }
 
-export const HEALTH_GROUPS = ['transactions', 'mix', 'tickets', 'balance'] as const
+export const HEALTH_GROUPS = ['transactions', 'mix', 'tickets', 'balance', 'perfect_store'] as const
 export type HealthGroup = (typeof HEALTH_GROUPS)[number]
 export const HEALTH_GROUP: Record<HealthGroup, { label: Pair; hint: Pair; off: Pair }> = {
   transactions: { label: ['Ventas', 'Sales'], hint: ['Cuánto vende contra lo que el mismo comercio vendía; sin historia, contra los días que marcan hábito.', 'How much it sells against what the same merchant used to sell; with no history, against the days that mark a habit.'], off: ['Sin datos de ventas', 'No sales data'] },
   mix: { label: ['Productos que usa', 'Products in use'], hint: ['Cuántos productos distintos vendió en 30 días.', 'How many different products it sold in 30 days.'], off: ['Sin dato: conexión apagada', 'No data: connection off'] },
   tickets: { label: ['Solicitudes de soporte', 'Support requests'], hint: ['Solicitudes abiertas y urgentes. De Zendesk solo llegan conteos.', 'Open and urgent requests. Only counts come from Zendesk.'], off: ['Sin dato: conexión con Zendesk apagada', 'No data: Zendesk connection off'] },
   balance: { label: ['Saldo', 'Balance'], hint: ['Saldo disponible contra el mínimo del mercado.', 'Available balance against the market minimum.'], off: ['Sin dato: conexión apagada', 'No data: connection off'] },
+  perfect_store: { label: ['Punto de venta perfecto', 'Perfect store'], hint: ['El último puntaje del checklist de la Sales App, mientras siga vigente. Peso propuesto, [pendiente: Customer Success].', 'The latest Sales App checklist score, while it is still current. Proposed weight, [pending: Customer Success].'], off: ['Sin dato: la Sales App todavía no lo manda', 'No data: the Sales App does not send it yet'] },
 }
 export const HEALTH_BAND: Record<string, { label: Pair; tone: Tone }> = {
   good: { label: ['Bien', 'Good'], tone: 'good' },

@@ -41,10 +41,14 @@ import { LoadsCard } from './cargas'
 import { decisionsBoard } from '@/dal/datos2'
 import { DECISIONS } from '@/domain/decisions'
 import { ProposedFunnelValues } from '@/app/(app)/admin/embudo/embudo2'
+import { campo2AdapterStatus } from '@/server/adapters/campo2'
+import { proposedValues } from '@/dal/campo-canal'
+import { THRESHOLDS, type ThresholdKey } from '@/domain/campo-canal/thresholds'
 
 export const dynamic = 'force-dynamic'
 
 type Tone = 'good' | 'warn' | 'neutral'
+const OWNER_EN: Record<string, string> = { Ventas: 'Sales', 'Ventas y canales': 'Sales and channels', 'Ventas y Finanzas': 'Sales and Finance', 'Finanzas y Ventas': 'Finance and Sales', 'Customer Success': 'Customer Success', 'Mesa de control': 'Control desk' }
 
 /**
  * Página de estado: qué corre, qué tan al día están los datos, qué está conectado y qué falta.
@@ -60,6 +64,8 @@ export default async function StatusPage() {
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
   const decisions = await decisionsBoard(ctx)
+  // Paquete campo2: valores con los que arrancó CONTIGO y que esperan confirmación.
+  const proposed = await proposedValues(ctx)
   const routes = routesAdapter()
   // GOB-07: objetivos de servicio medidos, de los últimos 30 días. El detalle y los registros viven en Administración, Gobierno.
   const board = ctx.can('gov.read') ? await serviceBoard(ctx, 30) : null
@@ -275,6 +281,14 @@ export default async function StatusPage() {
     state: offOr(a.mode),
     last: `${t(...a.needs)} ${t(`${num(partnerQueue[a.key] ?? 0, locale)} en cola sin salir. Se enciende con la variable ${a.envVar}, después de la aprobación.`, `${num(partnerQueue[a.key] ?? 0, locale)} queued, not sent. It is turned on with the ${a.envVar} variable, after approval.`)}`,
   })))
+  // Paquete campo2: resumen de comentarios hacia P&T, avance de Kore Academy de aliados y cruce en el lakehouse. Construidos y apagados.
+  rows.push(...campo2AdapterStatus().map((a) => ({
+    key: `campo2_${a.key}`,
+    name: t(...a.name),
+    what: t(...a.what),
+    state: offOr(a.mode),
+    last: `${t(...a.needs)} ${t(`Se enciende con la variable ${a.envVar}, después de la aprobación.`, `It is turned on with the ${a.envVar} variable, after approval.`)}`,
+  })))
   // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
   rows.push({
     key: 'jobs',
@@ -400,6 +414,24 @@ export default async function StatusPage() {
               })}
             </ul>
             <p className="mt-3 text-[13px]"><Link href="/admin/decisiones" className="font-medium text-blue-text underline" data-testid="status-decisions-link">{t('Ver y cambiar las decisiones de negocio', 'See and change business decisions')}</Link></p>
+          </Card>
+          <Card data-testid="status-proposed">
+            <CardTitle title={t('Valores propuestos', 'Proposed values')} hint={t('CONTIGO arrancó con estos valores para poder funcionar. Son una propuesta: cada uno espera a quien tiene que confirmarlo y se cambia en Campo y canales.', 'CONTIGO started with these values so it can work. They are a proposal: each one waits for its owner and is changed under Field and channels.')} />
+            {proposed.length === 0 ? <p className="text-[13.5px] text-muted-2">{t('Todos los valores están confirmados.', 'All values are confirmed.')}</p> : (
+              <ul>
+                {[...new Set(proposed.map((x) => x.key))].map((k) => {
+                  const items = proposed.filter((x) => x.key === k)
+                  const def = THRESHOLDS[k as ThresholdKey]
+                  const label = k === 'clawback_policy' ? t('Política de reversos: días de ventana', 'Reversal policy: window days') : k === 'health_weight' ? t('Salud: peso del punto de venta perfecto', 'Health: perfect store weight') : def ? t(def.es, def.en) : k
+                  return (
+                    <li key={k} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid="status-proposed-row" data-key={k}>
+                      <span className="min-w-0 flex-1 basis-48"><span className="block text-[14px] font-medium text-strong">{label}</span><span className="text-[12.5px] text-muted-2">{items.map((x) => `${x.market_code ?? t('Todos', 'All')}: ${num(x.value, locale)}`).join(' · ')}</span></span>
+                      <Badge tone="warn">{t(`pendiente: ${items[0]!.owner}`, `pending: ${OWNER_EN[items[0]!.owner] ?? items[0]!.owner}`)}</Badge>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </Card>
         </div>
 

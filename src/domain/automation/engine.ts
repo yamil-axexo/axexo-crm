@@ -7,7 +7,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { moveDealTx } from '@/domain/deals'
 import { assignLeadTx } from '@/domain/leads'
 import { DomainError } from '@/lib/errors'
-import { ADDED_DEFAULT_KEYS, CUSTOM_PREFIX, DEFAULTS, FIELDS, isCustomField, type Action, type Condition, type Definition, type NoticeKind, type Source } from '@/domain/automation/catalog'
+import { ADDED_DEFAULT_KEYS, CUSTOM_PREFIX, DEFAULTS, FIELDS, NOTICE_KINDS, isCustomField, type Action, type Condition, type Definition, type NoticeKind, type Source } from '@/domain/automation/catalog'
 import { runRebuiltAction, type RebuiltAction } from '@/domain/automation/rebuilt'
 import { resolveTarget } from '@/domain/automation/people'
 import { setWaitingOnTx } from '@/domain/automation/transitions'
@@ -229,7 +229,7 @@ async function reconcileNotices(tx: Tx, list: Automation[]): Promise<void> {
     with cond as materialized (${cond}),
     closed as (
       update crm.exceptions e set resolved_at = now(), resolution = 'auto'
-       where e.resolved_at is null and e.kind <> 'unmatched_event'
+       where e.resolved_at is null and e.kind = any(${[...NOTICE_KINDS]}::text[])
          and not exists (select 1 from cond c where c.dedupe_key = e.dedupe_key)
       returning e.automation_id, e.market_code, e.kind, coalesce(e.deal_id, e.lead_id, e.account_id) as record_id, e.detail
     ),

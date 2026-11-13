@@ -287,6 +287,15 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'claim.registered': ['Registró una tienda a nombre de un canal', 'Registered a store for a channel'],
   'claim.extended': ['Extendió un registro de canal con evidencia', 'Extended a channel registration with evidence'],
   'claim.rejected': ['Rechazó un registro de canal con motivo', 'Rejected a channel registration with a reason'],
+  // Paquete campo2 (0039)
+  'attribution.reclassified': ['Clasificó los orígenes pendientes y el equipo reclutador de un mercado', 'Classified a market’s pending origins and recruiting teams'],
+  'onboarding.link_created': ['Creó un enlace de captura para un expediente', 'Created a capture link for an onboarding file'],
+  'integration.equipment_received': ['Llegó una instalación o un retiro de equipo desde la Sales App', 'An equipment install or removal arrived from the Sales App'],
+  'feedback.digest_sent': ['Dejó listo el resumen semanal de comentarios para P&T', 'Got the weekly feedback digest ready for P&T'],
+  'commission_statement.estimated': ['Calculó el estado de comisión estimado de un mercado', 'Calculated a market’s estimated commission statements'],
+  'commission_statement.published': ['Publicó un estado de comisión con sus reglas escritas', 'Published a commission statement under its written rules'],
+  'channel_policy.changed': ['Guardó una versión de la política de reversos', 'Saved a version of the reversal policy'],
+  'enablement.progress_recorded': ['Anotó el avance de capacitación de un aliado', 'Recorded a partner’s training progress'],
   'funding.simulated': ['Cargó un dato de fondeo simulado', 'Loaded a simulated funding value'],
   'credit.requested': ['Pidió un límite de crédito', 'Requested a credit limit'],
   'credit.decided': ['Aprobó o rechazó un límite de crédito', 'Approved or rejected a credit limit'],
@@ -480,14 +489,14 @@ export const AUDIT_GROUPS = {
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported', 'export.%'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%', 'load.%', 'pipedrive.%'], not: null },
-  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%', 'care.%', 'terms.%', 'contract.%', 'plan.created', 'plan.milestone_%', 'plan.shared', 'partner.%', 'partner_token.%', 'partner_tier.%', 'network_load.%', 'expansion.deal_opened'], not: null },
+  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%', 'care.%', 'terms.%', 'contract.%', 'plan.created', 'plan.milestone_%', 'plan.shared', 'partner.%', 'partner_token.%', 'partner_tier.%', 'network_load.%', 'expansion.deal_opened', 'feedback.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
   saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'goal.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },
   security: { label: ['Seguridad y privacidad', 'Security and privacy'] as Pair, like: ['sensitive.%', 'sensitive_field.%', 'consent.%', 'retention.%', 'subject_request.%', 'view_as.%', 'access_review.%', 'security.%', 'secret.%', 'seat.%'], not: null },
   // Paquete gobierno: servicio, versiones, costos, solicitudes y motivos de cambio.
   governance: { label: ['Gobierno', 'Governance'] as Pair, like: ['objective.%', 'incident.%', 'restore_test.%', 'component.%', 'maintenance.%', 'release.%', 'deployment.%', 'cost.%', 'config_request.%', 'change.%', 'champion.%', 'material.%'], not: null },
-  field: { label: ['Campo y canales', 'Field and channels'] as Pair, like: ['onboarding.%', 'threshold.%', 'channel.%', 'seller.%', 'portfolio.%', 'attribution.%', 'dispute.%', 'claim.%', 'funding.%', 'credit.%', 'competitor.%', 'plan.set', 'field_incident.%'], not: null },
+  field: { label: ['Campo y canales', 'Field and channels'] as Pair, like: ['onboarding.%', 'threshold.%', 'channel.%', 'seller.%', 'portfolio.%', 'attribution.%', 'dispute.%', 'claim.%', 'funding.%', 'credit.%', 'competitor.%', 'plan.set', 'field_incident.%', 'commission_statement.%', 'channel_policy.%', 'enablement.%'], not: null },
   // Paquete ia: sugerencias, nivel de asistencia por mercado, borradores, pesos y evaluación.
   ia: { label: ['Sugerencias y asistencia', 'Suggestions and assistance'] as Pair, like: ['ia.%', 'recommendation.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },

@@ -2,7 +2,7 @@
 
 Status: **proposed by CONTIGO. Not agreed with the team that owns the Sales App and Sales Core.** Field names follow `VisitResponse` as documented for Sales Core. The connection is not live: no system sends events yet. Signing this contract with Product & Technology is the open step.
 
-Four events: `visit.checked_out`, `store.created`, `onboarding.submitted` and `merchant.approved`. The first two are described by hand below; the full list, the JSON Schemas, the field matrix, the one-creator rule and dead letters are in the generated section at the end of this file.
+Five events: `visit.checked_out`, `store.created`, `onboarding.submitted`, `merchant.approved` and `equipment.changed`. The first two are described by hand below; the full list, the JSON Schemas, the field matrix, the one-creator rule and dead letters are in the generated section at the end of this file.
 
 `POST /api/v1/events/sales-app` · `Authorization: Bearer <key with scope events:write>` · JSON body.
 
@@ -47,6 +47,21 @@ duplicated). A `rejection_reason` that is not in the reason catalog is no longer
 
 Visits logged by hand in CONTIGO (while this feed is not connected): a hand-logged visit stops counting in Mi equipo when a `visit.checked_out` arrives for the same merchant and the same `business_date`. Both stay in the merchant thread, each labeled with its origin. Nothing has to be cleaned up when the feed is turned on (`crm.visit_log`, migration `0010_field_work`).
 
+Optional fields added 13-nov-2026 (package `campo2`). The contract without them is still valid and its behavior is unchanged.
+- `trust_score` (0 to 100) and `trust_flags` (up to 10 codes like `gps_far`): the visit's trust signal computed by the Sales App (CAMPO-05). A visit below the market threshold `trust_min_score` (proposed value 50, pending Sales) does not count in the field indicators; a visit without a signal counts.
+- `manager_change`: `{ "new_name": "…", "note": "optional, up to 300" }` (CS-06). Recorded as a manager change seen in the visit, with the same training alert as when it is entered by hand.
+
+## `equipment.changed` (added 13-nov-2026, package `campo2`, SEG-06)
+```json
+{ "event_id": "…", "type": "equipment.changed", "version": 1, "occurred_at": "…",
+  "data": { "customer_id": "…", "action": "installed | retired", "equipment_type": "terminal", "equipment_ref": "optional, up to 60", "reason": "optional, up to 200",
+            "visit_id": "optional", "salesperson_id": "optional", "salesperson_email": "optional", "trust_score": "optional, 0 to 100" } }
+```
+Effect: stored in `crm.equipment_events`. A confidential field incident about the same merchant and day is linked to it, to the attribution that applied that day and to the trust score.
+
+## `onboarding.submitted`: optional onboarding file (added 13-nov-2026, package `campo2`, CAMPO-06)
+`data` may also carry `person_type` (`individual | company`), `funding` (`prepaid | ach_credit`) and `documents` (`[{ "requirement": "code from the market master form", "link": "https://… optional" }]`). CONTIGO opens the onboarding file (captured once, `captured_via = sales_app`) or completes the open one; listed documents arrive as received. With `documents_complete: true` and nothing missing it goes to the control desk. Without `person_type` or `funding` the most conservative values are used (individual, prepaid; prepaid auto-approval stays as the market has it, off by default). Files are never sent: only status and a link.
+
 ## `store.created`
 ```json
 { "event_id": "…", "type": "store.created", "version": 1, "occurred_at": "…",
@@ -86,6 +101,10 @@ JSON Schemas: `sales-app-events-v1.schema.json` (generated from the same validat
 | Merchant ID | Sales Core (onboarding) | `merchant.approved` | Set by whoever approves. If another merchant in the market already has it, the message is held for manual review. |
 | Deal stage and pipeline | CONTIGO | `deal.stage_changed` | No Sales App event moves the stage. Approval does not win the deal. |
 | First transaction and sales activity | Sales data | `merchant_metrics_daily (archivo diario / daily file)` | Wins the deal and activates the merchant. It arrives in the daily file, not as an event. |
+| Visit trust signal | Sales App | `visit.checked_out (trust_score, trust_flags)` | The Sales App computes it. CONTIGO does not recompute it: it uses it to decide whether the visit counts in the indicators (market threshold). |
+| Manager change | Sales App | `visit.checked_out (manager_change)` | It is seen in the visit. In CONTIGO it opens the same training alert as when it is entered by hand. |
+| Equipment install and removal | Sales App | `equipment.changed` | It is recorded there. CONTIGO stores it and links it to that day’s field incidents. |
+| Onboarding file (person type, payment method, documents) | Sales App | `onboarding.submitted` | It is captured once there. CONTIGO opens or completes the file and the control desk validates it here. The file never travels: only status and a link. |
 
 ## One store creator
 

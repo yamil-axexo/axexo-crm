@@ -22,7 +22,9 @@ export default async function FieldKpisPage({ searchParams }: { searchParams: Pr
     return n
   }
   const wd = Object.fromEntries([...new Set(rows.map((x) => x.market_code))].map((c) => [c, workdays(c)]))
-  const sum = (k: 'visits' | 'sales' | 'visited' | 'confirmed' | 'manual' | 'low' | 'book' | 'enrolled') => rows.reduce((n, x) => n + x[k], 0)
+  const sum = (k: 'visits' | 'sales' | 'visited' | 'confirmed' | 'manual' | 'low' | 'book' | 'enrolled' | 'planned' | 'planned_visited' | 'active_book') => rows.reduce((n, x) => n + x[k], 0)
+  // El mínimo de señal es por mercado; con varios mercados se muestra el más alto (el más exigente).
+  const trustMin = rows.length ? Math.max(...rows.map((x) => x.trust_min)) : TRUST_MIN
   const people = rows.filter((x) => x.owner_id && x.visits > 0)
   const personDays = people.reduce((n, x) => n + (wd[x.market_code] ?? 0), 0)
   const perDay = (visits: number, days: number) => (days > 0 ? (visits / days).toFixed(1) : null)
@@ -39,12 +41,20 @@ export default async function FieldKpisPage({ searchParams }: { searchParams: Pr
         <Metric t={t} k="fieldPerStore" owners={owners} testId="kpi-per-store" value={ratio(sum('visits'), sum('enrolled')) ?? nd} hint={t(`${num(sum('enrolled'), locale)} altas en el periodo.`, `${num(sum('enrolled'), locale)} stores enrolled in the period.`)} />
       </div>
 
+      <Card className="mt-6" data-testid="route-card">
+        <CardTitle title={t('Ruta y distribución', 'Route and distribution')} hint={t('La ruta del día son las primeras tiendas de la prioridad diaria de cada persona (sin el grupo de control).', 'The daily route is the top stores of each person’s daily priority (without the control group).')} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div data-testid="kpi-route"><p className="text-[13px] font-medium text-muted-2">{t('Cumplimiento de ruta', 'Route compliance')}</p><p className="num text-[24px] font-semibold text-strong">{sum('planned') > 0 ? pct(sum('planned_visited'), sum('planned'), locale) : nd}</p><p className="text-[13px] text-muted">{t(`${num(sum('planned_visited'), locale)} de ${num(sum('planned'), locale)} tiendas de la ruta, visitadas el mismo día.`, `${num(sum('planned_visited'), locale)} of ${num(sum('planned'), locale)} route stores, visited the same day.`)}</p></div>
+          <div data-testid="kpi-distribution"><p className="text-[13px] font-medium text-muted-2">{t('Distribución numérica', 'Numeric distribution')}</p><p className="num text-[24px] font-semibold text-strong">{sum('book') > 0 ? pct(sum('active_book'), sum('book'), locale) : nd}</p><p className="text-[13px] text-muted">{t(`${num(sum('active_book'), locale)} de ${num(sum('book'), locale)} tiendas de la cartera están activas.`, `${num(sum('active_book'), locale)} of ${num(sum('book'), locale)} book stores are active.`)}</p></div>
+        </div>
+      </Card>
+
       <Card className="mt-6" data-testid="trust-card">
         <CardTitle title={t('Qué tan confirmadas están las visitas', 'How confirmed the visits are')} />
         <div className="grid gap-4 sm:grid-cols-3">
           <div data-testid="trust-confirmed"><p className="text-[13px] font-medium text-muted-2">{t('Confirmadas por la Sales App', 'Confirmed by the Sales App')}</p><p className="num text-[24px] font-semibold text-brand-text">{num(sum('confirmed'), locale)}</p><p className="text-[13px] text-muted">{pct(sum('confirmed'), sum('visits'), locale)}</p></div>
           <div data-testid="trust-manual"><p className="text-[13px] font-medium text-muted-2">{t('Registradas a mano', 'Logged by hand')}</p><p className="num text-[24px] font-semibold text-strong">{num(sum('manual'), locale)}</p><p className="text-[13px] text-muted">{t('Cuentan, pero nadie más las respalda.', 'They count, but no one else backs them up.')}</p></div>
-          <div data-testid="trust-low"><p className="text-[13px] font-medium text-muted-2">{t('Fuera de la cuenta por señal baja', 'Left out for a low signal')}</p><p className="num text-[24px] font-semibold text-strong">{num(sum('low'), locale)}</p><p className="text-[13px] text-muted">{t(`Señal de la Sales App por debajo de ${TRUST_MIN}. Hoy la Sales App todavía no la manda.`, `Sales App signal below ${TRUST_MIN}. The Sales App does not send it yet.`)}</p></div>
+          <div data-testid="trust-low"><p className="text-[13px] font-medium text-muted-2">{t('Fuera de la cuenta por señal baja', 'Left out for a low signal')}</p><p className="num text-[24px] font-semibold text-strong">{num(sum('low'), locale)}</p><p className="text-[13px] text-muted">{t(`Señal de la Sales App por debajo de ${trustMin}. La visita que llega sin señal cuenta.`, `Sales App signal below ${trustMin}. A visit that arrives with no signal counts.`)}</p><p className="mt-1 text-[12.5px] text-amber-text" data-testid="trust-proposed">{t('Valor propuesto, [pendiente: Ventas]. Se cambia en Campo, Umbrales.', 'Proposed value, [pending: Sales]. It is changed in Field, Thresholds.')}</p></div>
         </div>
         <p className="mt-4 text-[13.5px] text-muted-2" data-testid="trust-note">{t('Mientras las visitas se registren a mano, estos indicadores sirven para conversar con el equipo, no para pagar. Ninguna visita se paga desde CONTIGO, y aquí no se guarda ubicación ni fotos de nadie.', 'While visits are logged by hand, these indicators are for a conversation with the team, not for paying. No visit is paid from CONTIGO, and no one’s location or photos are stored here.')}</p>
       </Card>

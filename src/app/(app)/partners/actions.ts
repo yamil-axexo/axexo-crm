@@ -8,6 +8,8 @@ import {
 } from '@/domain/partners'
 import { promoteBatch, releaseNetwork, rollbackBatch, stageNetwork, NETWORK_TARGETS } from '@/domain/network-loads'
 import { captureComm } from '@/domain/comms'
+import { estimateStatements, partnerRegisterClaim, publishStatement, recordEnablementProgress } from '@/domain/campo-canal/canal2'
+import { day } from '@/lib/format'
 import { invalid } from '@/lib/errors'
 import type { ActionResult } from '@/lib/errors'
 
@@ -178,5 +180,34 @@ export async function rollbackBatchAction(_: R | null, fd: FormData): Promise<R>
   return runAction(async (ctx) => {
     const r = await rollbackBatch(ctx, str(fd, 'id'), Number(str(fd, 'batch')))
     return { message: [`Lote regresado: ${r.archived} archivados${r.kept ? `, ${r.kept} se quedan porque ya se trabajaron` : ''}.`, `Batch rolled back: ${r.archived} archived${r.kept ? `, ${r.kept} stay because they were already worked` : ''}.`], revalidate: nets(str(fd, 'id')) }
+  })
+}
+
+// ------------------------------------------------------------ campo2
+const all = (fd: FormData): Record<string, string> => Object.fromEntries([...fd.entries()].filter(([, v]) => typeof v === 'string').map(([k, v]) => [k, v as string]))
+export async function partnerClaimAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const out = await partnerRegisterClaim(ctx, all(fd))
+    if (out.status === 'customer') return { message: ['Esa tienda ya es cliente: no se registra.', 'That store is already a customer: it is not registered.'], revalidate: ['/partners'] }
+    if (out.status === 'held') return { message: out.until ? [`Esa tienda ya tiene registro vigente de otro canal hasta el ${day(out.until, ctx.locale)}.`, `That store is already registered by another channel until ${day(out.until, ctx.locale)}.`] : ['Esa tienda ya tiene registro vigente de otro canal.', 'That store is already registered by another channel.'], revalidate: ['/partners'] }
+    return { message: [`Registrada a tu nombre hasta el ${day(out.until, ctx.locale)}.`, `Registered to you until ${day(out.until, ctx.locale)}.`], revalidate: ['/partners'] }
+  })
+}
+export async function estimateStatementsAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const n = await estimateStatements(ctx, str(fd, 'market'))
+    return { message: [`${n} estados calculados.`, `${n} statements calculated.`], revalidate: ['/partners'] }
+  })
+}
+export async function publishStatementAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await publishStatement(ctx, str(fd, 'id'), str(fd, 'rules'))
+    return { message: ['Publicado. Ya no cambia.', 'Published. It no longer changes.'], revalidate: ['/partners'] }
+  })
+}
+export async function enablementProgressAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await recordEnablementProgress(ctx, all(fd))
+    return { message: ['Avance anotado.', 'Progress recorded.'], revalidate: ['/partners'] }
   })
 }

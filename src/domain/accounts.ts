@@ -13,6 +13,7 @@ import { resolveRecruiter } from '@/domain/store-record'
 import { checkTaxId, TAX_ID_TYPES } from '@/lib/tax-id'
 import { blindIndex } from '@/server/adapters/markets'
 import { decisionValue } from '@/domain/decisions'
+import { stampAttributionTx } from '@/domain/campo-canal/attribution'
 
 /** `strong`: coincide una llave fuerte exacta (teléfono, correo, identificador externo, o nombre más dirección). */
 export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'email' | 'external_id' | 'name_address' | 'tax_id' | 'geo' | 'name'; strong: boolean }
@@ -151,8 +152,9 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
     if (v.parentId) await tx`insert into crm.account_links (child_id, parent_id, created_by) values (${id}, ${v.parentId}, ${ctx.user.id})`
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
       (${id}, ${v.market}, 'origin', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id}),
-      (${id}, ${v.market}, 'channel', 'team', ${v.segment}, ${v.segment.toUpperCase()}, ${ctx.user.id}),
       (${id}, ${v.market}, 'owner', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id})`
+    // CANAL-03: el origen se clasifica y la capa de canal guarda el equipo reclutador, en la misma alta.
+    await stampAttributionTx(tx, ctx.user.id, id)
     await audit(tx, ctx, 'account.created', 'account', id, v.market, null, { kind, account_type: accountType, name: v.name, forced_duplicate: dups.length > 0 })
     await emit(tx, 'account.created', 'account', id, v.market, { kind })
     // E16.F2: una tienda de venta puerta a puerta es del gerente de su territorio (si el territorio tiene uno).

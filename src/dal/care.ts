@@ -129,8 +129,8 @@ export async function getCareBoard(ctx: Ctx, market: string) {
       select topic, count(*)::int as n, count(*) filter (where kind = 'friction')::int as friction, count(*) filter (where kind = 'request')::int as request
         from crm.product_feedback where market_code = ${market} and created_at > now() - interval '90 days' group by topic order by n desc, topic`
     const topics = await tx<{ code: string; label_es: string; label_en: string }[]>`select code, label_es, label_en from crm.feedback_topics order by sort`
-    const digests = await tx<{ id: string; period_start: string; period_end: string; total: number; counts: { market: string; topic: string; kind: string; count: number }[] }[]>`
-      select id, period_start::text, period_end::text, total, counts from crm.feedback_digests order by period_start desc limit 4`
+    const digests = await tx<{ id: string; period_start: string; period_end: string; total: number; counts: { market: string; topic: string; kind: string; count: number }[]; delivery_status: string | null }[]>`
+      select id, period_start::text, period_end::text, total, counts, delivery_status from crm.feedback_digests order by period_start desc limit 4`
     return { stages: [...stages], handoffs: [...handoffs], alerts: [...alerts], measure: [...measure], messages: [...messages], settings, health: [...health], tiers: [...tiers],
       opportunities: [...opportunities], feedback: [...feedback], byTopic: [...byTopic], topics: [...topics], digests: [...digests] }
   })
