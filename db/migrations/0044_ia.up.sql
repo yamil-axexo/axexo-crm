@@ -227,7 +227,8 @@ create index ia_eval_runs_feature_idx on crm.ia_eval_runs (feature, target, ran_
 alter table crm.ia_eval_runs enable row level security;
 alter table crm.ia_eval_runs force row level security;
 grant select, insert on crm.ia_eval_runs to contigo_app;
-create policy ia_eval_runs_read on crm.ia_eval_runs for select to contigo_app using ((select app.is_global()));
+-- Lo lee cualquiera con sesión: la regla de encendido (featureOn) lo consulta con la identidad de quien usa la función. Son conteos de casos sintéticos.
+create policy ia_eval_runs_read on crm.ia_eval_runs for select to contigo_app using ((select app.current_user_id()) is not null);
 create policy ia_eval_runs_ins on crm.ia_eval_runs for insert to contigo_app with check ((select app.has_area('config')) and ran_by = (select app.current_user_id()));
 
 -- Casos iniciales: sintéticos (no son datos de personas ni de comercios reales). Administración agrega más desde la pantalla.

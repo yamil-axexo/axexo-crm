@@ -37,7 +37,6 @@ describe('base: tablas nuevas con RLS forzado', () => {
     for (const r of rows) expect(r.ok, r.relname).toBe(true)
     await asPersona('marco.pena', async (tx) => {
       expect((await tx`select 1 from crm.ia_calls`).length).toBe(0)
-      expect((await tx`select 1 from crm.ia_eval_runs`).length).toBe(0)
       expect(await attempt(tx, (sp) => sp`update crm.ia_settings set level = 'execute' where market_code = 'MX'`)).not.toBe('ok')
       expect(await attempt(tx, (sp) => sp`insert into crm.recommendations (market_code, account_id, rule_code, expires_at) select 'MX', id, 'quiet', now() from crm.accounts limit 1`)).toBe(DENIED)
     })

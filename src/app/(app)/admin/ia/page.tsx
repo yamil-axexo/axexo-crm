@@ -57,7 +57,7 @@ export default async function IaAdminPage({ searchParams }: { searchParams: Prom
         {t(`Para encenderla hace falta el proveedor aprobado en la revisión de tecnología, la variable ${AI_ENV}, la lista de dominios de salida (${AI_EGRESS_ENV}, hoy ${d.adapter.egress.length === 0 ? 'vacía: no sale nada' : d.adapter.egress.join(', ')}) y que la función pase su evaluación.`,
           `Turning it on needs the provider approved in the technology review, the ${AI_ENV} variable, the outbound domain list (${AI_EGRESS_ENV}, today ${d.adapter.egress.length === 0 ? 'empty: nothing leaves' : d.adapter.egress.join(', ')}) and the feature passing its evaluation.`)}
       </p>
-      <Pills label={t('Secciones', 'Sections')} current={tab} items={TABS.map((k) => ({ key: k, href: qs('/admin/ia', { tab: k }), label: labels[k] }))} />
+      <div className="mb-6"><Pills label={t('Secciones', 'Sections')} current={tab} items={TABS.map((k) => ({ key: k, href: qs('/admin/ia', { tab: k }), label: labels[k] }))} /></div>
 
       {tab === 'autonomia' && (
         <div className="space-y-8">

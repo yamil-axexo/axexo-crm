@@ -8,6 +8,7 @@ import { leadFacts, leadWeights, LEAD_FACTS_SQL, logCall, THRESHOLD, type LeadFa
 import { ASKABLE, classifyLead, matchQuestion, nextReason, periodIn, PERIODIC, scoreLead, type Askable, type AskPeriod, type LeadClass, type NextRule, type ScoreFactor } from '@/domain/ia/rules'
 import { AGENTS, type Level } from '@/domain/ia/agents'
 import type { MarketPeriods } from '@/dal/reports'
+import type { PeriodKey } from '@/lib/periods'
 
 type Pair = [es: string, en: string]
 
@@ -127,7 +128,7 @@ export async function leadScores(ctx: Ctx, ids: string[]): Promise<Record<string
 
 // ================================================================ IA-05: preguntas sobre las cifras definidas
 export type Answer =
-  | { kind: 'answer'; key: Askable; value: number; market: string | null; team: string | null; period: { key: string; from: string; to: string } | null; asOf: Date; fileAsOf: string | null }
+  | { kind: 'answer'; key: Askable; value: number; market: string | null; team: string | null; period: { key: PeriodKey; from: string; to: string } | null; asOf: Date; fileAsOf: string | null }
   | { kind: 'out_of_scope' }
 
 const metricSql = (tx: Tx, key: Askable, p: MarketPeriods, market: string | null, team: string | null) => {

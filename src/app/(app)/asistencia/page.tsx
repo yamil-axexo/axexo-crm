@@ -41,7 +41,7 @@ export default async function AssistPage({ searchParams }: { searchParams: Promi
         title={t('Asistencia', 'Assistance')}
         desc={t('Sugerencias con su porqué, borradores que tú apruebas y respuestas con las cifras definidas. Hoy todo sale de reglas de CONTIGO; la IA está apagada.', 'Suggestions with their reason, drafts you approve and answers with the defined figures. Today everything comes from CONTIGO rules; AI is off.')}
       />
-      <Pills label={t('Secciones', 'Sections')} current={tab} items={allowed.map((k) => ({ key: k, href: qs('/asistencia', { tab: k }), label: labels[k] }))} />
+      <div className="mb-6"><Pills label={t('Secciones', 'Sections')} current={tab} items={allowed.map((k) => ({ key: k, href: qs('/asistencia', { tab: k }), label: labels[k] }))} /></div>
 
       {tab === 'sugerencias' && <Suggestions />}
       {tab === 'borradores' && <Drafts />}
