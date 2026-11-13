@@ -35,6 +35,9 @@ async function up() {
     })
     console.log(`up   ${name}`)
   }
+  // SEG-03: una migración posterior a 0031 puede crear tablas. Cada corrida vuelve a poner el trigger de bitácora en las que falten.
+  const audit = await sql`select to_regprocedure('audit.attach_all()') is not null as ok`
+  if (audit[0]?.ok) await sql`select audit.attach_all()`
 }
 async function down(all = false) {
   const done = (await applied()).reverse()

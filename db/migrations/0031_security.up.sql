@@ -230,6 +230,21 @@ begin
   values (app.current_user_id(), p_key, coalesce(nullif(current_setting('app.via', true), ''), 'screen'), p_kind, p_object, coalesce(p_rows, 0), p_market, p_detail);
 end $$;
 
+-- Toda exportación deja evento en la bitácora de la aplicación (`*.exported`). La base copia ese hecho al registro de lecturas,
+-- con quién, qué y cuántas filas: el monitoreo no depende de que cada pantalla de exportación se acuerde de avisar.
+create or replace function crm.audit_events_export_read() returns trigger
+language plpgsql security definer set search_path = audit, crm, app, pg_catalog as $$
+begin
+  insert into audit.read_log (actor_id, via, kind, object, row_count, market_code, detail)
+  values (new.actor_id, coalesce(new.via, 'screen'), 'export', coalesce(new.after ->> 'report', new.object),
+          case when (new.after ->> 'rows') ~ '^[0-9]{1,9}$' then (new.after ->> 'rows')::int else 0 end, new.market_code,
+          jsonb_build_object('action', new.action, 'audit_event_id', new.id));
+  return null;
+end $$;
+create trigger audit_events_export_read after insert on crm.audit_events for each row
+  when (new.action like '%.exported' and new.action <> 'subject_request.exported')
+  execute function crm.audit_events_export_read();
+
 /** UX-02: límite de frecuencia de la búsqueda, por persona. Cuenta sus búsquedas del último minuto sin dejarle leer el registro. */
 create or replace function app.search_allowed() returns boolean
 language sql stable security definer set search_path = audit, crm, app, pg_catalog as $$

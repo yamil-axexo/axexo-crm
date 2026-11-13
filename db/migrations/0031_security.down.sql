@@ -39,9 +39,11 @@ drop trigger if exists leads_stamp_agency on crm.leads;
 drop trigger if exists deals_stamp_agency on crm.deals;
 drop trigger if exists leads_consent_row on crm.leads;
 drop trigger if exists audit_events_stamp on crm.audit_events;
+drop trigger if exists audit_events_export_read on crm.audit_events;
 drop function if exists crm.stamp_agency();
 drop function if exists crm.lead_consent_row();
 drop function if exists crm.audit_events_stamp();
+drop function if exists crm.audit_events_export_read();
 
 create or replace function crm.audit_events_immutable() returns trigger
 language plpgsql as $$
