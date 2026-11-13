@@ -48,7 +48,8 @@ export default async function AccountDocumentsPage({ params, searchParams }: { p
                 {deals.map((d) => <Link key={d.id} href={`/comercios/${id}/documentos?tipo=${kind}&negocio=${d.id}`} aria-current={d.id === dealId ? 'page' : undefined} className={`inline-flex min-h-11 items-center underline ${d.id === dealId ? 'font-semibold text-strong' : 'text-blue-text'}`}>{d.title}</Link>)}
               </nav>
             )}
-            <ActionForm action={generateDocumentAction} className="mt-4 space-y-4" testId="documents-form">
+            {/* La llave rearma el formulario al cambiar de tipo o de negocio: el borrador nuevo reemplaza al anterior. */}
+            <ActionForm key={`${kind}:${draft.dealId ?? ''}`} action={generateDocumentAction} className="mt-4 space-y-4" testId="documents-form">
               <input type="hidden" name="account_id" value={id} />
               <input type="hidden" name="kind" value={kind} />
               <input type="hidden" name="deal_id" value={draft.dealId ?? ''} />

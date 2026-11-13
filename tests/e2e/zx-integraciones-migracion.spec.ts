@@ -69,6 +69,8 @@ test.describe('convivencia con Pipedrive y lo reconstruido', () => {
     await expect(page.getByTestId('off-MX')).toHaveCount(0)
     await expect(cut.getByTestId('cutover-MX').getByTestId('criterion-freeze')).toContainText('falta correr la última sincronización')
     await expect(page.getByTestId('freeze-MX')).toHaveText('Descongelar')
+    // El formulario ignora un segundo envío justo después de guardar (protección contra doble clic): se espera ese momento.
+    await page.waitForTimeout(800)
     await page.getByTestId('freeze-MX').click() // descongelar
     await expect(cut.getByTestId('cutover-MX')).toContainText('Conviven los dos')
 
