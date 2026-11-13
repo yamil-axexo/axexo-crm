@@ -300,12 +300,12 @@ export type EvalOutcome = { target: 'rules' | 'adapter'; total: number; passed: 
 
 /** La respuesta de las reglas a un caso. Es lo que hoy usa CONTIGO y lo que el modelo tendría que igualar o mejorar. */
 export function rulesAnswer(c: Pick<EvalCase, 'feature' | 'input'>): string {
-  const i = c.input as Record<string, never>
+  const i = c.input as Record<string, string & number & boolean>
   switch (c.feature) {
     case 'lead_class':
       return classifyLead({ status: i.status ?? 'new', motor: i.motor, accountType: i.account_type, message: i.message }).cls ?? 'none'
     case 'next_action':
-      return topAction({ lifecycle: i.lifecycle, daysSinceCreated: i.days_since_created, firstTxn: !!i.first_txn, daysQuiet: i.days_quiet ?? 0, txnNow: i.txn_now, txnBefore: i.txn_before, revisit: !!i.revisit })
+      return topAction({ lifecycle: String(i.lifecycle ?? ''), daysSinceCreated: i.days_since_created, firstTxn: !!i.first_txn, daysQuiet: i.days_quiet ?? 0, txnNow: i.txn_now, txnBefore: i.txn_before, revisit: !!i.revisit })
     case 'metric_question':
       return matchQuestion(String(i.q ?? ''))
     case 'capture': {

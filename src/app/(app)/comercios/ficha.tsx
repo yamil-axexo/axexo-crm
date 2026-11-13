@@ -28,6 +28,8 @@ import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSectio
 import { FichaFacts, FichaMercados } from './ficha-mercados'
 import { fichaRole, readerTeam } from '@/lib/markets'
 import { rolesIn } from '@/domain/policy'
+import { AccountNextActions } from '@/app/(app)/asistencia/panels'
+import { DictationField } from '@/ui/dictation'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
@@ -300,7 +302,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <input type="hidden" name="account_id" value={a.id} />
                 <input type="hidden" name="kind" value="note" />
                 <Field label={t('¿Qué pasó?', 'What happened?')}><input name="subject" className="input" required minLength={2} data-testid="note-subject" /></Field>
-                <Field label={t('Detalle (opcional)', 'Details (optional)')}><textarea name="body" rows={3} className="input !h-auto py-3" /></Field>
+                <DictationField name="body" label={t('Detalle (opcional)', 'Details (optional)')} locale={locale} testId="note-body" />
                 <div className="flex justify-end"><Submit testId="note-add">{t('Guardar nota', 'Save note')}</Submit></div>
               </ActionForm>
             </Dialog>
@@ -347,6 +349,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
         ))}
       </nav>
 
+      {tab === 'hilo' && !a.archived_at && <AccountNextActions ctx={ctx} accountId={a.id} market={a.market_code} />}
       {tab === 'hilo' && (
         <div data-testid="account-timeline">
           {tasks.length + timeline.length === 0 ? (

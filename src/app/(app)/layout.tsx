@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { after } from 'next/server'
 import { tickJobs } from '@/server/jobs/runner'
-import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, GitPullRequestArrow, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
+import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, GitPullRequestArrow, ListFilter, LifeBuoy, Lightbulb, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -83,6 +83,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ...create,
     ...(ctx.can('board.supervisor') ? [{ href: '/supervisor', label: m('top.team') }] : []),
     ...(ctx.can('report.gallery') ? [{ href: '/reportes', label: t('Reportes', 'Reports') }] : []),
+    ...(ctx.can('ia.read') || ctx.can('ia.ask') ? [{ href: '/asistencia', label: t('Asistencia', 'Assistance') }] : []),
     ...(ctx.can('board.lt') ? [{ href: '/panel-lt', label: m('top.leadership') }] : []),
     ...(showAdmin ? [{ href: '/admin', label: m('top.admin') }] : []),
     ...(ctx.can('security.read') || ctx.can('access.manage') ? [{ href: '/admin/seguridad', label: t('Seguridad', 'Security') }] : []),
@@ -142,6 +143,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                   ))}
                 </div>
               )}
+              {(ctx.can('ia.read') || ctx.can('ia.ask')) && <Link href="/asistencia" role="menuitem" className={menuLink} data-testid="nav-assist"><Lightbulb size={20} strokeWidth={1.75} aria-hidden />{t('Asistencia', 'Assistance')}</Link>}
               {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {/* Quien administra llega a estas dos pantallas desde Administración: su menú ya no cabe en un teléfono con más entradas. */}

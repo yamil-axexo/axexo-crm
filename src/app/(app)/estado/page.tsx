@@ -30,6 +30,7 @@ import { gobiernoAdapterStatus } from '@/server/gobierno-status'
 import { tracesAdapter } from '@/server/adapters/traces'
 import { billingAdapter } from '@/server/adapters/billing'
 import { OBJECTIVE_LABEL, msText } from '@/lib/gobierno-labels'
+import { aiStatus } from '@/server/adapters/ai'
 
 export const dynamic = 'force-dynamic'
 
@@ -136,6 +137,12 @@ export default async function StatusPage() {
       state: adConv.mode === 'off' ? { tone: 'neutral', text: t('Canal apagado', 'Channel off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`Las conversiones se guardan en cola y no sale nada. Para encenderlo hace falta, por plataforma, la cuenta de anuncios y su credencial, la aprobación de tecnología y la variable ${adConv.envVar}.`, `Conversions are queued and nothing leaves. Turning it on needs, per platform, the ad account and its credential, technology approval and the ${adConv.envVar} variable.`),
     },
+    // Paquete ia: el modelo de IA, la lectura de documentos y el servidor MCP, apagados y con lo que falta para encenderlos.
+    ...aiStatus().map((x) => ({
+      key: x.key, name: t(...x.name), what: t('Asistencia (dominio IA)', 'Assistance (AI domain)'),
+      state: x.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn' as Tone, text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: `${t(...x.needs)} ${t('Variable', 'Variable')}: ${x.envVar}.`,
+    })),
     {
       key: 'outbox',
       name: t('Eventos para otros sistemas', 'Events for other systems'),

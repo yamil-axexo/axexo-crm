@@ -22,6 +22,7 @@ import { buttonClass } from '@/ui/kit'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { LeadAnswers } from '../answers'
+import { LeadScoreCard } from '@/app/(app)/asistencia/panels'
 
 export default async function LeadPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ comercio?: string | string[] }> }) {
   const ctx = await requireCtx()
@@ -327,6 +328,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               </div>
             </Card>
           )}
+          <LeadScoreCard ctx={ctx} leadId={lead.id} canWork={canWork && (mine || !lead.owner_id || canAssign)} />
           <LeadAnswers ctx={ctx} leadId={lead.id} />
           <LeadEmbudoPanel ctx={ctx} leadId={lead.id} canWork={canWork && (mine || !lead.owner_id || canAssign)} search={linkSearch} />
           <Card data-testid="lead-owner">
