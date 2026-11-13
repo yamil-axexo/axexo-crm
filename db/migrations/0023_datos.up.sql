@@ -298,7 +298,6 @@ alter table crm.field_definitions
   add column decision     text check (decision is null or char_length(decision) <= 400),
   add column review_on    date,
   add column pii_class    text not null default 'none' check (pii_class in ('none','personal','sensitive')),
-  add column untrusted    boolean not null default false,
   add column origin       text check (origin is null or char_length(origin) <= 200),
   add column used_by      text check (used_by is null or char_length(used_by) <= 200),
   add column status       text not null default 'approved' check (status in ('proposed','approved','rejected')),
@@ -307,7 +306,8 @@ alter table crm.field_definitions
   add column decided_by   uuid references crm.users(id),
   add column decided_at   timestamptz,
   add column decision_note text check (decision_note is null or char_length(decision_note) <= 400);
--- Lo que llegó de Pipedrive entró sin revisión: se marca como dato de origen externo sin validar.
+-- La marca "llega de fuera sin validar" es la columna untrusted de 0021_events_api (una sola marca por campo): aquí se le
+-- suma el origen. Lo que llegó de Pipedrive entró sin revisión: se marca como dato de origen externo sin validar.
 update crm.field_definitions set untrusted = true, origin = 'Pipedrive' where source = 'pipedrive';
 -- Y lo que llegue después por la importación entra igual: marcado, sin decisión, a la vista de "sin decisión documentada".
 create or replace function crm.field_imported_flag() returns trigger

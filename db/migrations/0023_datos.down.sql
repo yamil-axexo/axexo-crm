@@ -24,9 +24,11 @@ drop function if exists crm.field_imported_flag();
 drop policy if exists field_definitions_lead_propose on crm.field_definitions;
 delete from crm.field_definitions where status <> 'approved';
 alter table crm.field_definitions drop constraint if exists field_definitions_proposed_inactive;
+-- La marca untrusted es de 0021_events_api: vuelve a decir solo lo que decía antes de este paquete (texto libre).
+update crm.field_definitions set untrusted = (data_type = 'text') where untrusted is distinct from (data_type = 'text');
 alter table crm.field_definitions
   drop column if exists owner_id, drop column if exists purpose, drop column if exists decision, drop column if exists review_on,
-  drop column if exists pii_class, drop column if exists untrusted, drop column if exists origin, drop column if exists used_by,
+  drop column if exists pii_class, drop column if exists origin, drop column if exists used_by,
   drop column if exists status, drop column if exists proposed_by, drop column if exists proposed_at, drop column if exists decided_by,
   drop column if exists decided_at, drop column if exists decision_note;
 alter table crm.field_definitions add column untrusted boolean generated always as (data_type = 'text') stored;
