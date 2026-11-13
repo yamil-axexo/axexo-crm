@@ -36,6 +36,15 @@ Idempotent by `event_id`: the second delivery returns `{"status":"duplicate"}` a
 ```
 Effect: the visit appears on the merchant timeline (read-only). `revisit: true` flags the open deal for a decision-maker revisit, due two days after `business_date`. `decision_maker_present: true` clears it. An unknown `customer_id` is stored, answered with `{"status":"unmatched"}` and placed in the exception queue.
 
+Decision-maker revisit (optional fields, added 13-nov-2026, package `embudo`, catalog PIPE-05). `data` may also carry
+`"revisit_due": "YYYY-MM-DD"` and `"decision_maker_contact": { "name": "…", "role": "owner | decision_maker | manager", "phone": "optional", "best_time": "optional, up to 120 characters" }`.
+With `revisit: true` CONTIGO also creates one revisit task (a planned visit) dated `revisit_due` (or two days after
+`business_date`), owned by whoever owns the open deal, the merchant or, failing both, the visitor; the task is created even
+when the merchant has no open deal. The decision-maker is saved as a contact of the merchant (matched by phone or name, never
+duplicated). A `rejection_reason` that is not in the reason catalog is no longer dropped in silence: it is counted in
+`crm.unknown_reason_codes` and shown in Administration. The catalog and its version are published in `GET /api/v1/catalogs`
+(`loss_reasons`, `reason_catalog.version`).
+
 Visits logged by hand in CONTIGO (while this feed is not connected): a hand-logged visit stops counting in Mi equipo when a `visit.checked_out` arrives for the same merchant and the same `business_date`. Both stay in the merchant thread, each labeled with its origin. Nothing has to be cleaned up when the feed is turned on (`crm.visit_log`, migration `0010_field_work`).
 
 ## `store.created`
