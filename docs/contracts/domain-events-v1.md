@@ -23,7 +23,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 - Any 2xx is success. Anything else is retried after 1, 5, 30 and 120 minutes; the fifth failure moves the delivery to dead letters, where an administrator can resend it.
 - At-least-once: a subscriber can receive the same event twice and must discard repeats by `id`.
 
-## Catalog (229 events)
+## Catalog (243 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -45,6 +45,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `account.milestone_corrected` | 1 | Corrected a merchant’s sales milestone. | `changed` (string[]), `actor_id` (uuid) |
 | `account.origin_set` | 1 | Set a merchant’s origin. | `changed` (string[]), `actor_id` (uuid) |
 | `account.owner_by_territory` | 1 | A store went to its territory manager. | `changed` (string[]), `actor_id` (uuid) |
+| `account.owner_followed_parent` | 1 | The merchant took the owner of the record above. | `changed` (string[]), `actor_id` (uuid) |
 | `account.parent_changed` | 1 | Changed a merchant’s parent. | `changed` (string[]), `actor_id` (uuid) |
 | `account.product_set` | 1 | Changed a merchant’s product or its provider status. | `changed` (string[]), `actor_id` (uuid) |
 | `account.profile_set` | 1 | Changed a merchant’s entity, business unit or time zone. | `changed` (string[]), `actor_id` (uuid) |
@@ -68,6 +69,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `activity.added` | 1 | Logged an activity. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.comm_captured` | 1 | Logged an email, a meeting or a message in the thread. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.completed` | 1 | Completed an activity. | `changed` (string[]), `actor_id` (uuid) |
+| `activity.custom_updated` | 1 | Edited an activity’s additional fields. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.revisit_scheduled` | 1 | Scheduled the revisit to the decision-maker. | `changed` (string[]), `actor_id` (uuid) |
 | `agency.created` | 1 | Created an agency. | `changed` (string[]), `actor_id` (uuid) |
 | `agency.labels_set` | 1 | Changed who counts as an agency. | `changed` (string[]), `actor_id` (uuid) |
@@ -86,7 +88,11 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `competitor.added` | 1 | Added a competitor to the list. | `changed` (string[]), `actor_id` (uuid) |
 | `competitor.observed` | 1 | Recorded competition at a store. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.added` | 1 | Added a contact. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.custom_updated` | 1 | Edited a contact’s additional fields. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.ended` | 1 | Removed a contact from an account. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.merge_undone` | 1 | Undid a contact merge. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.merged` | 1 | Merged a duplicate contact. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.pair_dismissed` | 1 | Marked two contacts as different people. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.primary_set` | 1 | Changed the primary contact. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.updated` | 1 | Edited a contact. | `changed` (string[]), `actor_id` (uuid) |
 | `contract.created` | 1 | Created a contract from the terms. | `changed` (string[]), `actor_id` (uuid) |
@@ -133,12 +139,18 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `entity.updated` | 1 | Edited a legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `exception.dismissed` | 1 | Dismissed an alert. | `changed` (string[]), `actor_id` (uuid) |
 | `exception.scheduled` | 1 | Handled an alert with a next step. | `changed` (string[]), `actor_id` (uuid) |
+| `expansion.deal_opened` | 1 | Opened an expansion deal. | `changed` (string[]), `actor_id` (uuid) |
 | `field.approved` | 1 | Approved a proposed field. | `changed` (string[]), `actor_id` (uuid) |
+| `field.converted_to_list` | 1 | Turned a text field into a list. | `changed` (string[]), `actor_id` (uuid) |
 | `field.created` | 1 | Created a field. | `changed` (string[]), `actor_id` (uuid) |
+| `field.overlap_decided` | 1 | Decided whether a US field matches an imported one. | `changed` (string[]), `actor_id` (uuid) |
+| `field.promotion_closed` | 1 | Closed a request to promote a field to a column. | `changed` (string[]), `actor_id` (uuid) |
+| `field.promotion_requested` | 1 | Requested promoting a field to a column. | `changed` (string[]), `actor_id` (uuid) |
 | `field.proposed` | 1 | Proposed a new field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.rejected` | 1 | Rejected a proposed field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.restored` | 1 | Restored a field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.retired` | 1 | Retired a field. | `changed` (string[]), `actor_id` (uuid) |
+| `field.schema_set` | 1 | Changed a field’s value rules. | `changed` (string[]), `actor_id` (uuid) |
 | `field.section_set` | 1 | Moved a field to another section. | `changed` (string[]), `actor_id` (uuid) |
 | `field.updated` | 1 | Edited a registry field. | `changed` (string[]), `actor_id` (uuid) |
 | `form.campaign_set` | 1 | Changed a form’s campaign group, channel or company types. | `changed` (string[]), `actor_id` (uuid) |
@@ -153,6 +165,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `lead.created` | 1 | A lead came in. | `source` (string), `motor` (string) |
 | `lead.disqualified` | 1 | Disqualified a lead. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.escalated` | 1 | Escalated a lead with no first contact. | `changed` (string[]), `actor_id` (uuid) |
+| `lead.held` | 1 | Held a request nobody could take. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.label_created` | 1 | Added a lead label. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.labels_changed` | 1 | Changed a lead’s labels. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.linked_to_account` | 1 | Linked a lead to an existing merchant. | `changed` (string[]), `actor_id` (uuid) |
@@ -210,6 +223,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `process.list_created` | 1 | Created a process list. | `changed` (string[]), `actor_id` (uuid) |
 | `process.list_toggled` | 1 | Turned a process list on or off. | `changed` (string[]), `actor_id` (uuid) |
 | `process.status_changed` | 1 | Changed a merchant’s status on a process list. | `changed` (string[]), `actor_id` (uuid) |
+| `product.entity_set` | 1 | Changed a product’s legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `product.provider_set` | 1 | Changed a product’s provider. | `changed` (string[]), `actor_id` (uuid) |
 | `provider.sla_set` | 1 | Changed a provider’s response deadline. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.assignment_rule_changed` | 1 | Changed the cap of an assignment rule. | `changed` (string[]), `actor_id` (uuid) |
@@ -527,6 +541,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `cost.voided` | Voided a cost | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `csv_import.completed` | Imported a file | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `csv_import.undone` | Undid an import | It is a historical or file load: each record created emits its own event; the run itself does not. |
+| `decision.set` | Changed a business decision | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `deployment.recorded` | Recorded a deployment | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `document.emailed` | Emailed a document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `document.generated` | Generated a document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
@@ -586,6 +601,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `load.window_set` | Changed a market’s no-load window | It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not. |
 | `maintenance.closed` | Closed a maintenance window | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `maintenance.scheduled` | Scheduled a maintenance window | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `market.reset_blocked` | Tried to wipe and reload a market in production | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `market.reset_test` | Wiped and reloaded a test market | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `material.removed` | Removed a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `material.saved` | Saved a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |

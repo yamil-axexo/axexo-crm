@@ -31,7 +31,7 @@ export const DECISIONS: DecisionDef[] = [
     key: 'lead.no_owner',
     item: 'E3.F10',
     label: ['Lead que nadie puede tomar', 'Lead nobody can take'],
-    help: ['Si las reglas de reparto no le dan dueño a un lead: pasa a quien lidera el mercado, o se rechaza. En los dos casos, si tampoco hay líder, el formulario no crea el lead y la solicitud queda guardada en Leads retenidos.', 'If the routing rules give a lead no owner: it goes to the market lead, or it is refused. Either way, if there is no lead either, the form does not create the lead and the request is kept in Held leads.'],
+    help: ['Si las reglas de reparto no le dan el lead a nadie: pasa a quien lidera el mercado, o se rechaza. En los dos casos, si tampoco hay líder, el formulario no crea el lead y la solicitud queda guardada en Asignación y embudo, Envíos de formulario retenidos.', 'If the routing rules give the lead to nobody: it goes to the market lead, or it is refused. Either way, if there is no market lead either, the form does not create the lead and the request is kept in Assignment and pipeline, Held form submissions.'],
     owner: 'Martech',
     options: [
       { value: 'market_lead', label: ['Pasa a quien lidera el mercado', 'Goes to the market lead'] },
@@ -43,12 +43,12 @@ export const DECISIONS: DecisionDef[] = [
   {
     key: 'tree.reparent_owner',
     item: 'DAT-01',
-    label: ['Dueño al mover una cuenta en el árbol', 'Owner when a record moves in the tree'],
-    help: ['Al colgar una cuenta de otra: conserva su dueño, o toma el dueño de la cuenta de arriba. El cambio de dueño queda en la bitácora.', 'When a record is placed under another: it keeps its owner, or it takes the owner of the record above. The owner change is logged.'],
+    label: ['Quién lleva la cuenta al moverla en el árbol', 'Owner when a record moves in the tree'],
+    help: ['Al colgar una cuenta de otra: sigue con quien la lleva, o pasa a quien lleva la cuenta de arriba. El cambio queda en la bitácora.', 'When a record is placed under another: it keeps its owner, or it takes the owner of the record above. The owner change is logged.'],
     owner: 'Yamil Alvarez y Comercial',
     options: [
-      { value: 'keep', label: ['Conserva su dueño', 'Keeps its owner'] },
-      { value: 'parent', label: ['Toma el dueño de la cuenta de arriba', 'Takes the owner of the record above'] },
+      { value: 'keep', label: ['Sigue con quien la lleva', 'Keeps its owner'] },
+      { value: 'parent', label: ['Pasa a quien lleva la cuenta de arriba', 'Takes the owner of the record above'] },
     ],
     proposal: { '*': 'keep' },
     perMarket: true,
@@ -57,14 +57,14 @@ export const DECISIONS: DecisionDef[] = [
     key: 'ops.operator_rights',
     item: 'E4.F2',
     label: ['Lo que pueden hacer Ventas y Operaciones', 'What Sales and Operations can do'],
-    help: ['Cambiar el dueño, fusionar duplicados y editar en bloque, sin ser administración. Exportar, importar, borrar y cambiar la configuración siguen siendo de administración.', 'Change owners, merge duplicates and bulk edit, without being an administrator. Exporting, importing, deleting and changing settings stay with administration.'],
+    help: ['Cambiar quién lleva un registro, fusionar duplicados y editar en bloque, sin ser administración. Exportar, importar, borrar y cambiar la configuración siguen siendo de administración.', 'Change owners, merge duplicates and bulk edit, without being an administrator. Exporting, importing, deleting and changing settings stay with administration.'],
     owner: 'Martech',
     options: [
       { value: 'on', label: ['Pueden', 'Allowed'] },
       { value: 'off', label: ['No pueden', 'Not allowed'] },
     ],
-    // Estados Unidos: confirmado en el requerimiento E4.F2. Los demás mercados: propuesto, cerrado hasta que se decida.
-    proposal: { US: 'on', '*': 'off' },
+    // Conservador: cerrado en todos los mercados hasta que Martech lo encienda (en Estados Unidos el requerimiento ya está confirmado).
+    proposal: { '*': 'off' },
     perMarket: true,
   },
   {

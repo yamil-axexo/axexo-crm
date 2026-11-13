@@ -506,10 +506,11 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
 $$;
 
 -- ================================================================ E4.F2 cambiar dueño, fusionar y editar en bloque (quien opera)
--- La decisión por mercado vive en crm.decision_settings ('ops.operator_rights'). Valor propuesto: Estados Unidos encendido
--- (confirmado en el requerimiento E4.F2), los demás apagado. Se guarda como fila para que la base y la aplicación lean lo mismo.
+-- La decisión por mercado vive en crm.decision_settings ('ops.operator_rights'). Valor propuesto conservador: apagado en todos
+-- los mercados hasta que Martech lo encienda (en Estados Unidos el requerimiento está confirmado: encenderlo es un clic en
+-- Administración, Decisiones de negocio). Se guarda como fila para que la base y la aplicación lean lo mismo.
 insert into crm.decision_settings (key, market_code, value, proposed, owner_label)
-select 'ops.operator_rights', code, to_jsonb(case when code = 'US' then 'on' else 'off' end), true, 'Martech' from crm.markets
+select 'ops.operator_rights', code, to_jsonb('off'::text), true, 'Martech' from crm.markets
 on conflict do nothing;
 
 -- Mercados donde la persona (Ventas, Operaciones o Finanzas) puede cambiar dueños y fusionar.

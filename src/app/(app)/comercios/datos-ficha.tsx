@@ -5,7 +5,7 @@ import { PRODUCT_STATUSES } from '@/domain/gobierno'
 import { Badge, Field, KeyVal, NoData, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CopyButton } from '@/ui/confirm'
-import { ago, day, money, num } from '@/lib/format'
+import { ago, day, isoDay, money, num } from '@/lib/format'
 import { CONTACT_ROLE, lab } from '@/lib/labels'
 import { PRODUCT_STATUS, PRODUCT_TONE, SURVIVOR_LABEL, contactRolesFor } from '@/lib/datos-labels'
 import { addAliasAction, closeAliasAction, endContactAction, setAccountProductAction, setProcessStatusAction, undoMergeAction, updateContactAction } from '@/app/(app)/datos/actions'
@@ -28,7 +28,7 @@ export function TreeTotals({ ctx, totals, moves, tz, accountId, asOf = null }: {
         <form method="get" action={`/comercios/${accountId}`} className="flex flex-wrap items-end gap-2" data-testid="tree-asof">
           <input type="hidden" name="tab" value="arbol" />
           <label className="text-[13px] text-muted">{t('Ver cómo estaba el día', 'See how it stood on')}
-            <input type="date" name="al" defaultValue={asOf ?? ''} max={new Date().toISOString().slice(0, 10)} className="input mt-1 !w-auto" data-testid="tree-asof-date" /></label>
+            <input type="date" name="al" defaultValue={asOf ?? ''} max={isoDay(new Date(), tz)} className="input mt-1 !w-auto" data-testid="tree-asof-date" /></label>
           <button type="submit" className="press inline-flex min-h-11 items-center rounded-full border border-line px-4 text-[13px] font-medium text-strong" data-testid="tree-asof-go">{t('Ver', 'Show')}</button>
           {asOf && <a href={`/comercios/${accountId}?tab=arbol`} className="inline-flex min-h-11 items-center text-[13px] font-medium text-blue-text underline">{t('Volver a hoy', 'Back to today')}</a>}
         </form>

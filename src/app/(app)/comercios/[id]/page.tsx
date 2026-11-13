@@ -16,7 +16,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const sp = flat(await searchParams)
   const tab = fichaTab(sp.tab)
   // DAT-01: "al" (AAAA-MM-DD, hoy o antes) muestra lo que sumaba el árbol ese día.
-  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(sp.al ?? '') && sp.al! <= new Date().toISOString().slice(0, 10) ? sp.al! : null
+  // Un día futuro no cambia nada: las cifras de un día que no llegó son las de hoy (app.node_totals).
+  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(sp.al ?? '') ? sp.al! : null
   const href = (to: string, t?: FichaTab) => `/comercios/${to}${t && t !== 'hilo' ? `?tab=${t}` : ''}`
   return (
     <div className="mx-auto max-w-[720px]">

@@ -446,7 +446,10 @@ describe('E3.F10 · el formulario no crea un lead sin dueño', () => {
 })
 
 describe('E4.F2 · quien opera no administra; cambiar dueño, fusionar y editar en bloque por mercado; rol de Finanzas', () => {
-  it('en Estados Unidos (confirmado) Ventas cambia dueños y fusiona; en México sigue cerrado hasta que se decida', async () => {
+  it('con la decisión encendida en Estados Unidos, Ventas cambia dueños y fusiona; en México sigue cerrado', async () => {
+    const nora0 = await ctxFor('nora.salas')
+    expect((await ctxFor('jade.kim')).can('operator.reassign', 'US')).toBe(false)
+    await setDecision(nora0, { key: 'ops.operator_rights', market: 'US', value: 'on', confirmed: false })
     const jade = await ctxFor('jade.kim')
     const lucia = await ctxFor('lucia.vega')
     expect(jade.can('operator.reassign', 'US')).toBe(true)
@@ -472,6 +475,7 @@ describe('E4.F2 · quien opera no administra; cambiar dueño, fusionar y editar 
   it('existe el rol de Finanzas: edita y lee sus reportes en su mercado, sin administrar ni exportar', async () => {
     const uid = await one(admin<{ id: string }[]>`insert into crm.users (email, full_name, locale) values (${`finanzas.${tag()}@contigo.test`}, 'Persona Finanzas', 'es') returning id`)
     await admin`insert into crm.memberships (user_id, market_code, role) values (${uid.id}, 'US', 'finance')`
+    await setDecision(await ctxFor('nora.salas'), { key: 'ops.operator_rights', market: 'US', value: 'on', confirmed: false })
     const fin = (await loadCtx(uid.id, 'es'))!
     expect(fin.can('report.finance', 'US')).toBe(true)
     expect(fin.can('account.edit', 'US')).toBe(true)
