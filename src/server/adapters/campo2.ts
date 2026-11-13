@@ -42,11 +42,11 @@ export async function deliverFeedbackDigest(_digest: { id: string; total: number
 
 export type AcademyProgress = { externalId: string; partnerAccountId: string; materialId: string; learnerRef: string; progressPct: number; completedOn: string | null }
 /** CANAL-06: avance por aliado y material. Apagado: no trae nada. Simulado: avance fijo por par, siempre el mismo. */
-export async function pullAcademyProgress(pairs: { partnerAccountId: string; materialId: string }[], today: string): Promise<AcademyProgress[] | null> {
+export async function pullAcademyProgress(pairs: { partnerAccountId: string; materialId: string; today: string }[]): Promise<AcademyProgress[] | null> {
   if (campo2Mode('academy_progress') === 'off') return null
   return pairs.map((p, i) => {
     const pct = [40, 100, 70][i % 3]!
-    return { externalId: `sim-${p.partnerAccountId.slice(0, 8)}-${p.materialId.slice(0, 8)}`, partnerAccountId: p.partnerAccountId, materialId: p.materialId, learnerRef: 'aliado-1', progressPct: pct, completedOn: pct === 100 ? today : null }
+    return { externalId: `sim-${p.partnerAccountId.slice(0, 8)}-${p.materialId.slice(0, 8)}`, partnerAccountId: p.partnerAccountId, materialId: p.materialId, learnerRef: 'aliado-1', progressPct: pct, completedOn: pct === 100 ? p.today : null }
   })
 }
 

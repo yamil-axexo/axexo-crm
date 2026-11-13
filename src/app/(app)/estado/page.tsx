@@ -60,7 +60,7 @@ export default async function StatusPage() {
   // Cómo se gana cada embudo y quién cambió esa regla por última vez (queda en la bitácora con cuántos negocios abiertos tocó).
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
-  // Paquete campo2: valores con los que arrancó CONTIGO y que esperan a su dueño.
+  // Paquete campo2: valores con los que arrancó CONTIGO y que esperan confirmación.
   const proposed = await proposedValues(ctx)
   const routes = routesAdapter()
   // GOB-07: objetivos de servicio medidos, de los últimos 30 días. El detalle y los registros viven en Administración, Gobierno.
@@ -398,7 +398,7 @@ export default async function StatusPage() {
             </ul>
           </Card>
           <Card data-testid="status-proposed">
-            <CardTitle title={t('Valores propuestos', 'Proposed values')} hint={t('CONTIGO arrancó con estos valores para poder funcionar. Son una propuesta: cada uno espera a su dueño y se cambia en Campo y canales.', 'CONTIGO started with these values so it can work. They are a proposal: each one waits for its owner and is changed under Field and channels.')} />
+            <CardTitle title={t('Valores propuestos', 'Proposed values')} hint={t('CONTIGO arrancó con estos valores para poder funcionar. Son una propuesta: cada uno espera a quien tiene que confirmarlo y se cambia en Campo y canales.', 'CONTIGO started with these values so it can work. They are a proposal: each one waits for its owner and is changed under Field and channels.')} />
             {proposed.length === 0 ? <p className="text-[13.5px] text-muted-2">{t('Todos los valores están confirmados.', 'All values are confirmed.')}</p> : (
               <ul>
                 {[...new Set(proposed.map((x) => x.key))].map((k) => {

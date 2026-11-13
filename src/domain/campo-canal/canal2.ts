@@ -225,12 +225,11 @@ export async function recordEnablementProgress(ctx: Ctx, raw: Record<string, str
 
 /** Tarea programada: trae el avance de Kore Academy si la conexión está encendida. Apagada: no hace nada y lo dice. */
 export async function syncAcademyProgressTx(tx: Tx): Promise<{ done: number; note: string }> {
-  const pairs = await tx<{ partnerAccountId: string; materialId: string; market_code: string }[]>`
-    select pp.account_id as "partnerAccountId", e.id as "materialId", pp.market_code
+  const pairs = await tx<{ partnerAccountId: string; materialId: string; market_code: string; today: string }[]>`
+    select pp.account_id as "partnerAccountId", e.id as "materialId", pp.market_code, ${marketToday(tx, tx`pp.market_code`)}::text as today
       from crm.partner_profiles pp join crm.partner_enablement e on e.market_code = pp.market_code and e.tier_code = pp.tier_code and e.is_active
      where pp.ended_at is null`
-  const today = new Date().toISOString().slice(0, 10)
-  const rows = await pullAcademyProgress(pairs, today)
+  const rows = await pullAcademyProgress(pairs)
   if (!rows) return { done: 0, note: 'academy_progress adapter off' }
   let n = 0
   for (const r of rows) {

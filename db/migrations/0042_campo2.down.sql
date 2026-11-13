@@ -37,7 +37,7 @@ begin
     select a.id, a.market_code, (now() at time zone mk.timezone)::date as today, c.service_tier, st.health_decay_days as decay,
            m.as_of as m_as_of, m.txn_count_30d as txn, m.active_days_30d as d,
            (select avg(h.txn_count_30d)::numeric from crm.merchant_metrics_daily h where h.account_id = a.id and h.as_of between m.as_of - 120 and m.as_of - 28) as baseline,
-           s.as_of as s_as_of, s.balance_minor, s.product_count_30d, s.open_tickets, s.urgent_tickets, st.low_balance_minor,
+           s.as_of as s_as_of, bl.balance_minor, bl.as_of as b_as_of, s.product_count_30d, s.open_tickets, s.urgent_tickets, st.low_balance_minor,
            w.risk_below, w.habit_at
       from crm.accounts a
       join crm.markets mk on mk.code = a.market_code
@@ -46,12 +46,14 @@ begin
       cross join lateral app.lifecycle_window(a.market_code, c.product_line) w
       join lateral (select x.* from crm.merchant_metrics_daily x where x.account_id = a.id order by x.as_of desc limit 1) m on true
       left join lateral (select x.* from crm.care_signals x where x.account_id = a.id order by x.as_of desc limit 1) s on true
+      left join crm.account_balance_latest bl on bl.account_id = a.id
      where a.archived_at is null and a.merged_into is null and a.lifecycle in ('active','at_risk','inactive')
        and (p_market is null or a.market_code = p_market)
   ), sig as (
     select b.*,
            greatest(0, 1 - greatest(0, b.today - b.m_as_of - 2)::numeric / b.decay) as m_fresh,
            case when b.s_as_of is null then null else greatest(0, 1 - greatest(0, b.today - b.s_as_of - 2)::numeric / b.decay) end as s_fresh,
+           case when b.b_as_of is null then null else greatest(0, 1 - greatest(0, b.today - b.b_as_of - 2)::numeric / b.decay) end as b_fresh,
            -- transacciones: contra su propia línea base si la hay; si no, contra el umbral de hábito del mercado
            least(1, case when b.baseline is not null and b.baseline > 0 then b.txn / b.baseline else b.d::numeric / b.habit_at end) as v_txn,
            case when b.product_count_30d is null then null else least(1, b.product_count_30d / 3.0) end as v_mix,
@@ -60,9 +62,9 @@ begin
       from base b
   ), parts as (
     select g.id, g.market_code, g.today, g.service_tier, cfg.grp, cfg.weight,
-           case cfg.grp when 'transactions' then g.v_txn * g.m_fresh when 'mix' then g.v_mix * g.s_fresh when 'tickets' then g.v_tickets * g.s_fresh else g.v_balance * g.s_fresh end as v,
+           case cfg.grp when 'transactions' then g.v_txn * g.m_fresh when 'mix' then g.v_mix * g.s_fresh when 'tickets' then g.v_tickets * g.s_fresh else g.v_balance * g.b_fresh end as v,
            case cfg.grp when 'transactions' then case when g.baseline is not null and g.baseline > 0 then 'vs_baseline' else 'vs_habit' end else 'signal' end as basis,
-           case cfg.grp when 'transactions' then g.m_as_of else g.s_as_of end as data_as_of,
+           case cfg.grp when 'transactions' then g.m_as_of when 'balance' then g.b_as_of else g.s_as_of end as data_as_of,
            case cfg.grp when 'transactions' then g.txn::numeric when 'mix' then g.product_count_30d::numeric when 'tickets' then g.open_tickets::numeric else g.balance_minor::numeric end as raw,
            case when cfg.grp = 'transactions' then round(g.baseline, 1) end as baseline
       from sig g
