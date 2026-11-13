@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
+import { recordStageGaps } from '@/domain/embudo/stage-conditions'
 import { assertNoProhibited } from '@/domain/guard'
 import { invalid, notFound } from '@/lib/errors'
 import { scrub } from '@/domain/pipedrive/mapping'
@@ -270,6 +271,8 @@ export async function archiveStage(ctx: Ctx, stageId: string, moveToStageId: str
       const to = stages.find((x) => x.id === moveToStageId && x.id !== stageId && (x.kind === 'open' || x.kind === 'awaiting_txn'))
       if (!to) throw invalid(`Esta etapa tiene ${deals.length === 1 ? '1 negocio abierto' : `${deals.length} negocios abiertos`}: elige a qué etapa pasan.`, `This stage has ${deals.length === 1 ? '1 open deal' : `${deals.length} open deals`}: choose the stage they move to.`)
       const ids = deals.map((d) => d.id)
+      // PIPE-01: es un movimiento forzado; lo que a un negocio le falte para la etapa nueva queda anotado, no en silencio.
+      await recordStageGaps(tx)
       await tx`update crm.deals set stage_id = ${to.id}, stage_entered_at = now() where id = any(${ids}::uuid[])`
       await tx`insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause)
                select d.id, d.market_code, ${stageId}, ${to.id}, ${ctx.user.id}, 'admin' from crm.deals d where d.id = any(${ids}::uuid[])`
