@@ -8,6 +8,7 @@ import { NoticeForm } from '@/ui/admin'
 import { ago, day, num, phoneText } from '@/lib/format'
 import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
 import { MATCH_KIND, SURVIVOR_LABEL, SURVIVOR_REASON } from '@/lib/datos-labels'
+import { ContactosDuplicados } from './contactos-duplicados'
 import { dismissPairAction, mergePairAction, reviewBypassAction, scanDuplicatesAction, undoMergeAction } from './actions'
 
 /**
@@ -101,7 +102,7 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
 
       <Card pad={false} data-testid="pair-queue">
         <div className="px-5 pt-6 md:px-7 md:pt-7">
-          <CardTitle title={t('Pares por decidir', 'Pairs to decide')} hint={t('Primero los que comparten una llave fuerte: teléfono, correo, o nombre y dirección iguales. Después, los de nombre parecido en la misma ciudad.', 'First the ones that share a strong key: same phone, same email, or same name and address. Then the ones with a similar name in the same city.')} />
+          <CardTitle title={t('Pares por decidir', 'Pairs to decide')} hint={t('Primero los que comparten una llave fuerte: teléfono, correo, identificador fiscal, nombre y dirección, o el mismo lugar con nombre parecido. Después, los de nombre parecido en la misma ciudad.', 'First the ones that share a strong key: same phone, email, tax ID, name and address, or same spot with a similar name. Then the ones with a similar name in the same city.')} />
           {scanMarkets.length > 0 && (
               <NoticeForm action={scanDuplicatesAction} className="mb-5 flex flex-wrap items-end gap-2" testId="scan-form">
                 {scanMarkets.length > 1 ? <select name="market" className="input !w-auto" defaultValue={market ?? scanMarkets[0]!.code} aria-label={t('Mercado donde buscar', 'Market to search')}>{scanMarkets.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select> : <input type="hidden" name="market" value={scanMarkets[0]!.code} />}
@@ -127,6 +128,8 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
         )}
         {totalOpen > d.pairs.length && <p className="border-t border-line px-5 py-4 text-[13px] text-muted md:px-7">{t(`Se muestran ${d.pairs.length} de ${num(totalOpen, locale)}. Al decidir uno, entra el siguiente.`, `Showing ${d.pairs.length} of ${num(totalOpen, locale)}. As you decide one, the next comes in.`)}</p>}
       </Card>
+
+      <ContactosDuplicados ctx={ctx} market={market} />
 
       <Card data-testid="bypass-list">
         <CardTitle title={t('Avisos de duplicado que se saltaron', 'Skipped duplicate warnings')} hint={t('Alguien creó un comercio aunque se parecía a otro y escribió por qué. Aquí se revisa cada uno.', 'Someone created a merchant even though it looked like another one and said why. Each one is reviewed here.')} />

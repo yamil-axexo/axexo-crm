@@ -116,6 +116,21 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
    order by c.created_at limit 1
 $$;
 
+-- Quien cuida los datos del mercado (administración, quien lidera, Operaciones) ve y corrige todos los contactos del mercado,
+-- también los que no cuelgan de una cuenta (personas de Pipedrive sin organización, contactos en espera): si no, no se pueden fusionar.
+create policy contacts_steward_read on crm.contacts for select to contigo_app using (market_code = any((select app.steward_markets())::text[]));
+create policy contacts_steward_upd on crm.contacts for update to contigo_app
+  using (market_code = any((select app.steward_markets())::text[])) with check (market_code = any((select app.steward_markets())::text[]));
+
+-- Lo mínimo de un contacto para comparar un par en la cola, aunque quien revisa no vea sus cuentas.
+create or replace function app.contact_brief(p_id uuid)
+returns table (id uuid, full_name text, phone text, held_phone text, email citext, created_at timestamptz)
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select c.id, c.full_name, c.phone, c.held_phone, c.email, c.created_at from crm.contacts c
+   where c.id = p_id and c.market_code = any(app.my_markets())
+$$;
+grant execute on function app.contact_brief(uuid) to contigo_app;
+
 -- ================================================================ decisiones de negocio con dueño
 -- Un valor que decide otra persona (metas, reglas, plazos): se construye con un valor propuesto conservador, se guarda como dato y
 -- se ve en pantalla como "Valor propuesto, pendiente de <dueño>". `proposed` pasa a falso cuando la persona dueña lo confirma.

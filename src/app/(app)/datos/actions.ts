@@ -5,6 +5,7 @@ import { addAlias, closeAlias, createAliasSystem, dismissPair, endContact, endDe
 import { createMarket, createProcessList, createRoutingRule, createWebForm, decideField, proposeField, setAccountProduct, setProcessListActive, setProcessStatus, setProductProvider,
   saveQualitySnapshot, setProviderSla, setQualityRule, setRoutingRuleActive, setTypeDepth, setWebFormActive, updateField, updateMarket, type GovernanceInput } from '@/domain/gobierno'
 import { setParent } from '@/domain/accounts'
+import { dismissContactPair, mergeContacts, undoContactMerge } from '@/domain/contacts-dedup'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -265,5 +266,31 @@ export async function endDealContactAction(_: R | null, fd: FormData): Promise<R
   return runAction(async (ctx) => {
     await endDealContact(ctx, str(fd, 'deal_id'), str(fd, 'contact_id'))
     return { message: ['Ya no participa en este negocio. Sigue siendo contacto de la cuenta.', 'No longer on this deal. Still a contact of the account.'] }
+  })
+}
+
+// ---------------------------------------------------------------- DAT-02 contactos duplicados (paquete datos2)
+
+export async function mergeContactsAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const a = str(fd, 'a_id')
+    const b = str(fd, 'b_id')
+    const keep = str(fd, 'keep') === b ? b : a
+    await mergeContacts(ctx, keep === a ? b : a, keep)
+    return { message: ['Contactos fusionados. Se puede deshacer desde esta pantalla.', 'Contacts merged. It can be undone from this screen.'] }
+  })
+}
+
+export async function dismissContactPairAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await dismissContactPair(ctx, str(fd, 'pair_id'), str(fd, 'note'))
+    return { message: ['Listo: no son la misma persona. El teléfono en espera sigue guardado en su contacto.', 'Done: they are different people. The held phone stays saved on its contact.'] }
+  })
+}
+
+export async function undoContactMergeAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await undoContactMerge(ctx, str(fd, 'event_id'), str(fd, 'reason'))
+    return { message: ['Fusión deshecha: los dos contactos vuelven a existir por separado.', 'Merge undone: the two contacts exist separately again.'] }
   })
 }
