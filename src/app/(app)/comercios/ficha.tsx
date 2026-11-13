@@ -28,6 +28,8 @@ import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
 import { StoreProviders } from './proveedores'
+import { storeRecord } from '@/dal/store-record'
+import { CarrierPortfolio, SalesFirst, StoreProfileSection } from './tienda-us'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
 import { StagePicker } from '@/ui/ops'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
@@ -173,6 +175,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id) : null
   const canAlias = !a.archived_at && ctx.can('alias.manage', a.market_code)
   const canProducts = !a.archived_at && ctx.can('account.products', a.market_code)
+  // E9: en un mercado con ficha de dealer (US), la ficha abre con ventas e identificadores y lleva los datos de la tienda y sus carriers.
+  const store = market.dealerRecord ? await storeRecord(ctx, a.id, a.market_code) : null
   const contactRoles = contactRolesFor(a.segment, Object.keys(CONTACT_ROLE))
   const config = tab === 'hilo' && canWrite && tasks.length ? sheetConfig(ctx, now) : null
 
@@ -238,6 +242,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             )}
           </p>
         )}
+
+        {store && !isParent && <SalesFirst ctx={ctx} record={store} metrics={metrics} />}
 
         <div className={cx('mt-4 rounded-[12px] px-4 py-3.5', step ? 'bg-green-100' : calm ? 'bg-surface-2' : 'bg-warn-bg')} data-testid="ficha-next" data-state={step ? (stepLate ? 'late' : 'set') : calm ? 'calm' : 'none'}>
           <p className={cx('text-[13px]', step ? 'text-brand-text' : calm ? 'text-muted-2' : 'text-amber-text')}>{m('record.next')}</p>
@@ -500,7 +506,13 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </section>
           )}
 
-          <StoreProviders ctx={ctx} accountId={a.id} />
+          {store ? (
+            <>
+              <StoreProfileSection ctx={ctx} accountId={a.id} record={store} typeName={typeName} territory={a.territory} tz={tz}
+                can={{ ops: canProducts, edit: canEdit, origin: !a.archived_at && ctx.can('account.origin', a.market_code), recruiter: !a.archived_at && ctx.can('account.recruiter', a.market_code) }} />
+              {!isParent && <CarrierPortfolio ctx={ctx} accountId={a.id} record={store} canManage={canProducts} />}
+            </>
+          ) : <StoreProviders ctx={ctx} accountId={a.id} />}
           <AccountOrders ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
 
           <section className={section} data-testid="account-contacts">
@@ -571,7 +583,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             {identity && <AliasSection ctx={ctx} accountId={a.id} identity={identity} canManage={canAlias} canInternal={ctx.can('integration.operate', a.market_code)} tz={tz} />}
           </section>
 
-          {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={identity} canManage={canProducts} />}
+          {/* Con ficha de dealer, el alta con cada operador se lee en su portafolio; aquí quedan los productos. */}
+          {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={store && !isParent ? { ...identity, products: identity.products.filter((p) => p.product_id) } : identity} canManage={canProducts} />}
           {identity && <ProcessSection ctx={ctx} accountId={a.id} identity={identity} canEdit={canEdit} />}
           {identity && <MergeSection ctx={ctx} accountId={a.id} identity={identity} tz={tz} />}
 

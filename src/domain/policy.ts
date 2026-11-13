@@ -112,6 +112,12 @@ export const CAPABILITIES = {
   'data.quality': [...MANAGERS, 'ops'],
   // Matriz de productos por comercio y su estado con cada proveedor: la mantiene Operaciones.
   'account.products': ['admin', 'ops'],
+  // Ficha de dealer (paquete us-ficha, 0031). El origen del comercio y quién lo reclutó se fijan UNA vez: nacen con el alta y,
+  // en los comercios que ya existían sin ese dato, los fija quien dirige (el origen, también Operaciones). Después no cambian.
+  'account.origin': [...MANAGERS, 'ops'],
+  'account.recruiter': MANAGERS,
+  // Agencias y otros socios que reclutan tiendas: los da de alta y de baja administración o quien lidera el mercado.
+  'agency.manage': ['admin', 'market_lead'],
   // México (paquete mx). Mientras las hojas se retiran, quien dirige un equipo carga las visitas que el campo sigue anotando
   // ahí; las tiendas ya migradas (un negocio ganado en su fecha real) las carga quien lidera el mercado o administración.
   'visit.sheet_load': MANAGERS,

@@ -48,6 +48,15 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'deal.contact_role_ended': ['Quitó a una persona de un negocio', 'Removed a person from a deal'],
   'account.product_set': ['Cambió un producto de un comercio o su estado con el proveedor', 'Changed a merchant’s product or its provider status'],
   'provider.sla_set': ['Cambió el plazo de respuesta de un proveedor', 'Changed a provider’s response deadline'],
+  'account.store_profile_set': ['Cambió el número de sitio, el tipo de negocio o los carriers anteriores de una tienda', 'Changed a store’s site number, business type or earlier carriers'],
+  'account.origin_set': ['Fijó el origen de un comercio', 'Set a merchant’s origin'],
+  'account.recruiter_set': ['Fijó quién reclutó una tienda', 'Set who recruited a store'],
+  'account.tax_id_set': ['Cambió los últimos 4 del Tax ID de una tienda', 'Changed the last 4 of a store’s Tax ID'],
+  'account.carrier_detail_set': ['Cambió el detalle de un carrier en una tienda', 'Changed a carrier’s details on a store'],
+  'account.carrier_label_set': ['Cambió el nombre del identificador que da un carrier', 'Changed the name of the ID a carrier issues'],
+  'team.agency_created': ['Agregó una agencia o socio que recluta tiendas', 'Added an agency or partner that recruits stores'],
+  'team.agency_retired': ['Dio de baja una agencia o socio', 'Retired an agency or partner'],
+  'team.agency_restored': ['Reactivó una agencia o socio', 'Restored an agency or partner'],
   'product.provider_set': ['Cambió el proveedor de un producto', 'Changed a product’s provider'],
   'activity.added': ['Registró una actividad', 'Logged an activity'],
   'activity.completed': ['Completó una actividad', 'Completed an activity'],
@@ -241,6 +250,7 @@ export const isAuditGroup = (v: string | undefined): v is AuditGroup => v !== un
 
 /** Tipos de registro por los que se filtra, con su nombre. */
 export const AUDIT_OBJECT: Record<string, Pair> = {
+  agency: ['Agencia o socio', 'Agency or partner'],
   account: ['Comercio', 'Merchant'],
   deal: ['Negocio', 'Deal'],
   lead: ['Lead', 'Lead'],
