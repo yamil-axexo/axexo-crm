@@ -60,7 +60,7 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
               <Field label={t('Tipo de venta', 'Sale type')}><select name="motor" className="input"><option value="">{t('Todos', 'All')}</option>{MOTORS.map((k) => <option key={k} value={k}>{lab(t, MOTOR[k])}</option>)}</select></Field>
               <Field label={t('Opciones (solo para listas), una por renglón', 'Options (lists only), one per line')} className="col-span-2"><textarea name="options" rows={2} className="input !h-auto py-3" /></Field>
               {governance()}
-              <p className="col-span-2 text-[13px] text-muted">{t(`Administración responde en ${d.sla} días hábiles. Mientras tanto el campo no aparece en ninguna ficha.`, `Administration answers within ${d.sla} working days. Until then the field shows on no record.`)}</p>
+              <p className="col-span-2 text-[13px] text-muted">{t(`Administración responde en ${d.sla} días. Mientras tanto el campo no aparece en ninguna ficha.`, `Administration answers within ${d.sla} days. Until then the field shows on no record.`)}</p>
               <div className="col-span-2 flex justify-end"><Submit testId="propose-save">{t('Enviar propuesta', 'Send proposal')}</Submit></div>
             </NoticeForm>
           </Dialog>
@@ -70,7 +70,7 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
       <Card pad={false}>
         <div className="px-5 pt-6 md:px-7 md:pt-7">
           <CardTitle title={t('Registro de campos', 'Field registry')} hint={view === 'propuestos'
-            ? t(`Quien lidera un mercado propone; administración aprueba o rechaza en ${d.sla} días hábiles.`, `Market leads propose; administration approves or rejects within ${d.sla} working days.`)
+            ? t(`Quien lidera un mercado propone; administración aprueba o rechaza en ${d.sla} días.`, `Market leads propose; administration approves or rejects within ${d.sla} days.`)
             : t('Cada campo existe porque habilita una decisión. El uso dice cuántos registros lo traen: un campo que nadie llena se retira.', 'Each field exists because it enables a decision. Usage says how many records carry it: a field nobody fills gets retired.')} />
         </div>
         {d.fields.length === 0 ? (

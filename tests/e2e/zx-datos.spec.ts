@@ -539,3 +539,48 @@ test.describe('datos: productos por comercio (DAT-07)', () => {
     await expect(notice(page)).toContainText('Proveedor del producto actualizado')
   })
 })
+
+test.describe('datos: tres anchos y dos idiomas', () => {
+  test('las secciones de Datos y lo nuevo de la ficha caben a 1440, 1024 y 390, sin hallazgos serios de accesibilidad, también en inglés', async ({ page }) => {
+    const errors = pageErrors(page)
+    const pdv = await idOf('Frontera Wireless Laredo')
+    const suc = await idOf('Súper La Colmena Sucursal Irapuato')
+    await sql`select app.scan_duplicates('MX')`
+    const pair = (await sql<{ id: string }[]>`select id from crm.duplicate_pairs where status = 'open' and market_code = 'MX' order by strong desc, score desc limit 1`)[0]!.id
+    await loginAs(page, 'nora.salas', { stay: true })
+    const pages: [string, string][] = [
+      ['/datos?tab=calidad', 'quality-board'],
+      [`/datos?tab=duplicados&mercado=MX&par=${pair}`, 'pair-compare'],
+      ['/datos?tab=campos', 'fields-tab'],
+      ['/datos?tab=campos&vista=sin-decision', 'registry-table'],
+      ['/datos?tab=productos', 'products-tab'],
+      ['/datos?tab=catalogos', 'catalogs-tab'],
+      [`/comercios/${pdv}?tab=datos`, 'account-products'],
+      [`/comercios/${suc}?tab=datos`, 'account-processes'],
+      [`/comercios/${suc}?tab=arbol`, 'tree-totals'],
+    ]
+    for (const w of WIDTHS) {
+      await page.setViewportSize({ width: w.width, height: w.height })
+      for (const [url, testId] of pages) {
+        await page.goto(url)
+        await expect(page.getByTestId(testId).first()).toBeVisible()
+        await clean(page, `${url} a ${w.width}`)
+        // Capturas para revisar el diseño a ojo (solo si se pide con DATOS_SHOTS; no forman parte de la prueba).
+        if (process.env.DATOS_SHOTS && w.width !== 1024) await page.screenshot({ path: `${process.env.DATOS_SHOTS}/${testId}-${w.width}.png`, fullPage: true })
+      }
+    }
+    // en inglés, las mismas pantallas hablan inglés
+    await page.context().addCookies([{ name: 'contigo_locale', value: 'en', url: page.url() }])
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/datos?tab=catalogos')
+    for (const text of ['Markets and catalogs', 'Web forms', 'Lead rotations', 'ID source systems', 'Tree levels by account type', 'Process lists by market']) await expect(page.locator('main')).toContainText(text)
+    await page.goto(`/datos?tab=duplicados&mercado=MX&par=${pair}`)
+    for (const text of ['Compare the two records', 'Pairs to decide', 'Skipped duplicate warnings', 'Recent merges']) await expect(page.locator('main')).toContainText(text)
+    await page.goto('/datos?tab=campos')
+    for (const text of ['Field registry', 'Decision it enables', 'Propose a field']) await expect(page.locator('main')).toContainText(text)
+    await page.goto(`/comercios/${suc}?tab=datos`)
+    for (const text of ['IDs in other systems', 'Processes', 'Merchant training', 'To schedule', 'Why is it moving?', 'Effective date']) await expect(page.getByTestId('account-data')).toContainText(text)
+    await clean(page, 'ficha en inglés a 390')
+    expect(errors).toEqual([])
+  })
+})

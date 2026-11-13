@@ -1,5 +1,5 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { marketToday, withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import type { ProcessAttr, ProcessStatus } from '@/domain/gobierno'
 import type { Survivor } from '@/domain/datos'
@@ -143,7 +143,7 @@ export async function fieldRegistry(ctx: Ctx, view: 'vigentes' | 'propuestos' | 
     const sla = Number((await tx<{ value: unknown }[]>`select value from crm.settings where key = 'field_approval_sla_days'`)[0]?.value ?? 3)
     const fields = await tx<RegistryField[]>`
       select f.id, f.object, f.key, f.label_es, f.label_en, f.data_type, f.options, f.market_code, f.motor, f.is_active, f.source, f.status, f.owner_id, o.full_name as owner_name,
-             f.purpose, f.decision, f.review_on::text, (f.review_on is not null and f.review_on < now()::date) as review_due, f.pii_class, f.data_class, f.untrusted, f.origin, f.used_by,
+             f.purpose, f.decision, f.review_on::text, (f.review_on is not null and f.review_on < ${marketToday(tx, tx`f.market_code`)}) as review_due, f.pii_class, f.data_class, f.untrusted, f.origin, f.used_by,
              p.full_name as proposed_by, f.proposed_at, (f.status = 'proposed' and f.proposed_at < now() - make_interval(days => ${sla})) as overdue, f.decision_note,
              coalesce(us.filled, 0) as filled, coalesce(us.total, 0) as total,
              array(select coalesce(s.name_es, '') || ' | ' || coalesce(s.name_en, '') from crm.stages s where ('field:' || f.key) = any(s.required_fields) and f.object = 'deal') as stages
@@ -151,13 +151,13 @@ export async function fieldRegistry(ctx: Ctx, view: 'vigentes' | 'propuestos' | 
         left join app.field_usage() us on us.field_id = f.id
        where (f.market_code is null or f.market_code = any(${ctx.markets.map((m) => m.code)}::text[]))
          and ${view === 'propuestos' ? tx`f.status in ('proposed','rejected')` : view === 'archivados' ? tx`f.status = 'approved' and not f.is_active`
-            : view === 'sin-decision' ? tx`f.status = 'approved' and f.is_active and (f.decision is null or f.owner_id is null or f.review_on is null or f.review_on < now()::date)`
+            : view === 'sin-decision' ? tx`f.status = 'approved' and f.is_active and (f.decision is null or f.owner_id is null or f.review_on is null or f.review_on < ${marketToday(tx, tx`f.market_code`)})`
             : tx`f.status = 'approved' and f.is_active`}
        order by f.object, f.market_code nulls first, f.position, f.label_es limit 300`
     const counts = await tx<{ vigentes: number; propuestos: number; archivados: number; sin_decision: number }[]>`
       select (count(*) filter (where status = 'approved' and is_active))::int as vigentes, (count(*) filter (where status = 'proposed'))::int as propuestos,
              (count(*) filter (where status = 'approved' and not is_active))::int as archivados,
-             (count(*) filter (where status = 'approved' and is_active and (decision is null or owner_id is null or review_on is null or review_on < now()::date)))::int as sin_decision
+             (count(*) filter (where status = 'approved' and is_active and (decision is null or owner_id is null or review_on is null or review_on < ${marketToday(tx, tx`market_code`)})))::int as sin_decision
         from crm.field_definitions where market_code is null or market_code = any(${ctx.markets.map((m) => m.code)}::text[])`
     const people = await tx<{ id: string; full_name: string }[]>`select id, full_name from crm.users where is_active and not is_system order by full_name limit 300`
     return { sla, fields: [...fields], counts: counts[0]!, people: [...people] }
@@ -260,7 +260,7 @@ export async function qualityBoard(ctx: Ctx) {
     // Tendencia: el corte más antiguo de los últimos 30 días contra hoy, por mercado y regla (sumando equipos).
     const trend = await tx<QualityTrend[]>`
       select s.market_code, s.rule_code, s.as_of::text, sum(s.failing)::int as failing from crm.quality_snapshots s
-       where s.as_of >= now()::date - 30 group by 1, 2, 3 order by 3`
+       where s.as_of >= (now() - interval '31 days')::date group by 1, 2, 3 order by 3`
     const people = await tx<{ id: string; full_name: string }[]>`select id, full_name from crm.users where is_active and not is_system order by full_name limit 300`
     return { rules: [...rules], cells: [...cells], trend: [...trend], people: [...people] }
   })
