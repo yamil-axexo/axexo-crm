@@ -7,6 +7,8 @@ import { loginAs, pageErrors, testDb, WIDTHS } from './helpers'
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()
 
 async function check(page: Page, what: string) {
+  const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && getComputedStyle(e).position !== 'fixed').slice(-4).map((e) => `${e.tagName}.${(e.getAttribute('data-testid') ?? '')}.${(e.className || '').toString().slice(0, 60)}:${Math.round(e.getBoundingClientRect().right)}:${(e.textContent ?? '').slice(0, 40)}`))
+  if (wide.length) console.log('WIDE', what, JSON.stringify(wide))
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${what}: se sale del ancho`).toBeLessThanOrEqual(0)
   const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
   const bad = axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
@@ -311,6 +313,7 @@ test.describe('CS-07 y CS-08 · expansión y comentarios de producto', () => {
     await opp.getByTestId('opp-take').click()
     await expect(page.getByTestId('opportunity').filter({ hasText: product })).toHaveAttribute('data-status', 'working')
     await expect(page.getByTestId('opportunity').filter({ hasText: product })).toContainText('La lleva Marco Peña')
+    await page.waitForTimeout(800) // el formulario ignora un segundo envío justo después de guardar
     await page.getByTestId('opportunity').filter({ hasText: product }).getByTestId('opp-won').click()
     await expect(page.getByTestId('opportunity').filter({ hasText: product })).toHaveAttribute('data-status', 'won')
 

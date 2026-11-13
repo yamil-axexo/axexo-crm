@@ -199,7 +199,8 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
       {/* ------------------------------------------------ alertas */}
       <Card className="mt-6" data-testid="care-alerts">
         <CardTitle title={t('Alertas y guía de acción', 'Alerts and playbook')} hint={t('Cada alerta llega como tarea a quien le toca, con los pasos a seguir. Se cierra sola cuando el comercio se recupera.', 'Each alert arrives as a task for whoever it belongs to, with the steps to follow. It closes on its own when the merchant recovers.')}
-          right={<Badge tone={d.settings.alerts_on ? 'good' : 'neutral'}>{d.settings.alerts_on ? t('Alertas encendidas', 'Alerts on') : t('Alertas apagadas', 'Alerts off')}</Badge>} />
+ />
+        <p className="-mt-3 mb-4"><Badge tone={d.settings.alerts_on ? 'good' : 'neutral'}>{d.settings.alerts_on ? t('Alertas encendidas', 'Alerts on') : t('Alertas apagadas', 'Alerts off')}</Badge></p>
         {!d.settings.alerts_on && <p className="mb-4 rounded-[10px] bg-surface-2 px-4 py-3 text-[13.5px] text-strong" data-testid="alerts-off">{t('En este mercado las alertas todavía no crean tareas. Las enciende quien lidera el mercado, en Administración, Cuidado de comercios.', 'Alerts do not create tasks in this market yet. The market lead turns them on under Administration, Merchant care.')}</p>}
         {d.alerts.length === 0 ? (
           <Empty title={t('Sin alertas', 'No alerts')} hint={t('Cuando este comercio pase días sin su primera venta, venda menos que antes, tenga saldo bajo o cambie de encargado, la alerta aparece aquí con su tarea.', 'When this merchant goes days without its first sale, sells less than before, runs low on balance or gets a new manager, the alert shows up here with its task.')} />
@@ -297,7 +298,8 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
       {/* ------------------------------------------------ capacitación y encargado */}
       <Card className="mt-6" data-testid="care-training">
         <CardTitle title={t('Capacitación y encargado', 'Training and manager')} hint={t('Aquí solo se anota qué curso terminó el encargado y cuándo. El contenido vive en Kore Academy.', 'Only which course the manager finished and when is noted here. The content lives in Kore Academy.')}
-          right={<Badge tone="neutral">{careAdapterMode('kore_academy') === 'off' ? t('Kore Academy: conexión apagada', 'Kore Academy: connection off') : t('Kore Academy: simulación', 'Kore Academy: simulation')}</Badge>} />
+        />
+        <p className="-mt-3 mb-4"><Badge tone="neutral">{careAdapterMode('kore_academy') === 'off' ? t('Kore Academy: conexión apagada', 'Kore Academy: connection off') : t('Kore Academy: simulación', 'Kore Academy: simulation')}</Badge></p>
         {d.completions.length === 0 ? <p className="text-[13.5px] text-muted" data-testid="completions-empty">{t('Sin constancias todavía.', 'No completions yet.')}</p> : (
           <ul data-testid="completions">
             {d.completions.map((c) => (

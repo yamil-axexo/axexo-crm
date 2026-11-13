@@ -88,7 +88,8 @@ export default async function CareBoardPage({ searchParams }: { searchParams: Pr
         <>
           <Card data-testid="board-alerts">
             <CardTitle title={t('Alertas abiertas', 'Open alerts')} hint={t('Cada una tiene dueño y tarea con su guía de acción, salvo las del grupo de control.', 'Each one has an owner and a task with its playbook, except the control group.')}
-              right={<Badge tone={b.settings.alerts_on ? 'good' : 'neutral'}>{b.settings.alerts_on ? t('Alertas encendidas', 'Alerts on') : t('Alertas apagadas', 'Alerts off')}</Badge>} />
+ />
+            <p className="-mt-3 mb-4"><Badge tone={b.settings.alerts_on ? 'good' : 'neutral'}>{b.settings.alerts_on ? t('Alertas encendidas', 'Alerts on') : t('Alertas apagadas', 'Alerts off')}</Badge></p>
             {!b.settings.alerts_on && <p className="mb-4 rounded-[10px] bg-surface-2 px-4 py-3 text-[13.5px] text-strong" data-testid="board-alerts-off">{t('En este mercado las alertas todavía no crean tareas. Las enciende quien lidera el mercado, en Administración, Cuidado de comercios.', 'Alerts do not create tasks in this market yet. The market lead turns them on under Administration, Merchant care.')}</p>}
             {b.alerts.length === 0 ? (
               <Empty title={t('Sin alertas abiertas', 'No open alerts')} hint={t('Aquí aparecen los comercios en alta sin primera venta, los que venden menos que antes, los de saldo bajo, los que dejaron de vender y los que cambiaron de encargado.', 'Merchants onboarded with no first sale, selling less than before, low on balance, no longer selling or with a new manager show up here.')} />
