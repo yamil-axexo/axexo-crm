@@ -5,7 +5,7 @@ import { audit } from '@/domain/common'
 import { notFound } from '@/lib/errors'
 import { runSchedule } from '@/domain/automation/engine'
 
-export const EXCEPTION_KINDS = ['lead_sla', 'revisit_due', 'activation_risk', 'no_next_step', 'stalled_deal', 'reactivation', 'unowned_account', 'duplicate_suspect', 'unmatched_event', 'under_plan', 'perfect_store_low'] as const
+export const EXCEPTION_KINDS = ['lead_sla', 'revisit_due', 'activation_risk', 'no_next_step', 'stalled_deal', 'reactivation', 'unowned_account', 'duplicate_suspect', 'unmatched_event', 'under_plan', 'perfect_store_low', 'competitor_share_loss', 'indirect_route'] as const
 export type ExceptionKind = (typeof EXCEPTION_KINDS)[number]
 
 /**

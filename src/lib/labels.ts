@@ -60,6 +60,8 @@ export const EXCEPTION: Record<string, { label: Pair; action: Pair }> = {
   unmatched_event: { label: ['Evento sin comercio', 'Event with no merchant'], action: ['Revisar integración', 'Review the integration'] },
   under_plan: { label: ['Va por debajo de su meta del mes', 'Behind on this month’s target'], action: ['Revisarlo en el uno a uno', 'Go over it in the one-on-one'] },
   perfect_store_low: { label: ['Punto de venta por debajo del mínimo', 'Store below the minimum score'], action: ['Visitar y completar lo que falta', 'Visit and complete what is missing'] },
+  competitor_share_loss: { label: ['La competencia gana espacio en el punto de venta', 'A competitor is gaining ground at the store'], action: ['Visitar y ver qué le ofrecen', 'Visit and find out what they are offered'] },
+  indirect_route: { label: ['Con competencia y sin venta: proponer a un aliado', 'Competitor present and no sale: offer it to a partner'], action: ['Decidir en Campo, Cartera por canal', 'Decide in Field, Book by channel'] },
 }
 
 export const ACTIVITY: Record<string, Pair> = {

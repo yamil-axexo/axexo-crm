@@ -14,7 +14,7 @@ select m.code, k.key, k.value, 1, 'Valor propuesto por CONTIGO, sin acuerdo toda
   from crm.markets m
   cross join (values ('trust_min_score', 50, 'Ventas'), ('route_daily_stores', 10, 'Ventas'), ('competitor_alert_visits', 2, 'Ventas'), ('competitor_window_days', 60, 'Ventas'),
                      ('indirect_route_visits', 3, 'Ventas y canales'), ('perfect_store_health_days', 60, 'Customer Success'),
-                     ('threshold_review_days', 90, 'Ventas')) k(key, value, owner)
+                     ('threshold_review_days', 90, 'Ventas'), ('incentive_active_90', 10, 'Ventas y Finanzas')) k(key, value, owner)
  where not exists (select 1 from crm.field_thresholds f where f.market_code = m.code and f.key = k.key and f.valid_to is null);
 
 -- ------------------------------------------------------------ 1) CAMPO-04 ningún aviso sin dueño

@@ -33,6 +33,7 @@ export const THRESHOLDS = {
   perfect_store_health_days: { es: 'Punto de venta perfecto: días que vale en la salud', en: 'Perfect store: days it counts in health', min: 7, max: 180 },
   threshold_review_days: { es: 'Calibración: revisar cada umbral cada (días)', en: 'Calibration: review each threshold every (days)', min: 14, max: 365 },
   onboarding_link_days: { es: 'Enlace de expediente: días de vigencia', en: 'Onboarding link: days valid', min: 1, max: 30 },
+  incentive_active_90: { es: 'Premio: tiendas activas a 90 días para alcanzarlo', en: 'Award: stores active at 90 days to reach it', min: 1, max: 1000 },
 } as const
 export type ThresholdKey = keyof typeof THRESHOLDS
 export const THRESHOLD_KEYS = Object.keys(THRESHOLDS) as ThresholdKey[]
@@ -40,7 +41,7 @@ export const THRESHOLD_KEYS = Object.keys(THRESHOLDS) as ThresholdKey[]
 /** Quién tiene que confirmar el valor propuesto de cada umbral nuevo. Se muestra como "[pendiente: dueño]". */
 export const THRESHOLD_OWNER: Partial<Record<ThresholdKey, string>> = {
   trust_min_score: 'Ventas', route_daily_stores: 'Ventas', competitor_alert_visits: 'Ventas', competitor_window_days: 'Ventas',
-  indirect_route_visits: 'Ventas y canales', perfect_store_health_days: 'Customer Success', threshold_review_days: 'Ventas', onboarding_link_days: 'Mesa de control',
+  indirect_route_visits: 'Ventas y canales', perfect_store_health_days: 'Customer Success', threshold_review_days: 'Ventas', onboarding_link_days: 'Mesa de control', incentive_active_90: 'Ventas y Finanzas',
 }
 
 export type Threshold = { value: number; version: number }
@@ -56,7 +57,7 @@ export async function threshold(tx: Tx, market: string, key: ThresholdKey): Prom
     no_sale_days: 7, holdout_pct: 10, dispute_sla_days: 5,
     // Respaldo si un mercado nuevo no trae la fila propuesta de 0042 (la migración las siembra como dato).
     trust_min_score: 50, route_daily_stores: 10, competitor_alert_visits: 2, competitor_window_days: 60, indirect_route_visits: 3,
-    perfect_store_health_days: 60, threshold_review_days: 90, onboarding_link_days: 7,
+    perfect_store_health_days: 60, threshold_review_days: 90, onboarding_link_days: 7, incentive_active_90: 10,
   }
   return { value: fallback[key], version: 0 }
 }

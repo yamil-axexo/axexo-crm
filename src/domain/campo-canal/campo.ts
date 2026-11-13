@@ -339,6 +339,9 @@ export async function evaluateFieldExceptionsTx(tx: Tx): Promise<{ opened: numbe
     }
     opened += o2.count
     closed += c2.count
+    const comp = await evaluateCompetitionTx(tx, code)
+    opened += comp.opened
+    closed += comp.closed
   }
   return { opened, closed }
 }
@@ -403,4 +406,48 @@ export async function logIncidentView(ctx: Ctx, id: string): Promise<void> {
     const r = (await tx<{ market_code: string }[]>`select market_code from crm.field_incidents where id = ${id}`)[0]
     if (r) await audit(tx, ctx, 'field_incident.viewed', 'field_incident', id, r.market_code, null, null)
   })
+}
+
+/**
+ * CAMPO-07: la competencia vista en el punto de venta alimenta dos avisos, con la versión de su umbral.
+ * - Pérdida de share: la competencia apareció en N días distintos dentro de la ventana. Dueño: quien lleva el comercio.
+ * - Ruteo a canal indirecto: además, en esas visitas no hubo venta. Sugiere pasarlo a un aliado; no lo mueve solo.
+ * Se cierran solos cuando la condición ya no se cumple; uno descartado no se vuelve a abrir dentro de la ventana.
+ */
+export async function evaluateCompetitionTx(tx: Tx, code: string): Promise<{ opened: number; closed: number }> {
+  const visits = await threshold(tx, code, 'competitor_alert_visits')
+  const win = await threshold(tx, code, 'competitor_window_days')
+  const route = await threshold(tx, code, 'indirect_route_visits')
+  const cond = tx`
+    select a.id, a.market_code, a.owner_id, a.name, c.days, c.names,
+           (select count(*)::int from crm.visits v where v.account_id = a.id and v.outcome = 'sale' and v.business_date >= ${marketToday(tx, tx`a.market_code`)} - ${win.value}::int) as sales
+      from crm.accounts a
+      join lateral (select count(distinct x.observed_on)::int as days, array_agg(distinct k.name order by k.name) as names
+                      from crm.account_competitors x join crm.competitors k on k.id = x.competitor_id
+                     where x.account_id = a.id and x.observed_on >= ${marketToday(tx, tx`a.market_code`)} - ${win.value}::int) c on c.days > 0
+     where a.market_code = ${code} and a.archived_at is null and a.merged_into is null`
+  const o1 = await tx`
+    insert into crm.exceptions (market_code, kind, severity, account_id, owner_id, detail, dedupe_key, rule_key, rule_version)
+    select q.market_code, 'competitor_share_loss', 'medium', q.id, q.owner_id,
+           jsonb_build_object('name', q.name, 'days', q.days, 'competitors', to_jsonb(q.names), 'window_days', ${win.value}::int), 'competitor_share_loss:' || q.id,
+           'competitor_alert_visits', ${visits.version}
+      from (${cond}) q
+     where q.days >= ${visits.value}::int
+       and not exists (select 1 from crm.exceptions e where e.dedupe_key = 'competitor_share_loss:' || q.id and e.resolution = 'dismissed' and e.resolved_at > now() - make_interval(days => ${win.value}::int))
+    on conflict (dedupe_key) where resolved_at is null do nothing`
+  const o2 = await tx`
+    insert into crm.exceptions (market_code, kind, severity, account_id, owner_id, detail, dedupe_key, rule_key, rule_version)
+    select q.market_code, 'indirect_route', 'low', q.id, q.owner_id,
+           jsonb_build_object('name', q.name, 'days', q.days, 'competitors', to_jsonb(q.names), 'window_days', ${win.value}::int), 'indirect_route:' || q.id,
+           'indirect_route_visits', ${route.version}
+      from (${cond}) q
+     where q.days >= ${route.value}::int and q.sales = 0
+       and not exists (select 1 from crm.exceptions e where e.dedupe_key = 'indirect_route:' || q.id and e.resolution = 'dismissed' and e.resolved_at > now() - make_interval(days => ${win.value}::int))
+    on conflict (dedupe_key) where resolved_at is null do nothing`
+  const c1 = await tx`
+    update crm.exceptions e set resolved_at = now(), resolution = 'auto_closed'
+     where e.market_code = ${code} and e.resolved_at is null and e.kind in ('competitor_share_loss', 'indirect_route')
+       and not exists (select 1 from (${cond}) q where q.id = e.account_id
+                        and ((e.kind = 'competitor_share_loss' and q.days >= ${visits.value}::int) or (e.kind = 'indirect_route' and q.days >= ${route.value}::int and q.sales = 0)))`
+  return { opened: o1.count + o2.count, closed: c1.count }
 }

@@ -199,7 +199,7 @@ export default async function CareBoardPage({ searchParams }: { searchParams: Pr
             {b.digests.length > 0 && (
               <section className="mt-5 border-t border-line pt-4" data-testid="digests">
                 <h3 className="mb-2 text-[14px] font-semibold text-strong">{t('Resúmenes semanales (todos los mercados)', 'Weekly summaries (all markets)')}</h3>
-                <ul>{b.digests.map((dg) => <li key={dg.id} className="border-t border-line py-2 text-[13.5px] first:border-t-0"><span className="font-medium text-strong">{dg.period_start} {t('al', 'to')} {dg.period_end}</span> <span className="text-muted">· {t(`${dg.total} comentarios`, `${dg.total} items`)}{dg.counts.slice(0, 4).map((c) => ` · ${c.market} ${topic(c.topic)}: ${c.count}`).join('')}</span></li>)}</ul>
+                <ul>{b.digests.map((dg) => <li key={dg.id} className="border-t border-line py-2 text-[13.5px] first:border-t-0"><span className="font-medium text-strong">{dg.period_start} {t('al', 'to')} {dg.period_end}</span> <span className="text-muted">· {t(`${dg.total} comentarios`, `${dg.total} items`)}{dg.counts.slice(0, 4).map((c) => ` · ${c.market} ${topic(c.topic)}: ${c.count}`).join('')}</span>{dg.delivery_status && <span className="block text-[12.5px] text-muted-2" data-testid="digest-delivery">{dg.delivery_status === 'simulated' ? t('Enviado a P&T (simulación de pruebas)', 'Sent to P&T (test simulation)') : t('Para P&T: listo para enviar. Canal apagado (ver Estado de CONTIGO). También salió como evento de dominio.', 'For P&T: ready to send. Channel off (see CONTIGO status). It also went out as a domain event.')}</span>}</li>)}</ul>
               </section>
             )}
           </Card>
