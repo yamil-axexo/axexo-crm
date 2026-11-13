@@ -19,7 +19,8 @@ import { referralFrom } from '@/domain/embudo/referrals'
 
 /** Número de tiendas que declara quien llena el formulario (la misma respuesta `store_count` que ya se guarda y se filtra, E15.F5). */
 const sizeFrom = (raw: unknown): number | null => {
-  const v = Number((raw as Record<string, unknown> | null)?.store_count)
+  const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const v = Number(body.x_store_count ?? body.store_count)
   return Number.isInteger(v) && v >= 1 && v <= 100000 ? v : null
 }
 import { applyTerritoryOwners } from '@/domain/mx-config'
@@ -292,7 +293,9 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
     const routed = await resolveOwner(tx, { market: form.market_code, source: form.is_campaign ? 'web_campaign' : 'web_form', motor: form.motor, formId: form.id, locality: p.locality,
       sizeUnits: size, accountId: dupAccount[0]?.id ?? null, formRotationId: form.routing_rule_id })
     const ownerId = routed.ownerId
-    const sla = routed.slaMinutes ?? 60
+    // La meta de primer contacto es la de la regla que decidió; si la regla no trae una, la del turno del formulario (como siempre).
+    const formSla = routed.slaMinutes === null && form.routing_rule_id ? (await tx<{ sla_minutes: number }[]>`select sla_minutes from crm.routing_rules where id = ${form.routing_rule_id}`)[0]?.sla_minutes : null
+    const sla = routed.slaMinutes ?? formSla ?? 60
     const leadId = await insertLead(
       tx,
       sys,

@@ -271,7 +271,7 @@ describe('LEAD-03 y E3.F10: reglas de asignación', () => {
       expect(small.steps[0]).toMatchObject({ rule: 'Tiendas grandes a Marco', outcome: 'no_match' })
       expect((await admin`select 1 from crm.assignment_log`).length).toBe(0)
 
-      const a = await send(sys, 'tiendas-mx', { store_count: '12' })
+      const a = await send(sys, 'tiendas-mx', { x_store_count: '12' })
       expect((await lead(a)).owner_id).toBe(marco)
       // Marco llegó a su tope: el siguiente grande pasa a la regla 2.
       const b = await send(sys, 'tiendas-mx', { store_count: '15' })

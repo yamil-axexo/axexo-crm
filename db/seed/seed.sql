@@ -675,3 +675,16 @@ update crm.leads l set email = 'contacto' || (pg_temp.h('em' || l.id::text) % 90
        consent_at = l.created_at, consent_text = 'Acepto que axexo me escriba por correo sobre sus productos y novedades.'
  where l.market_code = 'MX' and l.status = 'disqualified' and pg_temp.h('cs' || l.id::text) % 2 = 0;
 alter table crm.leads enable trigger user;
+-- embudo
+-- Hitos de venta de los comercios sintéticos (PIPE-06): la primera transacción que ya traía el archivo de ventas de ejemplo
+-- queda como hito y como primer renglón de su historia; el primer fondeo, un día antes y con un método (datos inventados).
+insert into crm.account_milestones (account_id, market_code, first_txn_at, first_funding_at, funding_method, as_of)
+select m.account_id, a.market_code, min(m.first_txn_at), min(m.first_txn_at) - interval '1 day',
+       case when a.market_code = 'US' then 'ach' when pg_temp.h('fm' || m.account_id::text) % 2 = 0 then 'spei' else 'cash' end, max(m.as_of)
+  from crm.merchant_metrics_daily m join crm.accounts a on a.id = m.account_id
+ where m.first_txn_at is not null group by m.account_id, a.market_code
+on conflict (account_id) do nothing;
+insert into crm.milestone_events (account_id, market_code, kind, action, occurred_at, method, source)
+select account_id, market_code, 'first_funding', 'set', first_funding_at, funding_method, 's5' from crm.account_milestones where first_funding_at is not null
+union all
+select account_id, market_code, 'first_txn', 'set', first_txn_at, null, 's5' from crm.account_milestones where first_txn_at is not null;
