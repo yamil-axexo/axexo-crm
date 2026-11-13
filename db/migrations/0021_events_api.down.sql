@@ -1,6 +1,8 @@
 -- Baja de 0021_events_api. Los mensajes muertos vuelven a "rejected" para que la restricción anterior valga.
 drop function app.csv_import_undo(uuid);
 drop table crm.untrusted_marks;
+drop trigger field_definitions_text_untrusted on crm.field_definitions;
+drop function crm.field_text_untrusted();
 alter table crm.field_definitions drop column untrusted;
 drop table crm.export_log;
 drop table crm.csv_import_rows;
