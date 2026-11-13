@@ -276,8 +276,12 @@ describe('AUT-03: cada automatización con dueño', () => {
     const a = await one(admin<{ id: string; owner_id: string; owner_review: boolean }[]>`select id, owner_id, owner_review from crm.automations where key = 'no_next_step' and market_code = 'MX'`)
     expect(a.owner_review).toBe(true)
     const nora = await ctxFor('nora.salas')
-    const full = (await getAutomation(nora, a.id))!
-    await expect(saveAutomation(nora, a.id, { nameEs: full.name_es, nameEn: full.name_en, motor: full.motor ?? '', ownerId: '', conditions: full.conditions, actions: full.actions } as never)).rejects.toMatchObject({ code: 'invalid' })
+    const full = (await getAutomation(nora, a.id))!.a
+    const input = { nameEs: full.name_es, nameEn: full.name_en, motor: full.motor ?? '', conditions: full.conditions, actions: full.actions }
+    await expect(saveAutomation(nora, a.id, { ...input, ownerId: '' })).rejects.toThrow(/quién responde|who answers/)
+    await saveAutomation(nora, a.id, { ...input, ownerId: nora.user.id })
+    expect(await one(admin<{ owner_review: boolean }[]>`select owner_review from crm.automations where id = ${a.id}`)).toEqual({ owner_review: false })
+    await admin`update crm.automations set owner_review = true where id = ${a.id}`
     await setAutomationOwner(nora, a.id, (await ctxFor('ana.robles')).user.id)
     expect(await one(admin<{ owner_review: boolean }[]>`select owner_review from crm.automations where id = ${a.id}`)).toEqual({ owner_review: false })
   })
