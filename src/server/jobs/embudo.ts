@@ -13,6 +13,7 @@ export const embudoJobs: Job[] = [
   {
     key: 'embudo.sales_file_pull',
     everyMinutes: 60,
+    load: 'sales_file',
     description: {
       es: 'Va por el archivo diario de ventas (primer fondeo, primera transacción, hábito y correcciones) y lo carga. Con la conexión apagada no va a ningún lado: el archivo entra solo cuando alguien lo entrega por la API.',
       en: 'Fetches the daily sales file (first funding, first transaction, habit and corrections) and loads it. With the connection off it goes nowhere: the file only comes in when someone delivers it through the API.',

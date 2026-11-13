@@ -12,6 +12,7 @@ import { parseCsv } from '@/lib/csv'
 import { toCsv } from '@/lib/periods'
 import { toE164 } from '@/lib/format'
 import { DomainError, invalid, notFound } from '@/lib/errors'
+import { loadBlocked, withLoad } from '@/server/loads'
 
 // AUT-07: importación por archivo CSV de comercios, contactos y leads. El archivo se lee en memoria y NO se guarda.
 // 1) Vista previa: se valida TODO antes de escribir, fila por fila (requeridos, formatos, datos prohibidos, duplicados).
@@ -189,6 +190,17 @@ export type ImportResult = { id: string; total: number; created: number; duplica
 
 /** Importa las filas buenas del archivo. `checksum` es el de la vista previa: si el archivo cambió, hay que volver a revisarlo. */
 export async function runImport(ctx: Ctx, raw: z.input<typeof input> & { checksum: string }): Promise<ImportResult> {
+  // E5.F3/F4: una importación también es una carga: queda con inicio y fin y no corre junto con otra ni en la ventana de mantenimiento.
+  const out = await withLoad('imports', 'manual', ctx.user.id, async () => {
+    const r = await runImportNow(ctx, raw)
+    return { ...r, done: r.created, note: `${raw.kind} ${raw.market}` }
+  })
+  const blocked = 'status' in out ? loadBlocked(out) : null
+  if (blocked) throw new DomainError('busy', blocked[0], blocked[1], 409)
+  return out as ImportResult
+}
+
+async function runImportNow(ctx: Ctx, raw: z.input<typeof input> & { checksum: string }): Promise<ImportResult> {
   const p = await previewImport(ctx, raw)
   if (p.fileProblem) throw new DomainError('invalid', p.fileProblem[0], p.fileProblem[1])
   if (p.checksum !== raw.checksum) throw invalid('El archivo cambió desde la vista previa. Revísalo otra vez.', 'The file changed since the preview. Check it again.')

@@ -21,6 +21,10 @@ export type RouteStore = {
   approved_products: string[]
   /** Transacciones de los últimos 30 días según el archivo de ventas más reciente; null si no hay archivo. */
   txn_count_30d: number | null
+  /** E5.F1: activaciones del mes a la fecha y del mes anterior (suma de carriers), del último archivo de cifras por tienda. Null: sin actividad. */
+  activations_mtd: number | null
+  activations_prev_month: number | null
+  sales_as_of: string | null
   last_visit_on: string | null
 }
 export type RouteSync = { owner_id: string; market: string; stores: RouteStore[] }

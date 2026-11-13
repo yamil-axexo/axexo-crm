@@ -8,6 +8,7 @@ import { CRM_OBJECT, closesByTransaction, last4, marketFromPipelineName, motorFr
 import { SRC, addIssue, bump, ensureLossReason, rawRows, saveRefs, sid, type Issue, type Json } from './refs'
 export type { Issue } from './refs'
 import { LOADERS, finish } from './load'
+import { finishOpenLoad, loadBlocked, startLoad } from '@/server/loads'
 
 /**
  * Migración desde Pipedrive en tres tiempos, reanudable y repetible (REL-07):
@@ -68,6 +69,10 @@ export async function startImport(ctx: Ctx, mode: Mode): Promise<string> {
     if (mode !== 'full' && !last) throw invalid('Primero corre una importación completa.', 'Run a full import first.')
     const cursor: Cursor = { mode, since: mode === 'delta' ? new Date(last!.started_at.getTime() - 5 * 60_000).toISOString() : null }
     if (mode === 'remap') await tx`update crm.import_raw set loaded_at = null, load_note = null where source = ${SRC} and object not like 'cfg:%'`
+    // E5.F3/F4: la carga de Pipedrive queda con inicio y fin, respeta la ventana de mantenimiento y no corre junto con otra.
+    const load = await startLoad(tx, 'pipedrive', 'manual', ctx.user.id)
+    const blocked = loadBlocked(load)
+    if (blocked) throw invalid(blocked[0], blocked[1])
     const row = await one(tx<{ id: string }[]>`insert into crm.import_runs (source, phase, cursor, started_by) values (${SRC}, 'config', ${tx.json(cursor as unknown as Json)}, ${ctx.user.id}) returning id`)
     await audit(tx, ctx, 'import.started', 'import_run', row!.id, null, null, { source: SRC, mode })
     return row!.id
@@ -80,6 +85,7 @@ export async function cancelImport(ctx: Ctx): Promise<void> {
     const row = await one(tx<{ id: string }[]>`update crm.import_runs set status = 'cancelled', finished_at = now(), updated_at = now()
       where source = ${SRC} and status = 'running' returning id`)
     if (row) await audit(tx, ctx, 'import.cancelled', 'import_run', row.id, null, null, null)
+    await finishOpenLoad(tx, 'pipedrive', { ok: false, error: 'cancelled' }, ctx.user.id)
   })
 }
 
@@ -93,6 +99,8 @@ export async function resumeImport(ctx: Ctx): Promise<void> {
         cursor = cursor - 'lock_until'
       where id = (select id from crm.import_runs where source = ${SRC} order by started_at desc limit 1) and status = 'failed' returning id`)
     if (!row) throw invalid('No hay una importación detenida que reanudar.', 'There is no stopped import to resume.')
+    const blocked = loadBlocked(await startLoad(tx, 'pipedrive', 'manual', ctx.user.id))
+    if (blocked) throw invalid(blocked[0], blocked[1])
     await audit(tx, ctx, 'import.resumed', 'import_run', row.id, null, null, null)
   })
 }
@@ -138,7 +146,11 @@ export async function importStep(ctx: Ctx, budgetMs = 20_000): Promise<StepResul
       const idx = STEPS.indexOf(phase)
       const next = nextStep(idx, cursor.mode)
       if (!next) {
-        await withSystem((tx) => tx`update crm.import_runs set status = 'done', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until' where id = ${run.id}`)
+        await withSystem(async (tx, sys) => {
+          const r = await tx<{ n: number }[]>`update crm.import_runs set status = 'done', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until' where id = ${run.id}
+            returning (select count(*)::int from crm.import_raw x where x.source = ${SRC} and x.loaded_at >= import_runs.started_at) as n`
+          await finishOpenLoad(tx, 'pipedrive', { ok: true, done: r[0]?.n ?? 0, note: cursor.mode }, sys)
+        })
         return { status: 'done', phase }
       }
       phase = next
@@ -158,8 +170,11 @@ export async function importStep(ctx: Ctx, budgetMs = 20_000): Promise<StepResul
       ? { code: `pipedrive_${e.code}`, step: phase, detail: e.status ? `HTTP ${e.status}` : undefined }
       : { code: 'error', step: phase, detail: [pg?.name, pg?.code, pg?.constraint_name, pg?.column].filter(Boolean).join(' ').slice(0, 160) || 'Error' }
     console.error(JSON.stringify({ level: 'error', msg: 'import_step_failed', step: phase, code: issue.code, detail: issue.detail ?? null }))
-    await withSystem((tx) => tx`update crm.import_runs set status = 'failed', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until',
-      issues = issues || ${tx.json([issue] as unknown as Json)} where id = ${run.id}`)
+    await withSystem(async (tx, sys) => {
+      await tx`update crm.import_runs set status = 'failed', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until',
+        issues = issues || ${tx.json([issue] as unknown as Json)} where id = ${run.id}`
+      await finishOpenLoad(tx, 'pipedrive', { ok: false, error: issue.code }, sys)
+    })
     return { status: 'failed', phase }
   }
 }

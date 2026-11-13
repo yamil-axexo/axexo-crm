@@ -48,6 +48,8 @@ export const NOTICE_KINDS = {
   access_granted: { label: ['Te dieron un acceso', 'You were given access'], hint: ['Cuando Administración te da un rol o cambia lo que puedes hacer.', 'When Administration gives you a role or changes what you can do.'], defaults: ['in_app', 'email'], action: false, locked: true, urgent: false },
   report: { label: ['Respuesta a un problema que reportaste', 'Answer to a problem you reported'], hint: ['Y, para administración, cada reporte nuevo.', 'And, for administration, each new report.'], defaults: ['in_app'], action: false, locked: false, urgent: false },
   service_alert: { label: ['Un objetivo de servicio no se cumple', 'A service objective is not met'], hint: ['Para administración: disponibilidad o tiempos de respuesta fuera del objetivo.', 'For administration: availability or response times outside the objective.'], defaults: ['in_app', 'email'], action: true, locked: false, urgent: true },
+  // integraciones2 (E5.F3/F5): cargas de datos que fallan, no llegan a su hora o terminan con algo hecho.
+  data_load: { label: ['Cargas de datos que llevas', 'Data loads you own'], hint: ['Cuando una carga falla, no llega a su hora o termina con registros nuevos.', 'When a load fails, does not arrive on time or finishes with new records.'], defaults: ['in_app', 'email'], action: true, locked: false, urgent: true },
   config_request: { label: ['Respuesta a un cambio que pediste', 'Answer to a change you asked for'], hint: ['Y, para administración, cada solicitud nueva.', 'And, for administration, each new request.'], defaults: ['in_app'], action: false, locked: false, urgent: false },
 } as const satisfies Record<string, KindDef>
 
