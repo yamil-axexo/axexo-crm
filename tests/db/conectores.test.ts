@@ -477,7 +477,7 @@ describe('base y dominio', () => {
     expect(r.mode).toBe('off')
     expect(r.detail).toContain('EMAIL_ADAPTER_APPROVAL')
     expect(seen.length).toBe(0)
-    const ev = await admin`select after from crm.audit_events where action = 'connector.tested' order by created_at desc limit 1`
+    const ev = await admin`select after from crm.audit_events where action = 'connector.tested' order by at desc limit 1`
     expect(ev[0]!.after).toMatchObject({ connector: 'email', mode: 'off', ok: false })
     expect((await admin`select 1 from crm.connector_tests where connector = 'email'`).length).toBe(1)
     await expect(testConnection(await ctxFor('marco.pena'), 'email')).rejects.toThrow()

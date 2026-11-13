@@ -29,6 +29,9 @@ export function channelMode(key: ChannelKey): ChannelMode {
   return gate(SNAPSHOT_GATE).mode
 }
 
+/** Encendido: la foto diaria sale al bucket de S5 al tomarla. */
+export const snapshotLive = (): boolean => channelMode('snapshot_file') === 'live'
+
 /** Sube el archivo de la foto diaria al bucket de S5. */
 export async function uploadSnapshotFile(name: string, csv: string): Promise<{ ref: string; sha256: string }> {
   const out = await storagePut('snapshot_file', process.env.S5_BUCKET ?? '', `from-contigo/${name}`, csv, 'text/csv; charset=utf-8')
