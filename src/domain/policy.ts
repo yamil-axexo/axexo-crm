@@ -150,7 +150,7 @@ export const CAPABILITIES = {
   // Los leads descartados como base de correo: la descarga lleva correos, así que es de quien lidera el mercado y de
   // administración, y solo trae a quien dio su consentimiento (domain/mx-reports.ts).
   'lead.mailing_export': ['admin', 'market_lead'],
-  // Paquete campo-canal (0041). Expediente de alta: lo captura quien vende u Operaciones; la mesa de control (validar,
+  // Paquete campo-canal (0032). Expediente de alta: lo captura quien vende u Operaciones; la mesa de control (validar,
   // aprobar, devolver, repartir) es de Operaciones y administración.
   'onboarding.capture': [...SELLERS, 'ops'],
   'onboarding.review': ['admin', 'ops'],
@@ -221,6 +221,21 @@ export const CAPABILITIES = {
   // Comentarios de producto desde campo: los registra quien atiende al comercio; los responde quien lidera el mercado o administración.
   'feedback.create': [...SELLERS, 'ops'],
   'feedback.manage': ['admin', 'market_lead'],
+  // Paquete partners-contratos (0033). Términos comerciales: dato reservado; los versiona quien lidera el mercado (la base repite
+  // el límite con el campo reservado 'commercial_terms'). El contrato lo lleva quien vende la cuenta.
+  'terms.manage': ['admin', 'market_lead'],
+  'contract.manage': SELLERS,
+  // Partners: registrar cuentas como partner, niveles, material y tokens de lectura. El cruce de bases tiene acceso restringido.
+  'partner.manage': ['admin', 'market_lead'],
+  'partner.crossmatch': ['admin', 'market_lead'],
+  // Portal de partners: el usuario de partner ve su subárbol (RLS) y nada más.
+  'partner.portal': ['partner'],
+  // Plan compartido de integración con el cliente: quien vende la cuenta y Operaciones.
+  'plan.manage': [...SELLERS, 'ops'],
+  // Red adquirida: la carga y la promoción, quien lidera el mercado o administración. Liberan legal (administración) y negocio.
+  'network.load': ['admin', 'market_lead'],
+  'network.release_legal': ['admin'],
+  'network.release_business': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
@@ -266,7 +281,9 @@ export function can(memberships: Membership[], cap: Capability, market?: string 
 /** Capacidades que solo leen: son las únicas que quedan vivas mientras alguien "ve como" otra persona. */
 export const READ_CAPS: readonly Capability[] = ['board.supervisor', 'exception.read', 'board.lt', 'audit.read', 'report.view', 'report.own', 'adoption.read', 'status.read', 'security.read',
   // Ola 1: pantallas de lectura que la persona ya ve. Guardar, exportar o correr algo desde ellas sigue cortado (son acciones).
-  'report.gallery', 'report.finance', 'report.reconcile', 'report.carry', 'adoption.team', 'automation.read', 'rollout.read', 'data.quality']
+  'report.gallery', 'report.finance', 'report.reconcile', 'report.carry', 'adoption.team', 'automation.read', 'rollout.read', 'data.quality',
+  // Paquete partners-contratos: el portal de partners solo lee.
+  'partner.portal']
 
 /** Solo lectura: la persona ve, pero ninguno de sus roles vigentes le deja cambiar nada (Leadership, o un usuario de partner). */
 export function isReadOnly(memberships: Membership[]): boolean {
@@ -288,7 +305,7 @@ export function rolesIn(memberships: Membership[], market: string): Role[] {
  * Operaciones, a su cola. Quien no lleva registros propios llega a su tablero: administración a Administración, leadership
  * al Panel del LT y quien lidera un mercado a Mi equipo. Hoy sigue en el menú para todos.
  */
-export type Home = '/hoy' | '/admin' | '/panel-lt' | '/supervisor' | '/operaciones'
+export type Home = '/hoy' | '/admin' | '/panel-lt' | '/supervisor' | '/operaciones' | '/partners'
 export function homePath(memberships: Membership[]): Home {
   const has = (role: Role) => memberships.some((m) => m.role === role)
   if (has('admin')) return '/admin'
@@ -296,5 +313,7 @@ export function homePath(memberships: Membership[]): Home {
   if (has('market_lead')) return '/supervisor'
   // Quien es de Operaciones y no vende ni supervisa empieza en su cola (paquete operaciones).
   if (has('ops') && !has('supervisor') && !has('rep')) return '/operaciones'
+  // Un usuario de partner solo tiene su portal (paquete partners-contratos).
+  if (memberships.every((m) => m.role === 'partner')) return '/partners'
   return '/hoy'
 }

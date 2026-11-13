@@ -108,6 +108,10 @@ const SILENT: [prefix: string, why: Pair][] = [
   ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal], ['care.', WHY.internal],
   // Paquete mercados: qué datos van arriba en la ficha por rol y cómo se agrupan los campos es acomodo de pantalla.
   ['ficha.', WHY.internal], ['field_section.', WHY.internal],
+  // Paquete partners-contratos: tokens de lectura (operación de integraciones), niveles y material (configuración interna),
+  // la carga de una red (cada comercio promovido emite account.created) y la invitación en cola de un externo.
+  ['partner_token.', WHY.plumbing], ['partner_tier.', WHY.internal], ['network_load.', WHY.migration], ['partner.invite_queued', WHY.notice],
+  ['partner.crossmatch_run', WHY.quality],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
@@ -123,7 +127,10 @@ const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exceptio
   'onboarding.', 'attribution.', 'dispute.', 'claim.', 'credit.', 'channel.', 'portfolio.', 'seller.', 'competitor.', 'plan.',
   // Paquete mercados: entidad legal, identificador fiscal (el evento lleva qué campos cambiaron, nunca el identificador) y
   // la configuración de WhatsApp de un mercado.
-  'entity.', 'taxid.', 'whatsapp.']
+  'entity.', 'taxid.', 'whatsapp.',
+  // Paquete partners-contratos: términos (el evento lleva qué campos cambiaron, nunca los porcentajes), contratos, planes de
+  // integración y el registro de una cuenta como partner.
+  'terms.', 'contract.', 'plan.', 'partner.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {

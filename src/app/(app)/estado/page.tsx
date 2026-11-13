@@ -33,6 +33,8 @@ import { gobiernoAdapterStatus } from '@/server/gobierno-status'
 import { tracesAdapter } from '@/server/adapters/traces'
 import { billingAdapter } from '@/server/adapters/billing'
 import { OBJECTIVE_LABEL, msText } from '@/lib/gobierno-labels'
+import { partnersAdapterStatus } from '@/server/adapters/partners'
+import { externalQueueCounts } from '@/dal/partners'
 
 export const dynamic = 'force-dynamic'
 
@@ -236,6 +238,15 @@ export default async function StatusPage() {
       last: t(`Mientras tanto los datos reservados están en una tabla sin lectura directa, se muestran tapados y cada revelado queda registrado. Para encenderlo: el servicio de llaves aprobado y la variable ${FIELD_CRYPTO_ENV}`, `Meanwhile restricted data sits in a table with no direct read, is shown masked and every reveal is logged. To turn it on: the approved key service and the ${FIELD_CRYPTO_ENV} variable`),
     },
   )
+  // Paquete partners-contratos: firma electrónica, entrada de externos y captura de correo, calendario y WhatsApp. Construidos y apagados.
+  const partnerQueue = await externalQueueCounts(ctx)
+  rows.push(...partnersAdapterStatus().map((a) => ({
+    key: `partners_${a.key}`,
+    name: t(...a.name),
+    what: t(...a.what),
+    state: offOr(a.mode),
+    last: `${t(...a.needs)} ${t(`${num(partnerQueue[a.key] ?? 0, locale)} en cola sin salir. Se enciende con la variable ${a.envVar}, después de la aprobación.`, `${num(partnerQueue[a.key] ?? 0, locale)} queued, not sent. It is turned on with the ${a.envVar} variable, after approval.`)}`,
+  })))
   // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
   rows.push({
     key: 'jobs',

@@ -23,7 +23,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 - Any 2xx is success. Anything else is retried after 1, 5, 30 and 120 minutes; the fifth failure moves the delivery to dead letters, where an administrator can resend it.
 - At-least-once: a subscriber can receive the same event twice and must discard repeats by `id`.
 
-## Catalog (190 events)
+## Catalog (202 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -66,6 +66,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `account.updated` | 1 | Edited a merchant. | `changed` (string[]), `actor_id` (uuid) |
 | `account.whatsapp_window` | 1 | Noted that the merchant wrote on WhatsApp. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.added` | 1 | Logged an activity. | `changed` (string[]), `actor_id` (uuid) |
+| `activity.comm_captured` | 1 | Logged an email, a meeting or a message in the thread. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.completed` | 1 | Completed an activity. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.revisit_scheduled` | 1 | Scheduled the revisit to the decision-maker. | `changed` (string[]), `actor_id` (uuid) |
 | `agency.created` | 1 | Created an agency. | `changed` (string[]), `actor_id` (uuid) |
@@ -81,6 +82,11 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `contact.ended` | 1 | Removed a contact from an account. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.primary_set` | 1 | Changed the primary contact. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.updated` | 1 | Edited a contact. | `changed` (string[]), `actor_id` (uuid) |
+| `contract.created` | 1 | Created a contract from the terms. | `changed` (string[]), `actor_id` (uuid) |
+| `contract.renewal_noticed` | 1 | Gave notice that a contract is due for renewal. | `changed` (string[]), `actor_id` (uuid) |
+| `contract.renewed` | 1 | Created a contract renewal. | `changed` (string[]), `actor_id` (uuid) |
+| `contract.signed` | 1 | Marked a contract as signed. | `changed` (string[]), `actor_id` (uuid) |
+| `contract.status_changed` | 1 | Changed a contract’s status. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.approval_approved` | 1 | Approved a step. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.approval_escalated` | 1 | An approval ran out of time and went to the backup. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.approval_rejected` | 1 | Declined a step. | `changed` (string[]), `actor_id` (uuid) |
@@ -158,6 +164,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `membership.granted` | 1 | Granted access. | `changed` (string[]), `actor_id` (uuid) |
 | `order.received` | 1 | Received an order in Operations. | `changed` (string[]), `actor_id` (uuid) |
 | `order.sent_to_ops` | 1 | Sent an order to Operations. | `changed` (string[]), `actor_id` (uuid) |
+| `partner.registered` | 1 | Registered an account as a partner. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.catalog_created` | 1 | Added an item to an Operations catalog. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.catalog_updated` | 1 | Edited an item in an Operations catalog. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.configured` | 1 | Changed a pipeline’s closing rule. | `changed` (string[]), `actor_id` (uuid) |
@@ -170,6 +177,10 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `pipeline.visit_reason_created` | 1 | Added a visit purpose. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.visit_reason_updated` | 1 | Edited a visit purpose. | `changed` (string[]), `actor_id` (uuid) |
 | `pipeline.win_rule_set` | 1 | Changed a pipeline’s win rule. | `changed` (string[]), `actor_id` (uuid) |
+| `plan.created` | 1 | Created an integration plan. | `changed` (string[]), `actor_id` (uuid) |
+| `plan.milestone_added` | 1 | Added a milestone to the integration plan. | `changed` (string[]), `actor_id` (uuid) |
+| `plan.milestone_updated` | 1 | Changed an integration plan milestone. | `changed` (string[]), `actor_id` (uuid) |
+| `plan.shared` | 1 | Requested client access to the integration plan. | `changed` (string[]), `actor_id` (uuid) |
 | `process.enrolled` | 1 | Put a merchant on a process list. | `changed` (string[]), `actor_id` (uuid) |
 | `process.list_created` | 1 | Created a process list. | `changed` (string[]), `actor_id` (uuid) |
 | `process.list_toggled` | 1 | Turned a process list on or off. | `changed` (string[]), `actor_id` (uuid) |
@@ -201,6 +212,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `team.agency_retired` | 1 | Retired an agency or partner. | `changed` (string[]), `actor_id` (uuid) |
 | `team.created` | 1 | Created a team. | `changed` (string[]), `actor_id` (uuid) |
 | `team.parent_changed` | 1 | Changed which team a team reports to. | `changed` (string[]), `actor_id` (uuid) |
+| `terms.versioned` | 1 | Saved a version of the commercial terms. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.archived` | 1 | Archived a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.created` | 1 | Created a territory. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.manager_set` | 1 | Changed a territory’s manager. | `changed` (string[]), `actor_id` (uuid) |
@@ -524,9 +536,21 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `material.removed` | Removed a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `material.saved` | Saved a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `metric.owner_set` | Changed who answers for a metric | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `network_load.business_released` | Gave the business release for an acquired network | It is a historical or file load: each record created emits its own event; the run itself does not. |
+| `network_load.legal_released` | Gave the legal release for an acquired network | It is a historical or file load: each record created emits its own event; the run itself does not. |
+| `network_load.promoted` | Moved a batch of an acquired network into the portfolio | It is a historical or file load: each record created emits its own event; the run itself does not. |
+| `network_load.rolled_back` | Rolled back a batch of an acquired network | It is a historical or file load: each record created emits its own event; the run itself does not. |
+| `network_load.staged` | Loaded an acquired network into its separate space | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `notice.all_seen` | Marked all notices as read | It is a notice between people inside CONTIGO, not a change to the record. |
 | `notice.prefs_saved` | Changed notice preferences | It is a notice between people inside CONTIGO, not a change to the record. |
 | `objective.set` | Set a service or recovery objective | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `partner.crossmatch_run` | Ran the partner base cross-match | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
+| `partner.invite_queued` | Queued an external user invitation | It is a notice between people inside CONTIGO, not a change to the record. |
+| `partner_tier.material_added` | Added enablement material to a tier | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `partner_tier.recalculated` | Recalculated partner tiers | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `partner_tier.saved` | Saved a partner tier and its criteria | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `partner_token.created` | Created a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
+| `partner_token.revoked` | Revoked a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `quality.rule_updated` | Edited a data quality rule | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.snapshot_saved` | Saved today’s data quality snapshot | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `reconciliation.ran` | Reconciled with the sales file | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |

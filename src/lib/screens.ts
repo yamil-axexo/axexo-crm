@@ -46,6 +46,8 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/admin/gobierno', 'Administración, Gobierno', 'Administration, Governance'],
   ['/admin', 'Administración', 'Administration'],
   ['/importar', 'Importar un archivo', 'Import a file'],
+  ['/partners/redes', 'Redes adquiridas', 'Acquired networks'],
+  ['/partners', 'Partners', 'Partners'],
   ['/datos', 'Datos', 'Data'],
   ['/estado', 'Estado de CONTIGO', 'CONTIGO status'],
   ['/bienvenida', 'Primeros pasos', 'First steps'],

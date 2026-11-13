@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { after } from 'next/server'
 import { tickJobs } from '@/server/jobs/runner'
-import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, GitPullRequestArrow, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, MapPinned, Rocket, Search, Settings, Users, HeartPulse } from 'lucide-react'
+import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, GitPullRequestArrow, Handshake, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, MapPinned, Rocket, Search, Settings, Users, HeartPulse } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -154,6 +154,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
               {/* Con la ola 1 de los 95 el menú de quien administra dejó de caber en un teléfono: Datos y Estado de CONTIGO le quedan en las secciones de Administración (Integraciones y datos, Control). Los demás roles los conservan aquí. */}
               {!ctx.can('config.manage') && (ctx.can('data.quality') || ctx.isGlobal) && <Link href="/datos" role="menuitem" className={menuLink} data-testid="nav-data"><Database size={20} strokeWidth={1.75} aria-hidden />{t('Datos', 'Data')}</Link>}
+              {(ctx.can('partner.manage') || ctx.can('partner.portal')) && <Link href="/partners" role="menuitem" className={menuLink} data-testid="nav-partners"><Handshake size={20} strokeWidth={1.75} aria-hidden />{ctx.can('partner.manage') ? t('Partners', 'Partners') : t('Mi red', 'My network')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}
               {!ctx.can('config.manage') && ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>

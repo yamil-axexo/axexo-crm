@@ -85,7 +85,7 @@ export async function mergeAccounts(ctx: Ctx, sourceId: string, targetId: string
          and exists (select 1 from crm.account_contacts x where x.account_id = ${targetId} and x.is_primary and x.valid_to is null) returning id`)
     moved.account_contacts = ids(await tx<{ id: string }[]>`update crm.account_contacts set account_id = ${targetId} where account_id = ${sourceId} and valid_to is null returning id`)
     moved.account_aliases = ids(await tx<{ id: string }[]>`update crm.account_aliases set account_id = ${targetId} where account_id = ${sourceId} returning id`)
-    // CANAL-03 (0041): las vigencias de una capa no se enciman. Solo pasan las capas que el comercio que se queda no tiene;
+    // CANAL-03 (0032): las vigencias de una capa no se enciman. Solo pasan las capas que el comercio que se queda no tiene;
     // la historia de las demás sigue en el archivado (merged_into la liga).
     moved.account_attributions = ids(await tx<{ id: string }[]>`update crm.account_attributions set account_id = ${targetId} where account_id = ${sourceId}
        and layer not in (select x.layer from crm.account_attributions x where x.account_id = ${targetId}) returning id`)
