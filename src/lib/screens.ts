@@ -42,6 +42,8 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/admin/embudo', 'Administración, Asignación y embudo', 'Administration, Assignment and pipeline'],
   ['/admin/integraciones', 'Administración, Eventos, API y datos', 'Administration, Events, API and data'],
   ['/admin/gobierno', 'Administración, Gobierno', 'Administration, Governance'],
+  ['/admin/ia', 'Administración, IA y asistencia', 'Administration, AI and assistance'],
+  ['/asistencia', 'Asistencia', 'Assistance'],
   ['/admin', 'Administración', 'Administration'],
   ['/importar', 'Importar un archivo', 'Import a file'],
   ['/datos', 'Datos', 'Data'],
