@@ -3,6 +3,8 @@
 import { runAction, str } from '@/server/action'
 import { resolveConflict, setCutover, setGoalTarget, setHandoffTarget } from '@/domain/pipedrive/coexistence'
 import { invalid, type ActionResult } from '@/lib/errors'
+import { resetTestMarket } from '@/domain/test-reset'
+import { startImport } from '@/domain/pipedrive/import'
 
 type R = ActionResult<unknown>
 
@@ -47,5 +49,26 @@ export async function setHandoffTargetAction(_: R | null, fd: FormData): Promise
   return runAction(async (ctx) => {
     await setHandoffTarget(ctx, str(fd, 'id'), str(fd, 'to'))
     return { message: ['Guardado: así se entregan los negocios que llegan a Aprobaciones.', 'Saved: this is how deals reaching Approvals are handed over.'] }
+  })
+}
+
+/** E6.F8: borrar y recargar un mercado en ambiente de prueba. Borra con la confirmación escrita y deja lista la recarga. */
+export async function resetTestMarketAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const market = str(fd, 'market')
+    const counts = await resetTestMarket(ctx, market, str(fd, 'confirmation'))
+    const n = Object.values(counts).reduce((a, b) => a + b, 0)
+    let reload = false
+    try {
+      await startImport(ctx, 'remap')
+      reload = true
+    } catch {
+      reload = false
+    }
+    return {
+      message: reload
+        ? [`${market} quedó vacío (${n} registros borrados). La recarga desde el espejo de Pipedrive ya empezó: síguela en Importación.`, `${market} is empty (${n} records wiped). The reload from the Pipedrive mirror has started: follow it under Import.`]
+        : [`${market} quedó vacío (${n} registros borrados). Para recargarlo, importa sus hojas o corre "aplicar el mapeo de nuevo" cuando haya espejo de Pipedrive.`, `${market} is empty (${n} records wiped). To reload it, import its sheets or run "re-apply the mapping" once there is a Pipedrive mirror.`],
+    }
   })
 }

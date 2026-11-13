@@ -8,6 +8,7 @@ import { ago, dayTime, num } from '@/lib/format'
 import { MOTOR, lab } from '@/lib/labels'
 import { CoexistenceCards } from './coexistence'
 import { cancelImportAction, importStepAction, purgeRawAction, resumeImportAction, startImportAction } from './actions'
+import { MigrationToolsCard } from './pruebas-pipedrive'
 
 type Pair = [es: string, en: string]
 
@@ -157,6 +158,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
       </Card>
 
       <CoexistenceCards ctx={ctx} />
+      <MigrationToolsCard ctx={ctx} />
 
       <Card pad={false} data-testid="import-counts">
         <div className="px-7 pt-7"><CardTitle title={t('Qué se copió y qué se cargó', 'What was copied and what was loaded')} hint={t('Lo que no se carga queda contado con su motivo. Nada se descarta en silencio.', 'Anything not loaded is counted with its reason. Nothing is dropped silently.')} /></div>

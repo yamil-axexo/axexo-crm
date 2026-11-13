@@ -59,6 +59,7 @@ delete from crm.csv_import_rows where import_id in (select id from crm.csv_impor
 delete from crm.csv_imports where kind = 'mx_leads';
 alter table crm.csv_imports add constraint csv_imports_kind_check check (kind in ('accounts','contacts','leads'));
 
+drop function if exists app.reset_test_market(text);
 drop table if exists crm.pipedrive_backups;
 drop table if exists crm.generated_documents;
 

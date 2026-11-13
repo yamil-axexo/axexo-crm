@@ -245,3 +245,56 @@ begin
   update crm.csv_imports set status = 'undone', undone_at = now(), undone_by = app.current_user_id() where id = p_import;
   return query select v_undo, v_keep;
 end $$;
+
+-- ------------------------------------------------------------------ 7) E6.F8: borrar un mercado en ambiente de prueba
+-- Borra los datos de negocio del mercado (no su configuración, accesos, bitácora ni bajas de contacto) en varias pasadas para
+-- respetar las llaves foráneas. Si algo no se puede borrar, no borra nada y dice qué tabla lo impidió. La aplicación solo
+-- la llama fuera de producción y con confirmación escrita (src/domain/test-reset.ts). Después, la recarga desde el espejo
+-- de Pipedrive vuelve a crear lo que vino de allá.
+create or replace function app.reset_test_market(p_market text) returns jsonb
+language plpgsql volatile security definer set search_path = pg_catalog, crm, app as $$
+declare
+  v_tables text[] := array['untrusted_marks','notices','notifications','generated_documents','store_sales_lines','merchant_metrics_daily','metric_restatements',
+    'milestone_events','account_milestones','conversion_events','source_touches','deal_evidence','deal_ops_checks','deal_orders','order_dispatches','deal_items',
+    'deal_stage_gaps','deal_stage_events','approvals','assignment_log','lead_escalation','exceptions','import_conflicts','import_baselines','duplicate_bypasses',
+    'duplicate_pairs','merge_events','ticket_refs','tax_id_verifications','tax_ids','account_sensitive','account_product_events','account_products',
+    'account_team','account_attributions','contact_primary_history','visits','activities','deals','leads','account_contacts','account_aliases','accounts','contacts'];
+  v_counts jsonb := '{}'::jsonb;
+  v_left text[];
+  t text;
+  n int;
+  pass int;
+begin
+  if not app.is_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  if not exists (select 1 from crm.markets where code = p_market) then raise exception 'unknown market' using errcode = '22023'; end if;
+  for pass in 1..12 loop
+    v_left := '{}';
+    foreach t in array v_tables loop
+      continue when to_regclass('crm.' || t) is null;
+      begin
+        if t = 'accounts' then
+          execute 'update crm.accounts set parent_id = null where market_code = $1 and parent_id is not null' using p_market;
+        end if;
+        execute format('delete from crm.%I where market_code = $1', t) using p_market;
+        get diagnostics n = row_count;
+        if n > 0 then v_counts := jsonb_set(v_counts, array[t], to_jsonb(coalesce((v_counts ->> t)::int, 0) + n)); end if;
+      exception when foreign_key_violation or raise_exception or check_violation then
+        v_left := v_left || t;
+      end;
+    end loop;
+    exit when cardinality(v_left) = 0;
+  end loop;
+  if cardinality(v_left) > 0 then
+    raise exception 'could not wipe: %', array_to_string(v_left, ',') using errcode = '23503';
+  end if;
+  -- Lo que vino de Pipedrive se puede volver a cargar: se sueltan las referencias que quedaron sin registro y el espejo
+  -- vuelve a quedar pendiente de carga (la recarga con "aplicar el mapeo de nuevo" solo crea lo que falta).
+  delete from crm.external_refs r where r.system = 'pipedrive' and r.object in ('organization','person','deal','activity','note','lead')
+    and not exists (select 1 from crm.accounts a where a.id = r.internal_id) and not exists (select 1 from crm.contacts c where c.id = r.internal_id)
+    and not exists (select 1 from crm.deals d where d.id = r.internal_id) and not exists (select 1 from crm.activities x where x.id = r.internal_id)
+    and not exists (select 1 from crm.leads l where l.id = r.internal_id);
+  update crm.import_raw set loaded_at = null, load_note = null where source = 'pipedrive' and object not like 'cfg:%';
+  return v_counts;
+end $$;
+revoke all on function app.reset_test_market(text) from public;
+grant execute on function app.reset_test_market(text) to contigo_app;
