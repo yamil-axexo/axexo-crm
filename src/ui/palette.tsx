@@ -85,21 +85,18 @@ export function CommandPalette({ items, labels }: { items: PaletteItem[]; labels
               }
             }}
             type="search"
-            role="combobox"
-            aria-expanded="true"
-            aria-controls="palette-list"
-            aria-activedescendant={options[current] ? `palette-${current}` : undefined}
             aria-label={labels.title}
             placeholder={labels.placeholder}
             className="input !pl-11"
             data-testid="palette-input"
           />
         </div>
-        <ul id="palette-list" role="listbox" aria-label={labels.title} className="mt-3 max-h-[50vh] overflow-y-auto">
+        <ul aria-label={labels.title} className="mt-3 max-h-[50vh] overflow-y-auto">
           {options.map((o, i) => (
-            <li key={o.href} id={`palette-${i}`} role="option" aria-selected={i === current}>
+            <li key={o.href}>
               <button
                 type="button"
+                aria-current={i === current ? 'true' : undefined}
                 onClick={() => go(o.href)}
                 onMouseEnter={() => setAt(i)}
                 className={`flex min-h-11 w-full items-center rounded-[10px] px-3 text-left text-[15px] font-medium text-strong ${i === current ? 'bg-green-50' : ''}`}

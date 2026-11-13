@@ -304,6 +304,12 @@ async function Access({ ctx, tz }: P) {
           })}
         </Card>
       )}
+      {d.reviews.length === 0 && !manage && (
+        <Card data-testid="reviews-card">
+          <CardTitle title={t('Revisión periódica de accesos', 'Periodic access review')} />
+          <Empty title={t('No hay una revisión abierta', 'There is no open review')} hint={t('Cuando Administración abra la revisión de tu mercado, aquí decides qué acceso se mantiene y cuál se quita.', 'When Administration opens the review for your market, this is where you decide which access stays and which goes.')} />
+        </Card>
+      )}
 
       {(manage || ctx.can('security.read')) && (
         <>
