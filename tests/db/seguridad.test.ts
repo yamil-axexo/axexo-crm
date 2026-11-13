@@ -330,7 +330,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
       const id = await personaId(k)
       expect((await withUser(id, (tx) => tx`select 1 from crm.leads where id = ${leadId}`)).length, k).toBe(0)
       expect((await withUser(id, (tx) => tx`select 1 from crm.accounts where id = ${agencyAccount.id}`)).length, k).toBe(0)
-      expect((await one(await withUser(id, (tx) => tx<{ ok: boolean }[]>`select app.can_see_account(${agencyAccount.id}) as ok`).then((r) => [...r]))).ok, k).toBe(false)
+      expect((await withUser(id, (tx) => tx<{ ok: boolean }[]>`select app.can_see_account(${agencyAccount.id}) as ok`))[0]!.ok, k).toBe(false)
     }
     for (const k of ['ana.robles', 'valeria.soto', 'luis.tovar']) {
       const id = await personaId(k)
@@ -537,6 +537,29 @@ describe('SEG-07: ver como y recertificación de accesos', () => {
     await withoutUser((tx) => tx`select app.view_as_end(${id}, ${nora.user.id})`)
     expect((await withoutUser((tx) => tx`select 1 from app.view_as_current(${id}, ${nora.user.id})`)).length).toBe(0)
     expect((await admin`select 1 from crm.audit_events where action = 'view_as.ended'`).length).toBe(1)
+  })
+
+  it('quien recibe un acceso se entera, y las alertas nuevas avisan una sola vez a quien lleva la bitácora', async () => {
+    const nora = await ctxFor('nora.salas')
+    const out = await grantAccess(nora, { email: `nuevo.${tag()}@axexo.com`, fullName: 'Persona Recién Llegada', role: 'rep', market: 'MX' }, DOMAINS)
+    const notice = await admin<{ title: string; kind: string }[]>`select title, kind from crm.notices where user_id = ${out.userId}`
+    expect(notice).toMatchObject([{ kind: 'access_granted', title: 'Tienes acceso a CONTIGO como Ventas en MX' }])
+
+    const auditOnly = await person('admin', { areas: ['audit'] })
+    const accessOnly = await person('admin', { areas: ['access'] })
+    await admin`update crm.secret_inventory set rotate_every_days = 30, last_rotated_on = '2026-01-01' where key = 'DATABASE_URL'`
+    const job = seguridadJobs.find((j) => j.key === 'seguridad.alertas')!
+    const sys = await systemContext()
+    const first = await withUser(sys.user.id, (tx) => job.run(tx))
+    expect(first.note).toMatch(/alertas avisadas/)
+    const got = async (id: string) => (await admin`select 1 from crm.notices where user_id = ${id} and kind = 'security_alert'`).length
+    expect(await got(nora.user.id)).toBe(1)
+    expect(await got(auditOnly.user.id)).toBe(1)
+    expect(await got(accessOnly.user.id)).toBe(0)
+    expect(await got(await personaId('ana.robles'))).toBe(0)
+    // La segunda corrida no vuelve a avisar de lo mismo.
+    await withUser(sys.user.id, (tx) => job.run(tx))
+    expect(await got(nora.user.id)).toBe(1)
   })
 
   it('recertificación: quien lidera acusa los accesos de su mercado, y la revisión cierra cuando todos tienen decisión', async () => {

@@ -9,10 +9,21 @@ import { forbidden, invalid, notFound } from '@/lib/errors'
 import { emailInDomains, domainList } from '@/lib/domains'
 import { open, seal } from '@/server/adapters/field-crypto'
 import { archiveBatchStatus } from '@/server/adapters/audit-archive'
+import { notify } from '@/domain/notify'
 
 // 0031 seguridad: comandos de SEG-01, 02, 03, 04, 07, 08 y 09. Cada uno revisa el permiso aquí y la base lo repite.
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const uuid = z.guid()
+
+/** SEG-07: la persona se entera de que recibió un acceso, por el servicio de avisos (dentro de CONTIGO; el correo, cuando su canal se encienda). */
+export async function accessGranted(tx: Tx, ctx: Ctx, userId: string, market: string | null, role: [string, string]): Promise<void> {
+  if (userId === ctx.user.id) return
+  await notify(tx, ctx, {
+    to: userId, kind: 'access_granted', market, link: '/bienvenida',
+    title: [`Tienes acceso a CONTIGO como ${role[0]}${market ? ` en ${market}` : ''}`, `You have access to CONTIGO as ${role[1]}${market ? ` in ${market}` : ''}`],
+    body: [`Te lo dio ${ctx.user.name}. Si no lo esperabas, avisa a Administración.`, `${ctx.user.name} gave it to you. If you were not expecting it, tell Administration.`],
+  })
+}
 
 // ------------------------------------------------------------ SEG-01: Administración por partes, jerarquía, entidad legal, agencias
 /** Deja a una persona administradora con todas las partes (null) o solo con las que se eligen. Siempre queda alguien con todas y sin vencimiento. */
@@ -127,6 +138,7 @@ export async function grantAgencyAccess(ctx: Ctx, input: z.input<typeof external
              values (${userId}, ${ag[0].market_code}, 'agency', ${v.agencyId},
                      ${v.expires ? tx`((${v.expires}::date + 1)::timestamp at time zone (select timezone from crm.markets where code = ${ag[0].market_code}))` : null})`
     await audit(tx, ctx, 'membership.granted', 'user', userId, ag[0].market_code, null, { role: 'agency', market: ag[0].market_code, agency: ag[0].name, expires: v.expires || null })
+    await accessGranted(tx, ctx, userId, ag[0].market_code, ['Agencia', 'Agency'])
     return userId
   })
 }

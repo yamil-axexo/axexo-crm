@@ -8,6 +8,8 @@ import { audit, newId } from '@/domain/common'
 import { forbidden, invalid, notFound } from '@/lib/errors'
 import { domainList, emailInDomains } from '@/lib/domains'
 import { assertNoProhibited } from '@/domain/guard'
+import { notify } from '@/domain/notify'
+import { ROLE_LABEL } from '@/domain/policy'
 
 /** Lo que una etapa puede pedir para dejar entrar un negocio. El próximo paso con fecha lo pide toda etapa abierta, siempre. */
 export const STAGE_REQUIREMENTS = ['amount', 'decision_maker', 'next_step'] as const
@@ -122,6 +124,14 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
       role: v.role, market, team_id: teamId, expires,
       ...(v.role === 'admin' ? { scope: 'all_markets', confirmed: true, external: at(v.email) !== at(ctx.user.email) } : {}),
     })
+    // SEG-07: la persona se entera de que recibió el acceso (dentro de CONTIGO; por correo cuando ese canal se encienda).
+    if (userId !== ctx.user.id) {
+      await notify(tx, ctx, {
+        to: userId, kind: 'access_granted', market, link: '/bienvenida',
+        title: [`Tienes acceso a CONTIGO como ${ROLE_LABEL[v.role].es}${market ? ` en ${market}` : ''}`, `You have access to CONTIGO as ${ROLE_LABEL[v.role].en}${market ? ` in ${market}` : ''}`],
+        body: [`Te lo dio ${ctx.user.name}. Si no lo esperabas, avisa a Administración.`, `${ctx.user.name} gave it to you. If you were not expecting it, tell Administration.`],
+      })
+    }
     return { userId, supervisorWithoutTeam: v.role === 'supervisor' && !teamId, expires }
   })
 }

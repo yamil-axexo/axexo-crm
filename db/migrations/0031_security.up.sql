@@ -1014,6 +1014,7 @@ create table crm.security_alerts (
   ack_by        uuid references crm.users(id),
   ack_at        timestamptz,
   ack_note      text,
+  notified_at   timestamptz,                    -- cuándo se avisó a quien lleva la bitácora (servicio de avisos)
   unique (kind, subject_key, period)
 );
 insert into crm.settings (key, value) values
