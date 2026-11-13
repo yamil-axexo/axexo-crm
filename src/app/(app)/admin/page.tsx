@@ -108,7 +108,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           // Gobierno: servicio, versiones, costos, datos de prueba y solicitudes. Lo leen administración y leadership.
           ...(ctx.can('gov.read') ? [{ key: 'gobierno', href: '/admin/gobierno', label: t('Gobierno', 'Governance') }] : []),
           // Paquete ia: nivel de asistencia por mercado, pesos de leads, evaluación y servidor MCP (apagado).
-          ...(ctx.can('ia.oversee') ? [{ key: 'ia', href: '/admin/ia', label: t('IA y asistencia', 'AI and assistance') }] : [])] },
+          ...(ctx.can('ia.oversee') ? [{ key: 'ia', href: '/admin/ia', label: t('IA y asistencia', 'AI and assistance') }] : []),
+          // Paquete plataforma: funciones por rol, valores propuestos, avisos por evento, red-team, agentes MCP y suplentes.
+          ...(ctx.can('platform.manage') || ctx.can('gov.read') ? [{ key: 'plataforma', href: '/admin/plataforma', label: t('Plataforma', 'Platform') }] : [])] },
       ].map((g) => ({ ...g, items: g.items.filter((x): x is AdminNavItem => x !== null) }))} />
       {hidden && (
         <p role="status" className="mb-6 rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] font-medium text-amber-text" data-testid="tab-hidden">

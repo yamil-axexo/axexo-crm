@@ -27,6 +27,7 @@ import { DealItems, DealOpsCard, OrderDetailsCard } from './ops'
 import { DealSteps } from './steps'
 import { TrainingAgenda } from './training'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
+import { ReservedCard } from '@/ui/reserved-card'
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireCtx()
@@ -310,6 +311,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           <DealEmbudoPanel ctx={ctx} dealId={deal.id} />
+          <ReservedCard ctx={ctx} object="deal" id={deal.id} tz={market.timezone} />
 
           <Card>
             <CardTitle title={t('Hilo', 'Thread')} hint={<span data-testid="thread-zone">{zoneNote(market, locale)}</span>} />

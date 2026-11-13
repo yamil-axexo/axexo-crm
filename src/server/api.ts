@@ -8,6 +8,7 @@ import { LIMITS, clientIp, ipHash, rateHit } from '@/server/protect'
 import { cleanRequestId, currentRequestId, withRequestId } from '@/server/request-id'
 import { recordError, recordRequest } from '@/server/telemetry'
 import type { ApiKey } from '@/dal/api-v1'
+import { loadCtx, type Ctx } from '@/server/context'
 
 /**
  * AUT-04 / SEC-02 / SEC-06: cada ruta de API autentica con una llave (hash en la base), revisa el permiso (scope),
@@ -102,6 +103,48 @@ async function handleGet(request: NextRequest, scope: string, fn: (key: ApiKey, 
     return NextResponse.json(out, {
       headers: { 'cache-control': 'no-store', 'x-ratelimit-limit': String(auth.key.ratePerMinute), 'x-contigo-data': auth.key.mode === 'test' ? 'synthetic' : 'live' },
     })
+  } catch (e) {
+    return failure(e, scope)
+  }
+}
+
+/**
+ * AUT-04: escritura general sobre el dominio (POST/PATCH). La llave actúa como la persona que la creó, con sus permisos y su
+ * alcance, acotada al mercado de la llave; el comando del dominio valida, deja la bitácora y emite el evento como en pantalla.
+ * Una llave de prueba (ctg_test_) no escribe.
+ */
+export function apiWrite(request: NextRequest, scope: string, fn: (ctx: Ctx, market: string, body: unknown) => Promise<unknown>) {
+  return traced(request, scope, () => handleWrite(request, scope, fn))
+}
+
+async function handleWrite(request: NextRequest, scope: string, fn: (ctx: Ctx, market: string, body: unknown) => Promise<unknown>): Promise<NextResponse> {
+  const auth = await authenticate(request, scope)
+  if ('response' in auth) return auth.response
+  const key = auth.key
+  if (key.mode === 'test') return NextResponse.json({ error: 'forbidden', message: 'Test keys only read.' }, { status: 403 })
+  if (!key.market || !key.createdBy) return NextResponse.json({ error: 'forbidden', message: 'The key has no market.' }, { status: 403 })
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
+  }
+  try {
+    const base = await loadCtx(key.createdBy, 'en')
+    if (!base) return NextResponse.json({ error: 'forbidden', message: 'The key owner is no longer active.' }, { status: 403 })
+    const market = key.market
+    // Lo mismo que la persona puede hacer, pero solo en el mercado de la llave.
+    const ctx: Ctx = {
+      ...base,
+      markets: base.markets.filter((m) => m.code === market),
+      can: (cap, m) => (!m || m === market) && base.can(cap, m ?? market),
+      assert: (cap, m) => {
+        if (m && m !== market) throw new DomainError('forbidden', 'No tienes permiso para hacer esto.', 'You do not have permission to do this.', 403)
+        base.assert(cap, m ?? market)
+      },
+    }
+    const out = await runVia('api', () => fn(ctx, market, body))
+    return NextResponse.json(out, { status: request.method === 'POST' ? 201 : 200, headers: { 'cache-control': 'no-store' } })
   } catch (e) {
     return failure(e, scope)
   }

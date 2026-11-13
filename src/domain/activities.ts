@@ -4,7 +4,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId, clean } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
-import { assertNoProhibited } from '@/domain/guard'
+import { assertNoProhibited, dlpMask } from '@/domain/guard'
 import { notifyFromNote } from '@/domain/ops'
 import { updateCustomTx } from '@/domain/custom'
 import { extractNoteFields, purposeFromNote, type NoteFieldDef } from '@/domain/note-fields'
@@ -37,7 +37,7 @@ const input = z.object({
   notify: z.guid().or(z.literal('')).optional().default(''),
 })
 export type ActivityInput = z.input<typeof input>
-export type Recorded = { id: string; kind: string; name: string; next: string | null; due: string | null; /** Campos del negocio que se llenaron con lo escrito en la nota (E12.F3). */ moved?: { key: string; label_es: string; label_en: string }[] }
+export type Recorded = { id: string; kind: string; name: string; next: string | null; due: string | null; /** Campos del negocio que se llenaron con lo escrito en la nota (E12.F3). */ moved?: { key: string; label_es: string; label_en: string }[]; /** SEG-04: se tapó un dato que no se guarda (cuenta o SSN). */ masked?: boolean }
 
 /** Hasta cuántos días atrás se puede fechar una visita o una llamada que se captura después. */
 export const BACKDATE_DAYS = 31
@@ -78,6 +78,12 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
   const next = isOneOf(NEXTS, v.next) && v.next !== 'none' ? v.next : null
   const text = next === 'task' ? nextText(v.nextText) : null
   const visitor = v.kind === 'visit' && !planned ? visitorName(v.visitedBy) : null
+  // SEG-04: una cuenta bancaria o un SSN en el texto se tapan (quedan los últimos 4) y se avisa; una tarjeta válida se rechaza.
+  const ms = dlpMask(v.subject)
+  const mb = dlpMask(v.body)
+  v.subject = ms.text
+  v.body = mb.text
+  const masked = ms.masked || mb.masked
   assertNoProhibited(v.subject, v.body)
 
   return withUser(ctx.user.id, async (tx) => {
@@ -171,8 +177,8 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
       await notifyFromNote(tx, ctx, { market: market!, userId: v.notify, accountId, dealId, activityId: id, body: [subject, clean(v.body)].filter(Boolean).join('. ') })
     }
 
-    if (!next || !when) return { id, kind: v.kind, name, next: null, due: null, moved }
+    if (!next || !when) return { id, kind: v.kind, name, next: null, due: null, moved, ...(masked ? { masked } : {}) }
     const step = await scheduleNext(tx, ctx, { market: market!, accountId, dealId, leadId: v.leadId ?? null, name, next, when, text, follows: id })
-    return { id, kind: v.kind, name, next: step, due: when, moved }
+    return { id, kind: v.kind, name, next: step, due: when, moved, ...(masked ? { masked } : {}) }
   })
 }

@@ -18,6 +18,8 @@ import { myNotices } from '@/dal/ops'
 import { noticeSeenAction } from '@/app/(app)/operaciones/actions'
 import { ActionForm, Submit } from '@/ui/client'
 import { getSupervisorBoard } from '@/dal/boards'
+import { LiveRefresh } from '@/ui/live-refresh'
+import { flagOn } from '@/domain/plataforma/admin'
 
 /** Las tareas con fecha pero sin hora se guardan a esta hora UTC: no se muestran como una hora real. */
 const DATE_ONLY = 'T15:00:00.000Z'
@@ -193,8 +195,11 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     emptyLink: teamOpen ? { href: '/supervisor', label: t('Ver los pendientes de mi equipo', 'See my team’s alerts') } : null, backlogLink: m('today.backlogLink'),
   }
 
+  // AUT-02: Hoy se actualiza solo cuando cambia algo en los mercados de la persona (flag live_updates, por rol y mercado).
+  const live = (await flagOn(ctx, 'live_updates')) ? ctx.markets.flatMap((mk) => ['deal', 'account', 'lead', 'activity'].map((a) => `${mk.code}:${a}`)) : []
   return (
     <>
+      {live.length > 0 && <LiveRefresh topics={live} />}
       {header(teamBusy ? ownClear : m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
       {!ob.hidden && ob.pending > 0 && (
         <aside className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 pr-3 pl-3.5" data-testid="hoy-onboarding">

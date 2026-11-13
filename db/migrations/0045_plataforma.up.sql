@@ -142,9 +142,9 @@ create policy event_notice_rules_read on crm.event_notice_rules for select to co
 create policy event_notice_rules_upd on crm.event_notice_rules for update to contigo_app using ((select app.is_admin())) with check ((select app.is_admin()));
 -- Propuestas, apagadas: administración decide cuáles encender.
 insert into crm.event_notice_rules (event_type, notice_kind, audience, title_es, title_en, body_es, body_en) values
-  ('deal.lost', 'lifecycle', 'owner', 'Se cerró un negocio sin alta', 'A deal was closed without sign-up', 'Revisa el motivo en el negocio.', 'Check the reason on the deal.'),
-  ('account.owner_changed', 'lifecycle', 'owner', 'Ahora llevas este comercio', 'You now own this merchant', 'Revisa su ficha y su próximo paso.', 'Check its record and its next step.'),
-  ('api_client.created', 'security_alert', 'admins', 'Se creó una llave de API', 'An API key was created', 'Revisa quién la creó y sus permisos en Integraciones.', 'Check who created it and its scopes in Integrations.');
+  ('deal.reassigned', 'lifecycle', 'owner', 'Te pasaron un negocio', 'A deal was handed to you', 'Revisa su etapa y su próximo paso.', 'Check its stage and its next step.'),
+  ('account.reassigned', 'lifecycle', 'owner', 'Ahora llevas este comercio', 'You now own this merchant', 'Revisa su ficha y su próximo paso.', 'Check its record and its next step.'),
+  ('deal.won', 'lifecycle', 'market_leads', 'Se ganó un negocio en tu mercado', 'A deal was won in your market', 'El comercio ya puede empezar a vender.', 'The merchant can now start selling.');
 
 -- ------------------------------------------------------------------ 3) UX-02
 create index if not exists accounts_phone_idx on crm.accounts (phone) where phone is not null;

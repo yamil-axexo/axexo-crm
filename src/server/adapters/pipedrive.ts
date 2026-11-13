@@ -1,5 +1,6 @@
 import 'server-only'
 import { env } from '@/env'
+import { EGRESS_ALLOWLIST, egressFetch } from '@/server/net/egress'
 
 /**
  * PORT-01: única puerta hacia la API de Pipedrive (v2 donde existe, v1 para usuarios, leads y notas).
@@ -34,7 +35,7 @@ async function call(path: string, params: Record<string, string | number | undef
   for (let attempt = 0; attempt < 3; attempt++) {
     let res: Response
     try {
-      res = await fetch(url, { headers: { 'x-api-token': token, accept: 'application/json' }, signal: AbortSignal.timeout(25_000), cache: 'no-store' })
+      res = await egressFetch(url, { headers: { 'x-api-token': token, accept: 'application/json' }, signal: AbortSignal.timeout(25_000), cache: 'no-store' }, { purpose: 'pipedrive', allowHosts: EGRESS_ALLOWLIST.pipedrive })
     } catch {
       lastStatus = 0
       await sleep(600 * (attempt + 1))

@@ -7,11 +7,12 @@ import { audit, newId } from '@/domain/common'
 import { API_SCOPES, hashKey } from '@/domain/admin'
 import { invalid, notFound } from '@/lib/errors'
 import { READ_SCOPES } from '@/domain/api-spec'
+import { WRITE_SCOPES } from '@/domain/plataforma/scopes'
 
 // AUT-04: llaves de la API. Una llave de lectura se emite para UN mercado y con los alcances mínimos; lee con la identidad
 // de quien la creó (las mismas políticas de la base que su pantalla), nunca más. Rotar deja dos llaves vigentes hasta la
 // fecha de retiro de la anterior. Una llave de prueba solo lee el juego de datos sintéticos de la API.
-export const ALL_SCOPES = [...API_SCOPES, ...READ_SCOPES] as const
+export const ALL_SCOPES = [...API_SCOPES, ...READ_SCOPES, ...WRITE_SCOPES] as const
 export const ROTATION_DAYS = { min: 1, max: 30, default: 7 } as const
 
 const keyInput = z.object({
@@ -30,7 +31,7 @@ export async function createApiKey(ctx: Ctx, input: z.input<typeof keyInput>): P
   const v = keyInput.safeParse(input)
   if (!v.success) throw invalid('Ponle nombre (3 a 80 letras), al menos un permiso y un límite entre 1 y 6000 por minuto.', 'Give it a name (3 to 80 characters), at least one scope and a limit between 1 and 6000 per minute.')
   const d = v.data
-  const reads = d.scopes.some(isRead)
+  const reads = d.scopes.some(isRead) || d.scopes.some((s) => (WRITE_SCOPES as readonly string[]).includes(s))
   if (reads && !d.market) throw invalid('Una llave de lectura es de un solo mercado: elige cuál.', 'A read key belongs to one market: pick which.')
   if (d.mode === 'test' && !d.scopes.every(isRead)) throw invalid('Una llave de prueba solo lee: quita los permisos de escritura.', 'A test key only reads: remove the write scopes.')
   // Nunca más de lo que ve quien la crea: el mercado tiene que estar en su alcance.

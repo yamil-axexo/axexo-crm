@@ -8,6 +8,7 @@ import { invalid, notFound } from '@/lib/errors'
 import { aiAdapter, digest, PROMPT_VERSION, type AiFeature } from '@/server/adapters/ai'
 import { asQuotedData } from '@/domain/untrusted'
 import { AGENTS, effectiveLevel, LEVELS, type Level } from './agents'
+import { agentsWithoutRedteam } from '@/domain/plataforma/admin'
 import {
   classifyLead, DISMISS_CODES, LEAD_CLASSES, matchQuestion, NEXT_TITLE, nextActions, scoreLead, SCORE_FACTORS, topAction,
   type LeadClass, type LeadFacts, type NextFacts, type NextRule, type ScoreFactor,
@@ -159,6 +160,11 @@ export async function setIaSettings(ctx: Ctx, market: string, raw: z.input<typeo
   if ((p.data.level === 'draft' || p.data.level === 'execute') && !sup) throw invalid('Para redactar o proponer tareas, nombra a la persona que revisa lo que hace cada semana.', 'To draft or propose tasks, name the person who reviews what it does each week.')
   await withUser(ctx.user.id, async (tx) => {
     if (sup && !(await tx`select 1 from crm.users where id = ${sup} and is_active and not is_system`)[0]) throw invalid('Esa persona no está activa en CONTIGO.', 'That person is not active in CONTIGO.')
+    // IA-07: un agente que actúa (redacta o propone) no se enciende sin su revisión de red-team aprobada (Administración, IA, Red-team).
+    if (p.data.level === 'draft' || p.data.level === 'execute') {
+      const missing = await agentsWithoutRedteam(tx, AGENTS.map((a) => a.key))
+      if (missing.length > 0) throw invalid('Antes de encender un agente que redacta o propone, deja su revisión de red-team aprobada en Administración, IA.', 'Before turning on an agent that drafts or proposes, record its passed red-team review in Administration, AI.')
+    }
     const before = (await tx<{ level: string; supervisor_id: string | null; quiet_days: number }[]>`select level, supervisor_id, quiet_days from crm.ia_settings where market_code = ${market}`)[0] ?? null
     await tx`insert into crm.ia_settings (market_code, level, supervisor_id, quiet_days, updated_by, updated_at)
              values (${market}, ${p.data.level}, ${sup}, ${p.data.quietDays}, ${ctx.user.id}, now())
