@@ -98,13 +98,18 @@ const SILENT: [prefix: string, why: Pair][] = [
   ['sheet.', WHY.migration],
   ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
   ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
+  // Paquete mercados: qué datos van arriba en la ficha por rol y cómo se agrupan los campos es acomodo de pantalla.
+  ['ficha.', WHY.internal], ['field_section.', WHY.internal],
 ]
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',
   'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.',
   // Ola 1 de los 95: identificadores de otros sistemas, mercados, procesos por comercio, proveedores y productos, pedidos,
   // capacitación del dealer, etiquetas de agencias y la configuración de las automatizaciones.
-  'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.']
+  'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.',
+  // Paquete mercados: entidad legal, identificador fiscal (el evento lleva qué campos cambiaron, nunca el identificador) y
+  // la configuración de WhatsApp de un mercado.
+  'entity.', 'taxid.', 'whatsapp.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {

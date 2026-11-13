@@ -453,7 +453,7 @@ describe('MULTI-04: dirección con el formato del país, ubicación, distancia y
     await ingestSalesAppEvent(sys, ev(19.5, -99.1))
     expect(Number((await geo()).latitude)).toBeCloseTo(20.67359, 4)
     // Una latitud imposible no entra.
-    expect((await ingestSalesAppEvent(sys, ev(120, -99.1))).status).not.toBe('processed')
+    expect(await code(ingestSalesAppEvent(sys, ev(120, -99.1)))).toBe('invalid')
   })
 })
 
