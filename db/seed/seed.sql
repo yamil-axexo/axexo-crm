@@ -424,3 +424,24 @@ update crm.accounts a set address_line = 'Av. Principal 120, Centro', postal_cod
                  where x.market_code = 'MX' and x.kind = 'store' and x.archived_at is null
                    and x.owner_id in (pg_temp.uid('lucia.vega'), pg_temp.uid('marco.pena'))
                  order by x.owner_id, x.name, x.id);
+
+-- mx
+-- México como lo describe el documento de requerimientos (épicas E14 a E18).
+-- Etapas de los dos embudos: en una base nueva las etapas nacen en este archivo, así que la plantilla se aplica aquí
+-- (en una base que ya las tenía, la aplicó la migración 0027).
+select crm.apply_mx_stage_template();
+-- Los dos formularios de México son los embudos de campaña: tiendas independientes (F1) y cadenas y distribuidores (F2).
+-- Cada uno lleva su identificador de canal y deja el origen "Campaña web". El de cadenas y distribuidores pregunta el tipo de empresa.
+update crm.web_forms set funnel = 'F1', channel_id = 'mx-web-tiendas', is_campaign = true where id = pg_temp.uid('f-mx-d2d');
+update crm.web_forms set funnel = 'F2', channel_id = 'mx-web-cadenas', is_campaign = true, offer_types = '{distributor,chain}' where id = pg_temp.uid('f-mx-b2b');
+alter table crm.leads disable trigger user;
+update crm.leads l set source = 'web_campaign', funnel = f.funnel, channel_id = f.channel_id
+  from crm.web_forms f where f.id = l.form_id and f.is_campaign;
+-- Los leads de cadenas y distribuidores traen tipo de empresa y número de tiendas como campos (datos inventados).
+update crm.leads l set account_type = case when pg_temp.h('ct' || l.id::text) % 2 = 0 then 'chain' else 'distributor' end,
+       custom = l.custom || jsonb_build_object('b2b_points_of_sale', 3 + pg_temp.h('pv' || l.id::text) % 58)
+ where l.form_id = pg_temp.uid('f-mx-b2b');
+alter table crm.leads enable trigger user;
+-- Meta de respuesta: una hora hábil para cadenas y distribuidores, un día hábil para tiendas (E15.F9).
+update crm.routing_rules set sla_minutes = 60, sla_business_days = null where id = pg_temp.uid('rr-mx-b2b');
+update crm.routing_rules set sla_business_days = 1 where id = pg_temp.uid('rr-mx-d2d');

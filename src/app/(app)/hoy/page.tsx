@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { isWebSource } from '@/lib/lead-source'
 import { requireCtx, systemCtx } from '@/server/context'
 import { track } from '@/dal/boards'
 import { getQueue, getTeamQueue, QUEUE_PAGE, type QueueRow } from '@/dal/queue'
@@ -119,7 +120,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
       return {
         ...base,
         title: m('action.callOf', { name }),
-        context: `${m(r.kind === 'web_form' ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
+        context: `${m(isWebSource(r.kind) ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
         chip: r.group === 'late' ? { text: m('today.chip.late'), tone: 'risk' } : { text: m('today.chip.today'), tone: 'warn' },
         clock: r.due ? r.due.toISOString() : null,
         results: resultOptions(ctx, ['reached', 'no_answer']),

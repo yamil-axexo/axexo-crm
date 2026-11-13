@@ -265,6 +265,7 @@
   "leads.minutes": "{count} min",
   "leads.hours": "{count} h",
   "leads.days": "{count, plural, one {# día} other {# días}}",
+  "leads.stores": "{count, plural, one {# tienda} other {# tiendas}}",
   "offline.banner": "Sin señal. Lo que ya está en pantalla se puede leer; para guardar o abrir otra cosa, reconéctate.",
   "offline.tag": "sin señal",
   "today.backlog": "{count, plural, one {Hay # registro más que pide atención.} other {Hay # registros más que piden atención.}} Aquí van los más importantes.",
