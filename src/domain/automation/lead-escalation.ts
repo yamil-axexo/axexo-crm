@@ -44,7 +44,7 @@ export async function escalateLeads(tx: Tx, sys: Ctx): Promise<number> {
      where l.status = 'new' and l.sla_due_at < now()
        -- LEAD-04: el reloj se cierra con el contacto efectivo; un mercado puede decidir cerrarlo con el primer intento.
        and (case when coalesce(app.funnel_setting(l.market_code, 'lead_sla_clock') #>> '{}', 'contact') = 'attempt' then l.first_touch_at else l.first_contact_at end) is null
-       and (l.escalation_level = 0 or (l.escalation_level = 1 and app.business_due(l.market_code, l.sla_due_at, e.level2_hours * 60) < now()))
+       and (l.escalation_level = 0 or (l.escalation_level = 1 and app.business_due_tz(l.market_code, l.sla_due_at, e.level2_hours * 60, l.timezone) < now()))
      order by l.sla_due_at limit 200 for update of l skip locked`
   for (const l of due) {
     const level = l.escalation_level + 1

@@ -84,7 +84,7 @@ function recordSet(tx: Tx, source: Source): Frag {
       select l.id, l.market_code, l.account_id, null::uuid as deal_id, l.id as lead_id, l.owner_id, l.owner_id as ball_owner_id,
              l.motor, l.business_name as label, l.business_name, l.sla_due_at,
              l.status, (l.first_touch_at is not null) as touched, (l.sla_due_at < now()) as first_contact_overdue,
-             case when l.sla_due_at < now() then app.business_minutes(l.market_code, l.sla_due_at, now()) / 60.0 else 0 end as overdue_business_hours,
+             case when l.sla_due_at < now() then app.business_minutes_tz(l.market_code, l.sla_due_at, now(), l.timezone) / 60.0 else 0 end as overdue_business_hours,
              (l.owner_id is not null) as has_owner, l.id::text as dedupe_id,
              (case when coalesce(app.funnel_setting(l.market_code, 'lead_sla_clock') #>> '{}', 'contact') = 'attempt' then l.first_touch_at else l.first_contact_at end) is null
                and l.status = 'new' as contact_pending,

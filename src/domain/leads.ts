@@ -62,8 +62,13 @@ const leadInput = z.object({
   email: z.string().trim().max(160).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
+  /** LEAD-04 (embudo2): zona horaria del punto de venta (IANA), si quien manda el lead la conoce. Sin ella, la del mercado. */
+  timezone: z.string().trim().max(60).optional().default('').refine((z) => z === '' || validZone(z)),
 })
 export type LeadInput = z.input<typeof leadInput>
+function validZone(zone: string): boolean {
+  try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); return /^[A-Za-z_]+\/[A-Za-z_/+-]+$/.test(zone) } catch { return false }
+}
 
 type LeadRow = {
   id: string
@@ -150,14 +155,14 @@ async function insertLead(
   // El reloj de primer contacto corre en el horario hábil del mercado (app.business_due): el cumplimiento usa esta misma fecha.
   await tx`insert into crm.leads (id, market_code, source, form_id, motor, business_name, contact_name, phone, email, locality, message,
                                   status, owner_id, assigned_at, sla_due_at, first_touch_at, duplicate_of, account_type, contact_role,
-                                  utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, consent_at, consent_text)
+                                  utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, consent_at, consent_text, timezone)
            values (${id}, ${v.market}, ${opts.source}, ${opts.formId}, ${v.motor}, ${v.businessName}, ${v.contactName}, ${phone},
                    ${clean(v.email)}, ${clean(v.locality)}, ${clean(v.message)}, ${spoke ? 'contacted' : 'new'}, ${opts.ownerId},
                    ${opts.ownerId ? tx`now()` : null},
-                   ${spoke ? tx`now()` : tx`app.business_due(${v.market}, now(), ${opts.slaMinutes})`}, ${spoke ? tx`now()` : null}, ${dup[0]?.id ?? null},
+                   ${spoke ? tx`now()` : tx`app.business_due_tz(${v.market}, now(), ${opts.slaMinutes}, ${v.timezone || null})`}, ${spoke ? tx`now()` : null}, ${dup[0]?.id ?? null},
                    ${accountType}, ${v.contactRole ?? null},
                    ${o.utm_source ?? null}, ${o.utm_medium ?? null}, ${o.utm_campaign ?? null}, ${o.utm_content ?? null}, ${o.utm_term ?? null},
-                   ${o.gclid ?? null}, ${o.fbclid ?? null}, ${o.consentAt ?? null}, ${o.consentAt ? (o.consentText ?? null) : null})`
+                   ${o.gclid ?? null}, ${o.fbclid ?? null}, ${o.consentAt ?? null}, ${o.consentAt ? (o.consentText ?? null) : null}, ${v.timezone || null})`
   // La bitácora guarda la fuente y la campaña, y si hubo consentimiento. Los identificadores de clic se quedan en el lead.
   await audit(tx, ctx, 'lead.created', 'lead', id, v.market, null, {
     source: opts.source, motor: v.motor, owner_id: opts.ownerId, ...(spoke ? { contacted: true } : {}),
@@ -230,6 +235,8 @@ const formPayload = z.object({
   phone: z.string().trim().max(30).optional().default(''),
   email: z.string().trim().max(160).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
+  /** LEAD-04 (embudo2): zona horaria del punto de venta (IANA), opcional. Sin ella, el reloj usa la del mercado. */
+  timezone: z.string().trim().max(60).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
   website: z.string().max(0).optional().default(''), // trampa para bots: debe llegar vacío
   // Tipo de empresa (E15.F3): solo cuenta si el formulario lo ofrece; un valor que no está en su lista se ignora.
@@ -303,7 +310,7 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
     const leadId = await insertLead(
       tx,
       sys,
-      { market: form.market_code, motor: form.motor, businessName: p.business_name, contactName: p.contact_name, phone: p.phone, email: p.email, locality: p.locality, message: p.message, source: 'manual', alreadyContacted: false },
+      { market: form.market_code, motor: form.motor, businessName: p.business_name, contactName: p.contact_name, phone: p.phone, email: p.email, locality: p.locality, message: p.message, source: 'manual', alreadyContacted: false, timezone: validZone(p.timezone) ? p.timezone : '' },
       // Un formulario de campaña deja el origen "Campaña web" (E15.F2). El tipo de empresa que eligió la persona manda sobre el del formulario (E15.F3).
       { source: form.is_campaign ? 'web_campaign' : 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin, accountType: form.offer_types.includes(p.company_type) ? p.company_type : form.account_type },
     )

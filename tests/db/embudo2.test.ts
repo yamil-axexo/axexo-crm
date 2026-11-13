@@ -176,6 +176,11 @@ describe('LEAD-04: reloj de primer contacto', () => {
              (select app.business_due('MX', ((select monday from d) + time '09:00') at time zone 'America/Mexico_City', 60)) as holiday,
              app.business_due_tz('MX', ((select monday from d) + time '09:00') at time zone 'America/Mexico_City', 60, 'America/Tijuana') as tz`)
     expect(r.tz.getTime()).toBeGreaterThan(r.plain.getTime()) // Tijuana abre más tarde que Ciudad de México
+    // El lead que trae la zona del punto de venta la guarda y su reloj la usa.
+    const lucia = await ctxFor('lucia.vega')
+    const id = await createLead(lucia, { market: 'MX', motor: 'd2d', businessName: `Zona PDV ${tag()}`, contactName: 'Rita Luna', phone: mxPhone(), timezone: 'America/Tijuana' })
+    expect(await one(admin<{ timezone: string }[]>`select timezone from crm.sla_timers where record_id = ${id}`)).toEqual({ timezone: 'America/Tijuana' })
+    await expect(createLead(lucia, { market: 'MX', motor: 'd2d', businessName: `Zona mala ${tag()}`, contactName: 'Rita Luna', phone: mxPhone(), timezone: 'Marte/Base' })).rejects.toThrow()
     const monday = await one(admin<{ d: string }[]>`select (date_trunc('week', now() at time zone 'America/Mexico_City') + interval '7 days')::date::text as d`)
     await admin`insert into crm.market_holidays (market_code, day, name) values ('MX', ${monday.d}, 'Feriado de prueba') on conflict do nothing`
     const after = await one(admin<{ due: Date }[]>`select app.business_due('MX', (${monday.d}::date + time '09:00') at time zone 'America/Mexico_City', 60) as due`)
