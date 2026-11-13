@@ -325,8 +325,8 @@ describe('GOB-05 y E6.F4: carga de Pipedrive con historial, árbol, duplicados y
     const names = ev.map((e) => e.to_name)
     expect(names).toContain('Prospect')
     expect(names).toContain('Contacted')
-    const contacted = ev.find((e) => e.to_name === 'Contacted')!
-    expect(contacted.at.toISOString().slice(0, 10)).toBe('2026-10-08')
+    // El cambio a Contacted llegó con su fecha real (además del registro con que arranca la historia al importar el negocio).
+    expect(ev.filter((e) => e.to_name === 'Contacted').map((e) => e.at.toISOString().slice(0, 10))).toContain('2026-10-08')
   })
 
   it('la organización matriz de Pipedrive cuelga a la hija en el árbol', async () => {
@@ -339,7 +339,7 @@ describe('GOB-05 y E6.F4: carga de Pipedrive con historial, árbol, duplicados y
   })
 
   it('los duplicados de la carga quedan en la cola, sin fusionar nada', async () => {
-    const merged = await admin`select 1 from crm.merge_events where created_at > now() - interval '10 minutes'`
+    const merged = await admin`select 1 from crm.merge_events where merged_at > now() - interval '10 minutes'`
     expect(merged.length).toBe(0)
   })
 

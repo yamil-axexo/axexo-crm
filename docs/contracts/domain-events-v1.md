@@ -458,6 +458,8 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `csv_import.completed` | Imported a file | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `csv_import.undone` | Undid an import | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `deployment.recorded` | Recorded a deployment | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `document.emailed` | Emailed a document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `document.generated` | Generated a document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `duplicate.bypass_reviewed` | Reviewed a skipped duplicate warning | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `duplicate.bypassed` | Created a merchant despite a duplicate warning, with a reason | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `duplicate.dismissed` | Dismissed a pair of possible duplicates | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
@@ -489,17 +491,23 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `integration.metrics_loaded` | The daily sales file was loaded | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.metrics_quarantined` | Sales file set aside for review | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.onboarding_received` | A merchant’s onboarding arrived from the Sales App | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
+| `integration.route_checkin` | Received a route tool check-in | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.simulated` | Tested an integration from Administration | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
+| `integration.store_sales_loaded` | Loaded the store sales figures | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.visit_received` | A Sales App visit came in | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `job.run_manual` | Ran a scheduled job by hand | It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not. |
+| `load.configured` | Changed a load’s owner or schedule | It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not. |
+| `load.window_set` | Changed a market’s no-load window | It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not. |
 | `maintenance.closed` | Closed a maintenance window | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `maintenance.scheduled` | Scheduled a maintenance window | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `market.reset_test` | Wiped and reloaded a test market | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `material.removed` | Removed a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `material.saved` | Saved a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `metric.owner_set` | Changed who answers for a metric | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `notice.all_seen` | Marked all notices as read | It is a notice between people inside CONTIGO, not a change to the record. |
 | `notice.prefs_saved` | Changed notice preferences | It is a notice between people inside CONTIGO, not a change to the record. |
 | `objective.set` | Set a service or recovery objective | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `pipedrive.backup_downloaded` | Downloaded the Pipedrive backup | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `quality.rule_updated` | Edited a data quality rule | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.snapshot_saved` | Saved today’s data quality snapshot | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `reconciliation.ran` | Reconciled with the sales file | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
