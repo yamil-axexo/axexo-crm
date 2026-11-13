@@ -1,4 +1,15 @@
 -- 0040_datos2 (down)
+drop function if exists app.lead_timezone(uuid);
+drop function if exists app.business_due(text, timestamptz, int, text);
+alter table crm.leads drop column if exists timezone;
+drop trigger if exists legal_entities_release on crm.legal_entities;
+drop function if exists crm.legal_entity_release();
+drop trigger if exists leads_entity_before on crm.leads;
+drop function if exists crm.lead_entity_before();
+alter table crm.leads drop column if exists legal_entity_id;
+drop trigger if exists contracts_entity_before on crm.contracts;
+drop function if exists crm.contract_entity_before();
+alter table crm.contracts drop column if exists legal_entity_id;
 drop function if exists app.column_exists(text, text);
 drop table if exists crm.field_promotions;
 insert into crm.settings (key, value)

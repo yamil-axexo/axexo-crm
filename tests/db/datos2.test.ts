@@ -8,6 +8,8 @@ import { updateCustom } from '@/domain/custom'
 import { requestPromotion, setFieldSchema } from '@/domain/fields2'
 import { openExpansionDeals, setProductEntity } from '@/domain/products2'
 import { productMatrix } from '@/dal/datos'
+import { inferAccountTimezones } from '@/server/jobs/datos'
+import { JOBS } from '@/server/jobs/registry'
 import { convertLead, createLead, qualifyLead } from '@/domain/leads'
 import { dismissContactPair, mergeContacts, resolveContact, undoContactMerge } from '@/domain/contacts-dedup'
 import { decisionValue, DECISIONS, setDecision } from '@/domain/decisions'
@@ -354,5 +356,54 @@ describe('DAT-07 · entidad del producto y negocios de expansión', () => {
     // dos veces no abre otro
     expect((await openExpansionDeals(valeria, prod.id, [a])).opened).toBe(0)
     await expect(openExpansionDeals(await ctxFor('luis.tovar'), prod.id, [a])).rejects.toMatchObject({ code: 'forbidden' })
+  })
+})
+
+describe('MULTI-02 · entidad en contrato y lead, hora de la cuenta', () => {
+  it('el contrato lleva entidad obligatoria (la del comercio) y no acepta una de otro mercado', async () => {
+    const acc = await rawAccount('MX', 'diana.cruz')
+    const ent = await one(admin<{ legal_entity_id: string }[]>`select legal_entity_id from crm.accounts where id = ${acc}`)
+    const terms = await one(admin<{ id: string }[]>`
+      insert into crm.commercial_terms (account_id, market_code, version, commission_lines, settlement, term_months, valid_from, valid_to)
+      values (${acc}, 'MX', 1, ${admin.json([{ product: 'Recargas', pct: 4 }])}, 'prepaid', 12, current_date, current_date + 365) returning id`)
+    {
+      const c = await one(admin<{ legal_entity_id: string }[]>`insert into crm.contracts (account_id, market_code, terms_id, starts_on, ends_on) values (${acc}, 'MX', ${terms.id}, current_date, current_date + 365) returning legal_entity_id`)
+      expect(c.legal_entity_id).toBe(ent.legal_entity_id)
+      const us = await one(admin<{ id: string }[]>`select id from crm.legal_entities where market_code = 'US' limit 1`)
+      await expect(admin`insert into crm.contracts (account_id, market_code, terms_id, starts_on, ends_on, legal_entity_id) values (${acc}, 'MX', ${terms.id}, current_date, current_date + 365, ${us.id})`).rejects.toMatchObject({ code: '23514' })
+    }
+    const nulls = await one(admin<{ n: number }[]>`select count(*)::int as n from crm.contracts where legal_entity_id is null`)
+    expect(nulls.n).toBe(0)
+    const col = await one(admin<{ is_nullable: string }[]>`select is_nullable from information_schema.columns where table_schema = 'crm' and table_name = 'contracts' and column_name = 'legal_entity_id'`)
+    expect(col.is_nullable).toBe('NO')
+  })
+
+  it('cada lead nace con entidad legal, y su reloj corre en la hora de la cuenta cuando se sabe', async () => {
+    const diana = await ctxFor('diana.cruz')
+    const id = await createLead(diana, { market: 'MX', motor: 'd2d', businessName: `Lead entidad ${tag()}`, contactName: 'Persona Entidad', phone: mxPhone() })
+    expect((await one(admin<{ legal_entity_id: string | null }[]>`select legal_entity_id from crm.leads where id = ${id}`)).legal_entity_id).toBeTruthy()
+    // misma hora de captura: con la zona de Tijuana, el reloj vence más tarde (en UTC) que con la de la Ciudad de México
+    const [a, b] = await withSystem(async (tx) => tx<{ mx: Date; tj: Date }[]>`
+      select app.business_due('MX', timestamptz '2026-11-16 15:00:00+00', 60, null) as mx, app.business_due('MX', timestamptz '2026-11-16 15:00:00+00', 60, 'America/Tijuana') as tj`).then((r) => [r[0]!.mx, r[0]!.tj])
+    expect(b!.getTime()).toBeGreaterThan(a!.getTime())
+    const tj = await createLead(diana, { market: 'MX', motor: 'd2d', businessName: `Lead Tijuana ${tag()}`, contactName: 'Persona Tijuana', phone: mxPhone(), timezone: 'America/Tijuana' })
+    expect((await one(admin<{ timezone: string | null }[]>`select timezone from crm.leads where id = ${tj}`)).timezone).toBe('America/Tijuana')
+    expect((await one(admin<{ tz: string | null }[]>`select app.lead_timezone(${tj}) as tz`)).tz).toBe('America/Tijuana')
+  })
+
+  it('los comercios sin zona propia toman la de su estado cuando el estado entero está en una zona', async () => {
+    const a = await rawAccount('US', 'jade.kim')
+    const b = await rawAccount('MX', 'diana.cruz')
+    const c = await rawAccount('US', 'jade.kim')
+    await admin`update crm.accounts set region = 'NV' where id = ${a}`
+    await admin`update crm.accounts set region = 'Quintana Roo' where id = ${b}`
+    await admin`update crm.accounts set region = 'NV', timezone = 'America/Denver' where id = ${c}`
+    const n = await withSystem((tx) => inferAccountTimezones(tx))
+    expect(n).toBeGreaterThanOrEqual(2)
+    const rows = await admin<{ id: string; timezone: string | null }[]>`select id, timezone from crm.accounts where id in (${a}, ${b}, ${c})`
+    expect(rows.find((r) => r.id === a)!.timezone).toBe('America/Los_Angeles')
+    expect(rows.find((r) => r.id === b)!.timezone).toBe('America/Cancun')
+    expect(rows.find((r) => r.id === c)!.timezone).toBe('America/Denver')
+    expect(JOBS.some((j) => j.key === 'datos.account_timezones')).toBe(true)
   })
 })

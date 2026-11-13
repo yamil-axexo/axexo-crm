@@ -14,6 +14,20 @@ export const US_STATE_ZONE: Record<string, string> = {
 }
 
 /** Zonas que se ofrecen para un comercio, por mercado. Vacío = la del mercado es la única. */
+/** MULTI-02 (datos2): estados de México que están enteros en una zona distinta de la del centro. Los partidos no se adivinan. */
+export const MX_STATE_ZONE: Record<string, string> = {
+  'QUINTANA ROO': 'America/Cancun', 'BAJA CALIFORNIA': 'America/Tijuana', SONORA: 'America/Hermosillo', 'BAJA CALIFORNIA SUR': 'America/Mazatlan', SINALOA: 'America/Mazatlan',
+}
+
+/** La zona de un estado, si el estado entero está en una zona conocida. */
+export function stateZone(market: string, region: string | null | undefined): string | null {
+  const r = (region ?? '').trim().toUpperCase()
+  if (!r) return null
+  if (market === 'US') return US_STATE_ZONE[r] ?? null
+  if (market === 'MX') return MX_STATE_ZONE[r.normalize('NFD').replace(/[\u0300-\u036f]/g, '')] ?? null
+  return null
+}
+
 export const MARKET_ZONES: Record<string, string[]> = {
   US: ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu', 'America/Puerto_Rico'],
   MX: ['America/Mexico_City', 'America/Cancun', 'America/Chihuahua', 'America/Hermosillo', 'America/Tijuana'],

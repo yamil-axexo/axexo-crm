@@ -63,6 +63,8 @@ const leadInput = z.object({
   email: z.string().trim().max(160).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
+  /** MULTI-02 (datos2): zona horaria IANA del negocio, si quien manda el lead la sabe. Opcional. */
+  timezone: z.string().trim().max(60).optional(),
 })
 export type LeadInput = z.input<typeof leadInput>
 
@@ -144,6 +146,9 @@ async function insertLead(
   if (accountType && !(await accountTypeLevel(tx, v.market, accountType))) throw invalid('Elige un tipo de cuenta de la lista.', 'Pick an account type from the list.')
   if (!accountType && opts.accountType && (await accountTypeLevel(tx, v.market, opts.accountType))) accountType = opts.accountType
   const dup = await tx<{ id: string }[]>`select id from app.duplicate_candidates(${v.market}, ${v.businessName}, ${phone})`
+  // MULTI-02 (datos2): el reloj corre en la hora de la cuenta. La del lead si el formulario o la Sales App la mandan; si el lead
+  // ya es de un comercio conocido, la de ese comercio; si no, la del mercado.
+  const tz = v.timezone && /^[A-Za-z_]+\/[A-Za-z_/+-]+$/.test(v.timezone) ? v.timezone : null
   const id = await newId(tx)
   const o = opts.origin ?? {}
   // "Ya hablé con esta persona" (solo en el alta a mano): nace contactado, con el primer contacto a tiempo y sin reloj que corra.
@@ -151,14 +156,14 @@ async function insertLead(
   // El reloj de primer contacto corre en el horario hábil del mercado (app.business_due): el cumplimiento usa esta misma fecha.
   await tx`insert into crm.leads (id, market_code, source, form_id, motor, business_name, contact_name, phone, email, locality, message,
                                   status, owner_id, assigned_at, sla_due_at, first_touch_at, duplicate_of, account_type, contact_role,
-                                  utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, consent_at, consent_text)
+                                  utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, consent_at, consent_text, timezone)
            values (${id}, ${v.market}, ${opts.source}, ${opts.formId}, ${v.motor}, ${v.businessName}, ${v.contactName}, ${phone},
                    ${clean(v.email)}, ${clean(v.locality)}, ${clean(v.message)}, ${spoke ? 'contacted' : 'new'}, ${opts.ownerId},
                    ${opts.ownerId ? tx`now()` : null},
-                   ${spoke ? tx`now()` : tx`app.business_due(${v.market}, now(), ${opts.slaMinutes})`}, ${spoke ? tx`now()` : null}, ${dup[0]?.id ?? null},
+                   ${spoke ? tx`now()` : tx`app.business_due(${v.market}, now(), ${opts.slaMinutes}, coalesce(${tz}::text, (select a.timezone from crm.accounts a where a.id = ${dup[0]?.id ?? null}::uuid)))`}, ${spoke ? tx`now()` : null}, ${dup[0]?.id ?? null},
                    ${accountType}, ${v.contactRole ?? null},
                    ${o.utm_source ?? null}, ${o.utm_medium ?? null}, ${o.utm_campaign ?? null}, ${o.utm_content ?? null}, ${o.utm_term ?? null},
-                   ${o.gclid ?? null}, ${o.fbclid ?? null}, ${o.consentAt ?? null}, ${o.consentAt ? (o.consentText ?? null) : null})`
+                   ${o.gclid ?? null}, ${o.fbclid ?? null}, ${o.consentAt ?? null}, ${o.consentAt ? (o.consentText ?? null) : null}, ${tz})`
   // La bitácora guarda la fuente y la campaña, y si hubo consentimiento. Los identificadores de clic se quedan en el lead.
   await audit(tx, ctx, 'lead.created', 'lead', id, v.market, null, {
     source: opts.source, motor: v.motor, owner_id: opts.ownerId, ...(spoke ? { contacted: true } : {}),

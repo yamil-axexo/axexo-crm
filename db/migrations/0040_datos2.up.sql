@@ -385,3 +385,99 @@ language sql stable security definer set search_path = pg_catalog as $$
   select exists (select 1 from information_schema.columns where table_schema = 'crm' and table_name = p_table and column_name = p_column)
 $$;
 grant execute on function app.column_exists(text, text) to contigo_app;
+
+-- ================================================================ MULTI-02 entidad en contratos y leads, hora de la cuenta en los relojes
+-- El contrato lleva entidad legal, obligatoria; por defecto, la del comercio. Debe ser del mercado del contrato.
+alter table crm.contracts add column legal_entity_id uuid references crm.legal_entities(id);
+update crm.contracts c set legal_entity_id = coalesce(a.legal_entity_id, app.default_entity(c.market_code)) from crm.accounts a where a.id = c.account_id;
+alter table crm.contracts alter column legal_entity_id set not null;
+create or replace function crm.contract_entity_before() returns trigger
+language plpgsql set search_path = crm, app, pg_catalog as $$
+begin
+  if new.legal_entity_id is null then
+    new.legal_entity_id := coalesce((select a.legal_entity_id from crm.accounts a where a.id = new.account_id), app.default_entity(new.market_code));
+  end if;
+  if not exists (select 1 from crm.legal_entities e where e.id = new.legal_entity_id and e.market_code = new.market_code) then
+    raise exception 'legal entity does not belong to the market' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger contracts_entity_before before insert or update of legal_entity_id, market_code on crm.contracts
+  for each row execute function crm.contract_entity_before();
+
+-- El lead también: entidad del mercado por defecto (la de la persona si su acceso está limitado a una entidad).
+alter table crm.leads add column legal_entity_id uuid references crm.legal_entities(id);
+update crm.leads l set legal_entity_id = coalesce((select a.legal_entity_id from crm.accounts a where a.id = l.account_id), app.default_entity(l.market_code));
+alter table crm.leads alter column legal_entity_id set not null;
+create or replace function crm.lead_entity_before() returns trigger
+language plpgsql set search_path = crm, app, pg_catalog as $$
+begin
+  if new.legal_entity_id is null then
+    new.legal_entity_id := coalesce((select a.legal_entity_id from crm.accounts a where a.id = coalesce(new.account_id, new.duplicate_of)), app.default_entity(new.market_code));
+  end if;
+  return new;
+end $$;
+create trigger leads_entity_before before insert on crm.leads for each row execute function crm.lead_entity_before();
+
+-- Retirar una entidad (por ejemplo, la provisional cuando Legal confirma la lista) no deja leads ni contratos sin entidad: pasan a
+-- la de por defecto del mercado. Si el mercado no tiene otra, la base no deja borrarla.
+create or replace function crm.legal_entity_release() returns trigger
+language plpgsql set search_path = crm, app, pg_catalog as $$
+declare v uuid;
+begin
+  select e.id into v from crm.legal_entities e where e.market_code = old.market_code and e.id <> old.id and e.archived_at is null
+   order by e.is_default desc, e.created_at, e.id limit 1;
+  update crm.leads set legal_entity_id = v where legal_entity_id = old.id;
+  update crm.contracts set legal_entity_id = v where legal_entity_id = old.id;
+  return old;
+end $$;
+create trigger legal_entities_release before delete on crm.legal_entities for each row execute function crm.legal_entity_release();
+
+-- Zona horaria del lead (opcional): la manda el formulario o la Sales App si la sabe. Sin ella, la del comercio si el lead ya es
+-- de uno; sin comercio, la del mercado.
+alter table crm.leads add column timezone text check (timezone is null or char_length(timezone) <= 60);
+
+-- Reloj hábil con la hora de la cuenta: igual que app.business_due, en la zona que se le pasa (vacía = la del mercado).
+create or replace function app.business_due(p_market text, p_from timestamptz, p_minutes int, p_tz text)
+returns timestamptz
+language plpgsql stable security definer set search_path = crm, app, pg_catalog as $$
+declare
+  tz text; d int[]; o time; c time;
+  loc timestamp; day date; s timestamp; e timestamp;
+  remaining numeric := greatest(coalesce(p_minutes, 60), 0);
+  avail numeric; i int := 0;
+begin
+  select m.timezone into tz from crm.markets m where m.code = p_market;
+  if p_tz is not null and exists (select 1 from pg_timezone_names z where z.name = p_tz) then tz := p_tz; end if;
+  tz := coalesce(tz, 'UTC');
+  select h.days, h.opens, h.closes into d, o, c from crm.market_hours h where h.market_code = p_market;
+  d := coalesce(d, '{1,2,3,4,5}'::int[]); o := coalesce(o, time '09:00'); c := coalesce(c, time '18:00');
+  loc := p_from at time zone tz;
+  day := loc::date;
+  while i < 370 loop
+    if extract(isodow from day)::int = any(d) then
+      s := greatest(loc, day + o);
+      e := day + c;
+      if s < e then
+        avail := extract(epoch from (e - s)) / 60.0;
+        if remaining <= avail then
+          return (s + make_interval(secs => (remaining * 60)::double precision)) at time zone tz;
+        end if;
+        remaining := remaining - avail;
+      end if;
+    end if;
+    day := day + 1;
+    i := i + 1;
+  end loop;
+  return p_from + make_interval(mins => coalesce(p_minutes, 60));
+end $$;
+revoke execute on function app.business_due(text, timestamptz, int, text) from public;
+grant execute on function app.business_due(text, timestamptz, int, text) to contigo_app;
+
+-- La zona de un lead: la suya, la del comercio que ya es, o ninguna (el reloj usa la del mercado).
+create or replace function app.lead_timezone(p_lead uuid) returns text
+language sql stable set search_path = crm, app, pg_catalog as $$
+  select coalesce(l.timezone, (select a.timezone from crm.accounts a where a.id = coalesce(l.account_id, l.duplicate_of))) from crm.leads l where l.id = p_lead
+$$;
+grant execute on function app.lead_timezone(uuid) to contigo_app;
+
