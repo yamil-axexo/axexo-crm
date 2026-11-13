@@ -24,7 +24,7 @@ test.describe('Gobierno: servicio y recuperación (GOB-07)', () => {
     const errors = pageErrors(page)
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto('/admin')
-    await page.getByRole('link', { name: 'Gobierno', exact: true }).click()
+    await page.getByTestId('pill-gobierno').click()
     await expect(page).toHaveURL(/\/admin\/gobierno/)
     await expect(page.getByTestId('gov-service')).toBeVisible()
 

@@ -16,21 +16,8 @@ export const API_SCOPES = ['forms:write', 'events:write', 'metrics:write'] as co
 
 export const hashKey = (key: string) => createHash('sha256').update(key).digest('hex')
 
-/** SEG-08 / AUT-04: la llave se muestra una sola vez; en la base solo queda su hash. */
-export async function createApiClient(ctx: Ctx, name: string, scopes: string[]): Promise<{ id: string; key: string }> {
-  ctx.assert('integration.operate')
-  const v = z.object({ name: z.string().trim().min(3).max(80), scopes: z.array(z.enum(API_SCOPES)).min(1) }).safeParse({ name, scopes })
-  if (!v.success) throw invalid('Ponle nombre y al menos un permiso.', 'Give it a name and at least one scope.')
-  const key = `ctg_${randomBytes(30).toString('base64url')}`
-  return withUser(ctx.user.id, async (tx) => {
-    const id = await newId(tx)
-    await tx`insert into crm.api_clients (id, name, key_prefix, key_hash, scopes, created_by)
-             values (${id}, ${v.data.name}, ${key.slice(0, 8)}, ${hashKey(key)}, ${v.data.scopes}, ${ctx.user.id})`
-    await audit(tx, ctx, 'api_client.created', 'api_client', id, null, null, { name: v.data.name, scopes: v.data.scopes })
-    return { id, key }
-  })
-}
-
+// Las llaves se crean y se rotan en src/domain/api-keys.ts (una sola función para llaves de lectura y de escritura).
+/** Revocar: la llave deja de servir en ese instante y no se reactiva. */
 export async function revokeApiClient(ctx: Ctx, id: string): Promise<void> {
   ctx.assert('integration.operate')
   await withUser(ctx.user.id, async (tx) => {

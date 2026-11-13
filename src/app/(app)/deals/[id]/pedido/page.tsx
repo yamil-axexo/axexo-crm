@@ -68,6 +68,21 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
           </div>
         </section>
 
+        {o.shipping && (
+          <section className="border-b border-line py-5" data-testid="order-shipping">
+            <h2 className="text-[12.5px] font-semibold tracking-wide text-muted-2 uppercase">{t('Datos de envío', 'Shipping details')}</h2>
+            <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 text-[13.5px] text-strong md:grid-cols-2 print:grid-cols-2">
+              {([
+                [t('Paquetería', 'Carrier'), o.shipping.carrier], [t('Número de cliente', 'Customer number'), o.shipping.customer_number],
+                [t('Fecha de entrega', 'Due date'), o.shipping.due_on ? day(o.shipping.due_on, locale) : null], [t('Orden de compra (PO)', 'PO number'), o.shipping.po_number],
+                [t('Dirección de envío', 'Shipping address'), o.shipping.ship_to], [t('Términos', 'Terms'), o.shipping.terms], [t('Descripción', 'Description'), o.shipping.description],
+              ] as [string, string | null][]).filter(([, v]) => v).map(([k, v]) => (
+                <div key={k} className="flex flex-wrap gap-x-2"><dt className="text-muted-2">{k}:</dt><dd className="min-w-0 break-words">{v}</dd></div>
+              ))}
+            </dl>
+          </section>
+        )}
+
         <table className="mt-5 w-full border-collapse text-[14px]" data-testid="order-lines">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] font-semibold tracking-wide text-muted-2 uppercase">
@@ -80,7 +95,7 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
           <tbody>
             {o.items.map((it) => (
               <tr key={it.id} className="border-b border-line align-top" data-testid="order-line">
-                <td className="py-2.5 pr-3 text-strong"><span className="font-medium">{it.name}</span>{it.comments ? <span className="block text-[12.5px] text-muted-2">{it.comments}</span> : null}</td>
+                <td className="py-2.5 pr-3 text-strong"><span className="font-medium">{it.name}</span>{Number(it.discount_pct ?? 0) > 0 ? <span className="block text-[12.5px] text-muted-2" data-testid="order-line-discount">{t(`Menos ${Number(it.discount_pct)}% de descuento`, `Less ${Number(it.discount_pct)}% discount`)}</span> : null}{it.comments ? <span className="block text-[12.5px] text-muted-2">{it.comments}</span> : null}</td>
                 <td className="num py-2.5 pr-3 text-right text-strong">{Number(it.quantity)}</td>
                 <td className="num hidden py-2.5 pr-3 text-right text-strong md:table-cell print:table-cell">{price(it.unit_price_minor)}</td>
                 <td className="num py-2.5 text-right text-strong">{price(it.sum_minor)}</td>

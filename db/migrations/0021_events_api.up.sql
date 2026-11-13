@@ -352,7 +352,12 @@ update crm.field_definitions set untrusted = true where data_type = 'text';
 create function crm.field_text_untrusted() returns trigger
 language plpgsql set search_path = pg_catalog as $$
 begin
-  if new.data_type = 'text' then new.untrusted := true; end if;
+  if new.data_type = 'text' then
+    new.untrusted := true;
+  elsif tg_op = 'UPDATE' and old.data_type = 'text' and new.untrusted = old.untrusted then
+    -- Dejó de ser texto libre y nadie tocó la marca en este cambio: la marca venía del tipo, así que se va con él.
+    new.untrusted := false;
+  end if;
   return new;
 end $$;
 create trigger field_definitions_text_untrusted before insert or update on crm.field_definitions

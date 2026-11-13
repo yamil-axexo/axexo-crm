@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { runAction, str } from '@/server/action'
 import { systemCtx } from '@/server/context'
 import { env } from '@/env'
-import { createApiClient, createTeam, endMembership, grantAccess, recordSimulation, revokeApiClient, setMembershipExpiry, setRoutingMembers, updateStage } from '@/domain/admin'
+import { createTeam, endMembership, grantAccess, recordSimulation, revokeApiClient, setMembershipExpiry, setRoutingMembers, updateStage } from '@/domain/admin'
 import { ingestMetricsFile, ingestSalesAppEvent } from '@/domain/integrations'
 import { forbidden, invalid, type ActionResult } from '@/lib/errors'
 import { isoDay } from '@/lib/format'
@@ -113,13 +113,6 @@ export async function setRoutingMembersAction(_: R | null, fd: FormData): Promis
   return runAction(async (ctx) => {
     await setRoutingMembers(ctx, str(fd, 'rule_id'), fd.getAll('member_id').filter((v): v is string => typeof v === 'string'))
     return { message: ['Turno actualizado.', 'Rotation updated.'] }
-  })
-}
-
-export async function createApiClientAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction<string>(async (ctx) => {
-    const out = await createApiClient(ctx, str(fd, 'name'), fd.getAll('scope').filter((v): v is string => typeof v === 'string'))
-    return { data: out.key }
   })
 }
 

@@ -45,7 +45,8 @@ export type ViewObject = 'account' | 'lead' | 'deal' | 'activity'
 /** Lista blanca de filtros por lista. Una vista es un conjunto de estos valores con nombre, nunca una consulta. */
 export const VIEW_FILTERS: Record<ViewObject, readonly string[]> = {
   account: ['q', 'market', 'lifecycle', 'owner', 'kind', 'ver', 'region', 'city', 'territory', 'team', 'pipeline', 'visito'],
-  lead: ['market', 'status', 'owner', 'q', 'clock', 'source', 'sort', 'motor', 'equipo'],
+  // tipo, embudo y tiendas: los filtros de campaña de México (tipo de empresa, embudo de campaña y número de tiendas) también se guardan.
+  lead: ['market', 'status', 'owner', 'q', 'clock', 'source', 'sort', 'motor', 'equipo', 'tipo', 'embudo', 'tiendas_min', 'tiendas_max'],
   deal: ['pipeline', 'owner', 'paso', 'quietos', 'equipo', 'vista', 'orden'],
   activity: ['view'],
 }

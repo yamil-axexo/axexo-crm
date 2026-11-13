@@ -79,6 +79,9 @@ const WHY = {
   plumbing: ['Es operación de las propias integraciones (llaves, suscriptores, reenvíos): publicarla sería un evento sobre los eventos.', 'It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events.'] as Pair,
   notice: ['Es un aviso entre personas dentro de CONTIGO, no un cambio del registro.', 'It is a notice between people inside CONTIGO, not a change to the record.'] as Pair,
   rules: ['Correr las reglas a mano abre o cierra avisos internos; no cambia comercios, leads ni negocios.', 'Running the rules opens or closes internal notices; it changes no merchants, leads or deals.'] as Pair,
+  quality: ['Es trabajo interno de calidad de datos (colas, mediciones, revisiones de repetidos): cuando termina en un cambio del registro, como una fusión o una edición, ese cambio emite su propio evento.', 'It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event.'] as Pair,
+  internal: ['Es configuración interna de CONTIGO (métricas, plantillas de avisos, ayuda, arranque de un mercado): no cambia comercios, leads ni negocios.', 'It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals.'] as Pair,
+  jobs: ['Es la corrida a mano de una tarea programada: lo que la tarea cambie emite su propio evento; la corrida en sí no.', 'It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not.'] as Pair,
   unknown: ['Acción nueva sin clasificar: no emite hasta que alguien decida aquí si es un cambio de dominio.', 'New action not classified yet: it emits nothing until someone decides here whether it is a domain change.'] as Pair,
 }
 
@@ -87,6 +90,14 @@ const SILENT: [prefix: string, why: Pair][] = [
   ['session.', WHY.session], ['integration.', WHY.inbound], ['import.', WHY.migration], ['csv_import.', WHY.migration],
   ['report.', WHY.read], ['export.', WHY.read], ['api_client.', WHY.plumbing], ['event_subscriber.', WHY.plumbing], ['event_delivery.', WHY.plumbing],
   ['inbound.', WHY.plumbing], ['rules.', WHY.rules], ['activity.notice_', WHY.notice],
+  // Ola 1 de los 95. Avisos, anuncios y lo que una automatización le avisa o le deja de tarea a una persona:
+  ['notice.', WHY.notice], ['announcement.', WHY.notice], ['automation.task_created', WHY.notice], ['automation.notified', WHY.notice],
+  // reportes guardados, vistas guardadas, fotos diarias y conciliación son lecturas o reportes internos:
+  ['saved_report.', WHY.read], ['saved_view.', WHY.read], ['snapshot.', WHY.read], ['reconciliation.', WHY.read],
+  // cargas desde hojas (visitas pegadas, tiendas migradas): cada registro creado emite el suyo:
+  ['sheet.', WHY.migration],
+  ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
+  ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
@@ -94,7 +105,10 @@ const WHY_GOVERNANCE: Pair = ['Es un registro de cómo se opera CONTIGO (servici
 for (const prefix of ['objective.', 'incident.', 'restore_test.', 'component.', 'maintenance.', 'release.', 'deployment.', 'cost.', 'config_request.', 'change.', 'champion.', 'material.']) SILENT.push([prefix, WHY_GOVERNANCE])
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',
-  'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.']
+  'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.',
+  // Ola 1 de los 95: identificadores de otros sistemas, mercados, procesos por comercio, proveedores y productos, pedidos,
+  // capacitación del dealer, etiquetas de agencias y la configuración de las automatizaciones.
+  'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {
