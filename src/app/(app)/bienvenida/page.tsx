@@ -28,6 +28,7 @@ const GO_HOME: Record<Home, L> = {
   '/supervisor': { es: 'Ir a Mi equipo', en: 'Go to My team' },
   '/panel-lt': { es: 'Ir al Panel del LT', en: 'Go to the Leadership panel' },
   '/admin': { es: 'Ir a Administración', en: 'Go to Administration' },
+  '/partners': { es: 'Ir a mi portal', en: 'Go to my portal' },
 }
 
 /** Primer ingreso: cómo se usa CONTIGO, paso a paso, y la lista de primeros pasos de la persona según su rol. */
