@@ -121,7 +121,9 @@ test.describe('paquete embudo', () => {
     const name = `Tienda Referida ${tag()}`
     await page.context().clearCookies()
     await page.goto(`/r/${code}`)
-    await expect(page).toHaveURL(new RegExp(`/f/tiendas-mx\\?ref=${code}`))
+    // El enlace lleva al formulario del mismo tipo de venta, sin campaña primero: en esta corrida otra prueba ya creó uno así.
+    const slug = (await sql<{ slug: string }[]>`select f.slug from crm.referral_codes r join crm.web_forms f on f.id = r.form_id where r.code = ${code}`)[0]!.slug
+    await expect(page).toHaveURL(new RegExp(`/f/${slug}\\?ref=${code}`))
     const lead = await sendForm(page, page.url(), name)
     expect((await sql`select referred_by_account_id from crm.leads where id = ${lead.id}`)[0]!.referred_by_account_id).toBe(acc.id)
     // Un código que no existe no rompe nada: lleva al inicio.
