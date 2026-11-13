@@ -5,6 +5,7 @@ import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
+import { notifyMany, peopleWithRole } from '@/domain/notify'
 
 export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'name' }
 
@@ -80,6 +81,13 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
       (${id}, ${v.market}, 'owner', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id})`
     await audit(tx, ctx, 'account.created', 'account', id, v.market, null, { kind, account_type: accountType, name: v.name, forced_duplicate: v.force })
     await emit(tx, 'account.created', 'account', id, v.market, { kind })
+    // E13.F2 (cuenta nueva): Operaciones del mercado se entera. No pide acción: no aparece en Hoy.
+    await notifyMany(tx, ctx, await peopleWithRole(tx, v.market, ['ops']), {
+      kind: 'lifecycle', market: v.market, template: 'account_new', link: `/comercios/${id}`, accountId: id, needsAction: false,
+      title: [`Cuenta nueva: ${v.name}`, `New account: ${v.name}`],
+      body: [`${ctx.user.name} creó la cuenta en ${ctx.market(v.market).name}.`, `${ctx.user.name} created the account in ${ctx.market(v.market).name}.`],
+      vars: { comercio: v.name, quien: ctx.user.name, mercado: ctx.market(v.market).name },
+    })
     return { id }
   })
 }

@@ -125,7 +125,7 @@ export async function myNotices(ctx: Ctx): Promise<Notice[]> {
     const rows = await tx<Notice[]>`
       select n.id, n.body, u.full_name as from_name, n.account_id, n.deal_id, coalesce(d.title, a.name) as record, n.created_at
         from crm.notices n join crm.users u on u.id = n.from_user_id left join crm.deals d on d.id = n.deal_id left join crm.accounts a on a.id = n.account_id
-       where n.user_id = ${ctx.user.id} and n.seen_at is null order by n.created_at desc limit 20`
+       where n.user_id = ${ctx.user.id} and n.seen_at is null and n.needs_action order by n.created_at desc limit 20`
     return [...rows]
   })
 }

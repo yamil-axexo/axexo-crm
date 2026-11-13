@@ -6,6 +6,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 import { day as dayLabel, isoDay } from '@/lib/format'
+import { notify, notifyMany, peopleWithRole } from '@/domain/notify'
 
 export type StageKind = 'open' | 'awaiting_txn' | 'won' | 'lost'
 
@@ -312,6 +313,14 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       // Sale de la cancha de quien vende: su próximo paso queda cumplido y el negocio entra a la cola de Operaciones.
       await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${dealId} and deal_step = 'sales' and done_at is null`
       await audit(tx, ctx, 'deal.handed_to_ops', 'deal', dealId, d.market_code, null, { stage_id: toStageId })
+      // E13.F1: Operaciones del mercado se entera en el momento, sin tener que revisar la cola.
+      const accName = (await tx<{ name: string }[]>`select name from crm.accounts where id = ${d.account_id}`)[0]?.name ?? d.title
+      await notifyMany(tx, ctx, await peopleWithRole(tx, d.market_code, ['ops']), {
+        kind: 'handoff', market: d.market_code, template: 'ops_handoff', link: `/deals/${dealId}`, accountId: d.account_id, dealId,
+        title: [`Negocio entregado a Operaciones: ${d.title}`, `Deal handed over to Operations: ${d.title}`],
+        body: [`${ctx.user.name} entregó ${d.title} (${accName}).`, `${ctx.user.name} handed over ${d.title} (${accName}).`],
+        vars: { negocio: d.title, comercio: accName, quien: ctx.user.name, mercado: d.market_code },
+      })
       await syncDealStep(tx, ctx, d, 'ops', (await tx<{ s: string | null }[]>`select ops_next_step as s from crm.deals where id = ${dealId}`)[0]?.s ?? null,
         isoDate((await tx<{ d: string | Date | null }[]>`select ops_next_step_due as d from crm.deals where id = ${dealId}`)[0]?.d ?? null), d.ops_owner_id)
     }
@@ -330,6 +339,13 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       await tx`update crm.activities set custom = custom || ${tx.json({ ops_return: { code: extra!.ret!.reasonCode, note: note ?? '', title: d.title } } as never)}
                 where deal_id = ${dealId} and deal_step = 'sales' and done_at is null`
       await audit(tx, ctx, 'deal.returned_to_sales', 'deal', dealId, d.market_code, { stage_id: d.stage_id }, { stage_id: toStageId, reason: extra!.ret!.reasonCode, note })
+      // La tarea ya está en Hoy; el aviso llega además a la campana y a los canales que la persona eligió.
+      if (d.owner_id && d.owner_id !== ctx.user.id)
+        await notify(tx, ctx, {
+          to: d.owner_id, kind: 'returned', market: d.market_code, link: `/deals/${dealId}`, accountId: d.account_id, dealId, needsAction: false,
+          title: [`Operaciones devolvió ${d.title}`, `Operations sent back ${d.title}`],
+          body: [`${reason.label_es}${note ? `. ${note}` : ''}`, `${reason.label_en}${note ? `. ${note}` : ''}`],
+        })
     }
     if (stage.kind === 'won' || stage.kind === 'lost') {
       // Un negocio cerrado no deja nada pendiente: se cierran su próximo paso y las tareas y visitas por hacer que quedaban abiertas.
@@ -340,14 +356,30 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     }
     if (stage.kind === 'won' && d.owner_id && d.owner_id !== ctx.user.id) {
       // Quien vendió se entera en Hoy cuando otra persona (Operaciones) gana su negocio. El aviso va en su idioma.
-      const row = await tx<{ locale: string | null; on: string }[]>`
-        select (select u.locale from crm.users u where u.id = ${d.owner_id}) as locale,
-               (select (x.won_at at time zone ${ctx.market(d.market_code).timezone})::date::text from crm.deals x where x.id = ${dealId}) as on`
-      const en = row[0]?.locale === 'en'
-      const when = dayLabel(row[0]!.on, en ? 'en' : 'es')
-      const body = en ? `${ctx.user.name} marked ${d.title} as won, with close date ${when}.` : `${ctx.user.name} marcó ${d.title} como ganado, con cierre el ${when}.`
-      await tx`insert into crm.notices (market_code, user_id, from_user_id, kind, account_id, deal_id, body)
-               values (${d.market_code}, ${d.owner_id}, ${ctx.user.id}, 'mention', ${d.account_id}, ${dealId}, ${body.slice(0, 600)})`
+      const row = await tx<{ on: string; account: string | null }[]>`
+        select (select (x.won_at at time zone ${ctx.market(d.market_code).timezone})::date::text from crm.deals x where x.id = ${dealId}) as on,
+               (select a.name from crm.accounts a where a.id = ${d.account_id}) as account`
+      const on = row[0]!.on
+      await notify(tx, ctx, {
+        to: d.owner_id, kind: 'deal_won', market: d.market_code, template: 'dealer_active', link: `/deals/${dealId}`, accountId: d.account_id, dealId,
+        title: [`Negocio ganado: ${d.title}`, `Deal won: ${d.title}`],
+        body: [`${ctx.user.name} marcó ${d.title} como ganado, con cierre el ${dayLabel(on, 'es')}.`, `${ctx.user.name} marked ${d.title} as won, with close date ${dayLabel(on, 'en')}.`],
+        vars: { comercio: row[0]!.account ?? d.title, negocio: d.title, quien: ctx.user.name, fecha: on },
+      })
+    }
+    if (stage.kind === 'lost' && d.owner_id && d.owner_id !== ctx.user.id) {
+      // E13.F2: quien llevaba el negocio se entera cuando otra persona lo cierra sin alta.
+      const row = await tx<{ account: string | null; on: string; reason_es: string | null; reason_en: string | null }[]>`
+        select (select a.name from crm.accounts a where a.id = ${d.account_id}) as account, ${marketToday(tx, d.market_code)}::text as on,
+               (select r.label_es from crm.loss_reasons r where r.code = ${loss?.reasonCode ?? null} order by r.market_code nulls last limit 1) as reason_es,
+               (select r.label_en from crm.loss_reasons r where r.code = ${loss?.reasonCode ?? null} order by r.market_code nulls last limit 1) as reason_en`
+      const r = row[0]!
+      await notify(tx, ctx, {
+        to: d.owner_id, kind: 'lifecycle', market: d.market_code, template: 'dealer_closed', link: `/deals/${dealId}`, accountId: d.account_id, dealId,
+        title: [`Negocio cerrado sin alta: ${d.title}`, `Deal closed without sign-up: ${d.title}`],
+        body: [`${ctx.user.name} lo cerró como perdido${r.reason_es ? `: ${r.reason_es}` : ''}.`, `${ctx.user.name} closed it as lost${r.reason_en ? `: ${r.reason_en}` : ''}.`],
+        vars: { comercio: r.account ?? d.title, negocio: d.title, quien: ctx.user.name, fecha: r.on, detalle: r.reason_es ?? 's/d' },
+      })
     }
   })
 }
