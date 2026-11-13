@@ -149,7 +149,8 @@ export function ViewsBar({ t, object, views, current, filters, canShare, actions
               <input type="hidden" name="id" value={v.id} /><input type="hidden" name="on" value={v.pinned ? '0' : '1'} />
               <button type="submit" className={mini} aria-label={v.pinned ? t(`Quitar "${name(v)}" de mi menú`, `Remove "${name(v)}" from my menu`) : t(`Fijar "${name(v)}" como cola en mi menú`, `Pin "${name(v)}" as a queue in my menu`)} data-testid="view-pin" aria-pressed={v.pinned}>{v.pinned ? t('Fijada', 'Pinned') : t('Fijar', 'Pin')}</button>
             </ActionForm>
-            {v.mine && (
+            {/* Las vistas de fábrica son de todos: no se borran desde aquí, ni siquiera por quien las sembró. */}
+            {v.mine && !(v.name in VIEW_EN) && (
               <ActionForm action={actions.remove} className="inline-flex">
                 <input type="hidden" name="id" value={v.id} />
                 <button type="submit" className={mini} aria-label={t(`Borrar la vista "${name(v)}"`, `Delete the view "${name(v)}"`)} data-testid="view-delete">{t('Borrar', 'Delete')}</button>
