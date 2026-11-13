@@ -45,8 +45,8 @@ export const NOT_YET: { group: Pair; items: Pair[] }[] = [
       ['Expediente de alta con documentos, firma, órdenes y visibilidad de comisiones.', 'An enrollment file with documents, signatures, orders and commission visibility.'],
       // docs/scope.md: UX-03 parcial; "free-form report builder" fuera
       ['Reportes propios y vistas guardadas por cada persona.', 'Custom reports and views saved by each person.'],
-      // docs/scope.md: IA-07 "no AI features"
-      ['Funciones de IA.', 'AI features.'],
+      // Paquete ia (0034): lo que hace falta un modelo está construido y apagado; las sugerencias y preguntas funcionan con reglas.
+      ['Funciones con modelo de IA (clasificar texto libre, leer documentos, transcribir, entender preguntas libres). Están construidas y apagadas; las sugerencias, la calificación de leads y las preguntas sobre cifras ya funcionan con reglas.', 'Features that need an AI model (classifying free text, reading documents, transcribing, understanding free-form questions). They are built and off; suggestions, lead scoring and questions about figures already work with rules.'],
     ],
   },
   {

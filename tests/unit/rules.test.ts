@@ -39,7 +39,9 @@ describe('matriz de capacidades (AUT-01)', () => {
       // Paquete seguridad: leadership lee la pantalla de Seguridad (alertas, lecturas, inventario); no revisa alertas ni cambia umbrales.
       // Paquete gobierno: leadership lee Gobierno (servicio, versiones, costos) y, como cualquier persona, puede pedir un cambio de
       // configuración; pedirlo no cambia nada hasta que administración decide.
-      'security.read', 'gov.read', 'config.request'].includes(c))
+      'security.read', 'gov.read', 'config.request',
+      // Paquete ia: leadership ve las sugerencias, pregunta por las cifras definidas y lee la evaluación; no acepta ni configura nada.
+      'ia.read', 'ia.ask', 'ia.oversee'].includes(c))
     for (const cap of writes) expect(can(m('lt', null), cap, 'MX'), cap).toBe(false)
     expect(can(m('lt', null), 'board.lt')).toBe(true)
   })

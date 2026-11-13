@@ -11,6 +11,7 @@ import { gobiernoJobs } from './gobierno'
 import { embudoJobs } from './embudo'
 import { cicloCsJobs } from './ciclo-cs'
 import { partnersJobs } from './partners'
+import { iaJobs } from './ia'
 
 /** Every scheduled job of the app. One line per package: `...packageJobs`. */
 export const JOBS: Job[] = [
@@ -26,4 +27,5 @@ export const JOBS: Job[] = [
   ...embudoJobs,
   ...cicloCsJobs,
   ...partnersJobs,
+  ...iaJobs,
 ]

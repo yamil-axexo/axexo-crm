@@ -513,6 +513,17 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `ficha.layout_set` | Changed the top facts of the merchant page for a role | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `field_section.created` | Added a field section | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `help.lesson_saved` | Changed a screen’s lesson | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `ia.draft_approved` | Approved a task draft | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.draft_rejected` | Rejected a task draft, with a reason | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.eval_case_added` | Added a case to the evaluation | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.eval_run` | Ran a feature’s evaluation | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.holdout_added` | Made a territory a control group | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.holdout_removed` | Removed a territory from the control group | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.lead_classified` | Confirmed a lead’s classification | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.lead_weights_changed` | Changed the lead scoring weights | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.mcp_read` | An agent read data through the MCP server | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.settings_changed` | Changed a market’s assistance level | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.spot_checked` | Logged the weekly review of the assistance | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `import.cancelled` | Stopped the Pipedrive import | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `import.completed` | The Pipedrive import finished | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `import.raw_purged` | Emptied the raw Pipedrive copy | It is a historical or file load: each record created emits its own event; the run itself does not. |
@@ -553,6 +564,8 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `partner_token.revoked` | Revoked a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `quality.rule_updated` | Edited a data quality rule | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.snapshot_saved` | Saved today’s data quality snapshot | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
+| `recommendation.accepted` | Accepted a suggestion and set the task with a date | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `recommendation.dismissed` | Dismissed a suggestion, with a reason | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `reconciliation.ran` | Reconciled with the sales file | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `release.announced` | Announced a release | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `release.created` | Created a release | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |

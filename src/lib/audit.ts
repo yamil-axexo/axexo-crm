@@ -35,6 +35,20 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'form.toggled': ['Activó o pausó un formulario web', 'Turned a web form on or off'],
   'routing.rule_created': ['Creó un turno de leads', 'Created a lead rotation'],
   'routing.rule_toggled': ['Activó o pausó un turno de leads', 'Turned a lead rotation on or off'],
+  // Paquete ia (0034)
+  'recommendation.accepted': ['Aceptó una sugerencia y dejó la tarea con fecha', 'Accepted a suggestion and set the task with a date'],
+  'recommendation.dismissed': ['Descartó una sugerencia, con motivo', 'Dismissed a suggestion, with a reason'],
+  'ia.settings_changed': ['Cambió el nivel de asistencia de un mercado', 'Changed a market’s assistance level'],
+  'ia.spot_checked': ['Registró la revisión semanal de la asistencia', 'Logged the weekly review of the assistance'],
+  'ia.holdout_added': ['Puso un territorio como grupo de control', 'Made a territory a control group'],
+  'ia.holdout_removed': ['Quitó un territorio del grupo de control', 'Removed a territory from the control group'],
+  'ia.draft_approved': ['Aprobó un borrador de tarea', 'Approved a task draft'],
+  'ia.draft_rejected': ['Rechazó un borrador de tarea, con motivo', 'Rejected a task draft, with a reason'],
+  'ia.lead_weights_changed': ['Cambió los pesos de la calificación de leads', 'Changed the lead scoring weights'],
+  'ia.lead_classified': ['Confirmó la clasificación de un lead', 'Confirmed a lead’s classification'],
+  'ia.eval_run': ['Corrió la evaluación de una función', 'Ran a feature’s evaluation'],
+  'ia.eval_case_added': ['Agregó un caso a la evaluación', 'Added a case to the evaluation'],
+  'ia.mcp_read': ['Un agente leyó datos por el servidor MCP', 'An agent read data through the MCP server'],
   // Paquete embudo (0029)
   'routing.assignment_rule_created': ['Creó una regla de asignación de leads', 'Created a lead assignment rule'],
   'routing.assignment_rule_toggled': ['Activó o pausó una regla de asignación de leads', 'Turned a lead assignment rule on or off'],
@@ -436,6 +450,8 @@ export const AUDIT_GROUPS = {
   // Paquete gobierno: servicio, versiones, costos, solicitudes y motivos de cambio.
   governance: { label: ['Gobierno', 'Governance'] as Pair, like: ['objective.%', 'incident.%', 'restore_test.%', 'component.%', 'maintenance.%', 'release.%', 'deployment.%', 'cost.%', 'config_request.%', 'change.%', 'champion.%', 'material.%'], not: null },
   field: { label: ['Campo y canales', 'Field and channels'] as Pair, like: ['onboarding.%', 'threshold.%', 'channel.%', 'seller.%', 'portfolio.%', 'attribution.%', 'dispute.%', 'claim.%', 'funding.%', 'credit.%', 'competitor.%', 'plan.%', 'field_incident.%'], not: null },
+  // Paquete ia: sugerencias, nivel de asistencia por mercado, borradores, pesos y evaluación.
+  ia: { label: ['Sugerencias y asistencia', 'Suggestions and assistance'] as Pair, like: ['ia.%', 'recommendation.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const
@@ -451,6 +467,11 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   channel_claim: ['Registro de canal', 'Channel registration'],
   competitor: ['Competidor', 'Competitor'],
   field_incident: ['Incidente de campo', 'Field incident'],
+  recommendation: ['Sugerencia', 'Suggestion'],
+  ia_settings: ['Nivel de asistencia', 'Assistance level'],
+  ia_draft: ['Borrador de tarea', 'Task draft'],
+  ia_eval: ['Evaluación', 'Evaluation'],
+  lead_score_weights: ['Pesos de calificación', 'Scoring weights'],
   agency: ['Agencia o socio', 'Agency or partner'],
   network_load: ['Red adquirida', 'Acquired network'],
   partner_tier: ['Nivel de partner', 'Partner tier'],
