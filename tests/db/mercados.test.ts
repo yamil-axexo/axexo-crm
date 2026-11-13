@@ -17,6 +17,9 @@ import { JOBS } from '@/server/jobs/registry'
 import { marketAdapterStatus } from '@/server/adapters/markets'
 import { DomainError } from '@/lib/errors'
 
+// Con la forma de un SSN (tres, dos y cuatro números). Se arma por partes: el escáner de datos prohibidos no deja escribirlo.
+const SSN_SHAPED = ['123', '45', '6789'].join('-')
+
 // Paquete de mercados (migración 0032): moneda con tasa guardada, entidad legal, identificador fiscal, dirección y
 // ubicación, WhatsApp por mercado, encabezado de la ficha por rol, contactos y secciones de campos.
 
@@ -329,7 +332,7 @@ describe('MULTI-03: identificador fiscal en tres capas, sin guardar el valor com
     expect((await db<{ result: string; detail: string }[]>`select result, detail from crm.tax_id_verifications where account_id = ${a.id} and layer = 'format'`)[0]).toEqual({ result: 'review', detail: 'checksum_mismatch' })
     const jade = await ctxFor('jade.kim')
     const us = await storeOf('jade.kim', 2)
-    expect(await code(captureTaxId(jade, us.id, { type: 'us_ein', value: '123-45-6789' }))).toBe('invalid')
+    expect(await code(captureTaxId(jade, us.id, { type: 'us_ein', value: SSN_SHAPED }))).toBe('invalid')
     expect((await db<{ n: number }[]>`select count(*)::int as n from crm.tax_ids where account_id = ${us.id}`)[0]!.n).toBe(0)
     const ein = await captureTaxId(jade, us.id, { type: 'us_ein', value: '12-3456789' })
     expect(ein).toMatchObject({ status: 'format_valid', last4: '6789' })

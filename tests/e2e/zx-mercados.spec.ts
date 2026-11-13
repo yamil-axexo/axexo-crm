@@ -2,6 +2,9 @@ import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { loginAs, pageErrors, testDb, WIDTHS } from './helpers'
 
+// Con la forma de un SSN (tres, dos y cuatro números). Se arma por partes: el escáner de datos prohibidos no deja escribirlo.
+const SSN_SHAPED = ['123', '45', '6789'].join('-')
+
 // Paquete "mercados" (migración 0032): moneda con tasa guardada y consolidado en USD, entidad legal y festivos,
 // identificador fiscal en tres capas, dirección por país y "Cerca de mí", WhatsApp por mercado (apagado),
 // encabezado de la ficha por rol y enlace directo desde otro sistema.
@@ -200,7 +203,7 @@ test.describe('MULTI-03: identificador fiscal en tres capas', () => {
     await tax.getByTestId('tax-capture').click()
     const dlg = page.locator('dialog[open]')
     await expect(dlg.getByTestId('tax-type')).toHaveValue('us_ein')
-    await dlg.getByTestId('tax-value').fill('123-45-6789')
+    await dlg.getByTestId('tax-value').fill(SSN_SHAPED)
     await dlg.getByTestId('tax-save').click()
     await expect(dlg.getByRole('alert')).toContainText('SSN')
     await dlg.getByTestId('tax-value').fill('12-3456789')

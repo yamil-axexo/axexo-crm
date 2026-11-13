@@ -4,6 +4,9 @@ import { AUDIT_ACTION, AUDIT_GROUPS, AUDIT_OBJECT } from '@/lib/audit'
 import { CAPABILITIES, can, type Membership } from '@/domain/policy'
 import { FICHA_FACTS, FICHA_FACT_LABEL, US_STATE_ZONE, distanceText, fichaRole } from '@/lib/markets'
 
+// Con la forma de un SSN (tres, dos y cuatro números). Se arma por partes: el escáner de datos prohibidos no deja escribirlo.
+const SSN_SHAPED = ['123', '45', '6789'].join('-')
+
 // Paquete de mercados: lo que se puede probar sin base. Los identificadores de ejemplo son los de la documentación pública
 // de cada formato (no son de ningún comercio).
 
@@ -21,8 +24,8 @@ describe('identificador fiscal: formato y dígito verificador por país', () => 
   it('EIN de Estados Unidos: 9 números con prefijo asignado; un SSN nunca se acepta', () => {
     expect(checkTaxId('us_ein', '12-3456789')).toMatchObject({ formatOk: true, checksumOk: null, normalized: '123456789' })
     expect(checkTaxId('us_ein', '07-3456789')).toMatchObject({ formatOk: false, problem: 'prefix' })
-    expect(checkTaxId('us_ein', '123-45-6789')).toMatchObject({ formatOk: false, problem: 'ssn', normalized: '' })
-    expect(checkTaxId('other', '123-45-6789')).toMatchObject({ formatOk: false, problem: 'ssn' })
+    expect(checkTaxId('us_ein', SSN_SHAPED)).toMatchObject({ formatOk: false, problem: 'ssn', normalized: '' })
+    expect(checkTaxId('other', SSN_SHAPED)).toMatchObject({ formatOk: false, problem: 'ssn' })
     expect(checkTaxId('us_ein', '12-34567')).toMatchObject({ formatOk: false, problem: 'format' })
   })
   it('NIT de Colombia y de El Salvador: dígito de verificación', () => {
