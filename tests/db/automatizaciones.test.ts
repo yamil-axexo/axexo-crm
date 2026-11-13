@@ -248,12 +248,16 @@ describe('AUT-03: las reglas son datos, por mercado, con bitácora propia', () =
     const out = await runJob(job('automatizaciones.eventos'), 'manual', { force: true })
     expect(out).toMatchObject({ status: 'ok', done: 1 })
     const paula = await ctxFor('paula.mendez') // supervisa el equipo de Diana
-    const got = await admin<{ owner_id: string; deal_id: string; subject: string }[]>`
-      select owner_id, deal_id, subject from crm.activities where source = 'rule' and deal_id = any(${[big.id, small.id]}::uuid[])`
+    // "Avisar" sale por el servicio único de avisos (no es una tarea): un aviso para quien supervisa, ligado al negocio grande.
+    expect(await admin`select 1 from crm.activities where source = 'rule' and deal_id = any(${[big.id, small.id]}::uuid[])`).toHaveLength(0)
+    const got = await admin<{ user_id: string; deal_id: string; title: string; kind: string; needs_action: boolean; link: string }[]>`
+      select user_id, deal_id, title, kind, needs_action, link from crm.notices where deal_id = any(${[big.id, small.id]}::uuid[])`
     expect(got).toHaveLength(1)
-    expect(got[0]).toMatchObject({ owner_id: paula.user.id, deal_id: big.id })
-    expect(got[0]!.subject).toMatch(/^Aviso: Entró un negocio de monto alto · Negocio/)
-    expect((await getQueue(paula)).rows.some((r) => r.dealId === big.id && r.type === 'task')).toBe(true) // le llega a Hoy
+    expect(got[0]).toMatchObject({ user_id: paula.user.id, deal_id: big.id, kind: 'automation', needs_action: true, link: `/deals/${big.id}` })
+    expect(got[0]!.title).toMatch(/^Entró un negocio de monto alto · Negocio/)
+    expect((await myNotices(paula)).some((n) => n.deal_id === big.id && n.kind === 'automation')).toBe(true) // le llega a Hoy
+    // y queda en el registro de avisos: entregado dentro de CONTIGO
+    expect(await admin`select 1 from crm.notifications where kind = 'automation' and deal_id = ${big.id} and channel = 'in_app' and status = 'delivered'`).toHaveLength(1)
     const log = (await getAutomation(nora, id))!.log
     expect(log.find((l) => l.record_id === small.id)).toMatchObject({ outcome: 'skipped', detail: { condition: { field: 'amount' } } })
     expect(log.find((l) => l.record_id === big.id)).toMatchObject({ outcome: 'done', detail: { action: 'notify', people: 1 } })
@@ -478,7 +482,7 @@ describe('PIPE-02: pasos con dueño, evidencia y aprobación', () => {
     await setAutomationActive(nora, auto, true)
     await runRules()
     const paula = await ctxFor('paula.mendez')
-    expect((await getQueue(paula)).rows.some((r) => r.dealId === id && /^Aviso: Venció la meta de tiempo de la etapa/.test(r.subject))).toBe(true)
+    expect((await myNotices(paula)).some((n) => n.deal_id === id && /^Venció la meta de tiempo de la etapa/.test(n.title ?? ''))).toBe(true)
     await setStageTimes(nora, calif, { slaHours: null, rotDaysWaiting: null })
     await setAutomationActive(nora, auto, false)
   })
@@ -547,7 +551,8 @@ describe('LEAD-04: escalamiento del primer contacto', () => {
     await admin`update crm.leads set owner_id = ${lucia.user.id}, status = 'new', first_touch_at = null, sla_due_at = now() - interval '5 minutes' where id = ${id}`
     const esc = () => runJob(job('automatizaciones.escalamiento'), 'manual', { force: true })
     const level = async () => (await one(admin<{ escalation_level: number }[]>`select escalation_level from crm.leads where id = ${id}`)).escalation_level
-    const tasksOf = async (userId: string) => admin<{ subject: string }[]>`select subject from crm.activities where lead_id = ${id} and owner_id = ${userId} and custom ? 'lead_escalation' and done_at is null`
+    // El escalamiento sale por el servicio único de avisos: un aviso que pide acción, ligado al lead, hasta que se atiende.
+    const tasksOf = async (userId: string) => admin<{ subject: string; body: string }[]>`select title as subject, body from crm.notices where lead_id = ${id} and user_id = ${userId} and kind = 'lead_escalated' and seen_at is null`
 
     await esc()
     expect(await level()).toBe(0) // apagado por defecto
@@ -556,10 +561,11 @@ describe('LEAD-04: escalamiento del primer contacto', () => {
     await saveLeadEscalation(nora, 'MX', { active: true, hours: 4 })
     await esc()
     expect(await level()).toBe(1)
-    expect((await tasksOf(fernando.user.id)).map((t) => t.subject)).toEqual([expect.stringMatching(/^Lead sin primer contacto: Abarrotes escalados .*\. Lo lleva Lucía Vega\.$/)])
+    expect(await tasksOf(fernando.user.id)).toEqual([{ subject: expect.stringMatching(/^Lead sin primer contacto: Abarrotes escalados /), body: expect.stringMatching(/Lo lleva Lucía Vega\.$/) }])
     expect(await tasksOf(paula.user.id)).toHaveLength(0)
     expect(await tasksOf(ana.user.id)).toHaveLength(0)
-    expect((await getQueue(fernando)).rows.some((r) => r.leadId === id && r.type === 'task')).toBe(true)
+    expect((await myNotices(fernando)).some((n) => n.link === `/leads/${id}` && n.kind === 'lead_escalated')).toBe(true) // le llega a Hoy
+    expect(await admin`select 1 from crm.activities where lead_id = ${id} and source = 'rule'`).toHaveLength(0)
     await esc()
     expect(await tasksOf(fernando.user.id)).toHaveLength(1) // no repite
     expect(await level()).toBe(1) // todavía no pasan las 4 horas hábiles más
@@ -571,7 +577,7 @@ describe('LEAD-04: escalamiento del primer contacto', () => {
     await admin`alter table crm.leads enable trigger leads_escalation_reset`
     await esc()
     expect(await level()).toBe(2)
-    expect((await tasksOf(ana.user.id)).map((t) => t.subject)).toEqual([expect.stringMatching(/^Lead sigue sin primer contacto después de 4 horas hábiles más/)])
+    expect(await tasksOf(ana.user.id)).toEqual([{ subject: expect.stringMatching(/^Lead sigue sin primer contacto: Abarrotes escalados /), body: expect.stringMatching(/^Pasaron 4 horas hábiles más sin ningún intento/) }])
     expect((await getLeadWatch(ana, { market: 'MX' })).find((l) => l.id === id)).toBeUndefined() // la guardia muestra la última semana
     const trail = await admin<{ after: { level: number } }[]>`select after from crm.audit_events where action = 'lead.escalated' and object_id = ${id} order by at, id`
     expect(trail.map((t) => t.after.level)).toEqual([1, 2])

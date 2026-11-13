@@ -29,6 +29,21 @@ drop policy notices_ins on crm.notices;
 create policy notices_ins on crm.notices for insert to contigo_app
   with check (from_user_id = (select app.current_user_id()) and (market_code is null or market_code = any((select app.write_markets())::text[])));
 
+-- El aviso de escalamiento de un lead (LEAD-04, tipo lead_escalated) deja de pedir acción cuando el lead ya se atendió o se
+-- cerró. Lo corre la tarea programada, como sistema: no depende de quién recibió el aviso, y nadie más puede llamarla con efecto.
+create function app.close_lead_escalation_notices() returns int
+language sql security definer set search_path = crm, app, pg_catalog as $$
+  with done as (
+    update crm.notices n set seen_at = now()
+     where n.seen_at is null and n.kind = 'lead_escalated' and n.lead_id is not null
+       and (select app.current_user_id()) = app.system_user_id()
+       and exists (select 1 from crm.leads l where l.id = n.lead_id and (l.first_touch_at is not null or l.status <> 'new'))
+    returning 1)
+  select count(*)::int from done
+$$;
+revoke execute on function app.close_lead_escalation_notices() from public;
+grant execute on function app.close_lead_escalation_notices() to contigo_app;
+
 -- 2) Preferencias de cada persona: qué tipos recibe, por qué canal, y si quiere un resumen diario.
 create table crm.notification_prefs (
   user_id       uuid primary key references crm.users(id) on delete cascade,

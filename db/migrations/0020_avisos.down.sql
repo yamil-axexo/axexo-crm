@@ -19,6 +19,7 @@ drop table crm.notification_prefs;
 drop function app.market_open(text, timestamptz);
 drop function app.announcement_audience(uuid);
 drop function app.in_audience(text, uuid, text);
+drop function app.close_lead_escalation_notices();
 drop function app.people_with_role(text, text[]);
 drop function app.notify_target(uuid);
 

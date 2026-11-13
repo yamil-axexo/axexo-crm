@@ -200,6 +200,16 @@ describe('AUT-07 · exportaciones con gobierno', () => {
     const alert = await sql((db) => db<{ after: { files_24h: number } }[]>`select after from crm.audit_events where action = 'export.alert' and actor_id = ${fer.user.id}`)
     expect(alert).toHaveLength(1)
     expect(alert[0]!.after.files_24h).toBe(EXPORT_DAILY.files + 1)
+    // Administración se entera por el servicio único de avisos: un aviso en su centro de avisos, con el correo en la cola apagada.
+    const told = await sql((db) => db<{ kind: string; title: string; link: string; full_name: string }[]>`
+      select n.kind, n.title, n.link, u.full_name from crm.notices n join crm.users u on u.id = n.user_id where n.kind = 'export_alert' and n.from_user_id = ${fer.user.id}`)
+    expect(told.length).toBeGreaterThan(0)
+    expect(told.map((n) => n.full_name)).toContain('Nora Salas')
+    expect(told[0]).toMatchObject({ title: 'Fernando Ibarra pasó el umbral diario de exportaciones', link: '/admin/integraciones?tab=datos' })
+    expect((await sql((db) => db`select 1 from crm.notifications where kind = 'export_alert' and channel = 'email' and status in ('queued_off', 'simulated', 'held_hours', 'held_digest')`)).length).toBeGreaterThan(0)
+    // Otra exportación el mismo día vuelve a quedar marcada, pero no repite el aviso.
+    await exportAccounts(fer, { market: 'MX' }, 'Y una más todavía en el mismo día')
+    expect((await sql((db) => db`select 1 from crm.notices where kind = 'export_alert' and from_user_id = ${fer.user.id}`)).length).toBe(told.length)
     // Cada quien ve sus exportaciones; administración y leadership, todas.
     await asPersona('ana.robles', async (tx) => {
       expect((await tx`select 1 from crm.export_log where user_id = ${fer.user.id}`).length).toBe(0)
