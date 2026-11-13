@@ -86,6 +86,7 @@ describe('E13.F2: los datos de ventas también avisan (dealer activo y dealer si
   it('la primera transacción gana el negocio y avisa a quien lo vendió; 30 días sin ventas avisa a quien lleva el comercio', async () => {
     await alwaysOpen()
     const sys = await systemContext()
+    await admin`update crm.pipelines set close_by_transaction = true where id = ${await uid('p-us-dealer')}` // la prueba anterior lo dejó en ganar a mano
     const { jade, accountId } = await jadeAccount()
     const dealId = await createDeal(jade, { accountId, pipelineId: await uid('p-us-dealer'), title: `Primera venta ${tag()}`, nextStep: 'Reunir documentos', nextStepDue: today })
     const ref = `MID-A${tag()}`

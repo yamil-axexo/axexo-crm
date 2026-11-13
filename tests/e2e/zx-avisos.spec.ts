@@ -40,8 +40,7 @@ test.describe('avisos: anuncio con acuse, campana, centro y preferencias', () =>
   test('administración publica un anuncio con acuse para US; queda dicho a cuántas personas avisó', async ({ page }) => {
     const errors = pageErrors(page)
     await loginAs(page, 'nora.salas', { stay: true })
-    await openMenu(page)
-    await page.getByTestId('nav-notices').click()
+    await page.getByTestId('bell').click()
     await expect(page).toHaveURL(/\/avisos$/)
     await page.getByTestId('notices-announcements-link').click()
     await expect(page).toHaveURL(/\/anuncios$/)
@@ -112,6 +111,19 @@ test.describe('avisos: anuncio con acuse, campana, centro y preferencias', () =>
     await expect(page.getByTestId('pref-digest')).toBeChecked()
     await expect(page.getByTestId('pref-mention-in_app')).toBeChecked()
     await bothWidths(page, 'preferencias de avisos')
+  })
+
+  test('en teléfono, quien solo lee entra a sus avisos desde el menú de la cuenta y la barra no se desborda', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await loginAs(page, 'luis.tovar', { stay: true })
+    await expect(page.getByTestId('bell')).toBeHidden()
+    await clean(page, 'barra de solo lectura, móvil')
+    await openMenu(page)
+    await page.getByTestId('nav-notices').click()
+    await expect(page).toHaveURL(/\/avisos$/)
+    await expect(page.getByTestId('notices')).toBeVisible()
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect(page.getByTestId('bell')).toBeVisible()
   })
 
   test('quien publicó ve quién dio acuse y quién falta', async ({ page }) => {

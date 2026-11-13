@@ -99,7 +99,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {readOnly && <p className="mt-1 text-[12.5px] text-muted-2" data-testid="me-read-only">{t('Solo lectura: ves todo y no cambias nada.', 'Read-only: you see everything and change nothing.')}</p>}
             </div>
             <div className="py-1">
-              <Link href="/avisos" role="menuitem" className={menuLink} data-testid="nav-notices"><Bell size={20} strokeWidth={1.75} aria-hidden />{t('Avisos y anuncios', 'Notices and announcements')}{unread > 0 ? ` (${unread})` : ''}</Link>
+              {/* Quien solo lee no tiene la campana en la barra del teléfono (ahí va "Solo lectura"): entra a sus avisos desde aquí. */}
+              {readOnly && <Link href="/avisos" role="menuitem" className={menuLink} data-testid="nav-notices"><Bell size={20} strokeWidth={1.75} aria-hidden />{t('Avisos y anuncios', 'Notices and announcements')}{unread > 0 ? ` (${unread})` : ''}</Link>}
               {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
               {ctx.can('board.supervisor') ? <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>
                 : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}

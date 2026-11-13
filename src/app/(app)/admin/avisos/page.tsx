@@ -127,7 +127,7 @@ export default async function NoticeAdminPage({ searchParams }: { searchParams: 
           const info = TEMPLATE_INFO[tpl.key]
           const pending = isPendingText(tpl.body_es) || isPendingText(tpl.subject_es)
           return (
-            <Card key={tpl.id} data-testid={`template-${tpl.key}`}>
+            <Card key={`${tpl.key}:${tpl.market_code ?? ''}`} data-testid={`template-${tpl.key}`}>
               <CardTitle title={`${info ? t(...info.name) : tpl.key}${tpl.market_code ? ` · ${tpl.market_code}` : ''}`}
                 hint={info ? `${t('Va', 'Goes')}: ${t(...info.to).toLowerCase()}. ${t('Sale', 'Sent')}: ${t(...info.when).toLowerCase()}.` : undefined}
                 right={<Badge tone={pending ? 'warn' : tpl.is_active ? 'good' : 'neutral'}>{pending ? t('Falta el texto', 'Text missing') : tpl.is_active ? t(`Versión ${tpl.version}`, `Version ${tpl.version}`) : t('Apagada', 'Off')}</Badge>} />
