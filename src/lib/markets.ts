@@ -43,6 +43,9 @@ export function fichaRole(roles: Role[]): Role {
   return ROLE_ORDER.find((r) => roles.includes(r)) ?? 'rep'
 }
 
+/** El equipo desde el que una persona lee la ficha: sus secciones de campos van primero (E2.F5). */
+export const readerTeam = (role: Role): 'sales' | 'ops' | null => (role === 'ops' ? 'ops' : role === 'rep' || role === 'supervisor' || role === 'market_lead' ? 'sales' : null)
+
 export const WA_CATEGORY: Record<string, { es: string; en: string }> = {
   utility: { es: 'Servicio (alta, primera venta, saldo)', en: 'Utility (signup, first sale, balance)' },
   marketing: { es: 'Promoción', en: 'Marketing' },

@@ -4,6 +4,7 @@ import { getConsolidated, type ConsolidatedCut } from '@/dal/markets'
 import { Card, CardTitle, Empty, PageHeader, Pills, Stat } from '@/ui/kit'
 import { day, money, num } from '@/lib/format'
 import { qs } from '@/lib/labels'
+import { fxSource } from '@/ui/report'
 import { flat } from '@/server/params'
 
 const CUTS: ConsolidatedCut[] = ['market', 'entity', 'unit']
@@ -66,7 +67,7 @@ export default async function ConsolidatedPage({ searchParams }: { searchParams:
                 </p>
                 <p className="text-[13px] text-muted-2" data-testid="row-rate">
                   {r.currency === 'USD' ? t('Ya está en USD: no se convierte.', 'Already in USD: no conversion.')
-                    : r.rate_from ? t(`Tasas del ${day(r.rate_from, locale)}${r.rate_to && r.rate_to !== r.rate_from ? ` al ${day(r.rate_to, locale)}` : ''}. Fuente: ${r.sources.join(', ') || 's/d'}.`, `Rates dated ${day(r.rate_from, locale)}${r.rate_to && r.rate_to !== r.rate_from ? ` to ${day(r.rate_to, locale)}` : ''}. Source: ${r.sources.join(', ') || 'n/a'}.`)
+                    : r.rate_from ? t(`Tasas del ${day(r.rate_from, locale)}${r.rate_to && r.rate_to !== r.rate_from ? ` al ${day(r.rate_to, locale)}` : ''}. Fuente: ${r.sources.map((x) => fxSource(t, { source: x })).join(', ') || 's/d'}.`, `Rates dated ${day(r.rate_from, locale)}${r.rate_to && r.rate_to !== r.rate_from ? ` to ${day(r.rate_to, locale)}` : ''}. Source: ${r.sources.map((x) => fxSource(t, { source: x })).join(', ') || 'n/a'}.`)
                     : t('Sin tasa cargada para estas fechas.', 'No rate loaded for these dates.')}
                   {r.unconverted > 0 && <span className="block font-medium text-amber-text">{t(`${num(r.unconverted, locale)} sin convertir: administración carga la tasa de esa fecha.`, `${num(r.unconverted, locale)} not converted: administration loads the rate for that date.`)}</span>}
                 </p>

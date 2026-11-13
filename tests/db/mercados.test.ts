@@ -3,6 +3,7 @@ import { asPersona, ctxFor, owner, personaId } from './helpers'
 import { withUser, marketWorkday } from '@/server/db'
 import { createAccount, addContact } from '@/domain/accounts'
 import { searchAll, getAccount } from '@/dal/accounts'
+import { fieldDefs } from '@/dal/fields'
 import { setFxRate } from '@/domain/reports'
 import { createMarket, updateMarket } from '@/domain/gobierno'
 import {
@@ -562,6 +563,12 @@ describe('E2.F5: secciones de campos por mercado', () => {
     const usField = (await db<{ id: string }[]>`insert into crm.field_definitions (object, key, label_es, label_en, data_type, market_code) values ('account', 'pos_model_us', 'Modelo de terminal US', 'Terminal model US', 'text', 'US') returning id`)[0]!.id
     await setFieldSection(admin, mxField, section.code)
     expect((await getMarketsAdmin(admin)).sections.find((s) => s.id === section.id)!.fields).toBe(1)
+    // La ficha lee la sección de la tabla: el campo llega con el nombre, el equipo y el orden de su sección, solo en su mercado.
+    const inMx = (await fieldDefs(await ctxFor('marco.pena'), 'account', 'MX')).find((f) => f.key === 'pos_model')!
+    expect(inMx).toMatchObject({ section: section.code, section_es: section.label_es, section_en: section.label_en, section_team: 'support' })
+    const common = (await fieldDefs(await ctxFor('marco.pena'), 'account', 'MX', 'b2b')).find((f) => f.section === 'qualify')!
+    expect(common).toMatchObject({ section_es: 'Para calificar', section_team: 'sales', section_pos: 1 })
+    expect((await fieldDefs(await ctxFor('jade.kim'), 'account', 'US')).some((f) => f.key === 'pos_model')).toBe(false)
     // La sección de México no vale para un campo de US, ni desde la app ni directo en la base.
     expect(await code(setFieldSection(admin, usField, section.code))).toBe('invalid')
     expect(await code(db`update crm.field_definitions set section = ${section.code} where id = ${usField}`)).toBe('23514')

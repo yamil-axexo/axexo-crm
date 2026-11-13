@@ -25,11 +25,11 @@ export default async function FinanceReportPage({ searchParams }: { searchParams
           hint={t(`${num(n, locale)} negocios ganados; ${num(n - withAmount, locale)} sin monto capturado.`, `${num(n, locale)} deals won; ${num(n - withAmount, locale)} with no amount entered.`)}
           href={qs('/reportes/cerrados', { ...r.params, resultado: 'won' })} />
         <Metric t={t} k="financeUsd" owners={owners} testId="m-finance-usd" value={d.usd === null ? <NoData locale={locale} /> : money(Math.round(d.usd), 'USD', locale)}
-          hint={d.missing.length ? t(`No se consolida: falta la tasa de ${d.missing.join(', ')}. Administración la carga en Integraciones.`, `Not consolidated: the rate for ${d.missing.join(', ')} is missing. Administration loads it in Integrations.`) : undefined} />
+          hint={d.missing.length ? t(`No se consolida: hay negocios en ${d.missing.join(', ')} sin tasa para su fecha de cierre. Administración la carga y se rellenan solos.`, `Not consolidated: some deals in ${d.missing.join(', ')} have no rate for their close date. Administration loads it and they fill in on their own.`) : undefined} />
       </div>
       {d.rates.length > 0 && (
         <p className="mt-3 text-[13px] text-muted-2" data-testid="finance-rates">
-          {t('Tasa usada: ', 'Rate used: ')}{d.rates.map((x) => t(`1 ${x.currency} = ${x.usd_rate} USD, del ${day(x.as_of, locale)} (${fxSource(t, x)})`, `1 ${x.currency} = ${x.usd_rate} USD, dated ${day(x.as_of, locale)} (${fxSource(t, x)})`)).join(' · ')}
+          {t('Cada negocio usa la tasa del día en que se ganó. ', 'Each deal uses the rate of the day it was won. ')}{t('Tasa usada: ', 'Rate used: ')}{d.rates.slice(0, 3).map((x) => t(`1 ${x.currency} = ${Number(x.usd_rate)} USD, del ${day(x.as_of, locale)} (${fxSource(t, x)})`, `1 ${x.currency} = ${Number(x.usd_rate)} USD, dated ${day(x.as_of, locale)} (${fxSource(t, x)})`)).join(' · ')}{d.rates.length > 3 ? t(` y ${d.rates.length - 3} más`, ` and ${d.rates.length - 3} more`) : ''}
         </p>
       )}
       <Card className="mt-6" pad={false}>

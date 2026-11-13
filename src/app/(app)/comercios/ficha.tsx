@@ -25,6 +25,8 @@ import { accountIdentity, nodeTotals } from '@/dal/datos'
 import { contactRolesFor } from '@/lib/datos-labels'
 import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSection, ProductsSection, TreeTotals } from './datos-ficha'
 import { FichaFacts, FichaMercados } from './ficha-mercados'
+import { fichaRole, readerTeam } from '@/lib/markets'
+import { rolesIn } from '@/domain/policy'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
@@ -583,7 +585,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               <h3 className={cx(h3, 'mb-2')}>{t('Campos adicionales', 'Additional fields')}</h3>
               <CustomFields defs={defs.filter((d) => !d.section)} values={a.custom} t={t} locale={locale}
                 action={canEdit ? <LinkButton href={`/comercios/${a.id}/campos`} size="sm" testId="custom-edit">{t('Editar campos', 'Edit fields')}</LinkButton> : undefined} />
-              <div className="mt-5"><FieldSections defs={defs} values={a.custom} t={t} locale={locale} /></div>
+              <div className="mt-5"><FieldSections defs={defs} values={a.custom} t={t} locale={locale} team={readerTeam(fichaRole(rolesIn(ctx.memberships, a.market_code)))} /></div>
             </section>
           )}
 
