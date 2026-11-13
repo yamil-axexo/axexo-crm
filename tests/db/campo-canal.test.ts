@@ -68,10 +68,10 @@ describe('CAMPO-06 expediente y mesa de control', () => {
     const v = await admin<{ validated_by: string; validated_at: Date }[]>`select validated_by, validated_at from crm.onboarding_documents where file_id = ${id}`
     expect(v.every((x) => x.validated_by === val.user.id && x.validated_at)).toBe(true)
     // Abrir un documento con la bóveda apagada no entrega archivo y queda en la bitácora de lectura
-    const out = await openDocument(val, docs[1]!.id)
-    expect(out.outcome).toBe('link')
-    const reads = await admin`select outcome from crm.document_reads where document_id = ${docs[1]!.id}`
-    expect(reads.length).toBe(1)
+    expect((await openDocument(val, docs[0]!.id)).outcome).toBe('link')
+    expect(await openDocument(val, docs[1]!.id)).toEqual({ outcome: 'vault_off', url: null })
+    const reads = await admin`select outcome from crm.document_reads where document_id = any(${[docs[0]!.id, docs[1]!.id]}::uuid[])`
+    expect(reads.length).toBe(2)
   })
 })
 
@@ -108,7 +108,7 @@ describe('CANAL-08 disputas', () => {
     const store = await marcoStore(2)
     const id = await raiseDispute(marco, { accountId: store.id, layer: 'channel', kind: 'dispute', claimedKind: 'team', claimedRef: 't-d2d', claimedLabel: 'D2D Centro', reason: 'Lo trajo el equipo de calle' })
     await expect(raiseDispute(marco, { accountId: store.id, layer: 'channel', kind: 'dispute', claimedKind: 'team', claimedRef: 't-d2d', claimedLabel: 'D2D Centro', reason: 'Otra vez la misma' })).rejects.toMatchObject({ code: 'invalid' })
-    await expect(resolveDispute(marco, id, 'approve', 'ok')).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(resolveDispute(marco, id, 'approve', 'Me la apruebo')).rejects.toMatchObject({ code: 'forbidden' })
     await resolveDispute(ana, id, 'approve', 'Confirmado con la supervisión')
     const d = await one(admin<{ status: string; arbiter_id: string; correction_id: string }[]>`select status, arbiter_id, correction_id from crm.attribution_disputes where id = ${id}`)
     expect(d).toMatchObject({ status: 'approved', arbiter_id: ana.user.id })
@@ -167,7 +167,7 @@ describe('CANAL-07 fondeo y CAMPO-04 avisos con umbral versionado', () => {
     expect((await admin`select 1 from crm.exceptions where kind = 'low_balance' and account_id = ${store.id} and resolved_at is null`).length).toBe(0)
     // límite de crédito: lo pide quien vende, no lo aprueba quien lo pidió
     const req = await requestCreditLimit(marco, { accountId: store.id, amount: '5000', reason: 'Vende mucho los fines de semana' })
-    await expect(decideCreditLimit(marco, req, 'approve', 'ok')).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(decideCreditLimit(marco, req, 'approve', 'Me lo apruebo')).rejects.toMatchObject({ code: 'forbidden' })
     await decideCreditLimit(ana, req, 'approve', 'Historial bueno')
     expect((await one(admin<{ status: string; decided_by: string }[]>`select status, decided_by from crm.credit_limit_requests where id = ${req}`))).toMatchObject({ status: 'approved', decided_by: ana.user.id })
   })

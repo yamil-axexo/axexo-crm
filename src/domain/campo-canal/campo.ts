@@ -394,6 +394,10 @@ export async function handleIncident(ctx: Ctx, id: string, action: string, rawRe
   if (action === 'close' && (!resolution || resolution.length < 3)) throw invalid('Escribe cómo se atendió.', 'Write how it was handled.')
   assertNoProhibited(resolution)
   await withUser(ctx.user.id, async (tx) => {
+    // Quien lo reportó lo ve, pero no lo atiende: primero el permiso, luego el candado de la fila.
+    const seen = (await tx<{ market_code: string }[]>`select market_code from crm.field_incidents where id = ${id}`)[0]
+    if (!seen) throw notFound('No encontramos ese incidente.', 'We could not find that incident.')
+    ctx.assert('incident.manage', seen.market_code)
     const r = (await tx<{ market_code: string; status: string }[]>`select market_code, status from crm.field_incidents where id = ${id} for update`)[0]
     if (!r) throw notFound('No encontramos ese incidente.', 'We could not find that incident.')
     ctx.assert('incident.manage', r.market_code)

@@ -101,6 +101,10 @@ export async function resolveDispute(ctx: Ctx, id: string, decision: string, raw
   if (!resolution || resolution.length < 3) throw invalid('Escribe la resolución: queda en la bitácora.', 'Write the resolution: it stays in the log.')
   assertNoProhibited(resolution)
   await withUser(ctx.user.id, async (tx) => {
+    // Primero el permiso (quien levantó la disputa la ve, pero no la puede tocar), luego el candado de la fila.
+    const seen = (await tx<{ market_code: string }[]>`select market_code from crm.attribution_disputes where id = ${id}`)[0]
+    if (!seen) throw notFound('No encontramos esa disputa.', 'We could not find that dispute.')
+    ctx.assert('dispute.arbitrate', seen.market_code)
     const d = (await tx<{ account_id: string; market_code: string; layer: string; status: string; claimant_id: string; claimed_kind: string; claimed_ref: string; claimed_label: string; reason: string }[]>`
       select account_id, market_code, layer, status, claimant_id, claimed_kind, claimed_ref, claimed_label, reason from crm.attribution_disputes where id = ${id} for update`)[0]
     if (!d) throw notFound('No encontramos esa disputa.', 'We could not find that dispute.')

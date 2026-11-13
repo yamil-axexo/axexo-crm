@@ -195,7 +195,7 @@ export async function priorityToday(ctx: Ctx, market: string, mine: boolean): Pr
     const rows = await tx<PriorityRow[]>`
       select p.account_id, a.name as account, u.full_name as owner, p.segment, p.score, p.reasons, p.holdout
         from crm.store_priority p join crm.accounts a on a.id = p.account_id left join crm.users u on u.id = p.owner_id
-       where p.market_code = ${market} and p.day = ${day}::date and not p.holdout and p.score > 0 ${mine ? tx`and p.owner_id = ${ctx.user.id}` : tx``}
+       where p.market_code = ${market} and p.day = ${day}::date and not p.holdout and p.score > 0 and jsonb_array_length(p.reasons) > 0 ${mine ? tx`and p.owner_id = ${ctx.user.id}` : tx``}
        order by p.score desc, a.name limit 30`
     const h = (await tx<{ n: number }[]>`select count(*)::int as n from crm.store_priority p where p.market_code = ${market} and p.day = ${day}::date and p.holdout ${mine ? tx`and p.owner_id = ${ctx.user.id}` : tx``}`)[0]!.n
     return { day, rows, holdout: h }

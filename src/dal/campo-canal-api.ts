@@ -28,7 +28,7 @@ export async function readFieldSignals(key: ApiKey, params: URLSearchParams): Pr
              ps.score as perfect_store_score, ps.observed_at as perfect_store_at
         from crm.store_priority p
         left join lateral (select s.score, s.observed_at from crm.perfect_store_scores s where s.account_id = p.account_id order by s.observed_at desc limit 1) ps on true
-       where p.market_code = ${market} and p.day = ${day}::date and not p.holdout ${owner ? tx`and p.owner_id = ${owner}` : tx``}
+       where p.market_code = ${market} and p.day = ${day}::date and not p.holdout and jsonb_array_length(p.reasons) > 0 ${owner ? tx`and p.owner_id = ${owner}` : tx``}
        order by p.score desc, p.account_id limit ${limit}`
     return { data: rows, as_of: day }
   })
