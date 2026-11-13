@@ -201,6 +201,8 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </div>
       ) : listView ? (
         <>
+        {/* Vistas guardadas (UX-03): viven en la vista Lista. En el tablero empujaban las columnas y estorbaban al arrastrar. */}
+        <div className="mb-4"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team, orden: sp.orden, vista: 'lista' }} current={sp.cola} /></div>
         <nav aria-label={t('Orden de la lista', 'List order')} className="mb-3 inline-flex flex-wrap items-center gap-1 rounded-full border border-line bg-surface p-1" data-testid="list-order">
           <Link href={here({ orden: undefined })} aria-current={!order ? 'page' : undefined} className={seg(!order)} data-testid="order-stage">{t('Por etapa', 'By stage')}</Link>
           <Link href={here({ orden: 'monto' })} aria-current={order === 'monto' ? 'page' : undefined} className={seg(order === 'monto')} data-testid="order-amount">{t('Mayor monto', 'Largest amount')}</Link>
@@ -239,7 +241,6 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </>
       ) : (
         <>
-          <div className="mb-4"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team, orden: sp.orden }} current={sp.cola} /></div>
           <Board
             key={board.deals.map((d) => `${d.id}:${d.stage_id}:${d.next_step_due ?? ''}`).join('|')}
             id={id}

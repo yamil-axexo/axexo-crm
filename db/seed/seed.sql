@@ -430,11 +430,13 @@ update crm.accounts a set address_line = 'Av. Principal 120, Centro', postal_cod
 -- hizo en Pipedrive: negocios sin persona ("US Dealer Enrollment - deals without rep", "Open (No Sales Contact)"), negocios
 -- abiertos sin actividad próxima ("Open no activity", "Open (No Last Activity Date)") y organizaciones de US ("US - Organizations").
 insert into crm.saved_views (user_id, object, name, filters, is_shared) values
-  (pg_temp.uid('nora.salas'), 'deal', 'Negocios sin persona asignada', jsonb_build_object('pipeline', pg_temp.uid('p-us-dealer')::text, 'owner', 'none'), true),
-  (pg_temp.uid('nora.salas'), 'deal', 'Negocios abiertos sin próximo paso', jsonb_build_object('pipeline', pg_temp.uid('p-us-dealer')::text, 'paso', 'sin'), true),
+  (pg_temp.uid('nora.salas'), 'deal', 'Negocios sin persona asignada', jsonb_build_object('pipeline', pg_temp.uid('p-us-dealer')::text, 'owner', 'none', 'vista', 'lista'), true),
+  (pg_temp.uid('nora.salas'), 'deal', 'Negocios abiertos sin próximo paso', jsonb_build_object('pipeline', pg_temp.uid('p-us-dealer')::text, 'paso', 'sin', 'vista', 'lista'), true),
   (pg_temp.uid('nora.salas'), 'account', 'Organizaciones de US', '{"market":"US","kind":"organization"}', true),
   (pg_temp.uid('nora.salas'), 'lead', 'Leads sin persona asignada', '{"owner":"none","status":"open"}', true),
   (pg_temp.uid('nora.salas'), 'activity', 'Tareas del equipo', '{"view":"team"}', true);
+-- En CONTIGO "dueño" es solo el del comercio: la vista de fábrica de comercios sin persona se llama como el resto del producto.
+update crm.saved_views set name = 'Sin persona asignada' where name = 'Sin dueño' and is_shared;
 -- Los filtros de negocios perdidos de Pipedrive ("Lost", "Lost no response") viven como reporte guardado y compartido.
 insert into crm.saved_reports (user_id, report, name, params, is_shared, market_code) values
   (pg_temp.uid('nora.salas'), 'cerrados', 'Negocios perdidos del mes en US', '{"periodo":"mes","mercado":"US","resultado":"lost"}', true, 'US');

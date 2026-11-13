@@ -354,12 +354,13 @@ test.describe('vistas guardadas como colas (UX-03)', () => {
     await loginAs(page, 'diana.cruz')
     await page.goto('/leads')
     await expect(page.locator('[data-view="Leads vencidos del equipo"]')).toHaveCount(0)
-    // Negocios: las vistas de fábrica que reconstruyen los filtros de Pipedrive
+    // Negocios (vista Lista): las vistas de fábrica que reconstruyen los filtros de Pipedrive
     await loginAs(page, 'sam.ortiz')
-    await page.goto('/pipelines')
+    await page.goto('/pipelines?vista=lista')
     await expect(page.locator('[data-view="Negocios sin persona asignada"]')).toBeVisible()
     await page.locator('[data-view="Negocios abiertos sin próximo paso"]').getByTestId('view-link').click()
-    await expect(page).toHaveURL(/\/pipelines\/[0-9a-f-]{36}\?paso=sin/)
+    await expect(page).toHaveURL(/\/pipelines\/[0-9a-f-]{36}\?paso=sin&vista=lista/)
+    await expect(page.getByTestId('deal-list')).toBeVisible()
     // Actividades
     await page.goto('/actividades')
     await expect(page.getByTestId('views-bar')).toBeVisible()

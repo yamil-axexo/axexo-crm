@@ -64,7 +64,7 @@ export function viewHref(v: { id: string; object: ViewObject; filters: Record<st
 }
 /** Las vistas que vienen de fábrica se guardaron en español: en inglés se leen en inglés. Las que crea cada equipo salen como las escribió. */
 export const VIEW_EN: Record<string, string> = {
-  'En riesgo': 'At risk', 'Sin dueño': 'No owner', 'Esperando primera venta': 'Awaiting first sale',
+  'En riesgo': 'At risk', 'Sin persona asignada': 'No one assigned', 'Esperando primera venta': 'Awaiting first sale',
   'Negocios sin persona asignada': 'Deals with no owner', 'Negocios abiertos sin próximo paso': 'Open deals with no next step',
   'Leads sin persona asignada': 'Leads with no owner', 'Leads perdidos': 'Lost leads', 'Organizaciones de US': 'US organizations', 'Tareas del equipo': 'Team tasks', 'Negocios perdidos del mes en US': 'Deals lost this month in the US',
 }

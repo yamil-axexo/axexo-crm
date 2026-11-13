@@ -467,7 +467,7 @@ describe('vistas guardadas como colas (UX-03)', () => {
     expect(await byObject('lead')).toContain('Leads sin persona asignada')
     expect(await byObject('activity')).toContain('Tareas del equipo')
     const deal = (await listViews(sam, 'deal')).find((v) => v.name === 'Negocios sin persona asignada')!
-    expect(viewHref(deal)).toMatch(/^\/pipelines\/[0-9a-f-]{36}\?owner=none&cola=/)
+    expect(viewHref(deal)).toMatch(/^\/pipelines\/[0-9a-f-]{36}\?owner=none&vista=lista&cola=/)
     for (const o of Object.keys(VIEW_FILTERS)) expect(VIEW_FILTERS[o as 'account'].length).toBeGreaterThan(0)
     expect(wideScope(sam)).toEqual({ full: [], team: ['US'] })
   })
