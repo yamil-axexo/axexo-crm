@@ -163,6 +163,8 @@ test.describe('indicadores, tableros por rol y árbol de cuentas (REP-01)', () =
     await page.getByTestId('save-report-shared').check()
     await page.getByTestId('save-report-schedule').selectOption('daily')
     await page.getByTestId('save-report-submit').click()
+    // Se espera a que la acción termine antes de salir de la pantalla (con la suite completa la máquina va más lenta).
+    await page.waitForLoadState('networkidle')
     await page.goto('/reportes')
     const saved = page.locator('[data-testid="saved-report"][data-name="Etapas de mi equipo"]')
     await expect(saved).toContainText('compartido con tu equipo')
