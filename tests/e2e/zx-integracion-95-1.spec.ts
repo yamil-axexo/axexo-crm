@@ -30,6 +30,8 @@ async function bothWidths(page: Page, label: string) {
 }
 
 test.describe.configure({ mode: 'serial' })
+// Las entradas animadas cambian la opacidad un instante: con movimiento reducido el contraste se mide ya asentado.
+test.use({ reducedMotion: 'reduce' })
 
 test.describe('integración de la ola 1 de los 95', () => {
   const business = `Cadena Noventa y Cinco ${tag()}`
@@ -144,9 +146,9 @@ test.describe('integración de la ola 1 de los 95', () => {
     for (const g of ['personas', 'ventas', 'avisos', 'integraciones', 'mercados', 'control']) await expect(nav.getByTestId(`admin-group-${g}`)).toBeVisible()
     const pills = await page.locator('nav[aria-label="Secciones"] a').allInnerTexts()
     expect(new Set(pills).size, pills.join(' | ')).toBe(pills.length)
-    expect(pills).toHaveLength(16)
+    expect(pills).toHaveLength(17)
     await expect(nav.getByTestId('admin-group-integraciones')).toContainText('Sales App y ventas')
-    await expect(nav.getByTestId('admin-group-integraciones').getByRole('link')).toHaveText(['Sales App y ventas', 'Eventos, API y datos', 'Pipedrive', 'Calidad de datos'])
+    await expect(nav.getByTestId('admin-group-integraciones').getByRole('link')).toHaveText(['Sales App y ventas', 'Eventos, API y datos', 'Pipedrive', 'Calidad de datos', 'Datos'])
     await expect(page.getByTestId('pill-personas')).toHaveAttribute('aria-current', 'page')
     await bothWidths(page, 'administración en secciones')
     // en teléfono cada entrada se puede tocar: 44 px de alto
