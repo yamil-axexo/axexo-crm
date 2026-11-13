@@ -105,7 +105,7 @@ test.describe('paquete embudo', () => {
 
   test('el enlace de referido de un comercio (con su código QR) atribuye el lead al comercio y sale en el reporte', async ({ page }) => {
     const marco = await uid('marco.pena')
-    const acc = (await sql<{ id: string; name: string }[]>`select id, name from crm.accounts where owner_id = ${marco} and market_code = 'MX' and archived_at is null order by created_at limit 1`)[0]!
+    const acc = (await sql<{ id: string; name: string }[]>`select id, name from crm.accounts where owner_id = ${marco} and market_code = 'MX' and segment = 'd2d' and archived_at is null order by created_at limit 1`)[0]!
     await loginAs(page, 'marco.pena')
     await page.goto(`/comercios/${acc.id}?tab=datos`)
     await expect(page.getByTestId('account-milestones')).toBeVisible()
@@ -134,7 +134,7 @@ test.describe('paquete embudo', () => {
     await expect(page).toHaveURL(/\/reportes\/embudo/)
     await expect(page.getByTestId('referral-row').filter({ hasText: acc.name })).toContainText(code)
     await expect(page.getByTestId('attribution-table')).toContainText('referido')
-    await expect(page.getByTestId('lost-table').or(page.getByTestId('report-reasons'))).toBeVisible()
+    await expect(page.getByTestId('report-reasons')).toBeVisible()
   })
 
   test('un lead se liga a un comercio existente, lleva etiquetas que filtran la bandeja y el comercio muestra sus leads', async ({ page }) => {
