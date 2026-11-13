@@ -241,7 +241,8 @@ test.describe('CS-02 y CS-04 · salud explicada y modelo de atención', () => {
     await expect(page.getByTestId('admin-care-adapters')).toContainText('Conexión apagada')
     await page.goto('/estado')
     await expect(page.getByText('Conteo de solicitudes de soporte (Zendesk)')).toBeVisible()
-    await expect(page.getByText('Borrador de revisión de cuenta con IA')).toBeVisible()
+    // el borrador de revisión de cuenta con IA aparece en la fila del adaptador único de AI
+    await expect(page.getByText(/borrador de revisión de cuenta \(Cuidado de comercios\)/)).toBeVisible()
 
     // la mesa de trabajo: modelo de atención y los comercios que más atención piden
     await page.goto('/cuidado?mercado=MX&vista=salud')
