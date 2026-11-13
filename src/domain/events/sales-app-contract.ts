@@ -1,4 +1,4 @@
-// CAMPO-01: matriz del contrato entre la Sales App (con Sales Core) y CONTIGO: quién es dueño de cada dato, cómo viaja y
+// CAMPO-01: matriz del contrato entre la Sales App (con Sales Core) y CONTIGO: qué sistema manda en cada dato, cómo viaja y
 // qué pasa si los dos lo tienen. De aquí salen la pantalla de Administración y docs/contracts/sales-app-events-v1.md.
 type Pair = [es: string, en: string]
 export type Owner = 'contigo' | 'sales_app' | 'sales_core' | 's5'
@@ -16,8 +16,8 @@ export const FIELD_MATRIX: MatrixRow[] = [
     rule: ['El evento los trae solo para crear el comercio la primera vez. Si ya existe, manda lo que dice CONTIGO.', 'The event carries them only to create the merchant the first time. If it exists, CONTIGO’s values win.'] },
   { field: ['Teléfono del comercio', 'Merchant phone'], owner: 'contigo', travels: 'store.created · onboarding.submitted',
     rule: ['Sirve para ligar al prospecto. No pisa el que ya está.', 'Used to link to the prospect. It does not overwrite the existing one.'] },
-  { field: ['Dueño de la cuenta, territorio, jerarquía y cartera', 'Account owner, territory, hierarchy and portfolio'], owner: 'contigo', travels: 'account.reassigned · account.territory_set',
-    rule: ['Solo CONTIGO los cambia. El correo de quien vendió en el evento solo propone dueño cuando el comercio nace sin uno.', 'Only CONTIGO changes them. The seller email in the event only suggests an owner when the merchant is born without one.'] },
+  { field: ['Quién lleva la cuenta, territorio, jerarquía y cartera', 'Account owner, territory, hierarchy and portfolio'], owner: 'contigo', travels: 'account.reassigned · account.territory_set',
+    rule: ['Solo CONTIGO los cambia. El correo de quien vendió en el evento solo propone quién lo lleva cuando el comercio nace sin asignar.', 'Only CONTIGO changes them. The seller email in the event only suggests an owner when the merchant is born without one.'] },
   { field: ['Visita: fecha, duración, venta o no, motivo, decisor, revisita', 'Visit: date, duration, sale or not, reason, decision-maker, revisit'], owner: 'sales_app', travels: 'visit.checked_out',
     rule: ['La visita se registra una sola vez, allá. CONTIGO la lee y marca la revisita en el negocio; no la edita.', 'The visit is recorded once, there. CONTIGO reads it and flags the revisit on the deal; it does not edit it.'] },
   { field: ['Alta enviada y documentos completos', 'Onboarding submitted and documents complete'], owner: 'sales_app', travels: 'onboarding.submitted',

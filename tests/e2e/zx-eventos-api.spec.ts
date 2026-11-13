@@ -78,7 +78,7 @@ test.describe('AUT-02 · eventos de dominio', () => {
     await page.getByTestId('subscriber-row').filter({ hasText: 'Sales Core de prueba' }).getByTestId('subscriber-toggle').click()
     await expect(page.getByTestId('subscriber-row').filter({ hasText: 'Sales Core de prueba' })).toContainText('en pausa')
     await page.getByTestId('subscriber-row').filter({ hasText: 'Sales Core de prueba' }).getByTestId('subscriber-remove').click()
-    await page.getByTestId('subscriber-remove-confirm').click()
+    await page.getByTestId('subscriber-row').filter({ hasText: 'Sales Core de prueba' }).getByTestId('subscriber-remove-confirm').click()
     await expect(page.getByTestId('subscribers')).toContainText('Todavía no hay suscriptores')
   })
 
@@ -161,7 +161,7 @@ test.describe('AUT-04 · API de lectura', () => {
     // Revocar pide confirmación y corta de inmediato.
     const fresh = page.getByTestId('key-row').filter({ hasText: 'nació de una rotación' })
     await fresh.getByTestId('key-revoke').click()
-    await page.getByTestId('key-revoke-confirm').click()
+    await fresh.getByTestId('key-revoke-confirm').click()
     await expect(page.getByTestId('key-row').filter({ hasText: 'revocada' })).toHaveCount(1)
     expect((await get('/api/v1/catalogs', rotated, other)).status()).toBe(401)
   })
@@ -368,7 +368,7 @@ test.describe('AUT-07 · importar y exportar', () => {
     // Deshacer: el comercio que nadie tocó se archiva.
     await page.goto('/importar')
     await page.getByTestId('import-row').filter({ hasText: 'comercios-e2e.csv' }).getByTestId('import-undo').click()
-    await page.getByTestId('import-undo-confirm').click()
+    await page.getByTestId('import-row').filter({ hasText: 'comercios-e2e.csv' }).getByTestId('import-undo-confirm').click()
     await expect(page.getByTestId('import-row').filter({ hasText: 'comercios-e2e.csv' })).toContainText('deshecha')
     const gone = await sql<{ archived: boolean }[]>`select archived_at is not null as archived from crm.accounts where id = ${acc!.id}`
     expect(gone[0]!.archived).toBe(true)

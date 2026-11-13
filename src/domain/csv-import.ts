@@ -29,7 +29,7 @@ const col = (key: string, names: string[], es: string, en: string, example: stri
 
 /** El archivo se puede llenar en español o en inglés: estas palabras valen lo mismo que el valor interno. */
 const ROLE_WORDS: Record<string, (typeof CONTACT_ROLES)[number]> = {
-  dueno: 'owner', propietario: 'owner', decisor: 'decision_maker', 'quien decide': 'decision_maker', gerente: 'manager', encargado: 'manager', personal: 'staff', empleado: 'staff',
+  dueno: 'owner', 'dueno del comercio': 'owner', propietario: 'owner', decisor: 'decision_maker', 'quien decide': 'decision_maker', gerente: 'manager', encargado: 'manager', personal: 'staff', empleado: 'staff',
   cobranza: 'billing', facturacion: 'billing', directivo: 'executive', compras: 'purchasing', finanzas: 'finance', tecnologia: 'technology', legal: 'legal', operaciones: 'operations',
 }
 const KIND_WORDS: Record<string, string> = { tienda: 'store', sucursal: 'store', cadena: 'chain', distribuidor: 'distributor', organizacion: 'organization', corporativo: 'organization' }
@@ -50,7 +50,7 @@ export const IMPORT_COLUMNS: Record<ImportKind, Column[]> = {
     col('full_name', ['nombre', 'name', 'contacto', 'contact'], 'Nombre del contacto', 'Contact name', 'Persona Ejemplo', 120, true),
     col('phone', ['telefono', 'phone', 'teléfono'], 'Teléfono', 'Phone', '5512345678', 30),
     col('email', ['correo', 'email'], 'Correo', 'Email', 'persona@ejemplo.test', 160),
-    col('role', ['rol', 'role'], 'Rol: dueño, decisor, gerente, personal, cobranza, directivo, compras, finanzas, tecnología, legal u operaciones (vacío: dueño)', `Role: ${CONTACT_ROLES.join(', ')} (empty: owner)`, ['dueño', 'owner'], 20),
+    col('role', ['rol', 'role'], 'Rol: dueño del comercio, decisor, gerente, personal, cobranza, directivo, compras, finanzas, tecnología, legal u operaciones (vacío: dueño del comercio)', `Role: ${CONTACT_ROLES.join(', ')} (empty: owner)`, ['dueño del comercio', 'owner'], 30),
   ],
   leads: [
     col('business_name', ['negocio', 'business', 'business_name', 'nombre_negocio'], 'Nombre del negocio', 'Business name', 'Miscelánea Muestra', 120, true),
@@ -116,7 +116,7 @@ export async function previewImport(ctx: Ctx, raw: z.input<typeof input>): Promi
     if (kind === 'leads' && values.motor && !(MOTORS as readonly string[]).includes(values.motor.toLowerCase())) problems.push(['Tipo de venta: usa d2d, b2b o dealer.', 'Sale type: use d2d, b2b or dealer.'])
     if (kind === 'accounts' && values.segment && !SEGMENTS.includes(values.segment.toLowerCase())) problems.push(['Canal: usa d2d, b2b, dealer, event, orders u other.', 'Channel: use d2d, b2b, dealer, event, orders or other.'])
     if (kind === 'accounts' && values.kind && !KINDS.includes(kindOf(values.kind))) problems.push(['Tipo: usa tienda, cadena, distribuidor u organización.', 'Type: use store, chain, distributor or organization.'])
-    if (kind === 'contacts' && values.role && !(CONTACT_ROLES as readonly string[]).includes(roleOf(values.role))) problems.push(['Rol: usa uno de los que dice la plantilla (dueño, decisor, gerente, personal...).', 'Role: use one of those listed in the template (owner, decision_maker, manager, staff...).'])
+    if (kind === 'contacts' && values.role && !(CONTACT_ROLES as readonly string[]).includes(roleOf(values.role))) problems.push(['Rol: usa uno de los que dice la plantilla (dueño del comercio, decisor, gerente, personal...).', 'Role: use one of those listed in the template (owner, decision_maker, manager, staff...).'])
     try {
       assertNoProhibited(...Object.values(values))
     } catch {

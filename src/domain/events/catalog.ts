@@ -27,7 +27,7 @@ export const EXPLICIT_EVENTS: EventDef[] = [
   { type: 'account.merged', version: 1, aggregate: 'account', source: 'explicit', about: ['Un comercio duplicado se fusionó en este.', 'A duplicate merchant was merged into this one.'],
     data: { source_id: f('uuid', 'El comercio que se fusionó y quedó archivado.', 'The merchant that was merged and archived.') }, example: { source_id: ID2 } },
   { type: 'account.alias_issued', version: 1, aggregate: 'account', source: 'explicit', about: ['CONTIGO ligó su ID del comercio con el ID de otro sistema.', 'CONTIGO linked its merchant ID to another system’s ID.'],
-    data: { system: f('string', 'Sistema dueño del otro ID.', 'System that owns the other ID.'), external_id: f('string', 'ID en ese sistema.', 'ID in that system.'), account_id: f('uuid', 'ID del comercio en CONTIGO.', 'Merchant ID in CONTIGO.') },
+    data: { system: f('string', 'Sistema al que pertenece el otro ID.', 'System that owns the other ID.'), external_id: f('string', 'ID en ese sistema.', 'ID in that system.'), account_id: f('uuid', 'ID del comercio en CONTIGO.', 'Merchant ID in CONTIGO.') },
     example: { system: 'sales_core', external_id: 'SC-MX-000123', account_id: ID } },
   { type: 'account.reassigned', version: 1, aggregate: 'user', source: 'explicit', about: ['Se pasaron comercios a otra persona. El registro es quien los recibe.', 'Merchants were moved to another person. The record is whoever receives them.'],
     data: { count: f('integer', 'Cuántos comercios.', 'How many merchants.') }, example: { count: 12 } },
@@ -78,7 +78,7 @@ const WHY = {
   read: ['Es una lectura que sale de CONTIGO o un reporte interno del equipo: queda en la bitácora, no cambia registros.', 'It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records.'] as Pair,
   plumbing: ['Es operación de las propias integraciones (llaves, suscriptores, reenvíos): publicarla sería un evento sobre los eventos.', 'It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events.'] as Pair,
   notice: ['Es un aviso entre personas dentro de CONTIGO, no un cambio del registro.', 'It is a notice between people inside CONTIGO, not a change to the record.'] as Pair,
-  rules: ['Evaluar reglas abre o cierra avisos internos; no cambia comercios, leads ni negocios.', 'Running the rules opens or closes internal notices; it changes no merchants, leads or deals.'] as Pair,
+  rules: ['Correr las reglas a mano abre o cierra avisos internos; no cambia comercios, leads ni negocios.', 'Running the rules opens or closes internal notices; it changes no merchants, leads or deals.'] as Pair,
   unknown: ['Acción nueva sin clasificar: no emite hasta que alguien decida aquí si es un cambio de dominio.', 'New action not classified yet: it emits nothing until someone decides here whether it is a domain change.'] as Pair,
 }
 

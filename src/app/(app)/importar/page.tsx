@@ -58,7 +58,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-muted">{t('Con * las obligatorias. Los comercios importados quedan a tu nombre y se reparten desde Comercios; los leads entran sin dueño, a la vista del mercado.', 'Required ones carry a *. Imported merchants are assigned to you and can be redistributed from Merchants; leads come in with no owner, visible to the market.')}</p>
+            <p className="mt-3 text-muted">{t('Con * las obligatorias. Los comercios importados quedan a tu nombre y se reparten desde Comercios; los leads entran sin asignar, a la vista del mercado.', 'Required ones carry a *. Imported merchants are assigned to you and can be redistributed from Merchants; leads come in with no owner, visible to the market.')}</p>
           </details>
         </Card>
 
@@ -67,7 +67,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
           {imports.length === 0 ? (
             <div className="px-5 pb-7 md:px-7"><Empty title={t('Todavía no hay importaciones', 'No imports yet')} hint={t('Cuando subas un archivo, aquí queda qué pasó con cada uno.', 'When you upload a file, what happened to each one shows up here.')} /></div>
           ) : (
-            <Table testId="import-table" label={t('Importaciones', 'Imports')} head={<><th>{t('Archivo', 'File')}</th><th>{t('Qué', 'What')}</th><th>{t('Filas', 'Rows')}</th><th>{t('Quién y cuándo', 'Who and when')}</th><th>{t('Estado', 'Status')}</th><th><span className="sr-only">{t('Acciones', 'Actions')}</span></th></>}>
+            <Table testId="import-table" label={t('Importaciones', 'Imports')} head={<><th>{t('Archivo', 'File')}</th><th>{t('Qué', 'What')}</th><th>{t('Filas', 'Rows')}</th><th>{t('Quién y cuándo', 'Who and when')}</th><th>{t('Estado', 'Status')}</th><th className="relative"><span className="sr-only">{t('Acciones', 'Actions')}</span></th></>}>
               {imports.map((i) => (
                 <tr key={i.id} className="table-row" data-testid="import-row">
                   <td className="max-w-[220px] [overflow-wrap:anywhere]"><span className="font-semibold text-strong">{i.file_name}</span></td>
