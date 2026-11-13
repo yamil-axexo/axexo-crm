@@ -58,6 +58,9 @@ export const EXCEPTION: Record<string, { label: Pair; action: Pair }> = {
   unowned_account: { label: ['Comercio sin asignar', 'Merchant with no owner'], action: ['Asignar a alguien', 'Assign an owner'] },
   duplicate_suspect: { label: ['Posible duplicado', 'Possible duplicate'], action: ['Revisar y fusionar', 'Review and merge'] },
   unmatched_event: { label: ['Evento sin comercio', 'Event with no merchant'], action: ['Revisar integración', 'Review the integration'] },
+  low_balance: { label: ['Saldo bajo', 'Low balance'], action: ['Llamar para que recargue', 'Call so they top up'] },
+  under_plan: { label: ['Va por debajo de su meta del mes', 'Behind on this month’s target'], action: ['Revisarlo en el uno a uno', 'Go over it in the one-on-one'] },
+  perfect_store_low: { label: ['Punto de venta por debajo del mínimo', 'Store below the minimum score'], action: ['Visitar y completar lo que falta', 'Visit and complete what is missing'] },
 }
 
 export const ACTIVITY: Record<string, Pair> = {

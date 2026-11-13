@@ -82,6 +82,7 @@ const WHY = {
   quality: ['Es trabajo interno de calidad de datos (colas, mediciones, revisiones de repetidos): cuando termina en un cambio del registro, como una fusión o una edición, ese cambio emite su propio evento.', 'It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event.'] as Pair,
   internal: ['Es configuración interna de CONTIGO (métricas, plantillas de avisos, ayuda, arranque de un mercado): no cambia comercios, leads ni negocios.', 'It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals.'] as Pair,
   jobs: ['Es la corrida a mano de una tarea programada: lo que la tarea cambie emite su propio evento; la corrida en sí no.', 'It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not.'] as Pair,
+  confidential: ['Es un registro confidencial de campo con acceso restringido: queda en la bitácora y no se publica a otros sistemas.', 'It is a confidential field record with restricted access: it is logged and not published to other systems.'] as Pair,
   unknown: ['Acción nueva sin clasificar: no emite hasta que alguien decida aquí si es un cambio de dominio.', 'New action not classified yet: it emits nothing until someone decides here whether it is a domain change.'] as Pair,
 }
 
@@ -97,6 +98,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   // cargas desde hojas (visitas pegadas, tiendas migradas): cada registro creado emite el suyo:
   ['sheet.', WHY.migration],
   ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
+  // Paquete campo-canal: abrir un documento es una lectura; los incidentes son confidenciales y no salen de CONTIGO;
+  // el simulador de fondeo y los umbrales son configuración interna.
+  ['onboarding.document_opened', WHY.read], ['incident.', WHY.confidential], ['funding.simulated', WHY.internal], ['threshold.', WHY.internal],
   ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
 ]
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
@@ -104,7 +108,9 @@ const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exceptio
   'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.',
   // Ola 1 de los 95: identificadores de otros sistemas, mercados, procesos por comercio, proveedores y productos, pedidos,
   // capacitación del dealer, etiquetas de agencias y la configuración de las automatizaciones.
-  'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.']
+  'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.',
+  // Paquete campo-canal: expediente de alta, atribución corregida, disputas, registros de canal, crédito, cartera y competencia.
+  'onboarding.', 'attribution.', 'dispute.', 'claim.', 'credit.', 'channel.', 'portfolio.', 'seller.', 'competitor.', 'plan.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {
