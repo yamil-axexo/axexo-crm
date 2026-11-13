@@ -7,6 +7,7 @@ import { hasProhibited } from '@/domain/guard'
 import { parseCsv } from '@/lib/csv'
 import { toE164 } from '@/lib/format'
 import { invalid, notFound } from '@/lib/errors'
+import { stampAttributionTx } from '@/domain/campo-canal/attribution'
 
 /**
  * DAT-06: kit de ingesta de una red adquirida (EMIDA, Sky, Movilway u otra).
@@ -201,6 +202,10 @@ export async function promoteBatch(ctx: Ctx, loadId: string, size = 200): Promis
                          ${l.market_code === 'MX' || l.market_code === 'US' || l.market_code === 'SV' ? l.market_code : null}, ${origin}, now(), ${ctx.user.id})`
         await tx`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${acc}, ${l.market_code}, ${system}, ${r.external_id})`
         await tx`update crm.network_load_rows set status = 'promoted', account_id = ${acc}, batch = ${batch}, promoted_at = now() where id = ${r.id}`
+        // CANAL-03: nace con su origen (la red) clasificado como red adquirida y con la capa de canal.
+        await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
+                 values (${acc}, ${l.market_code}, 'origin', 'import', ${system}, ${'Red ' + l.source_system.toUpperCase()}, ${ctx.user.id})`
+        await stampAttributionTx(tx, ctx.user.id, acc)
         await emit(tx, 'account.created', 'account', acc, l.market_code, { kind: r.kind })
         created++
       }

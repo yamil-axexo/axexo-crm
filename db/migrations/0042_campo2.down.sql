@@ -24,7 +24,7 @@ drop trigger if exists exceptions_route_owner on crm.exceptions;
 drop function if exists crm.exception_route_owner();
 drop function if exists app.exception_fallback_owner(text, uuid);
 update crm.exceptions set owner_id = null, detail = detail - 'routed_to' where detail ? 'routed_to';
-delete from crm.field_thresholds where pending_owner is not null and key in ('trust_min_score','competitor_alert_visits','competitor_window_days','indirect_route_visits','perfect_store_health_days','threshold_review_days','onboarding_link_days') and version = 1;
+delete from crm.field_thresholds where pending_owner is not null and key in ('trust_min_score','route_daily_stores','competitor_alert_visits','competitor_window_days','indirect_route_visits','perfect_store_health_days','threshold_review_days','onboarding_link_days') and version = 1;
 alter table crm.field_thresholds drop column if exists pending_owner;
 create or replace function app.health_snapshot_run(p_market text default null) returns int
 language plpgsql security definer set search_path = crm, app, pg_catalog as $$

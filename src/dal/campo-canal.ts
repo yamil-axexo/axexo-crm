@@ -212,14 +212,31 @@ export async function incidents(ctx: Ctx, market: string): Promise<IncidentRow[]
 }
 
 // ---------------------------------------------------------------- umbrales y metas
-export async function thresholds(ctx: Ctx, market: string): Promise<{ key: string; value: number; version: number; reason: string | null; valid_from: Date | null; by: string | null }[]> {
-  const rows = await withUser(ctx.user.id, (tx) => tx<{ key: string; value: string; version: number; reason: string | null; valid_from: Date; by: string | null }[]>`
-    select t.key, t.value::text, t.version, t.reason, t.valid_from, u.full_name as by from crm.field_thresholds t left join crm.users u on u.id = t.set_by
+export type ThresholdRow = { key: string; value: number; version: number; reason: string | null; valid_from: Date | null; by: string | null; pending_owner: string | null; review_due: string | null; review_late: boolean }
+/** CAMPO-04: cada umbral con su versión, si todavía es un valor propuesto (y de quién depende) y cuándo toca revisarlo (calibración). */
+export async function thresholds(ctx: Ctx, market: string): Promise<ThresholdRow[]> {
+  const rows = await withUser(ctx.user.id, (tx) => tx<{ key: string; value: string; version: number; reason: string | null; valid_from: Date; by: string | null; pending_owner: string | null; review_due: string; review_late: boolean }[]>`
+    with rv as (select coalesce((select f.value::int from crm.field_thresholds f where f.market_code = ${market} and f.key = 'threshold_review_days' and f.valid_to is null), 90) as days)
+    select t.key, t.value::text, t.version, t.reason, t.valid_from, u.full_name as by, t.pending_owner,
+           ((t.valid_from at time zone mk.timezone)::date + rv.days)::text as review_due,
+           ((t.valid_from at time zone mk.timezone)::date + rv.days) < (now() at time zone mk.timezone)::date as review_late
+      from crm.field_thresholds t join crm.markets mk on mk.code = t.market_code cross join rv left join crm.users u on u.id = t.set_by
      where t.market_code = ${market} and t.valid_to is null`)
   return THRESHOLD_KEYS.map((k) => {
     const r = rows.find((x) => x.key === k)
-    return { key: k, value: r ? Number(r.value) : NaN, version: r?.version ?? 0, reason: r?.reason ?? null, valid_from: r?.valid_from ?? null, by: r?.by ?? null }
+    return { key: k, value: r ? Number(r.value) : NaN, version: r?.version ?? 0, reason: r?.reason ?? null, valid_from: r?.valid_from ?? null, by: r?.by ?? null,
+      pending_owner: r?.pending_owner ?? null, review_due: r?.review_due ?? null, review_late: r?.review_late ?? false }
   }).filter((r) => THRESHOLDS[r.key as keyof typeof THRESHOLDS])
+}
+/** Valores propuestos que esperan a su dueño, en todos los mercados que la persona ve. Para Estado de CONTIGO. */
+export async function proposedValues(ctx: Ctx): Promise<{ market_code: string; key: string; value: number; owner: string }[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const t = await tx<{ market_code: string; key: string; value: string; owner: string }[]>`
+      select market_code, key, value::text, pending_owner as owner from crm.field_thresholds where valid_to is null and pending_owner is not null order by key, market_code`
+    const p = await tx<{ market_code: string; value: string; owner: string }[]>`
+      select market_code, clawback_days::text as value, pending_owner as owner from crm.channel_policies where valid_to is null and status = 'proposed' and pending_owner is not null order by market_code`
+    return [...t.map((r) => ({ ...r, value: Number(r.value) })), ...p.map((r) => ({ market_code: r.market_code, key: 'clawback_policy', value: Number(r.value), owner: r.owner }))]
+  })
 }
 export async function repPlans(ctx: Ctx, market: string): Promise<{ user_id: string; name: string; month: string; target_won: number; won: number }[]> {
   return withUser(ctx.user.id, (tx) => tx`

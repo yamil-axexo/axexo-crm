@@ -12,6 +12,7 @@ import { notify } from '@/domain/notify'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { markUntrusted, plainText } from '@/domain/untrusted'
 import { ingestPerfectStoreTx } from '@/domain/campo-canal/campo'
+import { stampAttributionTx } from '@/domain/campo-canal/attribution'
 import { applyClosing, closingFileFields, closingRowFields, manifestProblem, recordRestatements } from '@/domain/embudo/closing'
 import { decisionMakerContact, ensureRevisitTask, saveDecisionMaker } from '@/domain/embudo/revisit'
 import { noteUnknownReason } from '@/domain/embudo/reasons'
@@ -304,6 +305,10 @@ async function linkOrCreateStore(tx: Tx, sys: Ctx, d: StoreData): Promise<{ acco
       ownerId: owner[0]?.id ?? null, territoryId: null, phone, locality, region, createdBy: sys.user.id })
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
              values (${accountId}, ${d.market}, 'origin', 'import', 'sales_app', 'Sales App', ${sys.user.id})`
+    await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
+             select ${accountId}, ${d.market}, 'owner', 'user', u.id::text, u.full_name, ${sys.user.id} from crm.users u where u.id = ${owner[0]?.id ?? null}`
+    // CANAL-03: las altas de la Sales App también nacen con origen clasificado y equipo reclutador.
+    await stampAttributionTx(tx, sys.user.id, accountId)
     await markUntrusted(tx, 'account', accountId, d.market, 'sales_app', ['name', ...(locality ? ['locality'] : []), ...(region ? ['region'] : [])])
   } else {
     await tx`update crm.accounts set lifecycle = 'onboarding' where id = ${accountId} and lifecycle = 'prospect'`

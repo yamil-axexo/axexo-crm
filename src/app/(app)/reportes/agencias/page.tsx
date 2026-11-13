@@ -1,12 +1,10 @@
 import { agencyLabels, getAgencyReport } from '@/dal/reportes'
 import { Card, CardTitle, Empty } from '@/ui/kit'
-import { ActionForm, Submit } from '@/ui/client'
 import { Def, ReportFilters } from '@/ui/report'
 import { DataTable } from '@/ui/reportes'
 import { num, pct } from '@/lib/format'
 import { loadReport, type ReportSp } from '../load'
 import { ReportHeader, exportNote } from '../shell'
-import { agencyLabelsAction } from '../actions'
 
 /** E8.F3: los negocios que trajo una agencia junto a los del equipo interno, en el mismo periodo. */
 export default async function AgencyReportPage({ searchParams }: { searchParams: Promise<ReportSp> }) {
@@ -32,7 +30,7 @@ export default async function AgencyReportPage({ searchParams }: { searchParams:
       <Def t={t} k="agency" named owners={owners} />
       {ag.deals === 0 && (
         <p role="status" className="mt-4 rounded-[14px] bg-surface-3 px-5 py-4 text-[14px] text-strong" data-testid="agency-none">
-          {t('En este periodo ningún negocio viene de un comercio cuyo origen esté a nombre de una agencia. Si las agencias aparecen con otro nombre en el origen del comercio, administración las puede marcar abajo.', 'In this period no deal comes from a merchant whose origin is under an agency. If agencies show up under another name in the merchant origin, administration can flag them below.')}
+          {t('En este periodo ningún negocio fue reclutado por una agencia o un aliado.', 'In this period no deal was recruited by an agency or a partner.')}
         </p>
       )}
       <Card className="mt-6" pad={false}>
@@ -42,15 +40,10 @@ export default async function AgencyReportPage({ searchParams }: { searchParams:
           head={[...(multi ? [{ label: t('Mercado', 'Market') }] : []), { label: t('Quién lo trajo', 'Brought in by') }, { label: t('Negocios', 'Deals'), num: true }, { label: t('Ganados', 'Won'), num: true }, { label: t('Perdidos', 'Lost'), num: true }, { label: t('Abiertos', 'Open'), num: true }]}
           rows={rows.map((x) => ({ key: `${x.grp}${x.label}${x.market_code}`, testId: 'agency-row', cells: [...(multi ? [x.market_code] : []), x.grp === 'agency' ? `${t('Agencia', 'Agency')}: ${x.label ?? ''}` : t('Equipo interno', 'In-house team'), num(x.deals, locale), num(x.won, locale), num(x.lost, locale), num(x.open, locale)] }))} />
       </Card>
-      {ctx.can('config.manage') && (
-        <Card className="mt-6" data-testid="agency-config">
-          <CardTitle title={t('Quién cuenta como agencia', 'Who counts as an agency')} hint={t('Siempre cuenta el origen registrado a nombre de un aliado. Además, puedes escribir aquí los nombres de origen que también son agencia, separados por coma, tal como aparecen en la ficha del comercio.', 'An origin recorded under a partner always counts. You can also write here the origin names that are agencies too, separated by commas, exactly as they appear on the merchant page.')} />
-          <ActionForm action={agencyLabelsAction} className="flex flex-wrap items-end gap-3">
-            <label className="block min-w-0 flex-1 basis-72"><span className="mb-1 block text-[12.5px] font-semibold text-muted-2">{t('Nombres de origen', 'Origin names')}</span><input name="labels" defaultValue={labels.join(', ')} className="input" maxLength={600} data-testid="agency-labels" /></label>
-            <Submit variant="ghost" testId="agency-labels-save">{t('Guardar', 'Save')}</Submit>
-          </ActionForm>
-        </Card>
-      )}
+      <Card className="mt-6" data-testid="agency-config">
+        <CardTitle title={t('Quién cuenta como agencia', 'Who counts as an agency')} hint={t('Un solo modelo: las agencias y aliados dados de alta en Administración. Un negocio es de agencia si "Reclutado por" dice una agencia o un aliado (en el negocio o en su comercio), o si la capa de canal del comercio está a nombre de una. Lo demás es equipo interno.', 'A single model: the agencies and partners set up in Administration. A deal belongs to an agency if "Recruited by" names an agency or partner (on the deal or its merchant), or if the merchant’s channel layer is under one. Everything else is the in-house team.')} />
+        {labels.length > 0 && <p className="text-[13.5px] text-muted-2" data-testid="agency-legacy">{t(`Nombres del modelo anterior que ya no deciden este reporte: ${labels.join(', ')}. Si alguno es una agencia, dala de alta en Administración y corrige la capa de canal del comercio.`, `Names from the previous model that no longer decide this report: ${labels.join(', ')}. If any is an agency, set it up in Administration and correct the merchant’s channel layer.`)}</p>}
+      </Card>
       {exportNote(r)}
     </>
   )

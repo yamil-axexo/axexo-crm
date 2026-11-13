@@ -24,9 +24,24 @@ export const THRESHOLDS = {
   no_sale_days: { es: 'Sin venta por (días)', en: 'No sale for (days)', min: 1, max: 60 },
   holdout_pct: { es: 'Grupo de control por territorio (%)', en: 'Control group per territory (%)', min: 0, max: 50 },
   dispute_sla_days: { es: 'Disputas: días para resolver', en: 'Disputes: days to resolve', min: 1, max: 30 },
+  // Paquete campo2 (0042): nacen como valor propuesto con dueño pendiente (field_thresholds.pending_owner).
+  trust_min_score: { es: 'Visitas: señal mínima de la Sales App para contar', en: 'Visits: minimum Sales App signal to count', min: 0, max: 100 },
+  route_daily_stores: { es: 'Ruta del día: tiendas por persona', en: 'Daily route: stores per person', min: 1, max: 60 },
+  competitor_alert_visits: { es: 'Competencia: visitas con competencia para avisar', en: 'Competition: visits with a competitor before an alert', min: 1, max: 10 },
+  competitor_window_days: { es: 'Competencia: días que se miran', en: 'Competition: days looked at', min: 7, max: 180 },
+  indirect_route_visits: { es: 'Competencia: visitas sin venta para sugerir canal indirecto', en: 'Competition: visits with no sale before suggesting the indirect channel', min: 1, max: 10 },
+  perfect_store_health_days: { es: 'Punto de venta perfecto: días que vale en la salud', en: 'Perfect store: days it counts in health', min: 7, max: 180 },
+  threshold_review_days: { es: 'Calibración: revisar cada umbral cada (días)', en: 'Calibration: review each threshold every (days)', min: 14, max: 365 },
+  onboarding_link_days: { es: 'Enlace de expediente: días de vigencia', en: 'Onboarding link: days valid', min: 1, max: 30 },
 } as const
 export type ThresholdKey = keyof typeof THRESHOLDS
 export const THRESHOLD_KEYS = Object.keys(THRESHOLDS) as ThresholdKey[]
+
+/** Quién tiene que confirmar el valor propuesto de cada umbral nuevo. Se muestra como "[pendiente: dueño]". */
+export const THRESHOLD_OWNER: Partial<Record<ThresholdKey, string>> = {
+  trust_min_score: 'Ventas', route_daily_stores: 'Ventas', competitor_alert_visits: 'Ventas', competitor_window_days: 'Ventas',
+  indirect_route_visits: 'Ventas y canales', perfect_store_health_days: 'Customer Success', threshold_review_days: 'Ventas', onboarding_link_days: 'Mesa de control',
+}
 
 export type Threshold = { value: number; version: number }
 
@@ -39,6 +54,9 @@ export async function threshold(tx: Tx, market: string, key: ThresholdKey): Prom
     under_plan_pct: 60, perfect_store_min: 60, claim_window_days: 14, claim_extension_days: 14, claim_max_extensions: 2,
     control_desk_sla_hours: 24, prepaid_auto_approve: 0, visit_every_days_a: 7, visit_every_days_b: 14, visit_every_days_c: 30, visit_every_days_d: 60,
     no_sale_days: 7, holdout_pct: 10, dispute_sla_days: 5,
+    // Respaldo si un mercado nuevo no trae la fila propuesta de 0042 (la migración las siembra como dato).
+    trust_min_score: 50, route_daily_stores: 10, competitor_alert_visits: 2, competitor_window_days: 60, indirect_route_visits: 3,
+    perfect_store_health_days: 60, threshold_review_days: 90, onboarding_link_days: 7,
   }
   return { value: fallback[key], version: 0 }
 }

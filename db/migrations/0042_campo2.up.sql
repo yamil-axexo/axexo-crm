@@ -12,7 +12,7 @@ comment on column crm.field_thresholds.pending_owner is 'Valor propuesto: quién
 insert into crm.field_thresholds (market_code, key, value, version, reason, pending_owner)
 select m.code, k.key, k.value, 1, 'Valor propuesto por CONTIGO, sin acuerdo todavía', k.owner
   from crm.markets m
-  cross join (values ('trust_min_score', 50, 'Ventas'), ('competitor_alert_visits', 2, 'Ventas'), ('competitor_window_days', 60, 'Ventas'),
+  cross join (values ('trust_min_score', 50, 'Ventas'), ('route_daily_stores', 10, 'Ventas'), ('competitor_alert_visits', 2, 'Ventas'), ('competitor_window_days', 60, 'Ventas'),
                      ('indirect_route_visits', 3, 'Ventas y canales'), ('perfect_store_health_days', 60, 'Customer Success'),
                      ('threshold_review_days', 90, 'Ventas')) k(key, value, owner)
  where not exists (select 1 from crm.field_thresholds f where f.market_code = m.code and f.key = k.key and f.valid_to is null);

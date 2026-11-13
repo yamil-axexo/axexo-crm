@@ -24,6 +24,7 @@ const sizeFrom = (raw: unknown): number | null => {
   return Number.isInteger(v) && v >= 1 && v <= 100000 ? v : null
 }
 import { applyTerritoryOwners } from '@/domain/mx-config'
+import { stampAttributionTx } from '@/domain/campo-canal/attribution'
 
 export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
 
@@ -665,8 +666,9 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
       await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
         (${accountId}, ${lead.market_code}, 'origin', ${isWebSource(lead.source) ? 'form' : 'user'}, ${lead.form_id ?? ctx.user.id},
          ${lead.source === 'web_campaign' ? 'Campaña web' : lead.source === 'web_form' ? 'Formulario web' : ctx.user.name}, ${ctx.user.id}),
-        (${accountId}, ${lead.market_code}, 'channel', 'team', ${pipe.motor}, ${pipe.motor.toUpperCase()}, ${ctx.user.id}),
         (${accountId}, ${lead.market_code}, 'owner', 'user', ${ownerId}, (select full_name from crm.users where id = ${ownerId}), ${ctx.user.id})`
+      // CANAL-03: origen clasificado y equipo reclutador (o la agencia del lead) como capa de canal.
+      await stampAttributionTx(tx, ctx.user.id, accountId)
     }
     // Lo que el lead ya tenía por hacer es el próximo paso del negocio; solo si no había nada se crea la tarea de siempre.
     const pending = await tx<{ id: string; subject: string; due: string | null }[]>`

@@ -98,7 +98,7 @@ export async function getStagesReport(ctx: Ctx, f: Filters): Promise<StageRow[]>
 
 // ------------------------------------------------------------------ E8.F3 agencia contra equipo interno
 export type AgencyRow = { grp: 'agency' | 'inhouse'; label: string | null; market_code: string; deals: number; won: number; lost: number; open: number }
-/** Etiquetas de origen que administración marcó como agencia, además de los orígenes a nombre de un aliado. */
+/** Etiquetas de origen que administración había marcado como agencia (modelo anterior). Ya no deciden el reporte; se muestran para migrarlas. */
 export async function agencyLabels(ctx: Ctx): Promise<string[]> {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ value: unknown }[]>`select value from crm.settings where key = 'reports.agency_labels'`
@@ -106,22 +106,29 @@ export async function agencyLabels(ctx: Ctx): Promise<string[]> {
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
   })
 }
+/**
+ * Un solo modelo de agencia (crm.agencies). Un negocio es de agencia si quien lo reclutó es una agencia o un aliado:
+ * primero lo que dice el propio negocio ("Reclutado por" o la agencia confinada), luego lo que dice su comercio y, si
+ * ninguno lo dice, la capa de canal vigente (el equipo reclutador de CANAL-03). Todo lo demás es equipo propio.
+ */
 export async function getAgencyReport(ctx: Ctx, p: MarketPeriods, f: Filters): Promise<AgencyRow[]> {
   const scope = wideScope(ctx)
-  const labels = (await agencyLabels(ctx)).map((x) => x.toLowerCase())
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<AgencyRow[]>`
-      with origin as (
-        select distinct on (at.account_id) at.account_id, at.party_kind, at.party_label
-          from crm.account_attributions at where at.layer = 'origin' order by at.account_id, at.effective_from, at.id)
-      select case when o.party_kind = 'partner' or lower(o.party_label) = any(${labels}::text[]) then 'agency' else 'inhouse' end as grp,
-             case when o.party_kind = 'partner' or lower(o.party_label) = any(${labels}::text[]) then o.party_label else null end as label,
-             d.market_code, count(*)::int as deals, count(*) filter (where d.status = 'won')::int as won,
-             count(*) filter (where d.status = 'lost')::int as lost, count(*) filter (where d.status = 'open')::int as open
-        from crm.deals d join crm.markets mk on mk.code = d.market_code join ${periodRows(tx, p)} pr on pr.market = d.market_code
-        left join origin o on o.account_id = d.account_id
-       where ${inScope(tx, scope, 'd')} and (d.created_at at time zone mk.timezone)::date between pr.dfrom and pr.dto
-         ${mkFilter(tx, 'd', f.market)} ${isUuid(f.pipeline) ? tx`and d.pipeline_id = ${f.pipeline}` : tx``}
+      with chan as (
+        select t.account_id, t.party_ref from crm.account_attributions t
+         where t.layer = 'channel' and t.effective_to is null and t.party_kind = 'partner'),
+      x as (
+        select d.*, coalesce(d.recruited_agency_id, a.recruited_agency_id,
+                             (select g.id from crm.agencies g join chan c on c.party_ref = g.id::text where c.account_id = d.account_id limit 1)) as agency_id
+          from crm.deals d left join crm.accounts a on a.id = d.account_id)
+      select case when x.agency_id is not null then 'agency' else 'inhouse' end as grp, g.name as label,
+             x.market_code, count(*)::int as deals, count(*) filter (where x.status = 'won')::int as won,
+             count(*) filter (where x.status = 'lost')::int as lost, count(*) filter (where x.status = 'open')::int as open
+        from x join crm.markets mk on mk.code = x.market_code join ${periodRows(tx, p)} pr on pr.market = x.market_code
+        left join crm.agencies g on g.id = x.agency_id
+       where ${inScope(tx, scope, 'x')} and (x.created_at at time zone mk.timezone)::date between pr.dfrom and pr.dto
+         ${mkFilter(tx, 'x', f.market)} ${isUuid(f.pipeline) ? tx`and x.pipeline_id = ${f.pipeline}` : tx``}
        group by 1, 2, 3 order by 1, 3, 4 desc`
     return [...rows]
   })
@@ -336,39 +343,64 @@ export async function getCarry(ctx: Ctx, p: MarketPeriods, ownerId: string): Pro
 }
 
 // ------------------------------------------------------------------ CAMPO-05 indicadores de campo
-/** Una visita de la Sales App con señal por debajo de este valor no cuenta. Hoy la Sales App no manda señal: ninguna se excluye. */
+/**
+ * Respaldo del mínimo de señal (trust score) con que una visita de la Sales App cuenta. El vigente es el umbral
+ * trust_min_score del mercado (valor propuesto en 0042, pendiente de Ventas); la visita que llega sin señal cuenta.
+ */
 export const TRUST_MIN = 50
 export type FieldKpiRow = {
   market_code: string; owner_id: string | null; owner_name: string | null; team_name: string | null
   visits: number; sales: number; visited: number; confirmed: number; manual: number; low: number; book: number; enrolled: number
+  /** Ruta del día: tiendas que tocaban (las primeras de la prioridad diaria) y cuántas se visitaron ese día. */
+  planned: number; planned_visited: number
+  /** Distribución numérica: tiendas de la cartera que están activas. */
+  active_book: number
+  trust_min: number
 }
 export async function getFieldKpis(ctx: Ctx, p: MarketPeriods, f: Filters): Promise<FieldKpiRow[]> {
   const scope = wideScope(ctx)
   return withUser(ctx.user.id, async (tx) => {
     const pr = periodRows(tx, p)
     const rows = await tx<FieldKpiRow[]>`
-      with v as (
+      with tm as (
+        select m.code as market, coalesce((select f.value::int from crm.field_thresholds f where f.market_code = m.code and f.key = 'trust_min_score' and f.valid_to is null), ${TRUST_MIN}) as trust_min,
+               coalesce((select f.value::int from crm.field_thresholds f where f.market_code = m.code and f.key = 'route_daily_stores' and f.valid_to is null), 10) as route_n
+          from crm.markets m),
+      v as (
         select v.market_code, v.owner_id,
-               count(*) filter (where coalesce(sv.trust_score, 100) >= ${TRUST_MIN})::int as visits,
-               count(*) filter (where v.outcome = 'sale' and coalesce(sv.trust_score, 100) >= ${TRUST_MIN})::int as sales,
-               count(distinct v.account_id) filter (where coalesce(sv.trust_score, 100) >= ${TRUST_MIN})::int as visited,
-               count(*) filter (where v.origin = 'sales_app' and coalesce(sv.trust_score, 100) >= ${TRUST_MIN})::int as confirmed,
+               count(*) filter (where coalesce(sv.trust_score, 100) >= tm.trust_min)::int as visits,
+               count(*) filter (where v.outcome = 'sale' and coalesce(sv.trust_score, 100) >= tm.trust_min)::int as sales,
+               count(distinct v.account_id) filter (where coalesce(sv.trust_score, 100) >= tm.trust_min)::int as visited,
+               count(*) filter (where v.origin = 'sales_app' and coalesce(sv.trust_score, 100) >= tm.trust_min)::int as confirmed,
                count(*) filter (where v.origin = 'manual')::int as manual,
-               count(*) filter (where sv.trust_score < ${TRUST_MIN})::int as low
-          from crm.visit_log v join ${pr} pr on pr.market = v.market_code
+               count(*) filter (where sv.trust_score < tm.trust_min)::int as low
+          from crm.visit_log v join ${pr} pr on pr.market = v.market_code join tm on tm.market = v.market_code
           left join crm.visits sv on sv.id = v.id and v.origin = 'sales_app'
          where v.business_date between pr.dfrom and pr.dto and ${inScope(tx, scope, 'v')} ${mkFilter(tx, 'v', f.market)} ${ownerFilter(tx, 'v', f.owner)} ${teamFilter(tx, 'v', f.team)}
          group by 1, 2),
+      rt as (
+        select r.market_code, r.owner_id, count(*)::int as planned,
+               count(*) filter (where exists (select 1 from crm.visit_log x where x.account_id = r.account_id and x.business_date = r.day
+                                               and (x.origin <> 'sales_app' or coalesce((select sv.trust_score from crm.visits sv where sv.id = x.id), 100) >= tm.trust_min)))::int as planned_visited
+          from (select p.*, row_number() over (partition by p.market_code, p.owner_id, p.day order by p.score desc, p.account_id) as rn
+                  from crm.store_priority p join ${pr} pr on pr.market = p.market_code
+                 where p.day between pr.dfrom and pr.dto and not p.holdout and p.owner_id is not null) r
+          join tm on tm.market = r.market_code join crm.accounts a on a.id = r.account_id
+         where r.rn <= tm.route_n and ${inScope(tx, scope, 'a')} ${mkFilter(tx, 'r', f.market)} ${ownerFilter(tx, 'r', f.owner)} ${teamFilter(tx, 'r', f.team)}
+         group by 1, 2),
       b as (
-        select a.market_code, a.owner_id, count(*)::int as book,
+        select a.market_code, a.owner_id, count(*)::int as book, count(*) filter (where a.lifecycle = 'active')::int as active_book,
                count(*) filter (where (a.created_at at time zone mk.timezone)::date between pr.dfrom and pr.dto)::int as enrolled
           from crm.accounts a join crm.markets mk on mk.code = a.market_code join ${pr} pr on pr.market = a.market_code
          where a.kind = 'store' and a.archived_at is null and ${inScope(tx, scope, 'a')} ${mkFilter(tx, 'a', f.market)} ${ownerFilter(tx, 'a', f.owner)} ${teamFilter(tx, 'a', f.team)}
          group by 1, 2)
       select x.market_code, x.owner_id, u.full_name as owner_name, tm.name as team_name,
              coalesce(v.visits, 0) as visits, coalesce(v.sales, 0) as sales, coalesce(v.visited, 0) as visited, coalesce(v.confirmed, 0) as confirmed,
-             coalesce(v.manual, 0) as manual, coalesce(v.low, 0) as low, coalesce(b.book, 0) as book, coalesce(b.enrolled, 0) as enrolled
+             coalesce(v.manual, 0) as manual, coalesce(v.low, 0) as low, coalesce(b.book, 0) as book, coalesce(b.enrolled, 0) as enrolled,
+             coalesce(rt.planned, 0) as planned, coalesce(rt.planned_visited, 0) as planned_visited, coalesce(b.active_book, 0) as active_book,
+             (select tm.trust_min from tm where tm.market = x.market_code) as trust_min
         from (select market_code, owner_id from v union select market_code, owner_id from b) x
+        left join rt on rt.market_code = x.market_code and rt.owner_id is not distinct from x.owner_id
         left join v on v.market_code = x.market_code and v.owner_id is not distinct from x.owner_id
         left join b on b.market_code = x.market_code and b.owner_id is not distinct from x.owner_id
         left join crm.users u on u.id = x.owner_id
