@@ -148,12 +148,5 @@ export const FEEDBACK_STATUS: Record<string, { label: Pair; tone: Tone }> = {
   done: { label: ['Resuelto', 'Done'], tone: 'good' },
   declined: { label: ['No se hará', 'Will not be done'], tone: 'neutral' },
 }
-export const CONTACT_ROLE: Record<string, Pair> = {
-  owner: ['Dueño', 'Owner'],
-  decision_maker: ['Quien decide', 'Decision maker'],
-  manager: ['Encargado', 'Manager'],
-  billing: ['Pagos y facturas', 'Billing'],
-  staff: ['Personal', 'Staff'],
-}
 /** Cuentas que llevan plan de cuenta y revisiones: cadenas, distribuidores, organizaciones y las de atención dedicada. */
 export const isCorporate = (kind: string, tier: string | null) => kind !== 'store' || tier === 'high'

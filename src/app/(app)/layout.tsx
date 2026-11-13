@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { after } from 'next/server'
 import { tickJobs } from '@/server/jobs/runner'
-import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
+import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users, HeartPulse } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -123,6 +123,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                   ))}
                 </div>
               )}
+              {/* Cuidado de comercios: quien administra llega desde Administración (su menú ya no cabe en un teléfono). */}
+              {!ctx.can('config.manage') && <Link href="/cuidado" role="menuitem" className={menuLink} data-testid="nav-care"><HeartPulse size={20} strokeWidth={1.75} aria-hidden />{t('Cuidado de comercios', 'Merchant care')}</Link>}
               {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {/* Quien administra llega a estas dos pantallas desde Administración: su menú ya no cabe en un teléfono con más entradas. */}

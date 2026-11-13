@@ -11,6 +11,7 @@ import { toE164 } from '@/lib/format'
 import { notify } from '@/domain/notify'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { markUntrusted, plainText } from '@/domain/untrusted'
+import { openSalesToOpsHandoffs } from '@/domain/care'
 
 // CAMPO-01: contrato de eventos v1 entre la Sales App y CONTIGO (propuesto).
 // Los nombres siguen los campos de VisitResponse de Sales Core. La visita se registra una sola vez, allá;
@@ -374,6 +375,8 @@ export const metricsFile = z
 export type MetricsFile = z.infer<typeof metricsFile>
 export type MetricsResult = { status: 'loaded' | 'duplicate' | 'quarantined'; rows: number; matched: number; unmatched: number; dealsWon: number; batchId?: string }
 
+// Valor de fábrica del umbral de riesgo. El vigente es la ventana del mercado y la línea de producto (crm.lifecycle_windows):
+// entrar a riesgo y salir de riesgo usan umbrales distintos (histéresis, CS-01).
 export const AT_RISK_BELOW_ACTIVE_DAYS = 5
 export const MAX_ROW_DELTA = 0.2
 
@@ -462,6 +465,10 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
              ${sys.user.id}, 's5'
         from crm.deals d join crm.markets mk on mk.code = d.market_code
        where d.id = any(${won.map((w) => w.id)}::uuid[])`
+    // CS-01: la entrega a Operaciones también queda como entrega con lista y acuse (no solo como tarea).
+    await openSalesToOpsHandoffs(tx, sys, won.map((w) => w.id))
+    // CS-01: cada cambio de etapa que hace esta carga queda en el historial con su origen: el archivo de ventas.
+    await tx`select set_config('app.lifecycle_source', 'sales_file', true)`
     // REP-04: si el archivo trae el estado, manda el archivo. CONTIGO no lo recalcula con otra lógica.
     await tx`update crm.accounts a set lifecycle = mm.status
               from crm.merchant_metrics_daily mm
@@ -473,15 +480,16 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
               from crm.merchant_metrics_daily mm
              where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[]) and mm.status is null
                and ((a.lifecycle in ('prospect','onboarding') and mm.first_txn_at is not null)
-                    or (a.lifecycle in ('at_risk','inactive') and mm.active_days_30d >= ${AT_RISK_BELOW_ACTIVE_DAYS}))`
+                    or (a.lifecycle in ('at_risk','inactive') and mm.active_days_30d >= app.lifecycle_recover_at(a.id)))`
     const cooled = await tx<{ id: string; name: string; owner_id: string | null; market_code: string; lifecycle: string }[]>`
              update crm.accounts a set lifecycle = case when mm.txn_count_30d = 0 then 'inactive' else 'at_risk' end
               from crm.merchant_metrics_daily mm
              where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[]) and mm.status is null
-               and a.lifecycle in ('active','at_risk') and mm.active_days_30d < ${AT_RISK_BELOW_ACTIVE_DAYS}
+               and a.lifecycle in ('active','at_risk') and mm.active_days_30d < app.lifecycle_risk_below(a.id)
                and a.lifecycle <> case when mm.txn_count_30d = 0 then 'inactive' else 'at_risk' end
                and mm.first_txn_at < now() - interval '14 days'
          returning a.id, a.name, a.owner_id, a.market_code, a.lifecycle`
+    await tx`select set_config('app.lifecycle_source', '', true)`
     // E13.F2 (dealer sin ventas): cuando un comercio activo deja de vender del todo, quien lo lleva se entera.
     for (const a of cooled.filter((x) => x.lifecycle === 'inactive' && x.owner_id))
       await notify(tx, sys, {

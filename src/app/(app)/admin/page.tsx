@@ -70,7 +70,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
           ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }] : []),
           // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
-          ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : [])] },
+          ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : []),
+          // Cuidado del comercio después de la venta (ciclo de vida, alertas, salud, modelo de atención, expansión): su propia pantalla.
+          ...(ctx.can('care.manage') ? [{ key: 'cuidado', href: '/admin/cuidado', label: t('Cuidado de comercios', 'Merchant care') }] : [])] },
         { key: 'avisos', label: t('Avisos y soporte', 'Notices and support'), items: [
           ...(admin ? [{ key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }] : []), tabItem('reportes')] },
         { key: 'integraciones', label: t('Integraciones y datos', 'Integrations and data'), items: [tabItem('integraciones'),
