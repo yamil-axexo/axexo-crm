@@ -186,8 +186,11 @@ export async function getAccount(ctx: Ctx, id: string) {
         select coalesce(a.done_at, a.created_at) as at, a.kind, ${stepSubject(tx, ctx.locale)} as title, a.body, u.full_name as actor,
                jsonb_build_object('done', a.done_at is not null, 'source', a.source, 'outcome', a.outcome, 'visited_by', a.visited_by,
                                   'origin', case when a.kind = 'visit' then 'manual' end, 'type_label', a.type_label,
-                                  'rejection', a.no_sale_code, 'rejection_es', nr.label_es, 'rejection_en', nr.label_en) as meta
-          from crm.activities a left join crm.users u on u.id = a.created_by left join crm.loss_reasons nr on nr.code = a.no_sale_code where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
+                                  'rejection', a.no_sale_code, 'rejection_es', nr.label_es, 'rejection_en', nr.label_en,
+                                  'purpose_es', vr.label_es, 'purpose_en', vr.label_en) as meta
+          from crm.activities a left join crm.users u on u.id = a.created_by left join crm.loss_reasons nr on nr.code = a.no_sale_code
+          left join lateral (select r.label_es, r.label_en from crm.visit_reasons r where r.code = a.visit_reason and (r.market_code is null or r.market_code = a.market_code) order by r.market_code nulls last limit 1) vr on true
+         where a.account_id = ${id} and (a.done_at is not null or a.kind in ('note', 'system'))
         union all
         select v.checked_in_at, 'visit', v.outcome, v.note, coalesce(u.full_name, v.salesperson_ref),
                jsonb_build_object('origin', 'sales_app', 'rejection', v.rejection_code, 'rejection_es', r.label_es, 'rejection_en', r.label_en,

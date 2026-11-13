@@ -112,7 +112,8 @@ test.describe('pedido: cola de Operaciones, devolución a Hoy y ganado a mano en
     await row.getByTestId('ops-row-take').click()
     await page.goto(`/deals/${dealId}`)
     await page.getByTestId('ops-return').click()
-    await page.getByTestId('return-reason').selectOption('data_incomplete')
+    // US tiene sus seis motivos de devolución (E10.F13, paquete us-embudo): "datos incompletos" ya no se ofrece ahí.
+    await page.getByTestId('return-reason').selectOption('docs_missing')
     await page.getByTestId('return-note').fill('Falta la dirección de entrega')
     await page.getByTestId('return-confirm').click()
     await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Pedido capturado')

@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { ctxFor, owner } from './helpers'
+import { fillEnrollment } from '../support/us-enrollment'
 import { convertLead, createLead, qualifyLead } from '@/domain/leads'
 import { createAccount } from '@/domain/accounts'
 import { takeAccount } from '@/domain/reparto'
@@ -99,16 +100,18 @@ describe('la devolución de Operaciones se lee en el idioma de quien la lee', ()
     const id = await createDeal(jade, { accountId: acc.id!, pipelineId: (await one(admin<{ id: string }[]>`select md5('contigo:p-us-dealer')::uuid as id`)).id, title: `Devolución ${tag()}`, nextStep: 'Reunir documentos', nextStepDue: today })
     await updateDeal(jade, id, { decisionMakerId: contact.id, decisionMakerMet: true, amount: 1200 })
     await updateCustom(jade, 'deal', id, { account_funding: 'ACH' })
+    // El alta de dealers de US tiene nueve etapas con sus candados y seis motivos de devolución propios (paquete us-embudo).
+    await fillEnrollment(admin, id)
     await moveDeal(jade, id, await stage('application'))
     await moveDeal(jade, id, await stage('carrier'))
     await takeDeal(tom, id)
-    await moveDeal(tom, id, await stage('application'), undefined, undefined, { ret: { reasonCode: 'data_incomplete', note: 'Falta el EIN' } })
+    await moveDeal(tom, id, await stage('application'), undefined, undefined, { ret: { reasonCode: 'entity_mismatch', note: 'Falta el EIN' } })
 
     const task = await one(admin<{ custom: { ops_return?: { code: string; note: string } } }[]>`select custom from crm.activities where deal_id = ${id} and deal_step = 'sales' and done_at is null`)
-    expect(task.custom.ops_return).toMatchObject({ code: 'data_incomplete', note: 'Falta el EIN' })
+    expect(task.custom.ops_return).toMatchObject({ code: 'entity_mismatch', note: 'Falta el EIN' })
     const title = (await one(admin<{ title: string }[]>`select title from crm.deals where id = ${id}`)).title
-    const es = `Operaciones devolvió ${title}: Datos incompletos o incorrectos. Falta el EIN`
-    const en = `Operations sent back ${title}: Details are incomplete or wrong. Falta el EIN`
+    const es = `Operaciones devolvió ${title}: Los datos de la entidad no coinciden. Falta el EIN`
+    const en = `Operations sent back ${title}: Entity details mismatch. Falta el EIN`
     expect((await getQueue(jade)).rows.find((r) => r.dealId === id)?.subject).toBe(es)
     expect((await getDeal(jade, id))?.deal.next_step).toBe(es)
     const jadeEn = (await loadCtx(jade.user.id, 'en'))!

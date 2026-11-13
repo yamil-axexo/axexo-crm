@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition, type FormEvent } from 'reac
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import type { ActionResult } from '@/lib/errors'
-import { noSaleReasonsAction, visitorNamesAction } from '@/app/(app)/actividades/log-actions'
+import { noSaleReasonsAction, visitReasonsAction, visitorNamesAction } from '@/app/(app)/actividades/log-actions'
 
 export type SheetItem = {
   type: 'task' | 'lead' | 'suggestion'
@@ -52,6 +52,12 @@ export type SheetConfig = {
     visitedByHint: string
     noSaleReason: string
     pickReason: string
+    /** Propósito de la visita (E12.F1): se pregunta cuando el mercado tiene lista. */
+    visitReason: string
+    pickVisitReason: string
+    /** A cuál negocio pertenece la visita cuando el comercio tiene más de uno abierto (E10.F3). */
+    whichDeal: string
+    noDeal: string
   }
   nextOptions: { value: string; label: string }[]
   nextSets: { default: string[]; b2b: string[]; ops: string[] }
@@ -154,6 +160,7 @@ function SheetForm({ item, afterCall, config, action, onCancel, onSaved }: { ite
 
       {/* Si hay que volver con quien decide, lo que sigue es visitar: queda elegido y la persona lo puede cambiar. */}
       <Choices name="result" legend={labels.result} options={item.results} defaultValue={item.defaultResult} onPick={(v) => { setPicked(v); if (v === 'revisit' && !next) setNext('visit') }} />
+      {item.visit && <VisitReason label={labels.visitReason} pick={labels.pickVisitReason} activityId={item.id} />}
       {item.visit && picked === 'no_sale' && <NoSaleReason label={labels.noSaleReason} pick={labels.pickReason} />}
       {item.visit && <VisitorField label={labels.visitedBy} hint={labels.visitedByHint} />}
       <SheetText name="note" label={labels.note} maxLength={500} testId="sheet-note" />
@@ -187,6 +194,31 @@ export function SheetText({ name, label, maxLength, testId, placeholder, require
     <label className="mt-6 block">
       <span className="mb-2.5 block text-[15px] font-semibold">{label}</span>
       <input name={name} maxLength={maxLength} placeholder={placeholder} required={required} defaultValue={defaultValue} autoComplete="off" enterKeyHint="done" className={SHEET_INPUT} data-testid={testId} />
+    </label>
+  )
+}
+
+/**
+ * Propósito de la visita, de la lista del mercado (E12.F1, E12.F2): un toque en el teléfono. Si el mercado no tiene lista,
+ * no se pregunta. Va antes del resultado para que la visita quede clasificada desde el primer toque.
+ */
+export function VisitReason({ label, pick, market, activityId }: { label: string; pick: string; market?: string; activityId?: string }) {
+  const [reasons, setReasons] = useState<{ value: string; label: string }[]>([])
+  useEffect(() => {
+    let live = true
+    visitReasonsAction({ market, activityId }).then((list) => live && setReasons(list), () => {})
+    return () => {
+      live = false
+    }
+  }, [market, activityId])
+  if (reasons.length === 0) return null
+  return (
+    <label className="mt-6 block">
+      <span className="mb-2.5 block text-[15px] font-semibold">{label}</span>
+      <select name="visit_reason" required defaultValue="" className={SHEET_INPUT} data-testid="sheet-visit-reason">
+        <option value="">{pick}</option>
+        {reasons.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+      </select>
     </label>
   )
 }

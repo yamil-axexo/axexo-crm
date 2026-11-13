@@ -41,7 +41,7 @@ const openOnly = (d: OpsDeal) => {
 
 // ---------------------------------------------------------------- líneas de producto (pedido)
 
-const itemInput = z.object({ productId: z.guid(), quantity: z.number().positive().max(1_000_000), unitPrice: z.number().nonnegative().max(1e9).nullable().optional() })
+const itemInput = z.object({ productId: z.guid(), quantity: z.number().positive().max(1_000_000), unitPrice: z.number().nonnegative().max(1e9).nullable().optional(), /** Descuento de la línea, en porcentaje (0 a 100). */ discountPct: z.number().min(0).max(100).optional().default(0) })
 
 async function recomputeAmount(tx: Tx, dealId: string): Promise<number | null> {
   const rows = await tx<{ total: string | null; n: number }[]>`select sum(sum_minor)::text as total, count(*)::int as n from crm.deal_items where deal_id = ${dealId}`
@@ -57,6 +57,7 @@ export async function addDealItem(ctx: Ctx, dealId: string, raw: z.input<typeof 
     const field = String(parsed.error.issues[0]?.path[0] ?? '')
     if (field === 'productId') throw invalid('Elige un producto del catálogo.', 'Pick a product from the catalog.')
     if (field === 'quantity') throw invalid('La cantidad tiene que ser mayor que cero.', 'The quantity must be greater than zero.')
+    if (field === 'discountPct') throw invalid('El descuento es un porcentaje entre 0 y 100.', 'The discount is a percentage between 0 and 100.')
     throw invalid('El precio unitario tiene que ser un número de cero en adelante.', 'The unit price must be a number, zero or more.')
   }
   const v = parsed.data
@@ -71,12 +72,14 @@ export async function addDealItem(ctx: Ctx, dealId: string, raw: z.input<typeof 
     if (!prod) throw invalid('Ese producto no está en el catálogo de este mercado.', 'That product is not in this market’s catalog.')
     const unit = v.unitPrice == null ? (prod.unit_price_minor === null ? null : Number(prod.unit_price_minor)) : Math.round(v.unitPrice * 100)
     if (unit === null) throw invalid('Ese producto no tiene precio en el catálogo: escribe el precio unitario.', 'That product has no catalog price: enter the unit price.')
-    const sum = Math.round(unit * v.quantity)
+    const discount = Math.round(v.discountPct * 100) / 100
+    // El importe de la línea ya trae su descuento: cantidad por precio, menos el porcentaje.
+    const sum = Math.round(unit * v.quantity * (1 - discount / 100))
     const pos = await tx<{ n: number }[]>`select coalesce(max(position), 0)::int + 1 as n from crm.deal_items where deal_id = ${dealId}`
-    await tx`insert into crm.deal_items (deal_id, market_code, product_id, name, quantity, unit_price_minor, sum_minor, currency, position)
-             values (${dealId}, ${d.market_code}, ${prod.id}, ${prod.name}, ${v.quantity}, ${unit}, ${sum}, ${d.currency}, ${pos[0]!.n})`
+    await tx`insert into crm.deal_items (deal_id, market_code, product_id, name, quantity, unit_price_minor, discount_pct, sum_minor, currency, position)
+             values (${dealId}, ${d.market_code}, ${prod.id}, ${prod.name}, ${v.quantity}, ${unit}, ${discount}, ${sum}, ${d.currency}, ${pos[0]!.n})`
     const total = await recomputeAmount(tx, dealId)
-    await audit(tx, ctx, 'deal.item_added', 'deal', dealId, d.market_code, null, { product_id: prod.id, quantity: v.quantity, unit_price_minor: unit, amount_minor: total })
+    await audit(tx, ctx, 'deal.item_added', 'deal', dealId, d.market_code, null, { product_id: prod.id, quantity: v.quantity, unit_price_minor: unit, ...(discount ? { discount_pct: discount } : {}), amount_minor: total })
   })
 }
 
@@ -89,6 +92,57 @@ export async function removeDealItem(ctx: Ctx, dealId: string, itemId: string): 
     if (!gone[0]) throw notFound()
     const total = await recomputeAmount(tx, dealId)
     await audit(tx, ctx, 'deal.item_removed', 'deal', dealId, d.market_code, { name: gone[0].name }, { amount_minor: total })
+  })
+}
+
+// ---------------------------------------------------------------- datos del pedido (E11.F1)
+
+export const DEFAULT_CARRIER = 'FedEx'
+const orderInput = z.object({
+  carrier: z.string().trim().max(60).optional().default(''),
+  customerNumber: z.string().trim().max(40).optional().default(''),
+  dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).or(z.literal('')).optional().default(''),
+  poNumber: z.string().trim().max(40).optional().default(''),
+  shipTo: z.string().trim().max(400).optional().default(''),
+  terms: z.string().trim().max(120).optional().default(''),
+  description: z.string().trim().max(1000).optional().default(''),
+})
+export type OrderDetailsInput = z.input<typeof orderInput>
+
+/**
+ * Datos del pedido que Operaciones necesita para surtirlo: paquetería (FedEx si no se dice otra), número de cliente,
+ * fecha de entrega, orden de compra, dirección de envío, términos y descripción. Solo en embudos con líneas de producto.
+ */
+export async function saveOrderDetails(ctx: Ctx, dealId: string, raw: OrderDetailsInput): Promise<void> {
+  const parsed = orderInput.safeParse(raw)
+  if (!parsed.success) {
+    const field = String(parsed.error.issues[0]?.path[0] ?? '')
+    if (field === 'dueOn') throw invalid('Fecha de entrega: elige el día.', 'Due date: pick the day.')
+    if (field === 'shipTo') throw invalid('Dirección de envío: hasta 400 caracteres.', 'Shipping address: up to 400 characters.')
+    if (field === 'description') throw invalid('Descripción: hasta 1000 caracteres.', 'Description: up to 1000 characters.')
+    throw invalid('Revisa los datos del pedido: alguno es más largo de lo que cabe.', 'Check the order details: one of them is longer than fits.')
+  }
+  const v = parsed.data
+  assertNoProhibited(v.carrier, v.customerNumber, v.poNumber, v.shipTo, v.terms, v.description)
+  await withUser(ctx.user.id, async (tx) => {
+    const d = await loadOpsDeal(tx, dealId)
+    ctx.assert('deal.edit', d.market_code)
+    openOnly(d)
+    if (!d.has_items) throw invalid('Este embudo no lleva pedidos.', 'This pipeline does not carry orders.')
+    if (v.dueOn) {
+      const ok = await tx<{ ok: boolean }[]>`select ${v.dueOn}::date >= ${marketToday(tx, d.market_code)} as ok`
+      const same = await tx`select 1 from crm.deal_orders where deal_id = ${dealId} and due_on = ${v.dueOn}::date`
+      if (!ok[0]?.ok && !same[0]) throw invalid('La fecha de entrega es de hoy en adelante.', 'The due date is today or later.')
+    }
+    const next = { carrier: v.carrier || DEFAULT_CARRIER, customer_number: clean(v.customerNumber), due_on: v.dueOn || null, po_number: clean(v.poNumber), ship_to: clean(v.shipTo), terms: clean(v.terms), description: clean(v.description) }
+    const prev = await tx<{ carrier: string; customer_number: string | null; due_on: string | null; po_number: string | null; ship_to: string | null; terms: string | null; description: string | null }[]>`
+      select carrier, customer_number, due_on::text, po_number, ship_to, terms, description from crm.deal_orders where deal_id = ${dealId} for update`
+    if (prev[0] && JSON.stringify(prev[0]) === JSON.stringify(next)) return
+    await tx`insert into crm.deal_orders (deal_id, market_code, carrier, customer_number, due_on, po_number, ship_to, terms, description, updated_by)
+             values (${dealId}, ${d.market_code}, ${next.carrier}, ${next.customer_number}, ${next.due_on}, ${next.po_number}, ${next.ship_to}, ${next.terms}, ${next.description}, ${ctx.user.id})
+             on conflict (deal_id) do update set carrier = excluded.carrier, customer_number = excluded.customer_number, due_on = excluded.due_on, po_number = excluded.po_number,
+               ship_to = excluded.ship_to, terms = excluded.terms, description = excluded.description, updated_by = excluded.updated_by, updated_at = now()`
+    await audit(tx, ctx, 'deal.order_updated', 'deal', dealId, d.market_code, prev[0] ?? null, next)
   })
 }
 
@@ -371,23 +425,65 @@ export async function saveProduct(ctx: Ctx, raw: z.input<typeof productInput>): 
 }
 
 /** Propiedades del embudo (varios negocios abiertos por comercio, líneas de producto) y de la etapa (es de Operaciones). */
-export async function setPipelineFlags(ctx: Ctx, pipelineId: string, flags: { multiOpen: boolean; hasItems: boolean; opsStageIds: string[] }): Promise<void> {
+export async function setPipelineFlags(ctx: Ctx, pipelineId: string, flags: { multiOpen: boolean; hasItems: boolean; opsStageIds: string[]; /** Líder de Operaciones del embudo: recibe lo que entra a Operaciones. Sin mandarlo, no cambia; vacío lo quita. */ opsLeadId?: string }): Promise<void> {
   ctx.assert('config.manage')
   await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ market_code: string; multi_open: boolean; has_items: boolean }[]>`select market_code, multi_open, has_items from crm.pipelines where id = ${pipelineId} for update`
+    const rows = await tx<{ market_code: string; multi_open: boolean; has_items: boolean; ops_lead_id: string | null }[]>`select market_code, multi_open, has_items, ops_lead_id from crm.pipelines where id = ${pipelineId} for update`
     const p = rows[0]
     if (!p) throw notFound()
+    const lead = flags.opsLeadId === undefined ? p.ops_lead_id : flags.opsLeadId || null
+    if (lead && lead !== p.ops_lead_id) {
+      const ok = /^[0-9a-f-]{36}$/i.test(lead) ? await tx`
+        select 1 from crm.users u where u.id = ${lead} and u.is_active and not u.is_system
+           and exists (select 1 from crm.memberships m where m.user_id = u.id and m.role = 'ops' and m.market_code = ${p.market_code} and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now()))` : []
+      if (!ok[0]) throw invalid('Quien lidera Operaciones del embudo tiene que ser una persona de Operaciones de ese mercado.', 'The pipeline’s Operations lead must be an Operations person in that market.')
+    }
     const stages = await tx<{ id: string; kind: string; is_ops: boolean }[]>`select id, kind, is_ops from crm.stages where pipeline_id = ${pipelineId} order by position`
     const ops = new Set(flags.opsStageIds)
     for (const id of ops) {
       const s = stages.find((x) => x.id === id)
       if (!s || (s.kind !== 'open' && s.kind !== 'awaiting_txn')) throw invalid('Solo una etapa abierta de este embudo puede ser de Operaciones.', 'Only an open stage of this pipeline can belong to Operations.')
     }
-    await tx`update crm.pipelines set multi_open = ${flags.multiOpen}, has_items = ${flags.hasItems} where id = ${pipelineId}`
+    await tx`update crm.pipelines set multi_open = ${flags.multiOpen}, has_items = ${flags.hasItems}, ops_lead_id = ${lead} where id = ${pipelineId}`
     await tx`update crm.stages set is_ops = (id = any(${[...ops]}::uuid[])) where pipeline_id = ${pipelineId}`
     await audit(tx, ctx, 'pipeline.ops_configured', 'pipeline', pipelineId, p.market_code,
-      { multi_open: p.multi_open, has_items: p.has_items, ops_stages: stages.filter((s) => s.is_ops).map((s) => s.id) },
-      { multi_open: flags.multiOpen, has_items: flags.hasItems, ops_stages: [...ops] })
+      { multi_open: p.multi_open, has_items: p.has_items, ops_stages: stages.filter((s) => s.is_ops).map((s) => s.id), ...(lead !== p.ops_lead_id ? { ops_lead_id: p.ops_lead_id } : {}) },
+      { multi_open: flags.multiOpen, has_items: flags.hasItems, ops_stages: [...ops], ...(lead !== p.ops_lead_id ? { ops_lead_id: lead } : {}) })
+  })
+}
+
+const visitReasonInput = z.object({
+  id: z.guid().or(z.literal('')).optional().default(''),
+  market: z.string().length(2).or(z.literal('')).optional().default(''),
+  labelEs: z.string().trim().min(2).max(80),
+  labelEn: z.string().trim().min(2).max(80),
+  campaign: z.boolean().optional().default(false),
+  active: z.boolean().optional().default(true),
+})
+
+/** Propósitos de visita (E12.F4): la lista la mantiene administración por mercado; los de campaña van marcados. */
+export async function saveVisitReason(ctx: Ctx, raw: z.input<typeof visitReasonInput>): Promise<void> {
+  ctx.assert('config.manage')
+  const parsed = visitReasonInput.safeParse(raw)
+  if (!parsed.success) throw invalid('Escribe el nombre en español y en inglés (2 a 80 letras).', 'Enter the name in Spanish and in English (2 to 80 characters).')
+  const v = parsed.data
+  assertNoProhibited(v.labelEs, v.labelEn)
+  await withUser(ctx.user.id, async (tx) => {
+    if (v.id) {
+      const rows = await tx<{ market_code: string | null; code: string }[]>`update crm.visit_reasons set label_es = ${v.labelEs}, label_en = ${v.labelEn}, is_campaign = ${v.campaign}, is_active = ${v.active} where id = ${v.id} returning market_code, code`
+      if (!rows[0]) throw notFound()
+      await audit(tx, ctx, 'pipeline.visit_reason_updated', 'visit_reason', v.id, rows[0].market_code, null, { code: rows[0].code, label_es: v.labelEs, label_en: v.labelEn, campaign: v.campaign, active: v.active })
+      return
+    }
+    if (!v.market) throw invalid('Elige el mercado.', 'Pick the market.')
+    ctx.market(v.market)
+    const code = slug(v.labelEn)
+    if (!/^[a-z][a-z0-9_]{1,40}$/.test(code)) throw invalid('El nombre en inglés empieza con una letra y lleva al menos dos letras o números.', 'The English name starts with a letter and needs at least two letters or numbers.')
+    const clash = await tx`select 1 from crm.visit_reasons where coalesce(market_code, '') = ${v.market} and code = ${code}`
+    if (clash[0]) throw invalid('Ya existe un propósito con ese nombre en este mercado.', 'There is already a purpose with that name in this market.')
+    const pos = await tx<{ n: number }[]>`select coalesce(max(position), 0)::int + 1 as n from crm.visit_reasons where coalesce(market_code, '') = ${v.market}`
+    const rows = await tx<{ id: string }[]>`insert into crm.visit_reasons (market_code, code, label_es, label_en, is_campaign, position) values (${v.market}, ${code}, ${v.labelEs}, ${v.labelEn}, ${v.campaign}, ${pos[0]!.n}) returning id`
+    await audit(tx, ctx, 'pipeline.visit_reason_created', 'visit_reason', rows[0]!.id, v.market, null, { code, label_es: v.labelEs, campaign: v.campaign })
   })
 }
 

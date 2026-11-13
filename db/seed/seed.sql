@@ -499,3 +499,153 @@ insert into crm.process_lists (id, market_code, code, name_es, name_en, statuses
    '[{"key":"session_date","es":"Fecha de la sesión","en":"Session date"}]'::jsonb);
 insert into crm.process_memberships (list_id, account_id, market_code, status, attrs)
 values (pg_temp.uid('dat-proc-mx-training'), pg_temp.uid('dat-mx-suc-2'), 'MX', 'to_schedule', '{}'::jsonb);
+-- us-embudo
+-- Alta de dealers de US con sus nueve etapas (E10.F1): Lead, Contacted, Presented, Sales Qualified, Docs & Contract,
+-- Approvals, Provisioned & Settlement Ready, Onboarding & Training y Won (primera transacción). La aprobación por proveedor
+-- se lleva aparte, no es etapa (E10.F2). Las etapas que ya existían conservan su código: solo cambian de nombre y de lugar.
+update crm.stages set position = position + 100 where pipeline_id = pg_temp.uid('p-us-dealer');
+update crm.stages s set position = v.pos, name_es = v.es, name_en = v.en, probability = v.pr, rot_days = v.rot, exit_es = v.xes, exit_en = v.xen
+  from (values
+    ('qualified', 4, 'Calificado para venta', 'Sales Qualified', 45, 14, 'Reúne documentos y contrato', 'Collect documents and contract'),
+    ('application', 5, 'Documentos y contrato', 'Docs & Contract', 60, 10, 'Contrato firmado y enviado, con productos y tipo de cuenta', 'Contract signed and submitted, with products and account type'),
+    ('carrier', 6, 'Aprobaciones', 'Approvals', 70, 28, 'Operaciones aprueba y provisiona', 'Operations approves and provisions'),
+    ('awaiting', 8, 'Alta y capacitación', 'Onboarding & Training', 90, 21, 'Los datos de ventas traen la primera transacción', 'The sales data shows the first transaction'),
+    ('won', 9, 'Ganado (primera transacción)', 'Won (first transaction)', 100, 0, '', ''),
+    ('lost', 10, 'Perdido', 'Lost', 0, 0, '', '')
+  ) v(code, pos, es, en, pr, rot, xes, xen)
+ where s.pipeline_id = pg_temp.uid('p-us-dealer') and s.code = v.code;
+insert into crm.stages (id, pipeline_id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, is_ops)
+select pg_temp.uid('s-us-dealer-' || c), pg_temp.uid('p-us-dealer'), pos, c, es, en, 'open', pr, rot, '{}', xes, xen, ops from (values
+  (1, 'lead', 'Lead', 'Lead', 5, 7, 'Primer contacto con la tienda', 'First contact with the store', false),
+  (2, 'contacted', 'Contactado', 'Contacted', 15, 10, 'Presentación hecha a quien decide', 'Presentation made to the decision-maker', false),
+  (3, 'presented', 'Presentado', 'Presented', 30, 14, 'La tienda confirma interés y se completa la investigación', 'The store confirms interest and the research is complete', false),
+  (7, 'provisioned', 'Provisionado y listo para liquidar', 'Provisioned & Settlement Ready', 80, 14, 'Cuenta creada y lista para operar', 'Account created and ready to operate', true)
+) v(pos, c, es, en, pr, rot, xes, xen, ops);
+-- Un servicio nuevo que se le vende a la misma tienda es su propio negocio (E10.F3): el embudo admite varios abiertos por comercio.
+update crm.pipelines set multi_open = true, ops_lead_id = pg_temp.uid('tom.reyes') where id = pg_temp.uid('p-us-dealer');
+
+-- Campos del negocio de alta de dealers (solo este tipo de venta). Las listas traen "None/Unknown" para poder decir "no sé".
+update crm.field_definitions set data_type = 'multiselect', motor = 'dealer',
+       options = '["Cash on-ramp","Domestic top-up","International top-up","SIM activation","Gift cards","Bill pay","Handset financing"]'
+ where object = 'deal' and key = 'products_requested' and market_code = 'US';
+update crm.field_definitions set motor = 'dealer', options = '["ACH","Prepaid/Wallet"]' where object = 'deal' and key = 'account_funding' and market_code = 'US';
+insert into crm.field_definitions (object, key, label_es, label_en, data_type, options, market_code, data_class, motor, position)
+select 'deal', v.key, v.es, v.en, v.dt, v.opts::jsonb, 'US', 'internal', 'dealer', 100 + v.pos from (values
+  (1, 'interest_level', 'Nivel de interés', 'Interest Level', 'select', '["High","Medium","Low","None/Unknown"]'),
+  (2, 'services_offered_today', 'Servicios que ofrece hoy', 'Services Offered Today', 'multiselect', '["Top-ups","Bill pay","Money transfers","SIM activation","Gift cards","Check cashing","None/Unknown"]'),
+  (3, 'competitor_portals_used', 'Portales de la competencia que usa', 'Competitor Portals Used', 'multiselect', '["North portal","Coast portal","Other","None/Unknown"]'),
+  (4, 'remittance_brands_offered', 'Marcas de remesas que ofrece', 'Remittance Brands Offered', 'multiselect', '["Remesas Norte","Remesas Costa","Other","None/Unknown"]'),
+  (5, 'primary_remittance_corridor', 'Corredor principal de remesas', 'Primary Remittance Corridor', 'select', '["Mexico","Guatemala","El Salvador","Honduras","Dominican Republic","Colombia","Other","None/Unknown"]'),
+  (6, 'topup_destinations_served', 'Destinos de recarga que atiende', 'Top-Up Destinations Served', 'multiselect', '["Mexico","Guatemala","El Salvador","Honduras","Dominican Republic","Colombia","Other","None/Unknown"]'),
+  (7, 'primary_remittance_provider', 'Proveedor principal de remesas', 'Primary Remittance Provider', 'select', '["Remesas Norte","Remesas Costa","Other","None/Unknown"]'),
+  (8, 'remittance_frequency', 'Frecuencia de remesas', 'Remittance Frequency', 'select', '["Daily","Weekly","Monthly","Rarely","None/Unknown"]'),
+  (9, 'business_bank_account', 'Tiene cuenta del negocio en un banco', 'Business Bank Account', 'select', '["Yes","No","Unknown"]'),
+  (10, 'top_carriers_by_volume', 'Proveedores con más volumen', 'Top Carriers by Volume', 'multiselect', '["North carrier","Coast carrier","Other","None/Unknown"]'),
+  (11, 'monthly_topup_volume', 'Volumen mensual de recargas', 'Monthly Top-Up Volume', 'select', '["Under $1,000","$1,000 to $5,000","$5,000 to $20,000","Over $20,000","None/Unknown"]'),
+  (12, 'monthly_remittance_volume', 'Volumen mensual de remesas', 'Monthly Remittance Volume', 'select', '["Under $5,000","$5,000 to $25,000","$25,000 to $100,000","Over $100,000","None/Unknown"]'),
+  (13, 'foot_traffic', 'Afluencia de clientes', 'Foot Traffic', 'select', '["High","Medium","Low","None/Unknown"]'),
+  (14, 'customer_communities', 'Comunidades que atiende', 'Customer Communities Served', 'multiselect', '["Mexico","Guatemala","El Salvador","Honduras","Dominican Republic","Colombia","Other","None/Unknown"]'),
+  (15, 'counter_equipment', 'Equipo en el mostrador', 'Counter Equipment', 'multiselect', '["Computer","Tablet","Phone only","Receipt printer","None/Unknown"]'),
+  (16, 'store_hours', 'Horario de la tienda', 'Store Hours', 'text', '[]'),
+  (17, 'clerks_at_counter', 'Personas en el mostrador', 'Clerks at the Counter', 'number', '[]'),
+  (18, 'pain_points', 'Qué le duele hoy', 'Current Pain Points', 'long_text', '[]'),
+  (19, 'contract_signed_on', 'Contrato firmado y enviado', 'Contract signed & submitted', 'date', '[]'),
+  (20, 'ops_daily_limit', 'Límite diario (USD)', 'Daily limit (USD)', 'number', '[]'),
+  (21, 'ops_requested_credit_line', 'Línea de crédito solicitada (USD)', 'Requested credit line (USD)', 'number', '[]')
+) v(pos, key, es, en, dt, opts);
+
+-- Candados (E10.F5, F6, F8, F9) y campos destacados sin exigirlos (E10.F7, F14).
+update crm.stages s set required_fields = v.req::text[], highlight_fields = v.hi::text[]
+  from (values
+    ('lead', '{}', '{}'),
+    ('contacted', '{}', '{decision_maker,field:interest_level,field:services_offered_today,field:competitor_portals_used,field:remittance_brands_offered}'),
+    ('presented', '{field:interest_level,field:services_offered_today,field:competitor_portals_used,field:remittance_brands_offered}',
+                  '{field:primary_remittance_corridor,field:topup_destinations_served,field:primary_remittance_provider,field:remittance_frequency,field:business_bank_account,field:top_carriers_by_volume,field:monthly_topup_volume,field:monthly_remittance_volume,field:foot_traffic,field:customer_communities,field:counter_equipment,field:store_hours,field:clerks_at_counter,field:pain_points}'),
+    ('qualified', '{field:primary_remittance_corridor,field:topup_destinations_served,field:primary_remittance_provider,field:remittance_frequency,field:business_bank_account,field:top_carriers_by_volume}', '{decision_maker}'),
+    ('application', '{decision_maker,next_step,field:products_requested,field:account_funding}', '{field:contract_signed_on,amount}'),
+    ('carrier', '{next_step,amount,field:contract_signed_on,field:products_requested,field:account_funding}', '{field:ops_daily_limit,field:ops_requested_credit_line}'),
+    ('provisioned', '{}', '{field:ops_daily_limit,field:ops_requested_credit_line}'),
+    ('awaiting', '{}', '{}')
+  ) v(code, req, hi)
+ where s.pipeline_id = pg_temp.uid('p-us-dealer') and s.code = v.code;
+
+-- Los negocios de ejemplo se reparten también en las etapas nuevas, y cada uno trae lo que su etapa ya pidió.
+with early as (
+  select d.id, row_number() over (order by d.id) as rn from crm.deals d
+   where d.pipeline_id = pg_temp.uid('p-us-dealer') and d.status = 'open'
+     and d.stage_id in (pg_temp.uid('s-us-dealer-qualified'), pg_temp.uid('s-us-dealer-application')))
+update crm.deals d set stage_id = pg_temp.uid('s-us-dealer-' || (array['lead','contacted','presented','qualified','application','application'])[1 + (e.rn - 1) % 6])
+  from early e where e.id = d.id;
+update crm.deals d set stage_id = pg_temp.uid('s-us-dealer-provisioned')
+ where d.pipeline_id = pg_temp.uid('p-us-dealer') and d.stage_id = pg_temp.uid('s-us-dealer-carrier') and pg_temp.h('prov' || d.id::text) % 3 = 0;
+update crm.deal_stage_events e set to_stage_id = d.stage_id from crm.deals d
+ where d.id = e.deal_id and d.pipeline_id = pg_temp.uid('p-us-dealer') and e.from_stage_id is null and e.to_stage_id <> d.stage_id;
+update crm.deals d set custom = d.custom
+    || case when s.position >= 3 then jsonb_build_object(
+         'interest_level', pg_temp.pick(array['High','Medium','Low'], pg_temp.h('uf' || d.id::text)),
+         'services_offered_today', jsonb_build_array(pg_temp.pick(array['Top-ups','Bill pay','Money transfers'], pg_temp.h('uf' || d.id::text)), 'SIM activation'),
+         'competitor_portals_used', jsonb_build_array(pg_temp.pick(array['North portal','Coast portal','None/Unknown'], pg_temp.h('uf' || d.id::text))),
+         'remittance_brands_offered', jsonb_build_array(pg_temp.pick(array['Remesas Norte','Remesas Costa','None/Unknown'], (pg_temp.h('uf' || d.id::text) + 1)))) else '{}'::jsonb end
+    || case when s.position >= 4 then jsonb_build_object(
+         'primary_remittance_corridor', pg_temp.pick(array['Mexico','Guatemala','El Salvador','Honduras'], pg_temp.h('uf' || d.id::text)),
+         'topup_destinations_served', jsonb_build_array(pg_temp.pick(array['Mexico','Guatemala','El Salvador','Honduras'], pg_temp.h('uf' || d.id::text)), 'Dominican Republic'),
+         'primary_remittance_provider', pg_temp.pick(array['Remesas Norte','Remesas Costa','None/Unknown'], pg_temp.h('uf' || d.id::text)),
+         'remittance_frequency', pg_temp.pick(array['Daily','Weekly','Monthly'], pg_temp.h('uf' || d.id::text)),
+         'business_bank_account', pg_temp.pick(array['Yes','Yes','Unknown'], pg_temp.h('uf' || d.id::text)),
+         'top_carriers_by_volume', jsonb_build_array(pg_temp.pick(array['North carrier','Coast carrier'], pg_temp.h('uf' || d.id::text)))) else '{}'::jsonb end
+    || case when s.position >= 5 then jsonb_build_object(
+         'products_requested', jsonb_build_array('Domestic top-up', pg_temp.pick(array['SIM activation','Bill pay','International top-up'], pg_temp.h('uf' || d.id::text))),
+         'account_funding', pg_temp.pick(array['ACH','Prepaid/Wallet'], pg_temp.h('uf' || d.id::text))) else '{}'::jsonb end
+    || case when s.position >= 6 then jsonb_build_object('contract_signed_on', to_char(coalesce(d.stage_entered_at, now()) - interval '1 day', 'YYYY-MM-DD')) else '{}'::jsonb end
+  from crm.stages s
+ where s.id = d.stage_id and d.pipeline_id = pg_temp.uid('p-us-dealer') and s.kind <> 'lost' and s.position >= 3;
+-- Lo que ya está con Operaciones tiene responsable de Operaciones (E10.F10): quien lidera Operaciones de este embudo.
+update crm.deals d set ops_owner_id = pg_temp.uid('tom.reyes'), ops_entered_at = coalesce(d.ops_entered_at, d.stage_entered_at)
+  from crm.stages s where s.id = d.stage_id and s.is_ops and d.pipeline_id = pg_temp.uid('p-us-dealer') and d.status = 'open' and d.ops_owner_id is null;
+
+-- Catálogos de US que la migración 0024 carga cuando el mercado ya existe (aquí el mercado nace con el seed).
+insert into crm.visit_reasons (market_code, code, label_es, label_en, is_campaign, position) values
+  ('US', 'prospecting', 'Prospección o primera visita', 'Prospecting or first visit', false, 1),
+  ('US', 'follow_up', 'Seguimiento', 'Follow-up', false, 2),
+  ('US', 'documents', 'Documentos y contrato', 'Documents and contract', false, 3),
+  ('US', 'training', 'Capacitación', 'Training', false, 4),
+  ('US', 'delivery', 'Entrega de material o producto', 'Material or product drop-off', false, 5),
+  ('US', 'support', 'Soporte o problema del comercio', 'Support or store issue', false, 6),
+  ('US', 'campaign', 'Campaña o promoción', 'Campaign or promotion', true, 7),
+  ('US', 'relationship', 'Visita de relación', 'Relationship visit', false, 8)
+on conflict do nothing;
+insert into crm.ops_catalog (market_code, kind, code, label_es, label_en, position, is_active) values
+  ('US', 'return_reason', 'docs_missing', 'Faltan documentos', 'Documents missing', 1, true),
+  ('US', 'return_reason', 'not_signed', 'Contrato sin firmar', 'Contract not signed', 2, true),
+  ('US', 'return_reason', 'entity_mismatch', 'Los datos de la entidad no coinciden', 'Entity details mismatch', 3, true),
+  ('US', 'return_reason', 'duplicate_merchant', 'Comercio duplicado', 'Duplicate merchant', 4, true),
+  ('US', 'return_reason', 'merchant_withdrew', 'El comercio desistió', 'Merchant withdrew', 5, true),
+  ('US', 'return_reason', 'docs_expired', 'Documentos vencidos', 'Documents expired', 6, true),
+  ('US', 'return_reason', 'data_incomplete', 'Datos incompletos o incorrectos', 'Details are incomplete or wrong', 7, false),
+  ('US', 'return_reason', 'other', 'Otro motivo', 'Another reason', 9, false),
+  ('US', 'document', 'sellers_permit', 'Permiso de vendedor (seller''s permit)', 'Seller''s permit', 11, true),
+  ('US', 'document', 'drivers_license', 'Licencia de conducir', 'Driver''s license', 12, true),
+  ('US', 'document', 'voided_check', 'Cheque anulado', 'Voided check', 13, true),
+  ('US', 'document', 'premises_photo', 'Foto del local', 'Premises photo', 14, true)
+on conflict do nothing;
+-- El permiso de revendedor del catálogo de ejemplo es el mismo documento que el permiso de vendedor: queda uno solo.
+update crm.ops_catalog set is_active = false where market_code = 'US' and kind = 'document' and code = 'reseller_permit';
+
+-- Pedidos históricos de ejemplo (E11.F5): dos pedidos ya surtidos por comercio activo de una parte de la cartera de US,
+-- con sus líneas y sus datos de envío, para que la ficha diga cuándo fue el último pedido.
+insert into crm.deals (id, market_code, pipeline_id, stage_id, account_id, owner_id, title, amount_minor, currency, status, stage_entered_at, won_at, closed_by, created_at)
+select md5('order:' || a.id::text || g.n)::uuid, 'US', pg_temp.uid('p-us-orders'), pg_temp.uid('s-us-orders-fulfilled'), a.id, a.owner_id,
+       'Order ' || to_char(now() - make_interval(days => 42 + g.n * 35 + x.r % 9), 'YYYY-MM-DD') || ': ' || a.name,
+       (40 + x.r % 60) * 250, 'USD', 'won', now() - make_interval(days => 40 + g.n * 35 + x.r % 9), now() - make_interval(days => 40 + g.n * 35 + x.r % 9), 'manual',
+       now() - make_interval(days => 42 + g.n * 35 + x.r % 9)
+  from crm.accounts a cross join generate_series(0, 1) g(n) cross join lateral (select pg_temp.h('ord' || a.id::text || g.n) as r) x
+ where a.market_code = 'US' and a.kind = 'store' and a.lifecycle = 'active' and a.owner_id is not null and pg_temp.h('hasord' || a.id::text) % 3 = 0;
+insert into crm.deal_items (deal_id, market_code, product_id, name, quantity, unit_price_minor, sum_minor, currency, position)
+select d.id, 'US', pg_temp.uid('prod-us-sim'), 'SIM kit', d.amount_minor / 250, 250, d.amount_minor, 'USD', 1
+  from crm.deals d where d.pipeline_id = pg_temp.uid('p-us-orders') and d.status = 'won';
+insert into crm.deal_orders (deal_id, market_code, carrier, customer_number, due_on, po_number, ship_to, terms, description)
+select d.id, 'US', 'FedEx', 'C-' || lpad((pg_temp.h('cn' || d.account_id::text) % 100000)::text, 5, '0'), (d.won_at)::date, 'PO-' || lpad((pg_temp.h('po' || d.id::text) % 10000)::text, 4, '0'),
+       '100 Main Street, ' || coalesce(a.locality, 'Las Vegas'), 'Net 15', 'Restock'
+  from crm.deals d join crm.accounts a on a.id = d.account_id where d.pipeline_id = pg_temp.uid('p-us-orders') and d.status = 'won';
+insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause, at)
+select d.id, 'US', null, d.stage_id, d.owner_id, 'user', d.won_at from crm.deals d where d.pipeline_id = pg_temp.uid('p-us-orders') and d.status = 'won';

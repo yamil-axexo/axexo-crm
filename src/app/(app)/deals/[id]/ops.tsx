@@ -5,14 +5,14 @@ import { Badge, Card, CardTitle, Field } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CopyValue, MerchantRefForm } from '@/ui/ops'
 import { day, money, noData } from '@/lib/format'
-import { addItemAction, merchantRefAction, opsCheckAction, opsStepAction, removeItemAction, returnDealAction, takeDealAction, trainingAction } from '@/app/(app)/operaciones/actions'
+import { addItemAction, saveOrderAction, merchantRefAction, opsCheckAction, opsStepAction, removeItemAction, returnDealAction, takeDealAction, trainingAction } from '@/app/(app)/operaciones/actions'
 
 /** Precio unitario con centavos: 2.50 no se muestra como 3. */
 const price = (minor: number | null, currency: string, locale: 'es' | 'en') =>
   minor === null ? noData(locale) : new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX', { style: 'currency', currency, currencyDisplay: 'code', minimumFractionDigits: 2 }).format(minor / 100)
 
 type Ops = NonNullable<Awaited<ReturnType<typeof getDealOps>>>
-type Item = { id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }
+type Item = { id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null; discount_pct?: string }
 
 /** Líneas del pedido: producto del catálogo, cantidad, precio unitario y total. El monto del negocio es la suma. */
 export function DealItems({ ctx, dealId, open, items, ops, currency }: { ctx: Ctx; dealId: string; open: boolean; items: Item[]; ops: Ops; currency: string }) {
@@ -29,7 +29,7 @@ export function DealItems({ ctx, dealId, open, items, ops, currency }: { ctx: Ct
           <li key={it.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line py-3 text-[14px] first:border-t-0" data-testid="item-row">
             <span className="min-w-0 flex-1">
               <span className="font-semibold text-strong">{it.name}</span>
-              <span className="num block text-[13px] text-muted-2">{Number(it.quantity)} × {price(it.unit_price_minor ? Number(it.unit_price_minor) : null, it.currency, locale)}</span>
+              <span className="num block text-[13px] text-muted-2">{Number(it.quantity)} × {price(it.unit_price_minor ? Number(it.unit_price_minor) : null, it.currency, locale)}{Number(it.discount_pct ?? 0) > 0 ? <span data-testid="item-discount">{t(`, menos ${Number(it.discount_pct)}% de descuento`, `, less ${Number(it.discount_pct)}% discount`)}</span> : null}</span>
               {it.comments ? <span className="block text-[12.5px] text-muted">{it.comments}</span> : null}
             </span>
             <span className="num font-medium whitespace-nowrap text-strong">{money(it.sum_minor ? Number(it.sum_minor) : null, it.currency, locale)}</span>
@@ -53,7 +53,7 @@ export function DealItems({ ctx, dealId, open, items, ops, currency }: { ctx: Ct
         </p>
       )}
       {canEdit && (ops.products.length > 0 ? (
-        <ActionForm action={addItemAction} onOk="reset" className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+        <ActionForm action={addItemAction} onOk="reset" className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] md:items-end">
           <input type="hidden" name="deal_id" value={dealId} />
           <Field label={t('Producto', 'Product')} className="col-span-2 md:col-span-1">
             <select name="product_id" className="input" required defaultValue="" data-testid="item-product">
@@ -63,9 +63,52 @@ export function DealItems({ ctx, dealId, open, items, ops, currency }: { ctx: Ct
           </Field>
           <Field label={t('Cantidad', 'Quantity')}><input name="quantity" className="input" inputMode="decimal" required defaultValue="1" data-testid="item-quantity" /></Field>
           <Field label={t(`Precio unitario (${currency})`, `Unit price (${currency})`)} hint={t('Vacío: el del catálogo', 'Empty: catalog price')}><input name="unit_price" className="input" inputMode="decimal" data-testid="item-price" /></Field>
-          <div className="col-span-2 flex justify-end md:col-span-1"><Submit variant="ghost" testId="item-add">{t('Agregar línea', 'Add line')}</Submit></div>
+          <Field label={t('Descuento (%)', 'Discount (%)')} hint={t('Vacío: sin descuento', 'Empty: no discount')}><input name="discount" className="input" inputMode="decimal" data-testid="item-discount-input" /></Field>
+          <div className="col-span-2 flex justify-end md:col-span-4"><Submit variant="ghost" testId="item-add">{t('Agregar línea', 'Add line')}</Submit></div>
         </ActionForm>
       ) : <p className="mt-4 text-[13.5px] text-muted">{t('El catálogo de productos de este mercado está vacío. Administración lo llena en Administración, Operaciones.', 'This market’s product catalog is empty. Admin fills it in under Administration, Operations.')}</p>)}
+    </Card>
+  )
+}
+
+/**
+ * Datos del pedido (E11.F1): lo que Operaciones necesita para surtirlo. La paquetería es FedEx si no se dice otra y la
+ * dirección de envío propone la de la tienda. Se llena desde el teléfono en un solo formulario.
+ */
+export function OrderDetailsCard({ ctx, dealId, open, ops, today }: { ctx: Ctx; dealId: string; open: boolean; ops: Ops; today: string }) {
+  const { t, locale } = ctx
+  const canEdit = open && ops.has_items && ctx.can('deal.edit', ops.market_code)
+  const o = ops.order
+  const rows: [string, string | null][] = [
+    [t('Paquetería', 'Carrier'), o?.carrier ?? null], [t('Número de cliente', 'Customer number'), o?.customer_number ?? null],
+    [t('Fecha de entrega', 'Due date'), o?.due_on ? day(o.due_on, locale) : null], [t('Orden de compra (PO)', 'PO number'), o?.po_number ?? null],
+    [t('Dirección de envío', 'Shipping address'), o?.ship_to ?? null], [t('Términos', 'Terms'), o?.terms ?? null], [t('Descripción', 'Description'), o?.description ?? null],
+  ]
+  return (
+    <Card data-testid="order-details">
+      <CardTitle title={t('Datos del pedido', 'Order details')} hint={t('Lo que Operaciones necesita para surtirlo. La paquetería es FedEx si no eliges otra.', 'What Operations needs to fulfill it. The carrier is FedEx unless you pick another.')} />
+      {canEdit ? (
+        <ActionForm action={saveOrderAction} className="grid grid-cols-2 gap-4">
+          <input type="hidden" name="deal_id" value={dealId} />
+          <Field label={t('Paquetería', 'Carrier')}><input name="carrier" className="input" maxLength={60} defaultValue={o?.carrier ?? 'FedEx'} data-testid="order-carrier" /></Field>
+          <Field label={t('Número de cliente', 'Customer number')}><input name="customer_number" className="input" maxLength={40} defaultValue={o?.customer_number ?? ops.merchant_ref ?? ''} data-testid="order-customer" /></Field>
+          <Field label={t('Fecha de entrega', 'Due date')}><input name="due_on" type="date" className="input" min={o?.due_on && o.due_on < today ? o.due_on : today} defaultValue={o?.due_on ?? ''} data-testid="order-due" /></Field>
+          <Field label={t('Orden de compra (PO)', 'PO number')}><input name="po_number" className="input" maxLength={40} defaultValue={o?.po_number ?? ''} data-testid="order-po" /></Field>
+          <Field label={t('Dirección de envío', 'Shipping address')} className="col-span-2"><textarea name="ship_to" rows={2} maxLength={400} className="input !h-auto py-3" defaultValue={o?.ship_to ?? ops.ship_to_default ?? ''} data-testid="order-ship-to" /></Field>
+          <Field label={t('Términos', 'Terms')} className="col-span-2 sm:col-span-1"><input name="terms" className="input" maxLength={120} defaultValue={o?.terms ?? ''} data-testid="order-terms" /></Field>
+          <Field label={t('Descripción', 'Description')} className="col-span-2"><textarea name="description" rows={2} maxLength={1000} className="input !h-auto py-3" defaultValue={o?.description ?? ''} data-testid="order-description" /></Field>
+          <div className="col-span-2 flex items-center justify-between gap-3">
+            <span className="text-[13px] text-muted" data-testid="order-state">{o ? t('Guardado', 'Saved') : t('Todavía sin guardar', 'Not saved yet')}</span>
+            <Submit variant="ghost" testId="order-save">{t('Guardar datos del pedido', 'Save order details')}</Submit>
+          </div>
+        </ActionForm>
+      ) : o ? (
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2" data-testid="order-read">
+          {rows.map(([k, v]) => (
+            <div key={k} className="min-w-0 border-t border-line pt-2"><dt className="text-[12.5px] font-medium text-muted">{k}</dt><dd className="mt-0.5 text-[14px] break-words whitespace-pre-line text-strong">{v ?? noData(locale)}</dd></div>
+          ))}
+        </dl>
+      ) : <p className="text-[14.5px] text-muted" data-testid="order-empty">{t('Este pedido no trae datos de envío.', 'This order has no shipping details.')}</p>}
     </Card>
   )
 }

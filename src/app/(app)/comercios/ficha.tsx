@@ -26,6 +26,8 @@ import { contactRolesFor } from '@/lib/datos-labels'
 import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSection, ProductsSection, TreeTotals } from './datos-ficha'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
+import { AccountOrders, LastOrderLine } from './pedidos'
+import { StoreProviders } from './proveedores'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
 import { StagePicker } from '@/ui/ops'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
@@ -119,14 +121,14 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const h3 = 'text-[15px] leading-6 font-semibold'
 
   type Item = (typeof timeline)[number]
-  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null; type_label?: string | null }
+  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null; type_label?: string | null; purpose_es?: string | null; purpose_en?: string | null }
   const meta = (it: Item) => it.meta as Meta
   // Una visita dice de dónde viene: la que alguien registró en CONTIGO o la que llegó de la Sales App.
   const manualVisit = (it: Item) => it.kind === 'visit' && meta(it).origin === 'manual'
   const outcomeText = (o: string | null | undefined) => (o && o !== 'done' ? m(`complete.result.${o}` as MessageKey) : null)
   const visitText = (it: Item) => {
     const v = meta(it)
-    if (manualVisit(it)) return [t('Visita', 'Visit'), outcomeText(v.outcome), v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null].filter(Boolean).join(' · ')
+    if (manualVisit(it)) return [t('Visita', 'Visit'), v.purpose_es ? t(v.purpose_es, v.purpose_en ?? v.purpose_es) : null, outcomeText(v.outcome), v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null].filter(Boolean).join(' · ')
     const base = it.title === 'sale' ? t('Visita con venta', 'Visit with a sale') : t('Visita sin venta', 'Visit with no sale')
     const why = v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null
     return `${base}${why ? ` · ${why}` : ''}${v.revisit ? ` · ${t('pide revisita', 'needs a revisit')}` : ''}${v.minutes ? ` · ${v.minutes} min` : ''}`
@@ -251,6 +253,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             )}
           </p>
         </div>
+        <LastOrderLine ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
       </div>
 
       {/* Arriba, contactar (llamar, WhatsApp, mensaje de texto); abajo, dejar registro (visita, nota, actividad). */}
@@ -495,6 +498,9 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </ul>
             </section>
           )}
+
+          <StoreProviders ctx={ctx} accountId={a.id} />
+          <AccountOrders ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
 
           <section className={section} data-testid="account-contacts">
             <div className="flex items-center justify-between gap-3">

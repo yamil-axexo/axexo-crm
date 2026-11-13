@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Choices, NextStep, NoSaleReason, SheetText, VisitorField, fill, nextFor, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
-import { findAccountsAction, logActivityAction, notifyOptionsAction } from '@/app/(app)/actividades/log-actions'
+import { Choices, NextStep, NoSaleReason, SheetText, VisitReason, VisitorField, fill, nextFor, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
+import { findAccountsAction, logActivityAction, notifyOptionsAction, openDealsAction } from '@/app/(app)/actividades/log-actions'
 import type { FoundAccount } from '@/dal/field'
 
 export type LogKind = 'visit' | 'call' | 'note'
@@ -110,6 +110,26 @@ function NotifyPicker({ accountId, dealId, label, none }: { accountId: string; d
   )
 }
 
+/** Cuando el comercio tiene más de un negocio abierto, la visita o la llamada dice a cuál pertenece (E10.F3). */
+function DealPicker({ accountId, label, none }: { accountId: string; label: string; none: string }) {
+  const [deals, setDeals] = useState<{ id: string; label: string }[]>([])
+  useEffect(() => {
+    let alive = true
+    openDealsAction(accountId).then((list) => { if (alive) setDeals(list) }).catch(() => {})
+    return () => { alive = false }
+  }, [accountId])
+  if (deals.length < 2) return null
+  return (
+    <label className="mt-6 block">
+      <span className="mb-2.5 block text-[15px] font-semibold">{label}</span>
+      <select name="deal_id" defaultValue="" className="input !border-black-line !bg-graphite !text-white" data-testid="log-deal">
+        <option value="">{none}</option>
+        {deals.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+      </select>
+    </label>
+  )
+}
+
 function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; config: LogConfig; onCancel: () => void; onSaved: (toast: string | null) => void }) {
   const { labels, sheet } = config
   const [kind, setKind] = useState<LogKind>(target.kind)
@@ -160,9 +180,11 @@ function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; con
       {account && kind !== 'note' && (
         <>
           {/* Si hay que volver con quien decide, lo que sigue es visitar: queda elegido y la persona lo puede cambiar. */}
+          {!target.dealId && <DealPicker key={`d${account.id}`} accountId={account.id} label={sheet.labels.whichDeal} none={sheet.labels.noDeal} />}
           <Choices key={kind} name="result" legend={sheet.labels.result} options={kind === 'visit' ? config.visitResults : config.callResults} onPick={(v) => { setPicked(v); if (v === 'revisit' && !next) setNext('visit') }} />
           {kind === 'visit' && (
             <>
+              <VisitReason key={account.id} label={sheet.labels.visitReason} pick={sheet.labels.pickVisitReason} market={account.market} />
               {picked === 'no_sale' && <NoSaleReason label={sheet.labels.noSaleReason} pick={sheet.labels.pickReason} market={account.market} />}
               <Choices
                 name="on_choice"
