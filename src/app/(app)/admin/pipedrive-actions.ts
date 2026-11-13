@@ -19,7 +19,7 @@ export async function resolveConflictAction(_: R | null, fd: FormData): Promise<
 /** GOB-05 / E6.F3: fecha de corte, congelar, descongelar o apagar Pipedrive en un mercado. */
 export async function setCutoverAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    const action = str(fd, 'action')
+    const action = str(fd, 'op')
     const market = str(fd, 'market')
     if (action === 'date') await setCutover(ctx, market, { action, cutoffOn: str(fd, 'cutoff_on') })
     else if (action === 'freeze' || action === 'unfreeze' || action === 'off') await setCutover(ctx, market, { action })

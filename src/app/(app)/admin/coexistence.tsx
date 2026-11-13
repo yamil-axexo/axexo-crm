@@ -67,7 +67,7 @@ export async function CoexistenceCards({ ctx }: { ctx: Ctx }) {
                   <div className="mt-4 flex flex-wrap items-end gap-3">
                     <ActionForm action={setCutoverAction} className="flex flex-wrap items-end gap-2" testId={`cutover-date-${m.market}`}>
                       <input type="hidden" name="market" value={m.market} />
-                      <input type="hidden" name="action" value="date" />
+                      <input type="hidden" name="op" value="date" />
                       <label className="text-[13px] text-muted">{t('Fecha de corte', 'Cutover date')}
                         <input type="date" name="cutoff_on" defaultValue={m.cutoff_on ?? ''} className="input mt-1 block !w-44" data-testid={`cutoff-${m.market}`} />
                       </label>
@@ -75,13 +75,13 @@ export async function CoexistenceCards({ ctx }: { ctx: Ctx }) {
                     </ActionForm>
                     <ActionForm action={setCutoverAction}>
                       <input type="hidden" name="market" value={m.market} />
-                      <input type="hidden" name="action" value={m.frozen_at ? 'unfreeze' : 'freeze'} />
+                      <input type="hidden" name="op" value={m.frozen_at ? 'unfreeze' : 'freeze'} />
                       <Submit variant="ghost" size="sm" testId={`freeze-${m.market}`}>{m.frozen_at ? t('Descongelar', 'Unfreeze') : t('Congelar Pipedrive', 'Freeze Pipedrive')}</Submit>
                     </ActionForm>
                     {m.frozen_at && m.last_sync_at && (
                       <ActionForm action={setCutoverAction}>
                         <input type="hidden" name="market" value={m.market} />
-                        <input type="hidden" name="action" value="off" />
+                        <input type="hidden" name="op" value="off" />
                         <Submit variant="danger" size="sm" testId={`off-${m.market}`}>{t('Apagar Pipedrive en este mercado', 'Switch Pipedrive off in this market')}</Submit>
                       </ActionForm>
                     )}
