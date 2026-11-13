@@ -217,3 +217,56 @@ export async function externalQueueCounts(ctx: Ctx): Promise<Record<string, numb
   const rows = await withUser(ctx.user.id, (tx) => tx<{ adapter: string; n: number }[]>`select adapter, count(*)::int as n from crm.external_queue group by adapter`)
   return Object.fromEntries(rows.map((r) => [r.adapter, r.n]))
 }
+
+// ---------------------------------------------------------------- campo2 (CANAL-02, CANAL-05, CANAL-06)
+export type PortalClaim = { id: string; store_name: string; status: string; expires_at: Date; extensions: number; rejection_reason: string | null; created_at: Date }
+export type Statement = { id: string; market_code: string; party_kind: string; party_label: string; month: string; status: string; counts: Record<string, number | string | null>; rules_ref: string | null; published_at: Date | null }
+export type Progress = { partner: string; material_es: string; material_en: string; learner_ref: string; progress_pct: number; completed_on: string | null; source: string }
+export type ClaimRules = { market_code: string; window_days: number; extension_days: number; max_extensions: number; policy_es: string | null; policy_en: string | null; policy_status: string | null }
+
+/** Lo del aliado: sus registros (la base solo le deja ver los de su nodo), las reglas publicadas, su estado de comisión y su avance. */
+export async function partnerExtras(ctx: Ctx): Promise<{ claims: PortalClaim[]; rules: ClaimRules[]; statements: Statement[]; progress: Progress[] }> {
+  return withUser(ctx.user.id, async (tx) => {
+    const claims = await tx<PortalClaim[]>`
+      select id, store_name, status, expires_at, extensions, rejection_reason, created_at from crm.channel_claims
+       where node_ref = any(app.partner_root_ids()::text[]) order by (status = 'active') desc, created_at desc limit 100`
+    const markets = await tx<{ code: string }[]>`select distinct market_code as code from crm.accounts where id = any(app.partner_root_ids())`
+    const rules: ClaimRules[] = []
+    for (const { code } of markets) {
+      const th = await tx<{ key: string; value: string }[]>`select key, value::text from crm.field_thresholds where market_code = ${code} and valid_to is null and key in ('claim_window_days','claim_extension_days','claim_max_extensions')`
+      const v = (k: string, d: number) => Number(th.find((x) => x.key === k)?.value ?? d)
+      const pol = (await tx<{ policy_es: string; policy_en: string; status: string }[]>`select policy_es, policy_en, status from crm.channel_policies where market_code = ${code} and valid_to is null`)[0]
+      rules.push({ market_code: code, window_days: v('claim_window_days', 14), extension_days: v('claim_extension_days', 14), max_extensions: v('claim_max_extensions', 2), policy_es: pol?.policy_es ?? null, policy_en: pol?.policy_en ?? null, policy_status: pol?.status ?? null })
+    }
+    const statements = await tx<Statement[]>`
+      select id, market_code, party_kind, party_label, to_char(month, 'YYYY-MM') as month, status, counts, rules_ref, published_at from crm.commission_statements
+       where party_kind = 'partner' and party_ref = any(app.partner_root_ids()::text[]) order by month desc limit 12`
+    const progress = await tx<Progress[]>`
+      select distinct on (p.partner_account_id, p.material_id, p.learner_ref) a.name as partner, e.title_es as material_es, e.title_en as material_en, p.learner_ref, p.progress_pct, p.completed_on::text, p.source
+        from crm.enablement_progress p join crm.accounts a on a.id = p.partner_account_id join crm.partner_enablement e on e.id = p.material_id
+       where p.partner_account_id = any(app.partner_root_ids()) order by p.partner_account_id, p.material_id, p.learner_ref, p.received_at desc`
+    return { claims: [...claims], rules, statements: [...statements], progress: [...progress] }
+  })
+}
+
+/** Para quien maneja partners: estados de comisión del mes y avance de capacitación, por mercado. */
+export async function partnersCampo2(ctx: Ctx, market: string): Promise<{ statements: Statement[]; progress: Progress[]; materials: { id: string; title_es: string; title_en: string }[] }> {
+  return withUser(ctx.user.id, async (tx) => {
+    const statements = await tx<Statement[]>`
+      select id, market_code, party_kind, party_label, to_char(month, 'YYYY-MM') as month, status, counts, rules_ref, published_at from crm.commission_statements
+       where market_code = ${market} order by month desc, party_kind, party_label limit 60`
+    const progress = await tx<Progress[]>`
+      select distinct on (p.partner_account_id, p.material_id, p.learner_ref) a.name as partner, e.title_es as material_es, e.title_en as material_en, p.learner_ref, p.progress_pct, p.completed_on::text, p.source
+        from crm.enablement_progress p join crm.accounts a on a.id = p.partner_account_id join crm.partner_enablement e on e.id = p.material_id
+       where p.market_code = ${market} order by p.partner_account_id, p.material_id, p.learner_ref, p.received_at desc limit 100`
+    const materials = await tx<{ id: string; title_es: string; title_en: string }[]>`select id, title_es, title_en from crm.partner_enablement where market_code = ${market} and is_active order by title_es`
+    return { statements: [...statements], progress: [...progress], materials: [...materials] }
+  })
+}
+
+/** CANAL-05: el estado de comisión de la propia persona (estimado o publicado), sin montos. */
+export async function myStatements(ctx: Ctx): Promise<Statement[]> {
+  return withUser(ctx.user.id, (tx) => tx<Statement[]>`
+    select id, market_code, party_kind, party_label, to_char(month, 'YYYY-MM') as month, status, counts, rules_ref, published_at from crm.commission_statements
+     where party_kind = 'user' and party_ref = ${ctx.user.id} order by month desc limit 6`)
+}

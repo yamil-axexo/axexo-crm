@@ -384,7 +384,7 @@ export async function getFieldKpis(ctx: Ctx, p: MarketPeriods, f: Filters): Prom
                                                and (x.origin <> 'sales_app' or coalesce((select sv.trust_score from crm.visits sv where sv.id = x.id), 100) >= tm.trust_min)))::int as planned_visited
           from (select p.*, row_number() over (partition by p.market_code, p.owner_id, p.day order by p.score desc, p.account_id) as rn
                   from crm.store_priority p join ${pr} pr on pr.market = p.market_code
-                 where p.day between pr.dfrom and pr.dto and not p.holdout and p.owner_id is not null) r
+                 where p.day between pr.dfrom and pr.dto and not p.holdout and p.owner_id is not null and p.score > 0 and jsonb_array_length(p.reasons) > 0) r
           join tm on tm.market = r.market_code join crm.accounts a on a.id = r.account_id
          where r.rn <= tm.route_n and ${inScope(tx, scope, 'a')} ${mkFilter(tx, 'r', f.market)} ${ownerFilter(tx, 'r', f.owner)} ${teamFilter(tx, 'r', f.team)}
          group by 1, 2),

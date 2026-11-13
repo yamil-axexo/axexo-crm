@@ -353,6 +353,23 @@ const incIn = z.object({
   partyLabel: z.string().trim().min(2).max(120), type: z.enum(INCIDENT_TYPES), occurredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), description: z.string().trim().min(10).max(2000),
 })
 
+/** A quién estaba atribuido el comercio ese día (origen, canal, quien lo lleva), la visita de ese día y el equipo instalado o retirado. */
+export async function incidentLinks(tx: Tx, accountId: string, on: string, type: string): Promise<{ visitId: string | null; trust: number | null; equipmentId: string | null; attribution: Record<string, string> }> {
+  const attr = await tx<{ layer: string; party_label: string }[]>`
+    select t.layer, t.party_label from crm.account_attributions t join crm.accounts a on a.id = t.account_id join crm.markets mk on mk.code = a.market_code
+     where t.account_id = ${accountId} and (t.effective_from at time zone mk.timezone)::date <= ${on}::date
+       and (t.effective_to is null or (t.effective_to at time zone mk.timezone)::date > ${on}::date)
+     order by t.effective_from`
+  const visit = (await tx<{ id: string; trust_score: number | null }[]>`
+    select id, trust_score from crm.visits where account_id = ${accountId} and business_date = ${on}::date order by checked_in_at desc limit 1`)[0]
+  const eq = type === 'equipment' || type === 'fraud_suspicion'
+    ? (await tx<{ id: string; trust_score: number | null }[]>`
+        select e.id, e.trust_score from crm.equipment_events e join crm.markets mk on mk.code = e.market_code
+         where e.account_id = ${accountId} and (e.occurred_at at time zone mk.timezone)::date = ${on}::date order by e.occurred_at desc limit 1`)[0]
+    : undefined
+  return { visitId: visit?.id ?? null, trust: visit?.trust_score ?? eq?.trust_score ?? null, equipmentId: eq?.id ?? null, attribution: Object.fromEntries(attr.map((a) => [a.layer, a.party_label])) }
+}
+
 /** Registro confidencial, separado de las notas comerciales. Lo ve quien lo reporta y quien lidera o administra el mercado. */
 export async function reportIncident(ctx: Ctx, raw: Record<string, string>): Promise<string> {
   const p = incIn.safeParse(raw)
@@ -365,8 +382,11 @@ export async function reportIncident(ctx: Ctx, raw: Record<string, string>): Pro
       const acc = await tx`select 1 from crm.accounts where id = ${d.accountId} and market_code = ${d.market}`
       if (!acc[0]) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
     }
-    const rows = await tx<{ id: string }[]>`insert into crm.field_incidents (market_code, account_id, party_kind, party_label, type, occurred_on, description, reported_by)
-      values (${d.market}, ${d.accountId || null}, ${d.partyKind}, ${d.partyLabel}, ${d.type}, ${d.occurredOn}::date, ${d.description}, ${ctx.user.id}) returning id`
+    // SEG-06: ligado a la atribución vigente ese día y a la visita (con su señal de confianza) o al movimiento de equipo de ese día.
+    const link = d.accountId ? await incidentLinks(tx, d.accountId, d.occurredOn, d.type) : { visitId: null, trust: null, equipmentId: null, attribution: {} }
+    const rows = await tx<{ id: string }[]>`insert into crm.field_incidents (market_code, account_id, party_kind, party_label, type, occurred_on, description, reported_by, visit_id, equipment_event_id, trust_score, attribution)
+      values (${d.market}, ${d.accountId || null}, ${d.partyKind}, ${d.partyLabel}, ${d.type}, ${d.occurredOn}::date, ${d.description}, ${ctx.user.id},
+              ${link.visitId}, ${link.equipmentId}, ${link.trust}, ${tx.json(link.attribution)}) returning id`
     const id = rows[0]!.id
     // La bitácora no copia la descripción ni a quién señala: solo que existe, de qué tipo y en qué mercado.
     await audit(tx, ctx, 'field_incident.reported', 'field_incident', id, d.market, null, { type: d.type })

@@ -7,6 +7,11 @@ import { assignFile, decideFile, markReceived, openDocument, openFile, reviewDoc
 import { correctAttribution, decideCreditLimit, extendClaim, raiseDispute, registerClaim, rejectClaim, requestCreditLimit, resolveDispute, simulateFunding } from '@/domain/campo-canal/canal'
 import { addCompetitor, applyPlan, discardPlan, draftPlan, handleIncident, recordCompetitor, reportIncident, setChannelAssignment, setRepPlan, setSellerProfile, setTerritoryOwner } from '@/domain/campo-canal/campo'
 import { setThreshold } from '@/domain/campo-canal/thresholds'
+import { reclassifyAttribution } from '@/domain/campo-canal/attribution'
+import { setChannelPolicy } from '@/domain/campo-canal/canal2'
+import { createOnboardingLink } from '@/domain/campo-canal/expediente'
+import { setSensitive } from '@/domain/security'
+import { headers } from 'next/headers'
 
 type R = ActionResult<unknown>
 const all = (fd: FormData): Record<string, string> => Object.fromEntries([...fd.entries()].filter(([, v]) => typeof v === 'string').map(([k, v]) => [k, v as string]))
@@ -183,4 +188,38 @@ export async function handleIncidentAction(_: R | null, fd: FormData): Promise<R
     await handleIncident(ctx, str(fd, 'id'), str(fd, 'action'), str(fd, 'resolution'))
     return { message: str(fd, 'action') === 'take' ? ['Lo tomaste.', 'You took it.'] : ['Incidente cerrado.', 'Incident closed.'], revalidate: REV }
   })
+}
+
+// ------------------------------------------------------------ campo2
+export async function reclassifyAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const r = await reclassifyAttribution(ctx, str(fd, 'market'))
+    return { message: [`Listo: ${r.classified} orígenes clasificados (${r.network} de red adquirida, ${r.acquisition} altas nuevas) y ${r.channels} capas de canal con su equipo reclutador.`, `Done: ${r.classified} origins classified (${r.network} acquired network, ${r.acquisition} new sign-ups) and ${r.channels} channel layers with their recruiting team.`], revalidate: REV }
+  })
+}
+export async function channelPolicyAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const v = await setChannelPolicy(ctx, all(fd))
+    return { message: [`Política guardada como versión ${v}.`, `Policy saved as version ${v}.`], revalidate: REV }
+  })
+}
+export async function onboardingLinkAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const r = await createOnboardingLink(ctx, str(fd, 'id'))
+    return { data: await publicUrl(`/e/${r.token}`), revalidate: REV }
+  })
+}
+export async function taxIdAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setSensitive(ctx, str(fd, 'accountId'), 'tax_id', str(fd, 'value'))
+    return { message: ['Guardado como dato reservado. Se muestra tapado y cada revelado queda en la bitácora.', 'Saved as restricted data. It is shown masked and every reveal is logged.'], revalidate: REV }
+  })
+}
+
+/** La dirección completa del enlace, con el host con que la persona abrió CONTIGO. */
+async function publicUrl(path: string): Promise<string> {
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host')
+  const proto = h.get('x-forwarded-proto') ?? (host?.startsWith('localhost') || host?.startsWith('127.') ? 'http' : 'https')
+  return host && /^[A-Za-z0-9.:-]{3,200}$/.test(host) ? `${proto}://${host}${path}` : path
 }

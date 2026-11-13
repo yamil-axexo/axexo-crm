@@ -2,6 +2,7 @@ import 'server-only'
 import { withUser, marketToday } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { THRESHOLD_KEYS, THRESHOLDS } from '@/domain/campo-canal/thresholds'
+import { channelPolicyTx, type ChannelPolicy } from '@/domain/campo-canal/canal2'
 
 /** Lecturas del paquete campo-canal. Todas corren con la identidad de la persona: RLS decide qué filas ve. */
 
@@ -141,10 +142,10 @@ export async function disputes(ctx: Ctx, market: string): Promise<DisputeRow[]> 
 }
 
 // ---------------------------------------------------------------- registros de canal
-export type ClaimRow = { id: string; store_name: string; node_label: string; channel: string; status: string; expires_at: Date; extensions: number; evidence: string | null; rejection_reason: string | null; created_at: Date }
+export type ClaimRow = { id: string; store_name: string; node_label: string; channel: string; status: string; expires_at: Date; extensions: number; evidence: string | null; rejection_reason: string | null; created_at: Date; registered_via: string }
 export async function claims(ctx: Ctx, market: string): Promise<ClaimRow[]> {
   return withUser(ctx.user.id, (tx) => tx<ClaimRow[]>`
-    select id, store_name, node_label, channel, status, expires_at, extensions, evidence, rejection_reason, created_at from crm.channel_claims
+    select id, store_name, node_label, channel, status, expires_at, extensions, evidence, rejection_reason, created_at, registered_via from crm.channel_claims
      where market_code = ${market} order by (status = 'active') desc, created_at desc limit 100`)
 }
 
@@ -203,11 +204,15 @@ export async function priorityToday(ctx: Ctx, market: string, mine: boolean): Pr
 }
 
 // ---------------------------------------------------------------- incidentes
-export type IncidentRow = { id: string; account: string | null; party_kind: string; party_label: string; type: string; occurred_on: string; description: string; status: string; reported_by: string; assigned: string | null; resolution: string | null; created_at: Date }
+export type IncidentRow = { id: string; account: string | null; party_kind: string; party_label: string; type: string; occurred_on: string; description: string; status: string; reported_by: string; assigned: string | null; resolution: string | null; created_at: Date
+  trust_score: number | null; attribution: Record<string, string>; equipment: { kind: string; equipment_type: string; equipment_ref: string | null } | null; visit_linked: boolean }
 export async function incidents(ctx: Ctx, market: string): Promise<IncidentRow[]> {
   return withUser(ctx.user.id, (tx) => tx<IncidentRow[]>`
-    select i.id, a.name as account, i.party_kind, i.party_label, i.type, i.occurred_on::text, i.description, i.status, r.full_name as reported_by, s.full_name as assigned, i.resolution, i.created_at
+    select i.id, a.name as account, i.party_kind, i.party_label, i.type, i.occurred_on::text, i.description, i.status, r.full_name as reported_by, s.full_name as assigned, i.resolution, i.created_at,
+           i.trust_score, i.attribution, i.visit_id is not null as visit_linked,
+           case when e.id is null then null else jsonb_build_object('kind', e.kind, 'equipment_type', e.equipment_type, 'equipment_ref', e.equipment_ref) end as equipment
       from crm.field_incidents i join crm.users r on r.id = i.reported_by left join crm.users s on s.id = i.assigned_to left join crm.accounts a on a.id = i.account_id
+      left join crm.equipment_events e on e.id = i.equipment_event_id
      where i.market_code = ${market} order by (i.status <> 'closed') desc, i.created_at desc limit 100`)
 }
 
@@ -229,13 +234,16 @@ export async function thresholds(ctx: Ctx, market: string): Promise<ThresholdRow
   }).filter((r) => THRESHOLDS[r.key as keyof typeof THRESHOLDS])
 }
 /** Valores propuestos que esperan a su dueño, en todos los mercados que la persona ve. Para Estado de CONTIGO. */
-export async function proposedValues(ctx: Ctx): Promise<{ market_code: string; key: string; value: number; owner: string }[]> {
+export async function proposedValues(ctx: Ctx): Promise<{ market_code: string | null; key: string; value: number; owner: string }[]> {
   return withUser(ctx.user.id, async (tx) => {
     const t = await tx<{ market_code: string; key: string; value: string; owner: string }[]>`
       select market_code, key, value::text, pending_owner as owner from crm.field_thresholds where valid_to is null and pending_owner is not null order by key, market_code`
     const p = await tx<{ market_code: string; value: string; owner: string }[]>`
       select market_code, clawback_days::text as value, pending_owner as owner from crm.channel_policies where valid_to is null and status = 'proposed' and pending_owner is not null order by market_code`
-    return [...t.map((r) => ({ ...r, value: Number(r.value) })), ...p.map((r) => ({ market_code: r.market_code, key: 'clawback_policy', value: Number(r.value), owner: r.owner }))]
+    // El peso del punto de venta perfecto en la salud: propuesto mientras nadie lo guarde desde Cuidado de comercios.
+    const h = await tx<{ market_code: string | null; value: number }[]>`select market_code, weight as value from crm.health_config where grp = 'perfect_store' and updated_by is null`
+    return [...t.map((r) => ({ ...r, value: Number(r.value) })), ...p.map((r) => ({ market_code: r.market_code, key: 'clawback_policy', value: Number(r.value), owner: r.owner })),
+      ...h.map((r) => ({ market_code: r.market_code, key: 'health_weight', value: r.value, owner: 'Customer Success' }))]
   })
 }
 export async function repPlans(ctx: Ctx, market: string): Promise<{ user_id: string; name: string; month: string; target_won: number; won: number }[]> {
@@ -245,4 +253,18 @@ export async function repPlans(ctx: Ctx, market: string): Promise<{ user_id: str
               and (d.won_at at time zone mk.timezone)::date >= p.month and (d.won_at at time zone mk.timezone)::date < p.month + interval '1 month') as won
       from crm.rep_plans p join crm.users u on u.id = p.user_id join crm.markets mk on mk.code = p.market_code
      where p.market_code = ${market} order by p.month desc, u.full_name limit 50`) as never
+}
+
+// ---------------------------------------------------------------- campo2
+export async function channelPolicy(ctx: Ctx, market: string): Promise<ChannelPolicy | null> {
+  return withUser(ctx.user.id, (tx) => channelPolicyTx(tx, market))
+}
+/** CAMPO-06: lo que rodea al expediente: la solicitud de límite de crédito más reciente del comercio y los enlaces de captura vivos. */
+export async function fileExtras(ctx: Ctx, fileId: string, accountId: string): Promise<{ credit: { status: string; requested_at: Date } | null; links: number }> {
+  return withUser(ctx.user.id, async (tx) => {
+    const credit = (await tx<{ status: string; requested_at: Date }[]>`
+      select status, requested_at from crm.credit_limit_requests where account_id = ${accountId} order by requested_at desc limit 1`)[0] ?? null
+    const links = (await tx<{ n: number }[]>`select count(*)::int as n from crm.onboarding_links where file_id = ${fileId} and revoked_at is null and used_at is null and expires_at > now()`)[0]!.n
+    return { credit, links }
+  })
 }
