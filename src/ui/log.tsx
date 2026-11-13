@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Choices, NextStep, NoSaleReason, SheetText, VisitorField, fill, nextFor, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
+import { Choices, NextStep, NoSaleReason, SheetText, VisitReason, VisitorField, fill, nextFor, offlineBlocked, showToast, type SheetConfig } from '@/ui/complete'
 import { findAccountsAction, logActivityAction, notifyOptionsAction } from '@/app/(app)/actividades/log-actions'
 import type { FoundAccount } from '@/dal/field'
 
@@ -163,6 +163,7 @@ function LogForm({ target, config, onCancel, onSaved }: { target: LogTarget; con
           <Choices key={kind} name="result" legend={sheet.labels.result} options={kind === 'visit' ? config.visitResults : config.callResults} onPick={(v) => { setPicked(v); if (v === 'revisit' && !next) setNext('visit') }} />
           {kind === 'visit' && (
             <>
+              <VisitReason key={account.id} label={sheet.labels.visitReason} pick={sheet.labels.pickVisitReason} market={account.market} />
               {picked === 'no_sale' && <NoSaleReason label={sheet.labels.noSaleReason} pick={sheet.labels.pickReason} market={account.market} />}
               <Choices
                 name="on_choice"

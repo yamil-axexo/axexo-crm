@@ -13,7 +13,7 @@ import { scrub } from '@/domain/pipedrive/mapping'
 export const MOTORS = ['d2d', 'b2b', 'dealer', 'event', 'orders', 'other'] as const
 export const LEVELS = ['store', 'chain', 'distributor', 'organization'] as const
 export const FIELD_OBJECTS = ['account', 'deal', 'lead'] as const
-export const FIELD_TYPES = ['text', 'number', 'select', 'date', 'boolean'] as const
+export const FIELD_TYPES = ['text', 'number', 'select', 'multiselect', 'date', 'boolean'] as const
 
 const label = z.string().trim().min(2).max(60)
 const slug = (s: string) =>
@@ -347,8 +347,9 @@ export async function createField(ctx: Ctx, input: z.input<typeof fieldInput>): 
   if (!parsed.success) throw invalid('El campo lleva nombre en español y en inglés (de 2 a 60 letras) y su tipo.', 'A field needs a name in Spanish and in English (2 to 60 characters) and its type.')
   const v = parsed.data
   assertAllowedLabel(v.labelEs, v.labelEn, ...v.options)
-  const options = v.dataType === 'select' ? [...new Set(v.options)] : []
-  if (v.dataType === 'select' && options.length < 2) throw invalid('Una lista lleva al menos dos opciones, una por renglón.', 'A list needs at least two options, one per line.')
+  const listed = v.dataType === 'select' || v.dataType === 'multiselect'
+  const options = listed ? [...new Set(v.options)] : []
+  if (listed && options.length < 2) throw invalid('Una lista lleva al menos dos opciones, una por renglón.', 'A list needs at least two options, one per line.')
   return withUser(ctx.user.id, async (tx) => {
     const market = v.market || null
     if (market && !(await tx`select 1 from crm.markets where code = ${market}`)[0]) throw invalid('Ese mercado no existe.', 'That market does not exist.')

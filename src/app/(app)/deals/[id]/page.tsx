@@ -7,7 +7,7 @@ import { accountPhone } from '@/dal/field'
 import { CallLink } from '@/ui/log'
 import type { MessageKey } from '@/lib/messages'
 import { fieldDefs } from '@/dal/fields'
-import { CustomFields } from '@/ui/fields'
+import { CustomFields, fieldText } from '@/ui/fields'
 import { lossReasonsFor } from '@/dal/b2b'
 import { pauseDealAction, resumeDealAction } from '@/app/(app)/b2b-actions'
 import { FIELD_LABEL, winMissingText } from '@/domain/deals'
@@ -29,7 +29,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getDeal(ctx, id)
   if (!data) notFound()
-  const { deal, stages, contacts, events, activities, items, current, next, missingNext, missingWin, gateDefs } = data
+  const { deal, stages, contacts, events, activities, items, current, next, missingNext, missingWin, gateDefs, highlights } = data
   const defs = await fieldDefs(ctx, 'deal', deal.market_code, deal.motor)
   const ops = (await getDealOps(ctx, id))!
   const canEditFields = ctx.can('deal.edit', deal.market_code)
@@ -220,6 +220,33 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                     </Dialog>
                   )}
                 </div>
+              )}
+            </Card>
+          )}
+
+          {highlights.length > 0 && current && (
+            <Card data-testid="deal-highlights">
+              <CardTitle
+                title={t('Destacado en esta etapa', 'Highlighted in this stage')}
+                hint={t(`En "${current.name_es}" conviene dejar esto lleno. No frena el avance: es lo que el equipo va a necesitar más adelante.`, `In "${current.name_en}" it helps to fill these in. It does not hold the deal back: it is what the team will need later.`)}
+              />
+              <p className="mb-3 text-[13px] text-muted-2" data-testid="highlights-count">
+                {(() => { const done = highlights.filter((h) => !h.pending).length; return t(`${done} de ${highlights.length} con dato`, `${done} of ${highlights.length} filled in`) })()}
+              </p>
+              <ul className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+                {highlights.map((h) => {
+                  const def = h.token.startsWith('field:') ? defs.find((d) => d.key === h.token.slice(6)) : undefined
+                  const value = def ? fieldText(def, deal.custom[def.key], t, locale) : ''
+                  return (
+                    <li key={h.token} className="min-w-0 border-t border-line pt-2" data-testid="highlight-item" data-pending={h.pending ? 'yes' : 'no'}>
+                      <p className="text-[12.5px] font-medium text-muted">{missingName(h.token)}</p>
+                      <p className={h.pending ? 'mt-0.5 text-[14px] text-amber-text' : 'mt-0.5 text-[14px] break-words text-strong'}>{h.pending ? t('Falta', 'Missing') : value || t('Listo', 'Done')}</p>
+                    </li>
+                  )
+                })}
+              </ul>
+              {canEditFields && highlights.some((h) => h.token.startsWith('field:')) && (
+                <div className="mt-5"><LinkButton href={`/deals/${deal.id}/campos?ver=destacados`} size="sm" testId="highlights-fill">{t('Llenar lo destacado', 'Fill in the highlighted fields')}</LinkButton></div>
               )}
             </Card>
           )}

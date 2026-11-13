@@ -1,7 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
-import { missingForStage, type StageKind } from '@/domain/deals'
+import { missingForStage, pendingHighlights, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
 import { dealNextStep, stepSubject } from '@/dal/step-text'
 import { teamFilter } from '@/dal/reports'
@@ -31,6 +31,8 @@ export type Stage = {
   probability: number
   rot_days: number
   required_fields: string[]
+  /** Lo que la etapa destaca sin exigirlo (E10.F7). Solo viene en la lectura de un negocio. */
+  highlight_fields?: string[]
   exit_es: string
   exit_en: string
   /** Etapa de Operaciones: al entrar, el negocio pasa a su cola. */
@@ -123,7 +125,7 @@ export async function getDeal(ctx: Ctx, id: string) {
        where d.id = ${id}`
     const deal = rows[0]
     if (!deal) return null
-    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, is_ops
+    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, highlight_fields, exit_es, exit_en, is_ops
       from crm.stages where pipeline_id = ${deal.pipeline_id} and (archived_at is null or id = ${deal.stage_id}) order by position`
     const contacts = await tx<{ id: string; full_name: string; role: string }[]>`
       select c.id, c.full_name, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
@@ -145,7 +147,11 @@ export async function getDeal(ctx: Ctx, id: string) {
     const ahead = current ? stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn' || s.kind === 'won') && s.position > current.position) : []
     const missingWin = missingForStage({ ...deal, items_count: items.length }, { kind: 'won', required_fields: [...new Set(ahead.flatMap((s) => s.required_fields))] })
     // Campos adicionales que piden las etapas por delante ('field:<clave>'), con su nombre, para pedirlos en la misma hoja.
-    const gateDefs = await gateFields(tx, deal.market_code, [...missingNext, ...missingWin])
-    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext, missingWin, gateDefs }
+    // E10.F7: lo que la etapa actual destaca sin exigirlo, con lo que todavía falta de eso.
+    const highlighted = deal.status === 'open' && current ? [...new Set(current.highlight_fields ?? [])] : []
+    const pending = current ? pendingHighlights({ ...deal, items_count: items.length }, { highlight_fields: highlighted }) : []
+    const gateDefs = await gateFields(tx, deal.market_code, [...missingNext, ...missingWin, ...highlighted])
+    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext, missingWin, gateDefs,
+      highlights: highlighted.map((token) => ({ token, pending: pending.includes(token) })) }
   })
 }

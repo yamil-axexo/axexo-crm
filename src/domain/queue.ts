@@ -5,14 +5,14 @@ import { audit } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { assertOwned } from '@/domain/leads'
 import type { MessageKey } from '@/lib/messages'
-import { NEXTS, OPS_RESULTS, RESULTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, assertNoSaleReason, isOneOf, nextText, scheduleNext, shortNote, visitorName } from '@/domain/followup'
+import { NEXTS, OPS_RESULTS, RESULTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, assertNoSaleReason, assertVisitReason, isOneOf, nextText, scheduleNext, shortNote, visitorName } from '@/domain/followup'
 
 export { NEXTS, OPS_NEXTS, OPS_RESULTS, RESULTS, SALES_NEXTS, VISIT_RESULTS, type Next, type OpsResult, type Result, type VisitResult } from '@/domain/followup'
 export const ITEM_TYPES = ['task', 'lead', 'suggestion'] as const
 export type ItemType = (typeof ITEM_TYPES)[number]
 
 /** `note`: nota corta de cómo fue. `nextText`: qué es "Otra tarea". `visitedBy`: quién visitó, al completar una visita. */
-export type CompleteInput = { type: string; id: string; result: string; next: string; when: string; note?: string; nextText?: string; visitedBy?: string; /** Por qué no hubo venta, al completar una visita sin venta. */ noSaleReason?: string }
+export type CompleteInput = { type: string; id: string; result: string; next: string; when: string; note?: string; nextText?: string; visitedBy?: string; /** Por qué no hubo venta, al completar una visita sin venta. */ noSaleReason?: string; /** Propósito de la visita, al completar una visita por hacer. */ visitReason?: string }
 export type Completed = { next: string | null; due: string | null }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -72,7 +72,9 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
       // Un resultado de Operaciones se guarda aparte: el resultado general de la tarea queda en "hecho".
       const opsResult = !visit && !isOneOf(RESULTS, result) ? result : null
       const noSale = visit && result === 'no_sale' ? await assertNoSaleReason(tx, market, raw.noSaleReason) : null
-      await tx`update crm.activities set done_at = now(), outcome = ${opsResult ? 'done' : result}, ops_outcome = ${opsResult}, visited_by = ${visit ? visitor : null}, no_sale_code = ${noSale},
+      // E12.F1: una visita por hacer se completa con su propósito, igual que una visita registrada desde la ficha.
+      const purpose = visit ? await assertVisitReason(tx, market, raw.visitReason) : null
+      await tx`update crm.activities set done_at = now(), outcome = ${opsResult ? 'done' : result}, ops_outcome = ${opsResult}, visited_by = ${visit ? visitor : null}, no_sale_code = ${noSale}, visit_reason = ${purpose},
                 body = ${note ? tx`nullif(concat_ws(E'\n', body, ${note}::text), '')` : tx`body`} where id = ${id}`
       await audit(tx, ctx, 'activity.completed', 'activity', id, market, null, { kind: a.kind, outcome: result, next, ...(visit ? { origin: 'manual' } : {}) })
       if (visit && isOneOf(VISIT_RESULTS, result)) await applyVisitOutcome(tx, ctx, { market, accountId, outcome: result, day: null, returnOn: when })

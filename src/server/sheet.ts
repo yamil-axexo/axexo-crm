@@ -27,6 +27,7 @@ export function sheetConfig(ctx: Ctx, now = new Date()): SheetConfig {
       note: ctx.t('Nota (opcional)', 'Note (optional)'), nextText: ctx.t('¿Qué sigue? Escríbelo', 'What comes next? Write it'),
       visitedBy: ctx.t('¿Quién visitó? (opcional)', 'Who visited? (optional)'), visitedByHint: ctx.t('Si no fuiste tú, escribe su nombre', 'If it was not you, write their name'),
       noSaleReason: ctx.t('¿Por qué no hubo venta?', 'Why was there no sale?'), pickReason: ctx.t('Elige un motivo', 'Pick a reason'),
+      visitReason: ctx.t('¿A qué fuiste?', 'What was the visit for?'), pickVisitReason: ctx.t('Elige el propósito', 'Pick the purpose'),
     },
     // Una sola hoja: todas las opciones con su texto, y la lista que toca la decide quién completa (Operaciones) o el tipo de venta.
     nextOptions: NEXTS.map((n) => ({ value: n, label: m(`complete.next.${n}` as MessageKey) })),

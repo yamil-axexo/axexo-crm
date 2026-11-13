@@ -106,13 +106,25 @@ export function GateFields({ info, labels, minDate, dealHref }: { info: GateInfo
           {labels.noContacts} <a href={`/comercios/${info.accountId}?tab=datos`} className="font-semibold underline">{labels.addContact}</a>
         </p>
       ))}
-      {(info.fields ?? []).map((f) => (
+      {(info.fields ?? []).map((f) => f.data_type === 'multiselect' && f.options.length > 0 ? (
+        <fieldset key={f.key} className="mt-5" data-testid={`gate-field-${f.key}`}>
+          <legend className="text-[14px] font-medium">{labels.lang === 'en' ? f.label_en : f.label_es}</legend>
+          <input type="hidden" name={`custom:${f.key}`} value="" />
+          <div className="mt-1.5 flex flex-wrap gap-x-5 rounded-2xl border border-line px-3 py-1">
+            {f.options.map((o) => (
+              <label key={o} className="flex min-h-11 cursor-pointer items-center gap-2 text-[14px]"><input type="checkbox" className="h-5 w-5" name={`custom:${f.key}`} value={o} />{o}</label>
+            ))}
+          </div>
+        </fieldset>
+      ) : (
         <label key={f.key} className="mt-5 block text-[14px] font-medium">{labels.lang === 'en' ? f.label_en : f.label_es}
           {f.data_type === 'select' && f.options.length > 0 ? (
             <select name={`custom:${f.key}`} required defaultValue="" className="input mt-1.5" data-testid={`gate-field-${f.key}`}>
               <option value="">{labels.pickOne ?? '…'}</option>
               {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
+          ) : f.data_type === 'date' ? (
+            <input name={`custom:${f.key}`} type="date" required max={minDate} className="input mt-1.5" data-testid={`gate-field-${f.key}`} />
           ) : <input name={`custom:${f.key}`} required maxLength={200} inputMode={f.data_type === 'number' || f.data_type === 'money' ? 'decimal' : undefined} className="input mt-1.5" data-testid={`gate-field-${f.key}`} />}
         </label>
       ))}

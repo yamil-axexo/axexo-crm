@@ -86,7 +86,11 @@ const gatePatch = (fd: FormData) => {
 async function applyGate(ctx: Parameters<typeof updateDeal>[0], id: string, fd: FormData): Promise<void> {
   const patch = gatePatch(fd)
   if (Object.values(patch).some((v) => v !== undefined)) await updateDeal(ctx, id, patch)
-  const custom = Object.fromEntries([...fd.keys()].filter((k) => k.startsWith('custom:')).map((k) => [k.slice(7), str(fd, k)]))
+  // Una lista de opción múltiple manda varias casillas con el mismo nombre: viajan todas las marcadas.
+  const custom = Object.fromEntries([...new Set(fd.keys())].filter((k) => k.startsWith('custom:')).map((k) => {
+    const all = fd.getAll(k).map(String).filter(Boolean)
+    return [k.slice(7), all.length > 1 ? all : all[0] ?? '']
+  }))
   if (Object.keys(custom).length > 0) await updateCustom(ctx, 'deal', id, custom)
 }
 

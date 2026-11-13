@@ -6,6 +6,7 @@ import { env } from '@/env'
 import { getConfig, getDataQuality, getIntake, getIntegrations } from '@/dal/admin'
 import { sellers } from '@/dal/leads'
 import { API_SCOPES, STAGE_REQUIREMENTS } from '@/domain/admin'
+import { StageFieldPicker } from '@/ui/stage-fields'
 import { FIELD_LABEL } from '@/domain/deals'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
@@ -98,12 +99,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <tr key={s.position} className="table-row" data-testid="stage-row">
                   <td className="num text-muted">{s.position}</td>
                   <td><span className="font-semibold text-strong" data-testid="stage-name">{t(s.name_es, s.name_en)}</span>{s.kind === 'awaiting_txn' && <span className="ml-2" data-testid="stage-await"><Badge tone="info">{p.close_by_transaction ? t('espera la primera venta', 'waits for the first sale') : t('desde aquí se gana a mano', 'won by hand from here')}</Badge></span>}{s.kind === 'won' && <span className="ml-2"><Badge tone="good">{p.close_by_transaction ? t('solo por transacción', 'by transaction only') : t('cierre manual', 'closed by hand')}</Badge></span>}</td>
-                  <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => { const def = f.startsWith('field:') ? d.fields.find((x) => x.object === 'deal' && x.key === f.slice(6)) : undefined; return def ? t(def.label_es, def.label_en) : f.startsWith('field:') ? t('un campo adicional del negocio', 'an additional deal field') : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}</td>
+                  <td className="text-[13.5px] text-muted-2" data-testid="stage-needs">{needs.map((f) => { const def = f.startsWith('field:') ? d.dealFields.find((x) => x.key === f.slice(6) && (x.market_code === null || x.market_code === p.market_code)) : undefined; return def ? t(def.label_es, def.label_en) : f.startsWith('field:') ? t('un campo adicional del negocio', 'an additional deal field') : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ') || (s.kind === 'lost' ? t('motivo de pérdida', 'loss reason') : t('nada', 'nothing'))}
+                    {s.highlight_fields.length > 0 && <span className="mt-1 block text-[12.5px] text-muted" data-testid="stage-highlights">{t('Destaca sin exigir: ', 'Highlights without requiring: ')}{s.highlight_fields.map((f) => { const def = f.startsWith('field:') ? d.dealFields.find((x) => x.key === f.slice(6) && (x.market_code === null || x.market_code === p.market_code)) : undefined; return def ? t(def.label_es, def.label_en) : t(FIELD_LABEL[f]?.es ?? f, FIELD_LABEL[f]?.en ?? f) }).join(', ')}</span>}</td>
                   <td className="text-[13.5px] text-muted-2">{t(s.exit_es, s.exit_en) || t('sin nada escrito', 'nothing written')}</td>
                   <td className="num text-[13.5px]" data-testid="stage-rot">{s.rot_days ? t(`${s.rot_days} días`, `${s.rot_days} days`) : t('nunca', 'never')}</td>
                   {admin && (
                     <td className="text-right">
-                      <Dialog trigger={t('Editar', 'Edit')} title={t(`Editar la etapa "${s.name_es}"`, `Edit the "${s.name_en}" stage`)} size="sm" testId="stage-edit">
+                      <Dialog trigger={t('Editar', 'Edit')} title={t(`Editar la etapa "${s.name_es}"`, `Edit the "${s.name_en}" stage`)} testId="stage-edit">
                         <NoticeForm action={updateStageAction} className="grid grid-cols-2 gap-4 text-left" testId="stage-form">
                           <input type="hidden" name="stage_id" value={s.id} />
                           <Field label={t('Nombre en español', 'Name in Spanish')} className="col-span-2 sm:col-span-1"><input name="name_es" className="input" required minLength={2} maxLength={60} defaultValue={s.name_es} data-testid="stage-name-es" /></Field>
@@ -129,6 +131,29 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                                   })}
                                 </div>
                               </fieldset>
+                              <fieldset className="col-span-2">
+                                <legend className="mb-2 block text-[13px] font-semibold text-muted-2">{t('Destacar en esta etapa, sin exigirlo', 'Highlight in this stage, without requiring it')}</legend>
+                                <div className="flex flex-wrap gap-x-6">
+                                  {(['amount', 'decision_maker'] as const).map((r) => (
+                                    <label key={r} className="flex min-h-11 cursor-pointer items-center gap-3 text-[14px]">
+                                      <input type="checkbox" name="highlight" value={r} className="h-5 w-5 shrink-0" defaultChecked={s.highlight_fields.includes(r)} data-testid={`stage-hi-${r}`} />
+                                      <span>{t(FIELD_LABEL[r]?.es ?? r, FIELD_LABEL[r]?.en ?? r)}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </fieldset>
+                              <StageFieldPicker
+                                fields={d.dealFields.filter((x) => (x.market_code === null || x.market_code === p.market_code) && (x.motor === null || x.motor === p.motor)).map((x) => ({ key: x.key, label: t(x.label_es, x.label_en) }))}
+                                required={s.required_fields.filter((f) => f.startsWith('field:')).map((f) => f.slice(6))}
+                                highlight={s.highlight_fields.filter((f) => f.startsWith('field:')).map((f) => f.slice(6))}
+                                labels={{
+                                  legend: t('Campos del negocio', 'Deal fields'),
+                                  hint: t('Marca "Requisito" para que el negocio no entre a esta etapa sin ese campo, o "Destacado" para pedirlo a la vista sin frenar el avance.', 'Tick "Required" so a deal cannot enter this stage without that field, or "Highlighted" to ask for it in plain sight without holding the deal back.'),
+                                  filter: t('Buscar un campo', 'Find a field'), required: t('Requisito', 'Required'), highlight: t('Destacado', 'Highlighted'),
+                                  none: t('Este embudo todavía no tiene campos del negocio. Créalos en "Campos creados aquí".', 'This pipeline has no deal fields yet. Create them under "Fields created here".'),
+                                  picked: t('%r de requisito, %h destacados', '%r required, %h highlighted'),
+                                }}
+                              />
                             </>
                           )}
                           <div className="col-span-2 flex flex-wrap justify-end gap-3"><CloseDialog>{t('Cancelar', 'Cancel')}</CloseDialog><Submit testId="stage-save">{t('Guardar etapa', 'Save stage')}</Submit></div>

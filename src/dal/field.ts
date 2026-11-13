@@ -76,3 +76,18 @@ export async function noSaleReasons(ctx: Ctx, markets: string[]): Promise<{ code
     return [...rows]
   })
 }
+
+/** E12.F1: propósitos de visita vigentes de un mercado (o del mercado de una visita por hacer). Vacío: ese mercado no lleva lista. */
+export async function visitReasons(ctx: Ctx, where: { market?: string; activityId?: string }): Promise<{ code: string; label_es: string; label_en: string; is_campaign: boolean }[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    let market = where.market ?? null
+    if (!market && where.activityId && /^[0-9a-f-]{36}$/i.test(where.activityId)) {
+      market = (await tx<{ market_code: string }[]>`select market_code from crm.activities where id = ${where.activityId}`)[0]?.market_code ?? null
+    }
+    if (!market) return []
+    const rows = await tx<{ code: string; label_es: string; label_en: string; is_campaign: boolean }[]>`
+      select code, label_es, label_en, is_campaign from crm.visit_reasons
+       where is_active and (market_code is null or market_code = ${market}) order by position, label_es`
+    return [...rows]
+  })
+}

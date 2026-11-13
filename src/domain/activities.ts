@@ -6,7 +6,7 @@ import { audit, newId, clean } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { assertNoProhibited } from '@/domain/guard'
 import { notifyFromNote } from '@/domain/ops'
-import { NEXTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, assertNoSaleReason, closePlannedVisits, isOneOf, nextText, scheduleNext, visitorName } from '@/domain/followup'
+import { NEXTS, VISIT_RESULTS, applyVisitOutcome, assertNextDate, assertNoSaleReason, assertVisitReason, closePlannedVisits, isOneOf, nextText, scheduleNext, visitorName } from '@/domain/followup'
 
 const input = z.object({
   accountId: z.guid().optional(),
@@ -23,6 +23,8 @@ const input = z.object({
   visitedBy: z.string().optional().default(''),
   /** Por qué no hubo venta (código del catálogo de motivos de calle). Lo pide toda visita que termina sin venta. */
   noSaleReason: z.string().optional().default(''),
+  /** Propósito de la visita (código de la lista del mercado). Lo pide toda visita hecha en un mercado que tiene lista. */
+  visitReason: z.string().optional().default(''),
   /** Próximo paso: vacío es "no se preguntó". */
   next: z.string().optional().default(''),
   nextWhen: z.string().optional().default(''),
@@ -119,18 +121,19 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
     }
     const when = next ? await assertNextDate(tx, tz, v.nextWhen) : null
     const noSale = v.kind === 'visit' && v.outcome === 'no_sale' ? await assertNoSaleReason(tx, market!, v.noSaleReason) : null
+    const purpose = v.kind === 'visit' && !planned ? await assertVisitReason(tx, market!, v.visitReason) : null
 
     const id = await newId(tx)
     const subject = v.subject || ctx.m(v.kind === 'visit' ? (planned ? 'complete.nextTitle.visit' : 'log.subject.visit') : 'log.subject.call', { name })
     const due = v.dueAt ? (v.dueAt.length === 10 ? `${v.dueAt}T15:00:00Z` : v.dueAt) : null
     // Lo que ya pasó queda con su fecha: ahora, o el mediodía del día elegido en la zona del mercado (no tiene hora).
     const done = v.kind === 'task' || planned ? null : v.on ? tx`case when ${v.on}::date = (now() at time zone ${tz})::date then now() else (${v.on}::date + time '12:00') at time zone ${tz} end` : tx`now()`
-    await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, body, due_at, done_at, outcome, visited_by, no_sale_code, owner_id, created_by)
+    await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, body, due_at, done_at, outcome, visited_by, no_sale_code, visit_reason, owner_id, created_by)
              values (${id}, ${market!}, ${accountId}, ${dealId}, ${v.leadId ?? null}, ${v.kind}, ${subject}, ${clean(v.body)},
-                     ${due}, ${done}, ${v.outcome || null}, ${visitor}, ${noSale}, ${ctx.user.id}, ${ctx.user.id})`
+                     ${due}, ${done}, ${v.outcome || null}, ${visitor}, ${noSale}, ${purpose}, ${ctx.user.id}, ${ctx.user.id})`
     if (v.kind === 'visit' && !planned) await closePlannedVisits(tx, accountId, ctx.user.id, id)
     await audit(tx, ctx, 'activity.added', 'activity', id, market!, null, {
-      kind: v.kind, account_id: accountId, ...(v.outcome ? { outcome: v.outcome } : {}), ...(v.kind === 'visit' && !planned ? { origin: 'manual', on: v.on || null, visited_by: visitor, ...(noSale ? { no_sale_reason: noSale } : {}) } : {}),
+      kind: v.kind, account_id: accountId, ...(v.outcome ? { outcome: v.outcome } : {}), ...(v.kind === 'visit' && !planned ? { origin: 'manual', on: v.on || null, visited_by: visitor, ...(noSale ? { no_sale_reason: noSale } : {}), ...(purpose ? { visit_reason: purpose } : {}) } : {}),
     })
     if (v.kind === 'visit' && isOneOf(VISIT_RESULTS, v.outcome)) await applyVisitOutcome(tx, ctx, { market: market!, accountId, outcome: v.outcome, day: v.on || null, returnOn: when })
     if (v.notify) {

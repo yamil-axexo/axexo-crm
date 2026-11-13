@@ -7,7 +7,7 @@ import { recordActivity } from '@/domain/activities'
 import { reassignAccounts } from '@/domain/accounts'
 import { takeAccount } from '@/domain/reparto'
 import { resolveException } from '@/domain/rules'
-import { findAccounts, noSaleReasons, visitorNames, type FoundAccount } from '@/dal/field'
+import { findAccounts, noSaleReasons, visitReasons, visitorNames, type FoundAccount } from '@/dal/field'
 import { withUser } from '@/server/db'
 import { weekday } from '@/lib/format'
 import { isUuid } from '@/lib/ids'
@@ -35,6 +35,7 @@ export async function logActivityAction(_: ActionResult<Done> | null, fd: FormDa
       on: kind === 'visit' ? str(fd, 'on') : '',
       visitedBy: kind === 'visit' ? str(fd, 'visited_by') : '',
       noSaleReason: kind === 'visit' ? str(fd, 'no_sale_reason') : '',
+      visitReason: kind === 'visit' ? str(fd, 'visit_reason') : '',
       next: kind === 'note' ? '' : str(fd, 'next'),
       nextWhen: str(fd, 'when'),
       nextText: str(fd, 'next_text'),
@@ -119,4 +120,11 @@ export async function takeAccountAction(_: ActionResult<Done> | null, fd: FormDa
     const name = await takeAccount(ctx, id)
     return { data: { toast: ctx.t(`${name} ahora es tuya.`, `${name} is now yours.`) } }
   })
+}
+
+/** Propósitos de visita del mercado del comercio, o del mercado de la visita por hacer que se completa. Vacío: no se pregunta. */
+export async function visitReasonsAction(where: { market?: string; activityId?: string }): Promise<{ value: string; label: string }[]> {
+  const ctx = await requireCtx()
+  const rows = await visitReasons(ctx, { market: typeof where?.market === 'string' ? where.market : undefined, activityId: typeof where?.activityId === 'string' ? where.activityId : undefined })
+  return rows.map((r) => ({ value: r.code, label: ctx.t(r.label_es, r.label_en) }))
 }
