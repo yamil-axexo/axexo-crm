@@ -253,7 +253,8 @@ test.describe('CS-02 y CS-04 · salud explicada y modelo de atención', () => {
     await page.getByTestId('health-row').first().getByTestId('care-link').click()
     await expect(page.getByTestId('health-score')).toHaveText(/^\d{1,3}$/)
     await expect(page.getByTestId('health-unvalidated')).toHaveText('Sin publicar: en validación')
-    await expect(page.getByTestId('health-group')).toHaveCount(4)
+    // campo2: el punto de venta perfecto es el quinto grupo de la salud.
+    await expect(page.getByTestId('health-group')).toHaveCount(5)
     await expect(page.locator('[data-testid=health-group][data-grp=transactions]')).toContainText(/de 50 puntos/)
     await expect(page.locator('[data-testid=health-group][data-grp=tickets]')).toContainText('no cuenta')
     await expect(page.locator('[data-testid=health-group][data-grp=tickets]')).toContainText('Sin dato: conexión con Zendesk apagada')

@@ -97,8 +97,11 @@ test.describe('página Reportes', () => {
     const db = testDb()
     try {
       const d = (await db`select d.account_id from crm.deals d where d.market_code = 'MX' and d.created_at >= '2026-01-01' order by d.id limit 1`)[0]!
-      await db`delete from crm.account_attributions where account_id = ${d.account_id} and layer = 'origin'`
-      await db`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label) values (${d.account_id}, 'MX', 'origin', 'partner', 'e2e-ag', 'Agencia de ejemplo')`
+      // campo2: un solo modelo de agencia (crm.agencies); cuenta la capa de canal vigente a nombre de una agencia.
+      const ag = (await db`insert into crm.agencies (market_code, name, kind) values ('MX', 'Agencia de ejemplo', 'agency') on conflict do nothing returning id`)[0]
+        ?? (await db`select id from crm.agencies where market_code = 'MX' and name = 'Agencia de ejemplo'`)[0]!
+      await db`update crm.account_attributions set effective_to = now() where account_id = ${d.account_id} and layer = 'channel' and effective_to is null`
+      await db`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label) values (${d.account_id}, 'MX', 'channel', 'partner', ${ag.id}, 'Agencia de ejemplo')`
     } finally { await db.end() }
     await loginAs(page, 'nora.salas')
     await page.goto(`/reportes/agencias?${YEAR}`)

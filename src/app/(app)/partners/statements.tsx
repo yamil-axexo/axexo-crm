@@ -19,7 +19,7 @@ export function StatementList({ t, locale, rows, testId = 'statements' }: { t: T
           <li key={s.id} className="border-t border-line py-4 first:border-t-0" data-testid="statement-row" data-status={s.status}>
             <p className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-strong">
               <span>{s.month} · {s.party_label}</span>
-              <Badge tone={s.status === 'published' ? 'good' : 'warn'}>{s.status === 'published' ? t('Publicado', 'Published') : t('Estimado', 'Estimate')}</Badge>
+              <Badge tone={s.status === 'published' ? 'good' : 'info'}>{s.status === 'published' ? t('Publicado', 'Published') : t('Estimado', 'Estimate')}</Badge>
             </p>
             <p className="mt-1 text-[13.5px] text-muted">
               {t(`${num(n('enrolled'), locale)} altas · ${num(n('first_sales'), locale)} primeras ventas · activas: ${num(n('active_30'), locale)} a 30 días, ${num(n('active_60'), locale)} a 60, ${num(n('active_90'), locale)} a 90`,
