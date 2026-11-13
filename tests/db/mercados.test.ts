@@ -248,7 +248,8 @@ describe('E1.F1 y E1.F4: mercado nuevo por configuración y unidad de negocio', 
     const pipe = (await db<{ id: string }[]>`insert into crm.pipelines (market_code, motor, name) values ('GT', 'd2d', 'D2D Guatemala') returning id`)[0]!.id
     await db`insert into crm.stages (pipeline_id, position, code, name_es, name_en, kind) values (${pipe}, 1, 'new', 'Nuevo', 'New', 'open'), (${pipe}, 2, 'won', 'Ganado', 'Won', 'won'), (${pipe}, 3, 'lost', 'Perdido', 'Lost', 'lost')`
     await db`insert into crm.memberships (user_id, market_code, role) values (${await personaId('ana.robles')}, 'GT', 'market_lead')`
-    await setFxRate(admin, { currency: 'GTQ', asOf: iso(-1), rate: '0.13', source: 'Banco de prueba' })
+    // La tasa de una moneda se carga cuando su mercado ya está abierto; aquí la deja lista la prueba para ver la lista completa.
+    await db`insert into crm.fx_rates (currency, as_of, usd_rate, source) values ('GTQ', ${iso(-1)}::date, 0.13, 'Banco de prueba')`
     m = (await getMarketsAdmin(admin)).markets.find((x) => x.code === 'GT')!
     expect(m.ready).toMatchObject({ pipelines: 1, entity: true, people: 1, rate: true })
     await updateMarket(admin, 'GT', { name: 'Guatemala', status: 'live' })
