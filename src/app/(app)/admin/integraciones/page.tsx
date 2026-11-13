@@ -7,6 +7,7 @@ import { eventCatalog, eventExample, eventSchema, silentActions } from '@/domain
 import { FIELD_MATRIX, INBOUND_EVENTS, OWNER_LABEL, stuckReason } from '@/domain/events/sales-app-contract'
 import { API_ERRORS, API_PAGE, API_RESOURCES, CATALOGS, READ_SCOPES } from '@/domain/api-spec'
 import { API_SCOPES } from '@/domain/admin'
+import { reportByKey } from '@/lib/report-catalog'
 import { ROTATION_DAYS } from '@/domain/api-keys'
 import { BACKOFF_MINUTES, MAX_ATTEMPTS } from '@/domain/publisher'
 import { EXPORT_CAPS, EXPORT_DAILY } from '@/domain/exports'
@@ -392,12 +393,23 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
 
   async function Data() {
     const [exp, imports] = await Promise.all([getExports(ctx), getImports(ctx)])
-    const what: Record<string, [string, string]> = { closed_deals: ['Negocios cerrados', 'Closed deals'], field_stores: ['Campo: altas y ganados', 'Field: enrollments and wins'], field_visits: ['Campo: visitas', 'Field: visits'], accounts: ['Comercios', 'Merchants'], leads: ['Leads', 'Leads'] }
+    const what: Record<string, [string, string]> = { closed_deals: ['Negocios cerrados', 'Closed deals'], field_stores: ['Campo: altas y ganados', 'Field: enrollments and wins'], field_visits: ['Campo: visitas', 'Field: visits'], accounts: ['Comercios', 'Merchants'], leads: ['Leads', 'Leads'],
+      // Las exportaciones que sumó la ola 1: detalle de visitas (us-embudo), reporte del mercado y base de correo (mx).
+      visit_detail: ['Detalle de visitas (reembolsos)', 'Visit detail (reimbursements)'], market_mensual: ['Reporte del mercado: meses', 'Market report: months'],
+      market_etapas: ['Reporte del mercado: etapas', 'Market report: stages'], market_tipos: ['Reporte del mercado: tipos de empresa', 'Market report: company types'],
+      market_dead_leads_mailing: ['Base de correo de leads descartados', 'Mailing base of closed leads'] }
+    // Los reportes de la galería se anotan como report_<clave>: se leen con el nombre del reporte.
+    const whatLabel = (code: string): [string, string] => {
+      const known = what[code]
+      if (known) return known
+      const report = code.startsWith('report_') ? reportByKey(code.slice(7)) : undefined
+      return report ? [`Reporte: ${report.title[0]}`, `Report: ${report.title[1]}`] : [code, code]
+    }
     return (
       <div className="space-y-8" data-testid="data-tab">
         {exp.alerts > 0 && <p role="status" className="rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] font-medium text-amber-text" data-testid="export-alert">{t(`${num(exp.alerts, locale)} ${exp.alerts === 1 ? 'exportación pasó' : 'exportaciones pasaron'} el umbral diario en los últimos 7 días. Están marcadas abajo: revisa quién, qué y para qué.`, `${num(exp.alerts, locale)} ${exp.alerts === 1 ? 'export went' : 'exports went'} over the daily threshold in the last 7 days. They are flagged below: check who, what and what for.`)}</p>}
         <Card data-testid="export-rules">
-          <CardTitle title={t('Reglas de exportación', 'Export rules')} hint={t('Valen para toda descarga: negocios cerrados, reporte de campo, comercios y leads.', 'They apply to every download: closed deals, field report, merchants and leads.')} />
+          <CardTitle title={t('Reglas de exportación', 'Export rules')} hint={t('Valen para toda descarga: comercios, leads, negocios cerrados, los reportes de la galería, el reporte de campo con su detalle de visitas y el reporte del mercado con su base de correo.', 'They apply to every download: merchants, leads, closed deals, the gallery reports, the field report with its visit detail and the market report with its mailing base.')} />
           <ul className="space-y-1.5 text-[13.5px] text-muted-2">
             <li>{t('Toda exportación pide un motivo y queda en la bitácora con filtros y número de filas.', 'Every export asks for a reason and is logged with its filters and row count.')}</li>
             <li data-testid="export-caps">{t('Tope de filas por archivo: ', 'Row limit per file: ')}{(Object.entries(EXPORT_CAPS) as [Role, number][]).map(([r, n]) => `${t(ROLE_LABEL[r].es, ROLE_LABEL[r].en)} ${num(n, locale)}`).join(' · ')}. {t('Ventas y Operaciones no exportan.', 'Sales and Operations do not export.')}</li>
@@ -411,7 +423,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
               {exp.rows.map((e) => (
                 <tr key={e.id} className="table-row align-top" data-testid="export-row">
                   <td className="font-medium text-strong">{e.who}{e.alert && <span className="ml-2"><Badge tone="warn">{t('sobre el umbral', 'over the threshold')}</Badge></span>}</td>
-                  <td>{t(...(what[e.what] ?? [e.what, e.what]))}{e.market_code ? ` · ${e.market_code}` : ''}</td>
+                  <td>{t(...whatLabel(e.what))}{e.market_code ? ` · ${e.market_code}` : ''}</td>
                   <td className="max-w-[320px] text-[13.5px] text-muted-2 [overflow-wrap:anywhere]">{e.reason}</td>
                   <td className="num">{num(e.rows, locale)}{e.truncated && <span className="ml-1 text-[12.5px] text-amber-text">{t(`(tope ${num(e.row_cap, locale)})`, `(limit ${num(e.row_cap, locale)})`)}</span>}</td>
                   <td className="text-[13.5px] text-muted-2">{ago(e.created_at, locale)}</td>

@@ -76,7 +76,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         { key: 'avisos', label: t('Avisos y soporte', 'Notices and support'), items: [
           ...(admin ? [{ key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }] : []), tabItem('reportes')] },
         { key: 'integraciones', label: t('Integraciones y datos', 'Integrations and data'), items: [tabItem('integraciones'),
-          ...(admin ? [{ key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }] : []), tabItem('pipedrive'), tabItem('calidad')] },
+          ...(admin ? [{ key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }] : []), tabItem('pipedrive'), tabItem('calidad'),
+          // Datos (duplicados, registro de campos, productos y tablero de calidad): quien administra entra por aquí, no por el menú de la cuenta.
+          ...(admin && (ctx.can('data.quality') || ctx.isGlobal) ? [{ key: 'datos', href: '/datos', label: t('Datos', 'Data') }] : [])] },
         { key: 'mercados', label: t('Mercados', 'Markets'), items: admin ? [
           // Entidades legales, festivos, WhatsApp por mercado, datos de arriba de la ficha y secciones de campos (paquete mercados).
           tabItem('mercados'),

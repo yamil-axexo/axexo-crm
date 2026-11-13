@@ -370,8 +370,8 @@ const S = {
     key: 'pipedrive-tab',
     title: { es: 'Revisa la pestaña Pipedrive y las llaves de API', en: 'Review the Pipedrive tab and the API keys' },
     why: {
-      es: 'En Administración, "Pipedrive" dice si la conexión está configurada, si la importación ya corrió, qué se copió y qué no se cargó. Las llaves de API están en "Integraciones": cada una con sus permisos, y se muestra una sola vez.',
-      en: 'In Administration, "Pipedrive" shows whether the connection is configured, whether the import has run, what was copied and what did not load. API keys live under "Integrations": each with its scopes, and shown only once.',
+      es: 'En Administración, "Pipedrive" dice si la conexión está configurada, si la importación ya corrió, qué se copió y qué no se cargó. Las llaves de API están en "Eventos, API y datos": cada una con sus permisos, y se muestra una sola vez.',
+      en: 'In Administration, "Pipedrive" shows whether the connection is configured, whether the import has run, what was copied and what did not load. API keys live under "Events, API and data": each with its scopes, and shown only once.',
     },
     href: '/admin?tab=pipedrive',
     cta: { es: 'Ir a la pestaña Pipedrive', en: 'Go to the Pipedrive tab' },
@@ -585,8 +585,8 @@ const HOW = {
   config: {
     title: { es: 'Administración, pestaña por pestaña', en: 'Administration, tab by tab' },
     text: {
-      es: 'Personas y acceso, Territorios, Mercados y entidades, Embudos y campos, Formularios y turnos, Integraciones, Pipedrive, Calidad de datos, Problemas reportados, Auditoría y Operaciones.',
-      en: 'People and access, Territories, Markets and entities, Pipelines and fields, Forms and rotation, Integrations, Pipedrive, Data quality, Reported problems, Audit and Operations.',
+      es: 'Personas y acceso, Territorios, Mercados y entidades, Embudos y campos, Formularios y turnos, Sales App y ventas, Pipedrive, Calidad de datos, Problemas reportados, Auditoría y Operaciones.',
+      en: 'People and access, Territories, Markets and entities, Pipelines and fields, Forms and rotation, Sales App and sales data, Pipedrive, Data quality, Reported problems, Audit and Operations.',
     },
     visual: { shot: 'admin' },
   },
