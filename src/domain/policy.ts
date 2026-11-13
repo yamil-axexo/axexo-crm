@@ -133,6 +133,12 @@ export const CAPABILITIES = {
   // Paquete embudo (0029). Corregir un hito del comercio que resultó no ser cierto (primer fondeo, primera transacción, hábito):
   // quien lidera el mercado o administra, siempre con motivo. La corrección reabre el negocio que ese hito había ganado.
   'deal.correct_win': ['admin', 'market_lead'],
+  // Ficha de dealer (paquete us-ficha, 0030). El origen del comercio y quién lo reclutó se fijan UNA vez: nacen con el alta y,
+  // en los comercios que ya existían sin ese dato, los fija quien dirige (el origen, también Operaciones). Después no cambian.
+  'account.origin': [...MANAGERS, 'ops'],
+  'account.recruiter': MANAGERS,
+  // Agencias y otros socios que reclutan tiendas: los da de alta y de baja administración o quien lidera el mercado.
+  'agency.manage': ['admin', 'market_lead'],
   // México (paquete mx). Mientras las hojas se retiran, quien dirige un equipo carga las visitas que el campo sigue anotando
   // ahí; las tiendas ya migradas (un negocio ganado en su fecha real) las carga quien lidera el mercado o administración.
   'visit.sheet_load': MANAGERS,

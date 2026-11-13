@@ -4,6 +4,8 @@ import { DealEmbudoPanel } from '@/app/(app)/embudo-panels'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { Phone } from 'lucide-react'
+import { dealRecruiter } from '@/dal/store-record'
+import { recruiterText } from '@/lib/store-labels'
 import { getDeal } from '@/dal/pipelines'
 import { accountPhone } from '@/dal/field'
 import { CallLink } from '@/ui/log'
@@ -38,6 +40,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const ops = (await getDealOps(ctx, id))!
   const canEditFields = ctx.can('deal.edit', deal.market_code)
   const market = ctx.market(deal.market_code)
+  // E9.F12: en mercados con ficha de dealer, el negocio dice quién reclutó la tienda.
+  const recruited = market.dealerRecord ? await dealRecruiter(ctx, deal.id) : null
   const canEdit = deal.status === 'open' && ctx.can('deal.edit', deal.market_code)
   // Cada embudo ofrece los motivos de su tipo de venta, más los que valen para todos.
   const reasons = canEdit || deal.status === 'lost' ? await lossReasonsFor(ctx, deal.market_code, deal.motor) : []
@@ -361,6 +365,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               )}
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
+              {recruited && <KeyVal k={t('Reclutado por', 'Recruited by')}><span data-testid="deal-recruiter">{recruiterText(t, recruited.recruited_by, recruited.agency)}</span></KeyVal>}
               <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>
               {deal.status === 'open' && <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : <NoData locale={locale} />}</KeyVal>}
               <KeyVal k={t('En esta etapa', 'In this stage')}>{t(`${daysSince(deal.stage_entered_at)} días`, `${daysSince(deal.stage_entered_at)} days`)}</KeyVal>

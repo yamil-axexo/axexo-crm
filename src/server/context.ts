@@ -25,6 +25,8 @@ export type Market = {
   phoneCc: string
   status: 'live' | 'planned'
   closeByTransaction: boolean
+  /** E9: el mercado lleva la ficha de dealer (ventas e identificadores primero, carriers, origen, reclutado por). */
+  dealerRecord: boolean
   /** Días en que el mercado trabaja (1 = lunes ... 7 = domingo), de su horario hábil. */
   workdays: number[]
 }
@@ -75,6 +77,7 @@ export async function loadCtx(userId: string, localeOverride?: Locale, viewAs?: 
       phoneCc: m.phone_cc,
       status: m.status,
       closeByTransaction: m.flags?.close_by_transaction !== false,
+      dealerRecord: m.flags?.dealer_record === true,
       workdays: m.workdays?.length ? m.workdays : [1, 2, 3, 4, 5],
     }))
     const ctx: Ctx = {

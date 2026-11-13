@@ -7,6 +7,7 @@ import { NoticeForm } from '@/ui/admin'
 import { num } from '@/lib/format'
 import { KIND, MOTOR, lab } from '@/lib/labels'
 import { ALIAS_KIND, ROUTING_STRATEGY } from '@/lib/datos-labels'
+import { AgenciasCard } from './agencias'
 import { createAliasSystemAction, createMarketAction, createProcessListAction, createRoutingRuleAction, createWebFormAction, setTypeDepthAction, toggleProcessListAction, toggleRoutingRuleAction,
   toggleWebFormAction, updateMarketAction } from './actions'
 
@@ -26,6 +27,7 @@ export async function CatalogosTab({ ctx }: { ctx: Ctx }) {
 
   return (
     <div className="space-y-8" data-testid="catalogs-tab">
+      <AgenciasCard ctx={ctx} />
       {admin && (
         <Card pad={false} data-testid="markets-card">
           <div className="px-5 pt-6 md:px-7 md:pt-7">

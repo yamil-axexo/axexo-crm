@@ -1,3 +1,4 @@
+import { recruiterChoices } from '@/dal/store-record'
 import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { getAccount, listAccounts, listTree, savedViews, type AccountFilters } from '@/dal/accounts'
@@ -59,6 +60,9 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const nodes = treeData.nodes
   // "Visitado por": sugiere el catálogo de vendedores de calle y los nombres ya usados en los mercados de la persona.
   const visitors = tree ? [] : [...new Set((await Promise.all((sp.market ? [sp.market] : live.map((x) => x.code)).map((code) => visitorNames(ctx, code)))).flat())]
+  // E9.F12: en mercados con ficha de dealer, el alta pregunta quién reclutó la tienda.
+  const dealerMarkets = live.filter((x) => x.dealerRecord && ctx.can('account.create', x.code))
+  const recruiters = dealerMarkets.length ? await recruiterChoices(ctx) : []
   const [typeOptions, intake] = ctx.can('account.create') ? await Promise.all([accountTypeOptions(ctx), intakeFields(ctx)]) : [[], []]
   // Canal por defecto de "Nuevo comercio": el del primer embudo del mercado de la persona (en US, Dealers; en México, tiendas).
   const firstPipe = ctx.can('account.create') ? (await marketPipelines(ctx, live.find((x) => ctx.can('account.create', x.code))?.code))[0] : undefined
@@ -117,6 +121,14 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 {place.territories.length > 0 && (
                   <Field label={t('Territorio', 'Territory')} className="col-span-2" hint={t('Si lo dejas así y tienes un solo territorio, el comercio nace con el tuyo.', 'If you leave it like this and you have a single territory, the merchant starts with yours.')}>
                     <select name="territory_id" className="input" data-testid="account-territory"><option value="">{t('Según quien lo crea', 'Based on who creates it')}</option>{place.territories.map((x) => <option key={x.id} value={x.id}>{multi ? `${x.market_code} · ${x.name}` : x.name}</option>)}</select>
+                  </Field>
+                )}
+                {dealerMarkets.length > 0 && (
+                  <Field label={t('Reclutado por', 'Recruited by')} className="col-span-2" hint={t(`Para tiendas de ${dealerMarkets.map((x) => x.name).join(', ')}. Queda fijo desde el alta.`, `For stores in ${dealerMarkets.map((x) => x.name).join(', ')}. It is fixed from creation.`)}>
+                    <select name="recruited_by" className="input" defaultValue="field_team" data-testid="account-recruiter">
+                      <option value="field_team">{t('Equipo de campo de axexo', 'axexo field team')}</option>
+                      {recruiters.map((g) => <option key={g.id} value={g.id}>{`${dealerMarkets.length > 1 ? `${g.market_code} · ` : ''}${g.kind === 'agency' ? t('Agencia', 'Agency') : t('Socio', 'Partner')}: ${g.name}`}</option>)}
+                    </select>
                   </Field>
                 )}
                 <IntakeFields defs={intake} locale={locale} legend={t('Para calificar (lo que falte se completa después en la ficha)', 'To qualify (anything missing can be filled in later on the record)')} yes={t('Sí', 'Yes')} no={t('No', 'No')} />

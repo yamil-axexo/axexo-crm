@@ -725,3 +725,11 @@ select l.market_code, l.id, 'first', l.created_at, l.source, l.utm_source, l.utm
   from crm.leads l where coalesce(l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid) is not null
    and not exists (select 1 from crm.source_touches t where t.lead_id = l.id);
 
+-- us-ficha
+-- La ficha de dealer de US (épica E9): tipos de cuenta, tipos de negocio y zonas. Los carriers reales no se cargan en los datos
+-- sintéticos (aquí los proveedores son inventados); una agencia y un socio inventados para "Reclutado por".
+select crm.dealer_record_setup('US', false);
+update crm.ops_catalog set ref_label = 'North dealer code' where market_code = 'US' and kind = 'provider' and code = 'carrier_north';
+insert into crm.agencies (id, market_code, kind, name) values
+  (pg_temp.uid('ag-us-1'), 'US', 'agency', 'Agencia Ejemplo Uno (sintética)'),
+  (pg_temp.uid('ag-us-2'), 'US', 'partner', 'Socio Ejemplo (sintético)');

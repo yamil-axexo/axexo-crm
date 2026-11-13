@@ -193,7 +193,7 @@ test.describe('integración de la ola 1 de los 95', () => {
   test('la tienda tiene un solo portafolio de proveedores y el pedido impreso lleva envío y descuento', async ({ page }) => {
     const errors = pageErrors(page)
     const jade = await uid('jade.kim')
-    // datos y us-embudo: Operaciones marca "enviado" al proveedor en un negocio; la tienda lo muestra en Productos y proveedores
+    // datos y us-embudo: Operaciones marca "enviado" al proveedor en un negocio; la tienda lo muestra en su portafolio de operadores
     const deal = (await sql<{ id: string; account_id: string }[]>`
       select d.id, d.account_id from crm.deals d where d.pipeline_id = ${await uid('p-us-dealer')} and d.owner_id = ${jade} and d.status = 'open'
          and not exists (select 1 from crm.account_products p where p.account_id = d.account_id) order by d.created_at limit 1`)[0]!
@@ -202,11 +202,14 @@ test.describe('integración de la ola 1 de los 95', () => {
               on conflict (deal_id, catalog_id) do update set status = 'sent'`
     await loginAs(page, 'jade.kim')
     await page.goto(`/comercios/${deal.account_id}?tab=datos`)
-    const item = page.getByTestId('account-products').getByTestId('product-item')
+    // us-ficha (E9.F8): en la ficha de dealer de US el alta con cada proveedor se lee en el portafolio de operadores de la tienda
+    // (la misma fila de crm.account_products); "Productos y proveedores" queda para los productos.
+    const item = page.getByTestId('carrier-portfolio').getByTestId('carrier-item')
     await expect(item).toHaveCount(1)
     await expect(item).toContainText('North carrier')
-    await expect(item.getByTestId('product-state')).toHaveText('Sent to the provider')
+    await expect(item.getByTestId('carrier-state')).toHaveText('Sent to the provider')
     await expect(item.getByRole('link', { name: 'see the deal' })).toHaveAttribute('href', `/deals/${deal.id}`)
+    await expect(page.getByTestId('account-products').getByTestId('product-item')).toHaveCount(0)
     await expect(page.getByTestId('store-providers')).toHaveCount(0)
     await bothWidths(page, 'tienda con su portafolio de proveedores')
 

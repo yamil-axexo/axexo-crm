@@ -25,6 +25,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 
 ## Catalog (153 events)
 ## Catalog (143 events)
+## Catalog (145 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -34,20 +35,26 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `account_type.retired` | 1 | Retired an account type. | `changed` (string[]), `actor_id` (uuid) |
 | `account.address_set` | 1 | Changed a merchant’s address. | `changed` (string[]), `actor_id` (uuid) |
 | `account.alias_issued` | 1 | CONTIGO linked its merchant ID to another system’s ID. | `system` (string), `external_id` (string), `account_id` (uuid) |
+| `account.carrier_detail_set` | 1 | Changed a carrier’s details on a store. | `changed` (string[]), `actor_id` (uuid) |
+| `account.carrier_label_set` | 1 | Changed the name of the ID a carrier issues. | `changed` (string[]), `actor_id` (uuid) |
 | `account.created` | 1 | A merchant was created. | `kind` (string) |
 | `account.custom_updated` | 1 | Edited a merchant’s additional fields. | `changed` (string[]), `actor_id` (uuid) |
 | `account.located` | 1 | Saved a merchant’s location. | `changed` (string[]), `actor_id` (uuid) |
 | `account.location_cleared` | 1 | Removed a merchant’s location. | `changed` (string[]), `actor_id` (uuid) |
 | `account.merchant_ref` | 1 | Changed a merchant’s Merchant ID. | `changed` (string[]), `actor_id` (uuid) |
 | `account.merged` | 1 | A duplicate merchant was merged into this one. | `source_id` (uuid) |
+| `account.origin_set` | 1 | Set a merchant’s origin. | `changed` (string[]), `actor_id` (uuid) |
 | `account.owner_by_territory` | 1 | A store went to its territory manager. | `changed` (string[]), `actor_id` (uuid) |
 | `account.parent_changed` | 1 | Changed a merchant’s parent. | `changed` (string[]), `actor_id` (uuid) |
 | `account.product_set` | 1 | Changed a merchant’s product or its provider status. | `changed` (string[]), `actor_id` (uuid) |
 | `account.profile_set` | 1 | Changed a merchant’s entity, business unit or time zone. | `changed` (string[]), `actor_id` (uuid) |
 | `account.reassigned` | 1 | Merchants were moved to another person. The record is whoever receives them. | `count` (integer) |
+| `account.recruiter_set` | 1 | Set who recruited a store. | `changed` (string[]), `actor_id` (uuid) |
+| `account.store_profile_set` | 1 | Changed a store’s site number, business type or earlier carriers. | `changed` (string[]), `actor_id` (uuid) |
 | `account.taken` | 1 | Took a store with no owner. | `changed` (string[]), `actor_id` (uuid) |
 | `account.team_added` | 1 | Added someone to the account team. | `changed` (string[]), `actor_id` (uuid) |
 | `account.team_removed` | 1 | Removed someone from the account team. | `changed` (string[]), `actor_id` (uuid) |
+| `account.tax_id_set` | 1 | Changed the last 4 of a store’s Tax ID. | `changed` (string[]), `actor_id` (uuid) |
 | `account.territory_set` | 1 | Changed the territory of merchants. | `changed` (string[]), `actor_id` (uuid) |
 | `account.type_changed` | 1 | Changed a merchant’s account type. | `changed` (string[]), `actor_id` (uuid) |
 | `account.unmerged` | 1 | Undid a merchant merge. | `changed` (string[]), `actor_id` (uuid) |
@@ -170,6 +177,9 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `street_seller.updated` | 1 | Changed who a street seller reports to. | `changed` (string[]), `actor_id` (uuid) |
 | `taxid.captured` | 1 | Captured a tax ID. | `changed` (string[]), `actor_id` (uuid) |
 | `taxid.reviewed` | 1 | Reviewed a tax ID. | `changed` (string[]), `actor_id` (uuid) |
+| `team.agency_created` | 1 | Added an agency or partner that recruits stores. | `changed` (string[]), `actor_id` (uuid) |
+| `team.agency_restored` | 1 | Restored an agency or partner. | `changed` (string[]), `actor_id` (uuid) |
+| `team.agency_retired` | 1 | Retired an agency or partner. | `changed` (string[]), `actor_id` (uuid) |
 | `team.created` | 1 | Created a team. | `changed` (string[]), `actor_id` (uuid) |
 | `team.parent_changed` | 1 | Changed which team a team reports to. | `changed` (string[]), `actor_id` (uuid) |
 | `territory.archived` | 1 | Archived a territory. | `changed` (string[]), `actor_id` (uuid) |

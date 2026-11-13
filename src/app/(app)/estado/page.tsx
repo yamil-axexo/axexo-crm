@@ -137,13 +137,6 @@ export default async function StatusPage() {
       last: t(`Las conversiones se guardan en cola y no sale nada. Para encenderlo hace falta, por plataforma, la cuenta de anuncios y su credencial, la aprobación de tecnología y la variable ${adConv.envVar}.`, `Conversions are queued and nothing leaves. Turning it on needs, per platform, the ad account and its credential, technology approval and the ${adConv.envVar} variable.`),
     },
     {
-      key: 'support_desk',
-      name: t('Mesa de soporte (tickets)', 'Support desk (tickets)'),
-      what: t('Tickets como referencia en el hilo del comercio', 'Tickets as a reference in the merchant thread'),
-      state: desk.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
-      last: t(`La referencia (número y asunto) la escribe una persona y el estado es el que ella pone. Para traer el estado y abrir el ticket desde aquí hace falta la dirección de la mesa de soporte, su aprobación de tecnología y la variable ${desk.envVar}.`, `The reference (number and subject) is typed by a person and the status is whatever they set. Fetching the status and opening the ticket from here needs the support desk address, its technology approval and the ${desk.envVar} variable.`),
-    },
-    {
       key: 'outbox',
       name: t('Eventos para otros sistemas', 'Events for other systems'),
       what: t('Lo que CONTIGO publica para que otros lo lean', 'What CONTIGO publishes for others to read'),
