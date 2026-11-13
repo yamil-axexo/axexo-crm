@@ -331,7 +331,7 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel√
       await page.reload()
       await expect(page.locator('h1')).toHaveText('CONTIGO status')
       await expect(page.getByTestId('status-undefined-row').first()).toContainText('To be defined')
-      await expect(page.getByTestId('status-row-outbox').getByTestId('status-state')).toHaveText('Not connected')
+      await expect(page.getByTestId('status-row-outbox').getByTestId('status-state')).toHaveText('Channel off')
       await spanish(page)
 
       await loginAs(page, 'sam.ortiz')
