@@ -4,6 +4,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, clean, newId } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
+import { notify, notifyMany, peopleWithRole } from '@/domain/notify'
 import { invalid, notFound } from '@/lib/errors'
 import { RELEASE_CHECKLIST } from '@/content/release-checklist'
 
@@ -391,6 +392,11 @@ export async function createConfigRequest(ctx: Ctx, raw: z.input<typeof requestI
     await tx`insert into crm.config_requests (id, kind, title, purpose, market_code, options, requested_by)
              values (${id}, ${v.kind}, ${v.title}, ${v.purpose}, ${v.market || null}, ${clean(v.options)}, ${ctx.user.id})`
     await audit(tx, ctx, 'config_request.created', 'config_request', id, v.market || null, null, { kind: v.kind, title: v.title, shared: !v.market })
+    // Administración se entera por el servicio de avisos; la decisión vuelve a quien pidió por el mismo camino.
+    await notifyMany(tx, ctx, await peopleWithRole(tx, null, ['admin']), {
+      kind: 'config_request', market: v.market || null, link: '/admin/gobierno?tab=cambios',
+      title: ['Pidieron un cambio de configuración', 'Someone asked for a configuration change'], body: [v.title, v.title],
+    })
     return id
   })
 }
@@ -405,12 +411,20 @@ export async function decideConfigRequest(ctx: Ctx, raw: { id: string; decision:
   if (decision.data === 'rejected' && (!note || note.length < 2)) throw invalid('Al rechazar, dile a la persona por qué.', 'When you reject, tell the person why.')
   assertNoProhibited(note)
   await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ status: string; market_code: string | null; requested_by: string }[]>`select status, market_code, requested_by from crm.config_requests where id = ${raw.id} for update`)[0]
+    const before = (await tx<{ status: string; market_code: string | null; requested_by: string; title: string }[]>`select status, market_code, requested_by, title from crm.config_requests where id = ${raw.id} for update`)[0]
     if (!before) throw notFound('No encontramos esa solicitud.', 'We could not find that request.')
     const allowed = before.status === 'open' ? ['approved', 'rejected'] : before.status === 'approved' ? ['done', 'rejected'] : []
     if (!allowed.includes(decision.data)) throw invalid('Esa solicitud ya se decidió.', 'That request has already been decided.')
     await tx`update crm.config_requests set status = ${decision.data}, decided_by = ${ctx.user.id}, decided_at = now(), decision_note = coalesce(${note}, decision_note) where id = ${raw.id}`
     await audit(tx, ctx, 'config_request.decided', 'config_request', raw.id, before.market_code, { status: before.status }, { status: decision.data, requester: before.requested_by })
+    if (before.requested_by !== ctx.user.id) {
+      const said: Record<string, [string, string]> = {
+        approved: ['Aprobaron el cambio que pediste', 'The change you asked for was approved'],
+        rejected: ['No se va a hacer el cambio que pediste', 'The change you asked for will not be made'],
+        done: ['Ya está hecho el cambio que pediste', 'The change you asked for is done'],
+      }
+      await notify(tx, ctx, { to: before.requested_by, kind: 'config_request', market: before.market_code, link: '/solicitudes', title: said[decision.data]!, body: [note ?? before.title, note ?? before.title] })
+    }
   })
 }
 

@@ -42,6 +42,7 @@ export const NOTICE_KINDS = {
   scheduled_report: { label: ['Reportes programados', 'Scheduled reports'], hint: ['El resumen de un reporte que programaste.', 'The summary of a report you scheduled.'], defaults: ['in_app', 'email'], action: false, locked: false, urgent: false },
   export_alert: { label: ['Exportaciones sobre el umbral diario', 'Exports over the daily threshold'], hint: ['Para administración: alguien pasó el umbral de archivos o filas en un día.', 'For administration: someone went over the daily file or row threshold.'], defaults: ['in_app', 'email'], action: true, locked: false, urgent: false },
   report: { label: ['Respuesta a un problema que reportaste', 'Answer to a problem you reported'], hint: ['Y, para administración, cada reporte nuevo.', 'And, for administration, each new report.'], defaults: ['in_app'], action: false, locked: false, urgent: false },
+  config_request: { label: ['Respuesta a un cambio que pediste', 'Answer to a change you asked for'], hint: ['Y, para administración, cada solicitud nueva.', 'And, for administration, each new request.'], defaults: ['in_app'], action: false, locked: false, urgent: false },
 } as const satisfies Record<string, KindDef>
 
 export type NoticeKind = keyof typeof NOTICE_KINDS

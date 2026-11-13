@@ -8,7 +8,8 @@ import {
   recordDeployment, recordRestoreTest, removeMaterial, saveMaterial, scheduleMaintenance, setChampion, setComponentOwners, setMaintenanceStatus,
   setObjective, updateIncident, voidCost,
 } from '@/domain/gobierno-ops'
-import { invalid, type ActionResult } from '@/lib/errors'
+import { publishAnnouncement } from '@/domain/announcements'
+import { DomainError, invalid, type ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
 const PATHS = ['/admin/gobierno', '/estado', '/solicitudes']
@@ -97,8 +98,31 @@ export async function checkReleaseItemAction(_: R | null, fd: FormData): Promise
 
 export async function announceReleaseAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await announceRelease(ctx, str(fd, 'id'))
-    return { message: ['Versión anunciada. Sus notas ya las ve todo el equipo en "Pedir un cambio".', 'Release announced. The whole team now sees its notes in "Request a change".'], revalidate: PATHS }
+    const r = await announceRelease(ctx, str(fd, 'id'))
+    // El aviso sale por el mismo camino que cualquier anuncio a la red (paquete avisos): centro de avisos, pantalla Anuncios y,
+    // si toca comisiones o alta, con acuse. Las notas quedan además en "Pedir un cambio", que es el historial de versiones.
+    const today = isoDay(new Date(), await readerTimeZone(ctx))
+    const endsOn = isoDay(new Date(Date.now() + 30 * 86_400_000), await readerTimeZone(ctx))
+    const es = ctx.locale === 'es'
+    const base = {
+      topic: 'release' as const, market: '', endsOn, requiresAck: r.touchesMoney,
+      title: `${r.version} · ${es ? r.titleEs : r.titleEn}`.slice(0, 140), body: es ? r.notesEs : r.notesEn,
+      titleOther: `${r.version} · ${es ? r.titleEn : r.titleEs}`.slice(0, 140), bodyOther: es ? r.notesEn : r.notesEs,
+    }
+    let announced = true
+    try {
+      await publishAnnouncement(ctx, { ...base, effectiveOn: r.plannedFor && r.plannedFor > today ? r.plannedFor : '' })
+    } catch (e) {
+      if (!(e instanceof DomainError)) throw e
+      // La fecha puede caer justo en el cambio de día del mercado: el anuncio sale igual, sin fecha de vigencia.
+      try { await publishAnnouncement(ctx, { ...base, effectiveOn: '' }) } catch (e2) { if (!(e2 instanceof DomainError)) throw e2; announced = false }
+    }
+    return {
+      message: announced
+        ? ['Versión anunciada. El equipo la recibe en Anuncios y sus notas quedan en "Pedir un cambio".', 'Release announced. The team gets it in Announcements and its notes stay in "Request a change".']
+        : ['Versión anunciada. Sus notas quedan en "Pedir un cambio"; el anuncio a la red no salió: publícalo desde Anuncios.', 'Release announced. Its notes stay in "Request a change"; the network announcement did not go out: publish it from Announcements.'],
+      revalidate: [...PATHS, '/anuncios'],
+    }
   })
 }
 
