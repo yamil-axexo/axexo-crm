@@ -20,6 +20,7 @@ import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
 import { ReportesTab, reportFilter } from './reportes'
 import { FxCard } from './fx'
+import { MercadosTab } from './mercados'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
@@ -27,7 +28,7 @@ import { readerTimeZone } from '@/server/timezone'
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
 
-const TABS = ['personas', 'territorios', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'reportes', 'auditoria'] as const
+const TABS = ['personas', 'territorios', 'mercados', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'reportes', 'auditoria'] as const
 type Tab = (typeof TABS)[number]
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; acceso?: string; reportes?: string } & AuditParams> }) {
@@ -43,6 +44,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const labels: Record<Tab, string> = {
     personas: t('Personas y acceso', 'People and access'),
     territorios: t('Territorios', 'Territories'),
+    mercados: t('Mercados y entidades', 'Markets and entities'),
     embudos: t('Embudos y campos', 'Pipelines and fields'),
     entrada: t('Formularios y turnos', 'Forms and rotation'),
     integraciones: t('Integraciones', 'Integrations'),
@@ -67,6 +69,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       )}
       {tab === 'personas' && <PeopleTab ctx={ctx} access={accessFilter(sp.acceso)} today={isoDay(new Date(), await readerTimeZone(ctx))} />}
       {tab === 'territorios' && <TerritoriosTab ctx={ctx} />}
+      {tab === 'mercados' && <MercadosTab ctx={ctx} />}
       {tab === 'embudos' && <Config />}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}

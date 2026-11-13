@@ -18,6 +18,7 @@ import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { ACTIVITY, ALIAS_SYSTEM, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
 import { addContactAction, setParentAction, updateAccountAction } from './actions'
+import { ContactEdit, FichaFacts, FichaMercados } from './ficha-mercados'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
@@ -235,6 +236,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             )}
           </p>
         </div>
+        {/* UX-01: los datos de arriba dependen del rol de quien abre la ficha (crm.ficha_layouts). */}
+        <FichaFacts ctx={ctx} id={a.id} treeHref={href(a.id, 'arbol')} />
       </div>
 
       {/* Arriba, contactar (llamar, WhatsApp, mensaje de texto); abajo, dejar registro (visita, nota, actividad). */}
@@ -521,6 +524,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                       <Submit variant="quiet" size="sm" testId="contact-make-primary">{t('Hacer principal', 'Make primary')}</Submit>
                     </ActionForm>
                   )}
+                  {canEdit && <ContactEdit ctx={ctx} accountId={a.id} c={c} />}
                 </li>
               ))}
               {contacts.length === 0 && <li className="text-[15px] text-muted">{t('Sin contactos todavía.', 'No contacts yet.')}</li>}
@@ -565,6 +569,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </section>
           )}
 
+          <FichaMercados ctx={ctx} id={a.id} market={a.market_code} archived={!!a.archived_at} name={a.name} />
+
           {canEdit && (
             <section className={section}>
               <h3 className={cx(h3, 'mb-3')}>{t('Datos del comercio', 'Merchant details')}</h3>
@@ -573,11 +579,10 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <Field label={t('Nombre', 'Name')}><input name="name" className="input" defaultValue={a.name} required data-testid="edit-name" /></Field>
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" defaultValue={a.phone ?? ''} data-testid="edit-phone" /></Field>
                 <Field label={t('Correo', 'Email')}><input name="email" className="input" defaultValue={a.email ?? ''} /></Field>
-                <Field label={t('Dirección', 'Address')}><input name="address_line" className="input" defaultValue={a.address_line ?? ''} /></Field>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label={t('Ciudad', 'City')}><input name="locality" className="input" defaultValue={a.locality ?? ''} /></Field>
-                  <Field label={t('Estado o región', 'State or region')}><input name="region" className="input" defaultValue={a.region ?? ''} /></Field>
-                </div>
+                {/* La dirección se edita arriba, en "Dirección y ubicación", con el formato del país; este formulario la conserva como está. */}
+                <input type="hidden" name="address_line" value={a.address_line ?? ''} />
+                <input type="hidden" name="locality" value={a.locality ?? ''} />
+                <input type="hidden" name="region" value={a.region ?? ''} />
                 <input type="hidden" name="postal_code" value={a.postal_code ?? ''} />
                 <div className="flex justify-end"><Submit variant="ghost" testId="edit-save">{t('Guardar', 'Save')}</Submit></div>
               </ActionForm>

@@ -71,6 +71,12 @@ export const CAPABILITIES = {
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // Paquete de mercados. Capturar el identificador fiscal lo hace quien lleva la cuenta u Operaciones; revisarlo contra el
+  // documento (la capa humana) es de quien lidera el mercado, Operaciones o administración. Cambiar la entidad legal de un
+  // comercio es de quien lidera el mercado o de administración. El consolidado en USD lo lee quien ya lee el panel.
+  'taxid.capture': [...SELLERS, 'ops'],
+  'taxid.review': ['admin', 'market_lead', 'ops'],
+  'account.entity': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

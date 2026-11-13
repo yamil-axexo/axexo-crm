@@ -69,9 +69,11 @@ export const marketToday = (tx: Tx, market: postgres.Fragment | string) =>
 
 /**
  * El día hábil del mercado que cae `plus` días después de hoy: si ese día el mercado no trabaja (su horario hábil, por
- * defecto lunes a viernes), el siguiente que sí. Un próximo paso por defecto no cae en sábado ni en domingo.
+ * defecto lunes a viernes) o es festivo en ese mercado (crm.market_holidays), el siguiente que sí. Un próximo paso por
+ * defecto no cae en sábado, en domingo ni en festivo.
  */
 export const marketWorkday = (tx: Tx, market: string, plus: number) =>
-  tx`(select g::date from generate_series(${marketToday(tx, market)} + ${plus}::int, ${marketToday(tx, market)} + ${plus}::int + 7, interval '1 day') g
+  tx`(select g::date from generate_series(${marketToday(tx, market)} + ${plus}::int, ${marketToday(tx, market)} + ${plus}::int + 14, interval '1 day') g
        where extract(isodow from g)::int = any(coalesce((select h.days from crm.market_hours h where h.market_code = ${market}), '{1,2,3,4,5}'::int[]))
+         and not exists (select 1 from crm.market_holidays f where f.market_code = ${market} and f.day = g::date)
        order by g limit 1)`

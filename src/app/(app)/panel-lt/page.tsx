@@ -125,6 +125,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
               </ul>
             ) : <p className="mt-2 text-[13.5px] text-muted" data-testid="lt-fx">{t('Todo el volumen ya está en USD: no se usa ninguna tasa.', 'All of the volume is already in USD: no rate is used.')}</p>}
             <Def t={t} k="volumeUsd" />
+            <p className="mt-2 text-[13.5px]"><Link href="/reportes/consolidado" className="font-medium text-blue-text underline" data-testid="lt-consolidated">{t('Negocios abiertos y ganados en USD, por mercado, entidad o unidad de negocio', 'Open and won deals in USD, by market, entity or business unit')}</Link></p>
           </div>
           <div>
             <p className="text-[13px] font-medium text-muted-2">{t('Por mercado, en su moneda', 'By market, in its own currency')}</p>

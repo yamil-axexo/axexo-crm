@@ -100,6 +100,9 @@ export async function setFxRate(ctx: Ctx, input: { currency: string; asOf: strin
     } else {
       await tx`insert into crm.fx_rates (currency, as_of, usd_rate, source, loaded_by) values (${v.data.currency}, ${v.data.asOf}::date, ${v.data.rate}, ${v.data.source}, ${ctx.user.id})`
     }
+    // MULTI-01: los negocios abiertos se vuelven a convertir con la tasa nueva; los cerrados conservan la de su cierre
+    // (solo se rellenan los que cerraron cuando todavía no había ninguna tasa cargada para su fecha).
+    await tx`select app.fx_restamp()`
     await audit(tx, ctx, 'fx.rate_set', 'fx_rate', null, null, before[0] ? { currency: v.data.currency, as_of: v.data.asOf, usd_rate: Number(before[0].usd_rate), source: before[0].source } : null,
       { currency: v.data.currency, as_of: v.data.asOf, usd_rate: v.data.rate, source: v.data.source })
   })

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Search } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { searchAll } from '@/dal/accounts'
+import { accountsByTaxId } from '@/dal/markets'
 import { Empty } from '@/ui/kit'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { LEAD_STATUS, lab } from '@/lib/labels'
@@ -14,7 +15,9 @@ export default async function BuscarPage({ searchParams }: { searchParams: Promi
   const { t, m } = ctx
   const q = (flat(await searchParams).q ?? '').slice(0, 80).trim()
   const r = await searchAll(ctx, q)
-  const none = r.accounts.length + r.leads.length + r.deals.length + r.others.length === 0
+  // MULTI-03: si lo que se buscó tiene forma de identificador fiscal, se compara su huella (coincidencia exacta). El texto buscado no se guarda.
+  const byTax = (await accountsByTaxId(ctx, q)).filter((x) => !r.accounts.some((a) => a.id === x.id))
+  const none = r.accounts.length + r.leads.length + r.deals.length + r.others.length + byTax.length === 0
   const group = (title: string, count: number) => (
     <h2 className="mb-2 flex items-baseline gap-2 text-[15px] leading-6 font-semibold">{title}<span className="num text-[13px] font-normal text-muted">{count}</span></h2>
   )
@@ -35,6 +38,23 @@ export default async function BuscarPage({ searchParams }: { searchParams: Promi
         <Empty title={m('search.empty.title')} hint={m('search.empty.body')} />
       ) : (
         <div className="space-y-8">
+          {byTax.length > 0 && (
+            <section data-testid="search-tax">
+              {group(t('Por identificador fiscal', 'By tax ID'), byTax.length)}
+              <ul className="card divide-y divide-line overflow-hidden">
+                {byTax.map((a) => (
+                  <li key={a.id}>
+                    <Link href={`/comercios/${a.id}?tab=datos`} className={row} data-testid="search-tax-hit">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[15px] font-medium text-strong">{a.name}</span>
+                        <span className="block truncate text-[13px] text-muted">{[a.locality, ctx.markets.length > 1 ? a.market_code : null, t('coincide el identificador fiscal completo', 'the full tax ID matches')].filter(Boolean).join(' · ')}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {r.accounts.length > 0 && (
             <section data-testid="search-accounts">
               {group(m('search.merchants'), r.accounts.length)}
