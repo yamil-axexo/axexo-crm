@@ -332,6 +332,9 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
       expect((await withUser(id, (tx) => tx`select 1 from crm.accounts where id = ${agencyAccount.id}`)).length, k).toBe(0)
       expect((await withUser(id, (tx) => tx<{ ok: boolean }[]>`select app.can_see_account(${agencyAccount.id}) as ok`))[0]!.ok, k).toBe(false)
     }
+    // "Ya lo lleva otra persona" tampoco se lo nombra a quien vende; a quien lidera el mercado sí.
+    expect((await withUser(await personaId('marco.pena'), (tx) => tx`select 1 from app.search_others('Abarrotes Agencia')`)).length).toBe(0)
+    expect((await withUser(await personaId('ana.robles'), (tx) => tx`select 1 from app.search_others('Abarrotes Agencia')`)).length).toBe(1)
     for (const k of ['ana.robles', 'valeria.soto', 'luis.tovar']) {
       const id = await personaId(k)
       expect((await withUser(id, (tx) => tx`select 1 from crm.leads where id = ${leadId}`)).length, k).toBe(1)

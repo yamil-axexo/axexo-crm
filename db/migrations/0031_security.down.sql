@@ -127,6 +127,36 @@ begin
 end $$;
 alter table crm.api_clients drop column owner_id, drop column expires_at;
 
+-- "Ya lo lleva otra persona" vuelve a como la dejó 0013 (antes de quitar la columna de agencia).
+create or replace function app.search_others(p_term text)
+returns table (kind text, id uuid, name text, locality text, owner_name text, market_code text)
+language sql stable security definer set search_path = crm, app, public, extensions, pg_catalog as $$
+  with t as (
+    select btrim(translate(app.norm(coalesce(p_term, '')), '%_\', '')) as n,
+           regexp_replace(coalesce(p_term, ''), '[^0-9]', '', 'g') as digits,
+           app.current_user_id() as me,
+           coalesce((select array_agg(distinct am.market_code) from app.active_memberships() am
+                      where am.role in ('rep','supervisor','market_lead')), '{}') as mk
+  ), acc as (
+    select 'account'::text as kind, a.id, a.name, a.locality, u.full_name as owner_name, a.market_code
+      from crm.accounts a join crm.users u on u.id = a.owner_id cross join t
+     where t.me is not null and a.market_code = any(t.mk) and a.archived_at is null and a.merged_into is null
+       and a.owner_id <> t.me
+       and ((length(t.n) >= 3 and a.name_norm like '%' || t.n || '%')
+            or (length(t.digits) >= 7 and a.phone like '%' || t.digits))
+     order by a.name limit 5
+  ), ld as (
+    select 'lead'::text as kind, l.id, l.business_name as name, l.locality, u.full_name as owner_name, l.market_code
+      from crm.leads l join crm.users u on u.id = l.owner_id cross join t
+     where t.me is not null and l.market_code = any(t.mk) and l.status in ('new','contacted','qualified')
+       and l.owner_id <> t.me
+       and ((length(t.n) >= 3 and app.norm(l.business_name) like '%' || t.n || '%')
+            or (length(t.digits) >= 7 and l.phone like '%' || t.digits))
+     order by l.business_name limit 5
+  )
+  select * from acc union all select * from ld
+$$;
+
 alter table crm.contacts drop column anonymized_at;
 alter table crm.deals drop column recruited_agency_id;
 alter table crm.leads drop column recruited_agency_id, drop column anonymized_at;

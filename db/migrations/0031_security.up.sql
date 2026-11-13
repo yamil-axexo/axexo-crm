@@ -422,6 +422,38 @@ create policy leads_agency_wall on crm.leads as restrictive for select to contig
   or recruited_agency_id = any((select app.my_agency_ids())::uuid[])
   or owner_id = (select app.current_user_id())
 );
+-- "Ya lo lleva otra persona" (0013) tampoco nombra a la venta directa lo que reclutó una agencia: misma función, una condición más.
+create or replace function app.search_others(p_term text)
+returns table (kind text, id uuid, name text, locality text, owner_name text, market_code text)
+language sql stable security definer set search_path = crm, app, public, extensions, pg_catalog as $$
+  with t as (
+    select btrim(translate(app.norm(coalesce(p_term, '')), '%_\', '')) as n,
+           regexp_replace(coalesce(p_term, ''), '[^0-9]', '', 'g') as digits,
+           app.current_user_id() as me,
+           coalesce((select array_agg(distinct am.market_code) from app.active_memberships() am
+                      where am.role in ('rep','supervisor','market_lead')), '{}') as mk
+  ), acc as (
+    select 'account'::text as kind, a.id, a.name, a.locality, u.full_name as owner_name, a.market_code
+      from crm.accounts a join crm.users u on u.id = a.owner_id cross join t
+     where t.me is not null and a.market_code = any(t.mk) and a.archived_at is null and a.merged_into is null
+       and a.owner_id <> t.me
+       and (a.recruited_agency_id is null or a.market_code = any(app.full_markets()))
+       and ((length(t.n) >= 3 and a.name_norm like '%' || t.n || '%')
+            or (length(t.digits) >= 7 and a.phone like '%' || t.digits))
+     order by a.name limit 5
+  ), ld as (
+    select 'lead'::text as kind, l.id, l.business_name as name, l.locality, u.full_name as owner_name, l.market_code
+      from crm.leads l join crm.users u on u.id = l.owner_id cross join t
+     where t.me is not null and l.market_code = any(t.mk) and l.status in ('new','contacted','qualified')
+       and l.owner_id <> t.me
+       and (l.recruited_agency_id is null or l.market_code = any(app.full_markets()))
+       and ((length(t.n) >= 3 and app.norm(l.business_name) like '%' || t.n || '%')
+            or (length(t.digits) >= 7 and l.phone like '%' || t.digits))
+     order by l.business_name limit 5
+  )
+  select * from acc union all select * from ld
+$$;
+
 -- Alcance por entidad legal: se suma con AND a todo lo anterior. Un comercio sin entidad legal no queda escondido.
 create policy accounts_entity_scope on crm.accounts as restrictive for select to contigo_app using (
   legal_entity_id is null
