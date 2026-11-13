@@ -410,6 +410,7 @@ describe('E18 · arranque, acceso y reportes de México', () => {
       expect((await getRollout(fer, 'MX')).steps.length).toBe(ROLLOUT_STEPS.length)
       expect(fer.can('rollout.manage', 'MX')).toBe(false)
       expect((await ctxFor('marco.pena')).can('rollout.read', 'MX')).toBe(false)
+      await expect(getRollout(await ctxFor('marco.pena'), 'MX')).rejects.toMatchObject({ code: 'forbidden' })
     } finally {
       await setLeadersFirst(ana, 'MX', false)
     }
@@ -447,6 +448,7 @@ describe('E18 · arranque, acceso y reportes de México', () => {
     expect(csv.csv).toContain('Leads capturados')
     expect((await one(admin`select after from crm.audit_events where action = 'report.exported' order by at desc limit 1`)).after).toMatchObject({ report: 'market_mensual', rows: 6 })
     await expect(exportMarketReport(rep, 'MX', 6, 'mensual')).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(getMarketReport(rep, 'MX', 6)).rejects.toMatchObject({ code: 'forbidden' })
   })
 
   it('E18.F9: los leads descartados viven aparte como base de correo, solo con quien dio su consentimiento', async () => {

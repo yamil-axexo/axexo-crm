@@ -2,6 +2,7 @@ import 'server-only'
 import type postgres from 'postgres'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { forbidden } from '@/lib/errors'
 import { ROLLOUT_STEPS } from '@/domain/rollout'
 import { winRuleOf, type WinRule } from '@/domain/mx-config'
 
@@ -73,6 +74,7 @@ const bucketSql = (tx: Tx) => tx`case when app.store_count(l.custom) is null the
  */
 export async function getMarketReport(ctx: Ctx, market: string, months: number): Promise<MarketReport> {
   const mk = ctx.market(market)
+  if (!ctx.can('report.view', market)) throw forbidden()
   const span = (REPORT_MONTHS as readonly number[]).includes(months) ? months : 6
   return withUser(ctx.user.id, async (tx) => {
     const tz = mk.timezone
@@ -146,6 +148,7 @@ export type RolloutPerson = { user_id: string; full_name: string; role: string; 
 
 export async function getRollout(ctx: Ctx, market: string) {
   ctx.market(market)
+  if (!ctx.can('rollout.read', market)) throw forbidden()
   return withUser(ctx.user.id, async (tx) => {
     const state = await tx<{ leaders_first: boolean; team_opened_at: Date | null }[]>`select leaders_first, team_opened_at from crm.market_rollout where market_code = ${market}`
     const rows = await tx<{ step: string; done_at: Date | null; done_by: string | null; note: string | null; link: string | null }[]>`
