@@ -66,12 +66,8 @@ export async function revokeMcpClient(ctx: Ctx, clientId: string): Promise<void>
 /** Lo que la pantalla de consentimiento muestra: el cliente existe, no está revocado y la URL de regreso es la registrada. */
 export async function authorizeRequest(ctx: Ctx, p: { client_id?: string; redirect_uri?: string; code_challenge?: string; code_challenge_method?: string; response_type?: string }): Promise<{ name: string } | null> {
   if (p.response_type !== 'code' || p.code_challenge_method !== 'S256' || !/^[A-Za-z0-9_-]{43,128}$/.test(p.code_challenge ?? '')) return null
-  const rows = await withoutUser((tx) => tx<{ name: string; redirect_uris: string[] }[]>`
-    select name, redirect_uris from crm.mcp_oauth_clients where client_id = ${p.client_id ?? ''} and revoked_at is null`)
-  const c = rows[0]
-  if (!c || !c.redirect_uris.includes(p.redirect_uri ?? '')) return null
-  void ctx
-  return { name: c.name }
+  const rows = await withUser(ctx.user.id, (tx) => tx<{ name: string | null }[]>`select app.mcp_oauth_client_name(${p.client_id ?? ''}, ${p.redirect_uri ?? ''}) as name`)
+  return rows[0]?.name ? { name: rows[0].name } : null
 }
 
 /** La persona acepta: devuelve la URL de regreso con el código y el state. */

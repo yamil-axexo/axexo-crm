@@ -7,6 +7,7 @@ alter table crm.security_alerts add constraint security_alerts_kind_check check 
 update crm.settings set value = value - 'list_rows_per_day' where key = 'security.thresholds';
 drop table if exists crm.agent_redteam_reviews;
 drop function if exists app.mcp_oauth_user(text);
+drop function if exists app.mcp_oauth_client_name(text, text);
 drop function if exists app.mcp_oauth_store_token(text, text, uuid, text, int);
 drop function if exists app.mcp_oauth_redeem(text, text, text);
 drop function if exists app.mcp_oauth_issue_code(text, text, text, text);

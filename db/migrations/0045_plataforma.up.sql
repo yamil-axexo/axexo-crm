@@ -440,6 +440,14 @@ begin
   values (app.current_user_id(), 'mcp_oauth.authorized', 'mcp_oauth_client', jsonb_build_object('client_id', p_client));
 end $$;
 
+/** La pantalla de consentimiento: el cliente existe, no está retirado y la URL de regreso es la registrada. Solo devuelve el nombre. */
+create or replace function app.mcp_oauth_client_name(p_client text, p_redirect text) returns text
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select c.name from crm.mcp_oauth_clients c where c.client_id = p_client and c.revoked_at is null and p_redirect = any(c.redirect_uris)
+$$;
+revoke all on function app.mcp_oauth_client_name(text, text) from public;
+grant execute on function app.mcp_oauth_client_name(text, text) to contigo_app;
+
 /** Canje del código (sin sesión): devuelve el reto guardado y a quién pertenece; el código queda usado aunque falle la verificación. */
 create or replace function app.mcp_oauth_redeem(p_code_hash text, p_client text, p_redirect text)
 returns table (user_id uuid, code_challenge text, scope text)

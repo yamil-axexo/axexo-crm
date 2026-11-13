@@ -223,8 +223,10 @@ describe('UX-02: teléfono exacto, texto completo y tiempo medido', () => {
     expect((await searchAll(lucia, local)).accounts.map((a) => a.id)).toContain(acc.id)
     // Los últimos 7 dígitos ya no encuentran nada: no se busca por pedazo.
     expect((await searchAll(lucia, acc.phone.slice(-7))).accounts.map((a) => a.id)).not.toContain(acc.id)
-    const word = acc.name.split(/\s+/).find((w) => w.length >= 4)!
-    expect((await searchAll(lucia, word.slice(0, 4))).accounts.map((a) => a.id)).toContain(acc.id)
+    // Por palabras (texto completo con prefijo): el nombre escrito sin acentos y con la última palabra a medias.
+    const words = acc.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/).filter((w) => w.length >= 3)
+    const typed = [...words.slice(0, -1), words.at(-1)!.slice(0, Math.max(3, words.at(-1)!.length - 1))].join(' ')
+    expect((await searchAll(lucia, typed)).accounts.map((a) => a.id)).toContain(acc.id)
     const plan_ = await admin<{ plan: string }[]>`explain select 1 from crm.accounts where search_tsv @@ to_tsquery('simple', 'abarrotes:*')`
     expect(plan_.length).toBeGreaterThan(0)
     await new Promise((r) => setTimeout(r, 200))
