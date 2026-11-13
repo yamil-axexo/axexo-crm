@@ -1,3 +1,4 @@
+import { AccountDataPanel, AccountThreadPanel } from '@/app/(app)/embudo-panels'
 import Link from 'next/link'
 import { CalendarPlus, MapPinCheck, MessageCircle, MessageSquareText, Navigation, Phone, StickyNote, X } from 'lucide-react'
 import type { Ctx } from '@/server/context'
@@ -374,6 +375,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </ol>
             </>
           )}
+          <AccountThreadPanel ctx={ctx} accountId={a.id} market={a.market_code} canWrite={canWrite} />
         </div>
       )}
 
@@ -640,6 +642,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               )}
             </section>
           )}
+          <AccountDataPanel ctx={ctx} accountId={a.id} market={a.market_code} canEdit={canEdit} />
         </div>
       )}
     </article>

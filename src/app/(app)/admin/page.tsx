@@ -81,6 +81,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         { key: 'ventas', label: t('Ventas y Operaciones', 'Sales and Operations'), items: [tabItem('embudos'), tabItem('entrada'),
           // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
           ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }] : []),
+          // Reglas de asignación de leads, requisitos de etapa con condición, motivos, etiquetas y lo que quedó en cola (paquete embudo).
+          ...(admin ? [{ key: 'embudo', href: '/admin/embudo', label: t('Asignación y embudo', 'Assignment and pipeline') }] : []),
           // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
           ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : [])] },
         { key: 'avisos', label: t('Avisos y soporte', 'Notices and support'), items: [

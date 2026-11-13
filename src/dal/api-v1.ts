@@ -133,13 +133,16 @@ export async function readCatalogs(key: ApiKey): Promise<Record<string, unknown>
     const stages = await tx<{ id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string }[]>`
       select s.id, s.pipeline_id, s.position, s.name_es, s.name_en, s.kind from crm.stages s join crm.pipelines p on p.id = s.pipeline_id
        where p.market_code = ${market} and p.is_active order by s.position`
-    const reasons = await tx`select code, kind, label_es, label_en from crm.loss_reasons where market_code is null or market_code = ${market} order by code`
+    // PIPE-04: el catálogo de motivos se publica con su versión, qué está vigente y para qué tipo de venta: quien lo consume
+    // (la Sales App) usa los mismos códigos y sabe si su copia está al día.
+    const reasons = await tx`select code, kind, label_es, label_en, is_active, motors, market_code from crm.loss_reasons where market_code is null or market_code = ${market} order by code`
+    const reasonVersion = await tx<{ version: number; changed_at: Date }[]>`select version, changed_at from crm.catalog_versions where catalog = 'reason_codes'`
     const types = await tx`select code, kind, label_es, label_en from crm.account_types where is_active and (market_code is null or market_code = ${market}) order by code`
     const territories = await tx`select id, name from crm.territories where market_code = ${market} and archived_at is null order by name`
     return {
       market,
       pipelines: pipelines.map((p) => ({ ...p, stages: stages.filter((s) => s.pipeline_id === p.id).map(({ pipeline_id: _p, ...s }) => s) })),
-      loss_reasons: [...reasons], account_types: [...types], territories: [...territories],
+      loss_reasons: [...reasons], reason_catalog: { version: reasonVersion[0]?.version ?? 1, changed_at: reasonVersion[0]?.changed_at ?? null }, account_types: [...types], territories: [...territories],
     }
   })
 }

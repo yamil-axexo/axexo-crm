@@ -1,5 +1,6 @@
 import { DealPeople } from './people'
 import Link from 'next/link'
+import { DealEmbudoPanel } from '@/app/(app)/embudo-panels'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { Phone } from 'lucide-react'
@@ -303,6 +304,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                 action={canEditFields ? <LinkButton href={`/deals/${deal.id}/campos`} size="sm" testId="custom-edit">{t('Editar campos', 'Edit fields')}</LinkButton> : undefined} />
             </Card>
           )}
+
+          <DealEmbudoPanel ctx={ctx} dealId={deal.id} />
 
           <Card>
             <CardTitle title={t('Hilo', 'Thread')} hint={<span data-testid="thread-zone">{zoneNote(market, locale)}</span>} />

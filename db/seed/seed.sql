@@ -706,3 +706,22 @@ insert into crm.account_sensitive (account_id, field_key, market_code, value)
 select a.id, 'commercial_terms', a.market_code, 'Pago a 30 días. Descuento por volumen desde 50 puntos de venta. Revisión anual.'
   from crm.accounts a where a.market_code = 'MX' and a.segment = 'b2b' and a.owner_id = pg_temp.uid('diana.cruz') and a.archived_at is null
  order by a.name, a.id limit 1;
+-- embudo
+-- Hitos de venta de los comercios sintéticos (PIPE-06): la primera transacción que ya traía el archivo de ventas de ejemplo
+-- queda como hito y como primer renglón de su historia; el primer fondeo, un día antes y con un método (datos inventados).
+insert into crm.account_milestones (account_id, market_code, first_txn_at, first_funding_at, funding_method, as_of)
+select m.account_id, a.market_code, min(m.first_txn_at), min(m.first_txn_at) - interval '1 day',
+       case when a.market_code = 'US' then 'ach' when pg_temp.h('fm' || m.account_id::text) % 2 = 0 then 'spei' else 'cash' end, max(m.as_of)
+  from crm.merchant_metrics_daily m join crm.accounts a on a.id = m.account_id
+ where m.first_txn_at is not null group by m.account_id, a.market_code
+on conflict (account_id) do nothing;
+insert into crm.milestone_events (account_id, market_code, kind, action, occurred_at, method, source)
+select account_id, market_code, 'first_funding', 'set', first_funding_at, funding_method, 's5' from crm.account_milestones where first_funding_at is not null
+union all
+select account_id, market_code, 'first_txn', 'set', first_txn_at, null, 's5' from crm.account_milestones where first_txn_at is not null;
+-- El primer toque de los leads sintéticos que traen campaña o clic de anuncio (LEAD-02), para que la atribución se pueda filtrar y reportar.
+insert into crm.source_touches (market_code, lead_id, touch, touched_at, source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid)
+select l.market_code, l.id, 'first', l.created_at, l.source, l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid
+  from crm.leads l where coalesce(l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid) is not null
+   and not exists (select 1 from crm.source_touches t where t.lead_id = l.id);
+

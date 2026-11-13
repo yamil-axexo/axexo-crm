@@ -7,6 +7,7 @@ import { datosJobs } from './datos'
 import { mercadosJobs } from './mercados'
 import { seguridadJobs } from './seguridad'
 import { gobiernoJobs } from './gobierno'
+import { embudoJobs } from './embudo'
 
 /** Every scheduled job of the app. One line per package: `...packageJobs`. */
 export const JOBS: Job[] = [
@@ -18,4 +19,5 @@ export const JOBS: Job[] = [
   ...mercadosJobs,
   ...seguridadJobs,
   ...gobiernoJobs,
+  ...embudoJobs,
 ]

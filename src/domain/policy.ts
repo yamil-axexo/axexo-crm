@@ -130,6 +130,9 @@ export const CAPABILITIES = {
   'data.quality': [...MANAGERS, 'ops'],
   // Matriz de productos por comercio y su estado con cada proveedor: la mantiene Operaciones.
   'account.products': ['admin', 'ops'],
+  // Paquete embudo (0029). Corregir un hito del comercio que resultó no ser cierto (primer fondeo, primera transacción, hábito):
+  // quien lidera el mercado o administra, siempre con motivo. La corrección reabre el negocio que ese hito había ganado.
+  'deal.correct_win': ['admin', 'market_lead'],
   // México (paquete mx). Mientras las hojas se retiran, quien dirige un equipo carga las visitas que el campo sigue anotando
   // ahí; las tiendas ya migradas (un negocio ganado en su fecha real) las carga quien lidera el mercado o administración.
   'visit.sheet_load': MANAGERS,

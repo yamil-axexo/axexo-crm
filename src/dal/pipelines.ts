@@ -65,7 +65,7 @@ export type BoardDeal = {
 
 export const BOARD_LIMIT = 40
 
-export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string; noStep?: boolean; paused?: boolean; team?: string }) {
+export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string; noStep?: boolean; paused?: boolean; team?: string; /** PIPE-05: solo los negocios con revisita pendiente a quien decide. */ revisit?: boolean }) {
   return withUser(ctx.user.id, async (tx) => {
     const pipes = await tx<{ id: string; market_code: string; motor: string; name: string; close_by_transaction: boolean; has_items: boolean }[]>`
       select id, market_code, motor, name, close_by_transaction, has_items from crm.pipelines where id = ${pipelineId} and market_code = any(app.my_markets())`
@@ -85,7 +85,8 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
           from crm.deals d join crm.accounts a on a.id = d.account_id left join crm.users u on u.id = d.owner_id
          where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}
            ${f.noStep ? tx`and (d.next_step is null or d.next_step_due is null)` : tx``}
-           ${f.paused ? tx`and d.paused_at is not null` : tx``}) x
+           ${f.paused ? tx`and d.paused_at is not null` : tx``}
+           ${f.revisit ? tx`and d.revisit_needed` : tx``}) x
        where rn <= ${f.noStep ? BOARD_LIMIT * 3 : BOARD_LIMIT}`
     const totals = await tx<{ stage_id: string; n: number; amount: string | null; revisits: number; no_step: number; paused: number }[]>`
       select d.stage_id, count(*)::int as n, sum(d.amount_minor)::text as amount, count(*) filter (where d.revisit_needed)::int as revisits,
@@ -93,11 +94,12 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
              count(*) filter (where d.next_step is null or d.next_step_due is null)::int as no_step
         from crm.deals d where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner} group by d.stage_id`
     // Con un filtro puesto ("Sin próximo paso", "En pausa"), cada columna cuenta y suma solo lo que se ve.
-    const shown = f.noStep || f.paused ? await tx<{ stage_id: string; n: number; amount: string | null }[]>`
+    const shown = f.noStep || f.paused || f.revisit ? await tx<{ stage_id: string; n: number; amount: string | null }[]>`
       select d.stage_id, count(*)::int as n, sum(d.amount_minor)::text as amount
         from crm.deals d where d.pipeline_id = ${pipelineId} and d.status = 'open' ${owner}
          ${f.noStep ? tx`and (d.next_step is null or d.next_step_due is null)` : tx``}
-         ${f.paused ? tx`and d.paused_at is not null` : tx``} group by d.stage_id` : null
+         ${f.paused ? tx`and d.paused_at is not null` : tx``}
+         ${f.revisit ? tx`and d.revisit_needed` : tx``} group by d.stage_id` : null
     // Cada negocio lleva su moneda: el resumen suma por moneda, sin convertir.
     const amounts = await tx<{ currency: string; amount: string }[]>`
       select d.currency, sum(d.amount_minor)::text as amount from crm.deals d
