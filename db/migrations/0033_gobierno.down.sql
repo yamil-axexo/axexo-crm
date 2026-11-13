@@ -16,6 +16,7 @@ drop table crm.maintenance_windows;
 drop table crm.components;
 drop table crm.restore_tests;
 drop table crm.incidents;
+drop function app.slo_check();
 drop table crm.service_objectives;
 drop function app.record_error(text, text, text, text, text);
 drop table crm.error_events;

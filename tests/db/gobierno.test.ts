@@ -13,7 +13,7 @@ import {
 } from '@/dal/gobierno'
 import { createField } from '@/domain/b2b'
 import { RELEASE_CHECKLIST } from '@/content/release-checklist'
-import { deployWatch, gobiernoJobs, healthProbe } from '@/server/jobs/gobierno'
+import { deployWatch, gobiernoJobs, healthProbe, sloWatch } from '@/server/jobs/gobierno'
 import { JOBS } from '@/server/jobs/registry'
 import { tracesAdapter, simulatedSpans } from '@/server/adapters/traces'
 import { billingAdapter, simulatedBilling } from '@/server/adapters/billing'
@@ -304,7 +304,7 @@ describe('GOB-04: dueños por componente, mantenimiento, versiones con lista de 
   })
 
   it('las tareas programadas del paquete están en el registro y corren dos veces sin romper', async () => {
-    expect(JOBS.map((j) => j.key)).toEqual(expect.arrayContaining(['gobierno.deploy_watch', 'gobierno.health_probe']))
+    expect(JOBS.map((j) => j.key)).toEqual(expect.arrayContaining(['gobierno.deploy_watch', 'gobierno.health_probe', 'gobierno.slo_watch']))
     for (const j of gobiernoJobs) expect(j.description.es.length > 10 && j.description.en.length > 10 && j.everyMinutes >= 5).toBe(true)
     const nora = await ctxFor('nora.salas')
     const before = (await serviceBoard(nora)).probe.n
@@ -313,6 +313,30 @@ describe('GOB-04: dueños por componente, mantenimiento, versiones con lista de 
     expect((await serviceBoard(nora)).probe.n - before).toBe(2)
     // sin commit en el ambiente de pruebas, la tarea de despliegues no anota nada
     expect((await withoutUser((tx) => gobiernoJobs.find((j) => j.key === 'gobierno.deploy_watch')!.run(tx))).done).toBe(0)
+  })
+
+  it('alerta: si un objetivo de servicio no se cumple, administración recibe un aviso, uno por objetivo y por día', async () => {
+    const noraId = await personaId('nora.salas')
+    await admin`update crm.service_objectives set target = null, alerted_on = null where kind = 'slo'`
+    await admin`insert into crm.request_metrics (day, kind, screen, n, errors, total_ms, buckets)
+                values ((now() at time zone 'utc')::date, 'api', 'prueba-alerta', 100, 30, 100000, '{0,0,0,0,0,100}')`
+    // sin objetivo fijado no hay alerta: CONTIGO no inventa el umbral
+    expect((await withoutUser((tx) => sloWatch(tx))).done).toBe(0)
+    await admin`update crm.service_objectives set target = 99.9 where key = 'availability'`
+    await admin`update crm.service_objectives set target = 1000 where key = 'latency_api'`
+    // quien no es el sistema no puede disparar ni consumir la alerta
+    expect(await asPersona('lucia.vega', async (tx) => (await tx`select * from app.slo_check()`).length)).toBe(0)
+    expect(await asPersona('nora.salas', async (tx) => (await tx`select * from app.slo_check()`).length)).toBe(0)
+    const out = await withoutUser((tx) => sloWatch(tx))
+    expect(out).toMatchObject({ done: 2, note: 'availability, latency_api' })
+    const notices = await admin<{ title: string; kind: string }[]>`select title, kind from crm.notices where user_id = ${noraId} and kind = 'service_alert' order by title`
+    expect(notices).toHaveLength(2)
+    expect(notices.map((n) => n.title).join(' | ')).toContain('Disponibilidad')
+    // el mismo día no vuelve a avisar
+    expect((await withoutUser((tx) => sloWatch(tx))).done).toBe(0)
+    expect((await admin`select 1 from crm.notices where kind = 'service_alert'`).length).toBe(2)
+    await admin`delete from crm.request_metrics where screen = 'prueba-alerta'`
+    await admin`update crm.service_objectives set target = null, alerted_on = null where kind = 'slo'`
   })
 })
 

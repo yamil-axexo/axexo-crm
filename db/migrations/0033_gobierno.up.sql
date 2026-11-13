@@ -91,6 +91,8 @@ create table crm.service_objectives (
   agreed_on   date,
   updated_by  uuid references crm.users(id),
   updated_at  timestamptz,
+  -- El último día en que se avisó que el objetivo no se cumple: un aviso por objetivo y por día, no uno por medición.
+  alerted_on  date,
   -- Un objetivo de recuperación solo vale con quién lo acordó y cuándo.
   constraint service_objectives_recovery check (kind <> 'recovery' or target is null or (agreed_by is not null and agreed_on is not null))
 );
@@ -104,6 +106,66 @@ grant update (target, agreed_by, agreed_on, updated_by, updated_at) on crm.servi
 create policy service_objectives_read on crm.service_objectives for select to contigo_app using ((select app.is_global()));
 create policy service_objectives_upd on crm.service_objectives for update to contigo_app
   using ((select app.is_admin())) with check ((select app.is_admin()) and updated_by = (select app.current_user_id()));
+
+-- Alerta: qué objetivos de servicio no se cumplen con lo medido ayer y hoy. La corre la tarea programada (sin persona con
+-- sesión o como el usuario de sistema); marca el día para avisar una sola vez. Con menos de 20 mediciones no opina.
+create or replace function app.slo_check()
+returns table (key text, target numeric, measured numeric)
+language plpgsql security definer set search_path = pg_catalog, crm, app as $$
+declare
+  v_me     uuid := app.current_user_id();
+  v_today  date := (now() at time zone 'utc')::date;
+  v_limits numeric[] := array[200, 500, 1000, 2000, 4000, 600000];
+  o        record;
+  v_n      bigint;
+  v_err    bigint;
+  v_b      bigint[];
+  v_acc    bigint;
+  v_val    numeric;
+  v_breach boolean;
+begin
+  if v_me is not null and v_me is distinct from app.system_user_id() then
+    return;
+  end if;
+  for o in select s.key as k, s.target as t from crm.service_objectives s
+            where s.kind = 'slo' and s.target is not null and (s.alerted_on is null or s.alerted_on < v_today) order by s.position loop
+    v_val := null;
+    v_breach := false;
+    if o.k = 'availability' then
+      select coalesce(sum(m.n), 0), coalesce(sum(m.errors) filter (where m.kind <> 'page'), 0) into v_n, v_err
+        from crm.request_metrics m where m.day >= v_today - 1;
+      v_err := v_err + (select count(*) from crm.error_events e where e.kind = 'page' and e.at >= ((v_today - 1)::timestamp at time zone 'utc'));
+      if v_n >= 20 then
+        v_val := round(greatest(0, (v_n - v_err)::numeric / v_n * 100), 2);
+        v_breach := v_val < o.t;
+      end if;
+    else
+      select coalesce(sum(m.n), 0), array[coalesce(sum(m.buckets[1]), 0), coalesce(sum(m.buckets[2]), 0), coalesce(sum(m.buckets[3]), 0),
+                                           coalesce(sum(m.buckets[4]), 0), coalesce(sum(m.buckets[5]), 0), coalesce(sum(m.buckets[6]), 0)]
+        into v_n, v_b from crm.request_metrics m where m.day >= v_today - 1 and m.kind = replace(o.k, 'latency_', '');
+      if v_n >= 20 then
+        v_acc := 0;
+        for i in 1..6 loop
+          v_acc := v_acc + v_b[i];
+          if v_acc >= 0.95 * v_n then
+            v_val := v_limits[i];
+            exit;
+          end if;
+        end loop;
+        v_breach := v_val > o.t;
+      end if;
+    end if;
+    if v_breach then
+      update crm.service_objectives s set alerted_on = v_today where s.key = o.k;
+      key := o.k;
+      target := o.t;
+      measured := v_val;
+      return next;
+    end if;
+  end loop;
+end $$;
+revoke all on function app.slo_check() from public;
+grant execute on function app.slo_check() to contigo_app;
 
 -- ------------------------------------------------------------------ GOB-07: incidentes
 create table crm.incidents (
