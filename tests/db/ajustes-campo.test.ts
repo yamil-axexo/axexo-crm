@@ -17,6 +17,7 @@ import { lossReasonsFor } from '@/dal/b2b'
 import { getDeal } from '@/dal/pipelines'
 import { getAccount } from '@/dal/accounts'
 import { addDays, isoDay } from '@/lib/format'
+import { fillEnrollment } from '../support/us-enrollment'
 
 // Ola 4, paquete ajustes-campo: lo que la ronda de aceptación dejó abierto en campo y Operaciones. Cada regla con su prueba.
 const admin = owner()
@@ -157,6 +158,8 @@ describe('ganar a mano no se queda a medias', () => {
     const id = await createDeal(jade, { accountId: acc.id!, pipelineId: await uid('p-us-dealer'), title: `Alta ${tag()}`, nextStep: 'Reunir documentos', nextStepDue: todayUS })
     const won = await stage('p-us-dealer', 'won')
     const carrier = await stage('p-us-dealer', 'carrier')
+    // El alta de dealers de US tiene nueve etapas con sus candados (paquete us-embudo): el negocio ya trae lo de las anteriores.
+    await fillEnrollment(admin, id, ['account_funding'])
     await admin`update crm.pipelines set close_by_transaction = false where id = ${await uid('p-us-dealer')}`
     await expect(moveDeal(tom, id, won, undefined, undefined, { wonOn: todayUS })).rejects.toMatchObject({ code: 'not_handed_over', status: 403 })
     // la entrega pide lo que la primera etapa de Operaciones tiene como requerido: monto y "Cuenta ACH o prepago", además de lo anterior
@@ -170,9 +173,9 @@ describe('ganar a mano no se queda a medias', () => {
     expect(gate.es).toContain('Cuenta ACH o prepago')
     const info = (await gateInfo(jade, id, carrier))!
     expect(info.missing).toEqual(['amount', 'field:account_funding'])
-    expect(info.fields).toEqual([{ ref: 'field:account_funding', key: 'account_funding', label_es: 'Cuenta ACH o prepago', label_en: 'ACH or prepaid account', data_type: 'select', options: ['ACH', 'Prepaid'] }])
+    expect(info.fields).toEqual([{ ref: 'field:account_funding', key: 'account_funding', label_es: 'Cuenta ACH o prepago', label_en: 'ACH or prepaid account', data_type: 'select', options: ['ACH', 'Prepaid/Wallet'] }])
     await updateDeal(jade, id, { amount: 900 })
-    await updateCustom(jade, 'deal', id, { account_funding: 'Prepaid' })
+    await updateCustom(jade, 'deal', id, { account_funding: 'Prepaid/Wallet' })
     await moveDeal(jade, id, carrier)
     // ya entregado, Operaciones lo gana y a Jade le llega el aviso, en su idioma
     await moveDeal(tom, id, won, undefined, undefined, { wonOn: todayUS })
@@ -192,7 +195,7 @@ describe('Operaciones: lista de alta por embudo y Merchant ID duplicado', () => 
   it('un pedido en la cola no trae documentos, proveedores ni capacitación del alta de un dealer', async () => {
     const jade = await ctxFor('jade.kim')
     const tom = await ctxFor('tom.reyes')
-    const orders = await one(admin<{ id: string; ops_checklist: boolean }[]>`select id, ops_checklist from crm.pipelines where market_code = 'US' and multi_open and is_active order by position limit 1`)
+    const orders = await one(admin<{ id: string; ops_checklist: boolean }[]>`select id, ops_checklist from crm.pipelines where market_code = 'US' and multi_open and has_items and is_active order by position limit 1`)
     expect(orders.ops_checklist).toBe(false)
     expect((await one(admin<{ ops_checklist: boolean }[]>`select ops_checklist from crm.pipelines where id = ${await uid('p-us-dealer')}`)).ops_checklist).toBe(true)
     const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes pedido ${tag()}`, segment: 'orders', force: true })
