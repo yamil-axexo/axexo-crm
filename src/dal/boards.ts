@@ -165,7 +165,7 @@ export async function getLtPanel(ctx: Ctx) {
                  select distinct on (mm.account_id) mm.volume_minor_30d from crm.merchant_metrics_daily mm
                   where mm.market_code = m.code order by mm.account_id, mm.as_of desc) x), 0)::text as volume_30d,
              -- MULTI-01 (0026_markets): la tasa vigente en la fecha de corte del archivo de ventas, no la de hoy: el consolidado se reproduce.
-             (select r.usd_rate::text from app.fx_at(m.currency, coalesce((select max(mm.as_of) from crm.merchant_metrics_daily mm where mm.market_code = m.code), current_date)) r
+             (select r.usd_rate::text from app.fx_at(m.currency, coalesce((select max(mm.as_of) from crm.merchant_metrics_daily mm where mm.market_code = m.code), ${marketToday(tx, tx`m.code`)})) r
                where trim(m.currency) <> 'USD') as usd_rate,
              (select max(mm.as_of)::text from crm.merchant_metrics_daily mm where mm.market_code = m.code) as as_of
         from crm.markets m
