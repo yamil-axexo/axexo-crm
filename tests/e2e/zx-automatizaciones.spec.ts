@@ -266,8 +266,8 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
 
     // A quien supervisa su equipo le llega a Hoy; desde el negocio lo aprueba de un toque.
     await loginAs(page, 'paula.mendez')
-    const todo = page.getByTestId('queue-row').filter({ hasText: `Aprobar: ${title} pasa a "Propuesta"` })
-    await expect(todo).toHaveCount(1)
+    // La tarea llega a Hoy: arriba, como lo siguiente por hacer, o en la lista de hoy.
+    await expect(page.getByTestId('queue')).toContainText(`Aprobar: ${title} pasa a "Propuesta"`)
     await page.goto(`/deals/${dealId}`)
     await expect(page.getByTestId('approval-waiting')).toContainText('Esperando aprobación de Supervisión')
     await page.getByTestId('approval-approve-btn').click()
@@ -278,7 +278,7 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
         from crm.deals d join crm.stages s on s.id = d.stage_id where d.id = ${dealId}`)[0]!
     expect(moved).toEqual({ code: 'propuesta', actor: diana })
     await page.goto('/hoy')
-    await expect(page.getByTestId('queue-row').filter({ hasText: `Aprobar: ${title}` })).toHaveCount(0)
+    await expect(page.getByTestId('queue')).not.toContainText(`Aprobar: ${title}`)
 
     // Quien lo pidió se entera en Hoy. En inglés, la ficha dice lo mismo.
     await loginAs(page, 'diana.cruz')
@@ -319,7 +319,7 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
 
     // Fernando supervisa el equipo de Lucía: le llega la tarea a Hoy y la guardia dice que ya se le avisó.
     await loginAs(page, 'fernando.ibarra')
-    await expect(page.getByTestId('queue-row').filter({ hasText: `Lead sin primer contacto: ${name}. Lo lleva Lucía Vega.` })).toHaveCount(1)
+    await expect(page.getByTestId('queue')).toContainText(`Lead sin primer contacto: ${name}. Lo lleva Lucía Vega.`)
     await page.goto('/supervisor')
     const row = page.getByTestId('watch-row').filter({ hasText: name })
     await expect(row.getByTestId('watch-escalated')).toHaveText('Avisado a supervisión')
