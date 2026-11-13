@@ -1,86 +1,22 @@
 import 'server-only'
-import { marketToday, withUser, type Tx } from '@/server/db'
+import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { notFound } from '@/lib/errors'
+import { runSchedule } from '@/domain/automation/engine'
 
 export const EXCEPTION_KINDS = ['lead_sla', 'revisit_due', 'activation_risk', 'no_next_step', 'stalled_deal', 'reactivation', 'unowned_account', 'duplicate_suspect', 'unmatched_event'] as const
 export type ExceptionKind = (typeof EXCEPTION_KINDS)[number]
 
-export const ACTIVATION_GRACE_DAYS = 7
-
 /**
- * CAMPO-04 / CS-03 / PIPE-03: las reglas viven aquí, en un solo lugar (AUT-01), y producen la cola de excepciones.
- * Cada regla abre la excepción si la condición existe y la cierra sola cuando deja de existir.
- * Corre como usuario de sistema dentro de una transacción.
+ * CAMPO-04 / CS-03 / PIPE-03: las reglas ya no viven en el código. Son automatizaciones guardadas en la base (AUT-03),
+ * por mercado, que se ven y se cambian en Administración > Automatizaciones; el motor (domain/automation/engine.ts) las
+ * lee y las ejecuta. Esta función conserva el contrato de siempre: abre el aviso si la condición existe, lo cierra sola
+ * cuando deja de existir, y devuelve cuántos abrió y cerró. Corre como usuario de sistema dentro de una transacción.
  */
-export async function evaluateRules(tx: Tx): Promise<{ opened: number; closed: number }> {
-  const before = await tx<{ n: number }[]>`select count(*)::int as n from crm.exceptions where resolved_at is null`
-
-  await tx`
-    with cond as (
-      select 'lead_sla'::text as kind, 'high'::text as severity, l.market_code, null::uuid as account_id, null::uuid as deal_id, l.id as lead_id, l.owner_id,
-             jsonb_build_object('name', l.business_name, 'due', l.sla_due_at) as detail, 'lead_sla:' || l.id as dedupe_key
-        from crm.leads l where l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now()
-      union all
-      select 'revisit_due', 'high', d.market_code, d.account_id, d.id, null, d.owner_id,
-             jsonb_build_object('title', d.title, 'due', d.revisit_due, 'reason', d.revisit_reason), 'revisit_due:' || d.id
-        from crm.deals d where d.status = 'open' and d.revisit_needed and d.revisit_due <= ${marketToday(tx, tx`d.market_code`)}
-         -- con una visita por hacer en ese comercio, la revisita ya está en la lista de quien la lleva: no se avisa dos veces
-         and not exists (select 1 from crm.activities x where x.account_id = d.account_id and x.kind = 'visit' and x.done_at is null)
-      union all
-      select 'activation_risk', 'high', d.market_code, d.account_id, d.id, null, d.owner_id,
-             jsonb_build_object('title', d.title, 'since', d.stage_entered_at), 'activation_risk:' || d.id
-        from crm.deals d join crm.stages s on s.id = d.stage_id
-       where d.status = 'open' and s.kind = 'awaiting_txn' and d.stage_entered_at < now() - make_interval(days => ${ACTIVATION_GRACE_DAYS})
-      union all
-      select 'no_next_step', 'medium', d.market_code, d.account_id, d.id, null, d.owner_id,
-             jsonb_build_object('title', d.title), 'no_next_step:' || d.id
-        from crm.deals d join crm.stages s on s.id = d.stage_id
-       where d.status = 'open' and d.paused_at is null and s.kind = 'open' and not s.is_ops and (d.next_step is null or d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)} - 2)
-      union all
-      select 'stalled_deal', 'medium', d.market_code, d.account_id, d.id, null, d.owner_id,
-             jsonb_build_object('title', d.title, 'since', d.stage_entered_at, 'limit_days', s.rot_days), 'stalled_deal:' || d.id
-        from crm.deals d join crm.stages s on s.id = d.stage_id
-       where d.status = 'open' and d.paused_at is null and s.kind = 'open' and not s.is_ops and s.rot_days > 0 and d.stage_entered_at < now() - make_interval(days => s.rot_days)
-      union all
-      select 'reactivation', 'medium', a.market_code, a.id, null, null, a.owner_id,
-             jsonb_build_object('name', a.name, 'since', a.lifecycle_at), 'reactivation:' || a.id
-        from crm.accounts a where a.lifecycle = 'at_risk' and a.archived_at is null
-      union all
-      select 'unowned_account', 'low', a.market_code, a.id, null, null, null,
-             jsonb_build_object('name', a.name, 'lifecycle', a.lifecycle), 'unowned_account:' || a.id
-        from crm.accounts a
-       where a.owner_id is null and a.parent_id is null and a.archived_at is null and a.lifecycle in ('active','at_risk','onboarding')
-      union all
-      -- un aviso por comercio repetido (contra el más antiguo con ese teléfono), no uno por cada par
-      select 'duplicate_suspect', 'medium', b.market_code, a.id, null, null, b.owner_id,
-             jsonb_build_object('name', a.name, 'other_id', b.id, 'other_name', b.name, 'match', 'phone'), 'duplicate_suspect:' || a.id || ':' || b.id
-        from crm.accounts b
-        join lateral (select o.id, o.name from crm.accounts o
-                       where o.market_code = b.market_code and o.phone = b.phone and o.id < b.id and o.archived_at is null
-                       order by o.id limit 1) a on true
-       where b.phone is not null and b.archived_at is null
-    ),
-    closed as (
-      update crm.exceptions e set resolved_at = now(), resolution = 'auto'
-       where e.resolved_at is null and e.kind <> 'unmatched_event'
-         and not exists (select 1 from cond c where c.dedupe_key = e.dedupe_key)
-      returning 1
-    )
-    insert into crm.exceptions (market_code, kind, severity, account_id, deal_id, lead_id, owner_id, detail, dedupe_key)
-    select c.market_code, c.kind, c.severity, c.account_id, c.deal_id, c.lead_id, c.owner_id, c.detail, c.dedupe_key
-      from cond c
-     where not exists (select 1 from crm.exceptions e where e.dedupe_key = c.dedupe_key and e.resolved_at is null)
-       and not exists (select 1 from crm.exceptions e where e.dedupe_key = c.dedupe_key and e.resolution in ('dismissed', 'scheduled') and e.resolved_at > now() - interval '7 days')
-    on conflict do nothing`
-
-  await tx`update crm.settings set value = to_jsonb(now()) where key = 'rules_last_run'`
-  const after = await tx<{ n: number; auto: number }[]>`
-    select count(*) filter (where resolved_at is null)::int as n,
-           count(*) filter (where resolution = 'auto' and resolved_at > now() - interval '5 seconds')::int as auto from crm.exceptions`
-  const closed = after[0]?.auto ?? 0
-  return { opened: Math.max(0, (after[0]?.n ?? 0) - (before[0]?.n ?? 0) + closed), closed }
+export async function evaluateRules(tx: Tx, sys: Ctx | null = null): Promise<{ opened: number; closed: number }> {
+  const out = await runSchedule(tx, sys)
+  return { opened: out.opened, closed: out.closed }
 }
 
 /** Las reglas se reevalúan a lo sumo cada 15 minutos cuando alguien abre un tablero. */
@@ -89,7 +25,7 @@ export async function ensureRulesFresh(sys: Ctx, maxAgeMinutes = 15): Promise<vo
     const rows = await tx<{ stale: boolean }[]>`
       select coalesce((value #>> '{}')::timestamptz < now() - make_interval(mins => ${maxAgeMinutes}), true) as stale
         from crm.settings where key = 'rules_last_run' for update`
-    if (rows[0]?.stale ?? true) await evaluateRules(tx)
+    if (rows[0]?.stale ?? true) await evaluateRules(tx, sys)
   })
 }
 
@@ -100,7 +36,7 @@ export async function ensureRulesFresh(sys: Ctx, maxAgeMinutes = 15): Promise<vo
  */
 export async function runRulesNow(ctx: Ctx, sys: Ctx): Promise<{ opened: number; closed: number }> {
   ctx.assert('rules.run')
-  const out = await withUser(sys.user.id, (tx) => evaluateRules(tx))
+  const out = await withUser(sys.user.id, (tx) => evaluateRules(tx, sys))
   await withUser(ctx.user.id, (tx) => audit(tx, ctx, 'rules.evaluated', 'rules', null, null, null, { opened: out.opened, closed: out.closed }))
   return out
 }

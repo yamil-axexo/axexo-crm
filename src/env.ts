@@ -42,6 +42,10 @@ const schema = z
     // Migración desde Pipedrive: el token solo vive en el servidor (SEC-03) y solo sale hacia la API de Pipedrive.
     PIPEDRIVE_API_TOKEN: z.string().optional().or(z.literal('').transform(() => undefined)),
     PIPEDRIVE_API_BASE: z.string().url().default('https://api.pipedrive.com'),
+    // Tareas programadas: el disparo externo (POST /api/cron/run) solo existe si hay secreto; sin él responde 503 y no corre nada.
+    CRON_SECRET: z.string().min(16).max(200).optional().or(z.literal('').transform(() => undefined)),
+    // Disparo oportunista: con la app en uso, lo que ya toca corre después de responder, como mucho una vez por minuto. '0' lo apaga.
+    JOBS_ON_VISIT: z.enum(['0', '1']).default('1'),
     // Versión desplegada, para la página de estado. Las llena la plataforma de despliegue (Vercel las trae solas);
     // en otra plataforma se definen APP_COMMIT_SHA y APP_COMMIT_REF en el pipeline. Si no existen, la página lo dice.
     VERCEL_GIT_COMMIT_SHA: z.string().max(80).optional(),
