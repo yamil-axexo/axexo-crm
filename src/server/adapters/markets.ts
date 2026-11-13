@@ -85,7 +85,7 @@ export type FxFeedAdapter = {
   mode: Mode
   envVar: string
   /** Trae las tasas fechadas del día. Apagado: administración las carga a mano, con fecha y fuente. */
-  fetch: (currencies: string[]) => Promise<{ status: 'off' } | { status: 'ok'; rates: { currency: string; asOf: string; usdRate: number; source: string }[] }>
+  fetch: (currencies: string[], asOf: string) => Promise<{ status: 'off' } | { status: 'ok'; rates: { currency: string; asOf: string; usdRate: number; source: string }[] }>
 }
 export function fxFeedAdapter(): FxFeedAdapter {
   const envVar = 'FX_FEED_ADAPTER'
@@ -93,11 +93,10 @@ export function fxFeedAdapter(): FxFeedAdapter {
   return {
     mode,
     envVar,
-    fetch: async (currencies) => {
+    fetch: async (currencies, asOf) => {
       if (mode === 'off') return { status: 'off' }
-      simulatedMarketCalls().push({ adapter: 'fx_feed', payload: { currencies } })
-      const today = new Date().toISOString().slice(0, 10)
-      return { status: 'ok', rates: currencies.filter((c) => c !== 'USD').map((c) => ({ currency: c, asOf: today, usdRate: 0.05, source: 'simulated feed' })) }
+      simulatedMarketCalls().push({ adapter: 'fx_feed', payload: { currencies, asOf } })
+      return { status: 'ok', rates: currencies.filter((c) => c !== 'USD').map((c) => ({ currency: c, asOf, usdRate: 0.05, source: 'simulated feed' })) }
     },
   }
 }

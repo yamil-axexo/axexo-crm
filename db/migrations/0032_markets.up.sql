@@ -86,7 +86,11 @@ language plpgsql set search_path = crm, app, pg_catalog as $$
 begin
   if new.legal_entity_id is null then
     new.legal_entity_id := app.default_entity(new.market_code);
-  elsif tg_op = 'INSERT' or new.legal_entity_id is distinct from old.legal_entity_id or new.market_code is distinct from old.market_code then
+  elsif tg_op = 'UPDATE' and new.market_code is distinct from old.market_code and new.legal_entity_id is not distinct from old.legal_entity_id then
+    -- Cambia de mercado sin decir entidad: toma la de por defecto del mercado nuevo. Si el cambio se permite o no lo sigue
+    -- decidiendo la política de alcance (quien vende no cambia un comercio de mercado).
+    new.legal_entity_id := app.default_entity(new.market_code);
+  elsif tg_op = 'INSERT' or new.legal_entity_id is distinct from old.legal_entity_id then
     if not exists (select 1 from crm.legal_entities e where e.id = new.legal_entity_id and e.market_code = new.market_code) then
       raise exception 'legal entity does not belong to the market' using errcode = '23514';
     end if;

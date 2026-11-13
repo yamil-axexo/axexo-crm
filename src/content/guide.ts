@@ -585,8 +585,8 @@ const HOW = {
   config: {
     title: { es: 'Administración, pestaña por pestaña', en: 'Administration, tab by tab' },
     text: {
-      es: 'Personas y acceso, Territorios, Embudos y campos, Formularios y turnos, Integraciones, Pipedrive, Calidad de datos, Problemas reportados, Auditoría y Operaciones.',
-      en: 'People and access, Territories, Pipelines and fields, Forms and rotation, Integrations, Pipedrive, Data quality, Reported problems, Audit and Operations.',
+      es: 'Personas y acceso, Territorios, Mercados y entidades, Embudos y campos, Formularios y turnos, Integraciones, Pipedrive, Calidad de datos, Problemas reportados, Auditoría y Operaciones.',
+      en: 'People and access, Territories, Markets and entities, Pipelines and fields, Forms and rotation, Integrations, Pipedrive, Data quality, Reported problems, Audit and Operations.',
     },
     visual: { shot: 'admin' },
   },

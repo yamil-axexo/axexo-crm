@@ -160,7 +160,9 @@ export async function setAccountProfile(ctx: Ctx, id: string, input: z.input<typ
 
 /** Trae las tasas del día por el adaptador. Apagado: no hace nada y lo dice; administración las sigue cargando a mano. */
 export async function pullFxFeed(tx: Tx, currencies: string[]): Promise<{ loaded: number; off: boolean }> {
-  const res = await fxFeedAdapter().fetch(currencies)
+  // El día lo da la base (UTC, como la fecha de las tasas cargadas a mano), no el servidor de la app.
+  const day = (await tx<{ d: string }[]>`select (now() at time zone 'UTC')::date::text as d`)[0]!.d
+  const res = await fxFeedAdapter().fetch(currencies, day)
   if (res.status === 'off') return { loaded: 0, off: true }
   for (const r of res.rates) {
     await tx`insert into crm.fx_rates (currency, as_of, usd_rate, source) values (${r.currency}, ${r.asOf}::date, ${r.usdRate}, ${r.source})
@@ -195,7 +197,7 @@ export async function captureTaxId(ctx: Ctx, accountId: string, input: z.input<t
   const check = checkTaxId(v.type, v.value)
   if (!check.formatOk) {
     if (check.problem === 'ssn') throw invalid('Eso parece un SSN. Un SSN no se guarda en CONTIGO: pide el EIN del negocio.', 'That looks like an SSN. CONTIGO does not store SSNs: ask for the business’s EIN.')
-    if (check.problem === 'generic') throw invalid('Ese es un RFC genérico: no identifica a este comercio. Pide el RFC del negocio o de su dueño.', 'That is a generic RFC: it does not identify this merchant. Ask for the RFC of the business or its owner.')
+    if (check.problem === 'generic') throw invalid('Ese es un RFC genérico: no identifica a este comercio. Pide el RFC del negocio o el de la persona a cuyo nombre está.', 'That is a generic RFC: it does not identify this merchant. Ask for the RFC of the business or its owner.')
     if (check.problem === 'date') throw invalid('La fecha dentro del RFC no existe. Revisa los seis números después de las letras.', 'The date inside the RFC does not exist. Check the six digits after the letters.')
     if (check.problem === 'prefix') throw invalid('Ese EIN empieza con dos números que el IRS no asigna. Revísalo con el comercio.', 'That EIN starts with two digits the IRS does not assign. Check it with the merchant.')
     if (check.problem === 'empty') throw invalid('Escribe el identificador fiscal.', 'Enter the tax ID.')
