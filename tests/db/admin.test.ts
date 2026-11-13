@@ -127,19 +127,18 @@ describe('quitar el acceso bien hecho', () => {
     await expire(fallback.membershipId)
     const robert = (await one(admin<{ id: string }[]>`select md5('contigo:robert.hale')::uuid as id`)).id
     expect((await webLead()).owner_id).toBe(robert)
-    // Solo si el mercado tampoco tiene quien lo lidere, el lead queda sin dueño y lo ve quien vende en ese mercado.
+    // Si el mercado tampoco tiene quien lo lidere, el formulario no crea un lead sin dueño (E3.F10, paquete datos2, cambio a
+    // propósito): el envío queda retenido en Administración, Asignación y embudo, y entra al reintentar cuando haya dueño.
     const leaders = await admin<{ id: string }[]>`update crm.memberships set valid_to = now() - interval '1 minute'
       where market_code = 'US' and role = 'market_lead' and (valid_to is null or valid_to > now()) returning id`
     try {
-      const lead = await webLead()
-      expect(lead.owner_id).toBeNull()
-      const sam = await ctxFor('sam.ortiz')
-      expect((await listLeads(sam, { owner: 'none', status: 'new' })).items.some((l) => l.id === lead.id)).toBe(true)
-      const marco = await ctxFor('marco.pena')
-      expect((await listLeads(marco, {})).items.some((l) => l.id === lead.id)).toBe(false)
+      const key = `c2:${randomUUID()}`
+      const out = await intakeFromForm(sys, formSlug, { business_name: `C2 Tienda ${tag()}`, contact_name: 'Persona De Prueba', phone: phone() }, key)
+      expect(out).toMatchObject({ leadId: '', held: true })
+      expect((await one(admin<{ error: string }[]>`select error from crm.intake_retries where idempotency_key = ${key}`)).error).toBe('no_owner')
       // Y un turno vacío hace lo mismo.
       await setTurn([], null)
-      expect((await webLead()).owner_id).toBeNull()
+      expect((await intakeFromForm(sys, formSlug, { business_name: `C2 Tienda ${tag()}`, contact_name: 'Persona De Prueba', phone: phone() }, `c2:${randomUUID()}`)).held).toBe(true)
     } finally {
       await admin`update crm.memberships set valid_to = null where id = any(${leaders.map((l) => l.id)}::uuid[])`
     }

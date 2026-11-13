@@ -16,6 +16,8 @@ import { retryIntakeNow } from '@/domain/embudo/intake-retry'
 import { reassignAccounts } from '@/domain/reparto'
 import { loadCtx } from '@/server/context'
 import { updateAccount } from '@/domain/accounts'
+import { grantAccess } from '@/domain/admin'
+import { grantAgencyAccess } from '@/domain/security'
 import { dismissContactPair, mergeContacts, resolveContact, undoContactMerge } from '@/domain/contacts-dedup'
 import { decisionValue, DECISIONS, setDecision } from '@/domain/decisions'
 import { contactQueue, decisionsBoard } from '@/dal/datos2'
@@ -480,5 +482,23 @@ describe('E4.F2 · quien opera no administra; cambiar dueño, fusionar y editar 
     const acc = await rawAccount('US', 'jade.kim')
     await updateAccount(fin, acc, { name: 'Tienda Finanzas Reno', locality: 'Reno' })
     expect((await one(admin<{ locality: string }[]>`select locality from crm.accounts where id = ${acc}`)).locality).toBe('Reno')
+  })
+})
+
+describe('E4.F9 · el asiento se aprueba antes del acceso', () => {
+  it('sin quién aprobó el asiento y cuándo no hay acceso; con eso, el acceso nace con su aprobación', async () => {
+    const nora = await ctxFor('nora.salas')
+    const email = `asiento.${tag()}@axexo.com`
+    const D = ['axexo.com']
+    await expect(grantAccess(nora, { email, fullName: 'Persona Asiento', role: 'rep', market: 'MX' } as never, D)).rejects.toMatchObject({ code: 'invalid' })
+    expect((await admin`select 1 from crm.users where email = ${email}`).length).toBe(0)
+    await expect(grantAccess(nora, { email, fullName: 'Persona Asiento', role: 'rep', market: 'MX', seatApprover: 'Dueña del presupuesto', seatApprovedOn: '2099-01-01' }, D)).rejects.toMatchObject({ code: 'invalid' })
+    const out = await grantAccess(nora, { email, fullName: 'Persona Asiento', role: 'finance', market: 'MX', seatApprover: 'Dueña del presupuesto', seatApprovedOn: new Date().toISOString().slice(0, 10), seatReference: 'Presupuesto 2027' }, D)
+    const row = await one(admin<{ approver_name: string; reference: string; role: string }[]>`
+      select s.approver_name, s.reference, m.role from crm.memberships m join crm.seat_approvals s on s.membership_id = m.id where m.user_id = ${out.userId}`)
+    expect(row).toEqual({ approver_name: 'Dueña del presupuesto', reference: 'Presupuesto 2027', role: 'finance' })
+    // la agencia también
+    const ag = await one(admin<{ id: string }[]>`insert into crm.agencies (market_code, name) values ('US', ${`Agencia Asiento ${tag()}`}) returning id`)
+    await expect(grantAgencyAccess(nora, { email: `ag.${tag()}@axexo.com`, fullName: 'Persona Agencia', agencyId: ag.id } as never, D)).rejects.toMatchObject({ code: 'invalid' })
   })
 })

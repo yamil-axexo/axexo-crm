@@ -550,3 +550,6 @@ begin
 end $$;
 revoke execute on function app.operator_move_accounts(uuid[], uuid, text) from public;
 grant execute on function app.operator_move_accounts(uuid[], uuid, text) to contigo_app;
+
+-- Bitácora de la base en las tablas nuevas (SEG-03).
+select audit.attach_all();
