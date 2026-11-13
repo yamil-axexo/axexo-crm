@@ -357,6 +357,30 @@ describe('MULTI-03: identificador fiscal en tres capas, sin guardar el valor com
     await reviewTaxId(valeria, mine.id, { decision: 'reject', note: 'El nombre no coincide con la constancia' })
     expect((await db<{ status: string }[]>`select status from crm.tax_ids where account_id = ${mine.id} and valid_to is null`)[0]!.status).toBe('rejected')
   })
+  it('cuando hace falta una persona, se le avisa a quien revisa; y a quien capturó, cuando se decide', async () => {
+    const marco = await ctxFor('marco.pena')
+    const store = await storeOf('marco.pena', 8)
+    expect((await captureTaxId(marco, store.id, { type: 'other', value: 'TRN 778812349' })).status).toBe('needs_review')
+    const sent = await db<{ who: string; title: string; body: string; needs_action: boolean; link: string }[]>`
+      select u.full_name as who, n.title, n.body, n.needs_action, n.link from crm.notices n join crm.users u on u.id = n.user_id
+       where n.account_id = ${store.id} and n.kind = 'approval' order by u.full_name`
+    expect(sent.length).toBeGreaterThan(0)
+    expect(sent.map((x) => x.who)).toContain('Valeria Soto')
+    expect(sent.map((x) => x.who)).not.toContain('Marco Peña')
+    for (const x of sent) {
+      expect(x.needs_action).toBe(true)
+      expect(x.link).toBe(`/comercios/${store.id}?tab=datos`)
+      // El aviso nunca lleva el identificador: solo el nombre del comercio y los últimos 4.
+      expect(`${x.title} ${x.body}`).not.toMatch(/778812349|TRN/)
+      expect(x.body).toContain('2349')
+    }
+    await reviewTaxId(await ctxFor('valeria.soto'), store.id, { decision: 'reject', note: 'No coincide con el documento' })
+    const back = await db<{ title: string; needs_action: boolean }[]>`
+      select n.title, n.needs_action from crm.notices n where n.account_id = ${store.id} and n.kind = 'approval' and n.user_id = ${await personaId('marco.pena')}`
+    expect(back).toHaveLength(1)
+    expect(back[0]!.needs_action).toBe(true)
+    expect(back[0]!.title).toMatch(/rechazado|rejected/)
+  })
 })
 
 describe('MULTI-04: dirección con el formato del país, ubicación, distancia y cerca de mí', () => {

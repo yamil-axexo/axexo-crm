@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId, clean } from '@/domain/common'
+import { notify } from '@/domain/notify'
 import { assertNoProhibited } from '@/domain/guard'
 import { invalid, notFound } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
@@ -241,6 +242,19 @@ export async function captureTaxId(ctx: Ctx, accountId: string, input: z.input<t
     await tx`update crm.accounts set tax_id_last4 = ${last4}, tax_id_blind_ix = ${blind} where id = ${accountId}`
     // La bitácora nunca lleva el identificador: solo tipo, últimos 4 y resultado.
     await audit(tx, ctx, 'taxid.captured', 'account', accountId, a.market_code, null, { type: v.type, last4, status, checksum_ok: check.checksumOk, registry: registryStatus, repeated_in: duplicates.length })
+    if (status === 'needs_review') {
+      // La revisión de una persona no espera a que alguien abra la ficha: se le avisa a quien lidera el mercado y a Operaciones.
+      // El aviso lleva el nombre del comercio y los últimos 4, nunca el identificador.
+      const reviewers = await tx<{ user_id: string }[]>`select user_id from app.people_with_role(${a.market_code}, ${['market_lead', 'ops']}::text[])`
+      for (const r of reviewers) {
+        if (r.user_id === ctx.user.id) continue
+        await notify(tx, ctx, {
+          to: r.user_id, kind: 'approval', market: a.market_code, accountId, needsAction: true, link: `/comercios/${accountId}?tab=datos`,
+          title: [`Identificador fiscal por revisar: ${a.name}`, `Tax ID to review: ${a.name}`],
+          body: [`Termina en ${last4}. Compáralo con el documento del comercio y apruébalo o recházalo desde su ficha, en Datos.`, `It ends in ${last4}. Compare it with the merchant’s document and approve or reject it from its page, under Data.`],
+        })
+      }
+    }
     return { status, last4, duplicates, fingerprint: blind !== null }
   })
 }
@@ -264,6 +278,13 @@ export async function reviewTaxId(ctx: Ctx, accountId: string, input: { decision
     await tx`insert into crm.tax_id_verifications (tax_id_id, account_id, market_code, layer, provider, result, detail, actor_id)
              values (${t.id}, ${accountId}, ${a.market_code}, 'human', 'person', ${input.decision === 'approve' ? 'pass' : 'fail'}, ${note}, ${ctx.user.id})`
     await audit(tx, ctx, 'taxid.reviewed', 'account', accountId, a.market_code, { status: t.status }, { status, note })
+    if (t.captured_by && t.captured_by !== ctx.user.id) {
+      await notify(tx, ctx, {
+        to: t.captured_by, kind: 'approval', market: a.market_code, accountId, needsAction: status === 'rejected', link: `/comercios/${accountId}?tab=datos`,
+        title: status === 'verified' ? [`Identificador fiscal aprobado: ${a.name}`, `Tax ID approved: ${a.name}`] : [`Identificador fiscal rechazado: ${a.name}`, `Tax ID rejected: ${a.name}`],
+        body: status === 'verified' ? [`Lo revisaron con el documento: ${note}`, `It was checked against the document: ${note}`] : [`Motivo: ${note}. Captúralo de nuevo con el documento a la vista.`, `Reason: ${note}. Capture it again with the document in front of you.`],
+      })
+    }
   })
 }
 
