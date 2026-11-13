@@ -201,7 +201,11 @@ describe('cuentas (DAT-04, CAMPO-03, CANAL-03)', () => {
     const dup = await createAccount(marco, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel })
     expect(dup.id).toBeUndefined()
     expect(dup.duplicates?.[0]).toMatchObject({ id: a.id, match: 'phone', owner_name: 'Lucía Vega' })
-    const forced = await createAccount(marco, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true })
+    // paquete datos (DAT-04): el teléfono exacto es llave fuerte. Quien vende no crea otro; quien dirige sí, y solo con motivo.
+    await expect(createAccount(marco, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true, reason: 'Es otra tienda de la misma dueña' })).rejects.toMatchObject({ code: 'duplicate_blocked' })
+    const fernando = await ctxFor('fernando.ibarra')
+    await expect(createAccount(fernando, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true })).rejects.toMatchObject({ code: 'invalid' })
+    const forced = await createAccount(fernando, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true, reason: 'Es otra tienda de la misma dueña' })
     expect(forced.id).toBeTruthy()
   })
 

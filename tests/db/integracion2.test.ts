@@ -137,7 +137,7 @@ describe('entrega a Operaciones, devolución y ganado a mano en los reportes', (
     const tz = 'America/New_York'
     const today = todayIn(tz)
     const name = `Ola dos pedidos ${tag()}` // no empieza con "Integra ": ese prefijo lo limpia la prueba de integración de la ola 1
-    const acc = await createAccount(jade, { market: 'US', kind: 'store', name, segment: 'orders', force: true })
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name, segment: 'orders', force: true, reason: 'Prueba: es otro comercio' })
     const orders = await uid('p-us-orders')
     const review = await stage('p-us-orders', 'review')
     const captured = await stage('p-us-orders', 'captured')
@@ -205,7 +205,7 @@ describe('en pausa no es un negocio frío', () => {
     const paula = await ctxFor('paula.mendez')
     const sys = await systemContext()
     const b2bPipe = await uid('p-mx-b2b')
-    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Pausa integrada ${tag()}`, segment: 'b2b', force: true })
+    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Pausa integrada ${tag()}`, segment: 'b2b', force: true, reason: 'Prueba: es otro comercio' })
     const today = todayIn('America/Mexico_City')
     const deal = await createDeal(diana, { accountId: acc.id!, pipelineId: b2bPipe, title: `Pausa ${tag()}`, nextStep: 'Enviar propuesta', nextStepDue: addDays(today, 1) })
     // 90 días sin movimiento
@@ -229,7 +229,7 @@ describe('en pausa no es un negocio frío', () => {
     expect(await bulkCloseLost(ana, [deal], 'b2b_postponed', '')).toEqual({ closed: 0, skipped: 1 })
     expect((await one(admin`select status from crm.deals where id = ${deal}`)).status).toBe('open')
     // y el motivo del cierre en bloque tiene que ser del embudo
-    const other = await createDeal(diana, { accountId: (await createAccount(diana, { market: 'MX', kind: 'chain', name: `Quieto ${tag()}`, segment: 'b2b', force: true })).id!, pipelineId: b2bPipe, title: `Quieto ${tag()}`, nextStep: 'Llamar', nextStepDue: today })
+    const other = await createDeal(diana, { accountId: (await createAccount(diana, { market: 'MX', kind: 'chain', name: `Quieto ${tag()}`, segment: 'b2b', force: true, reason: 'Prueba: es otro comercio' })).id!, pipelineId: b2bPipe, title: `Quieto ${tag()}`, nextStep: 'Llamar', nextStepDue: today })
     await expect(bulkCloseLost(ana, [other], 'store_closed_down', '')).rejects.toMatchObject({ code: 'invalid' })
     expect(await bulkCloseLost(ana, [other], 'b2b_postponed', '')).toEqual({ closed: 1, skipped: 0 })
   })
@@ -238,7 +238,7 @@ describe('en pausa no es un negocio frío', () => {
     const jade = await ctxFor('jade.kim')
     const tom = await ctxFor('tom.reyes')
     const today = todayIn('America/New_York')
-    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Pausa en cola ${tag()}`, segment: 'orders', force: true })
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Pausa en cola ${tag()}`, segment: 'orders', force: true, reason: 'Prueba: es otro comercio' })
     const deal = await createDeal(jade, { accountId: acc.id!, pipelineId: await uid('p-us-orders'), title: `Pedido en pausa ${tag()}`, nextStep: 'Confirmar', nextStepDue: today })
     await addDealItem(jade, deal, { productId: await uid('prod-us-sim'), quantity: 5 })
     await moveDeal(jade, deal, await stage('p-us-orders', 'review'))

@@ -153,7 +153,7 @@ describe('ganar a mano no se queda a medias', () => {
   it('Operaciones no gana un negocio que Ventas no ha entregado; cuando gana uno entregado, a quien vendió le llega un aviso a Hoy', async () => {
     const jade = await ctxFor('jade.kim')
     const tom = await ctxFor('tom.reyes')
-    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes entrega ${tag()}`, segment: 'dealer', force: true })
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes entrega ${tag()}`, segment: 'dealer', force: true, reason: 'Prueba: es otro comercio' })
     const id = await createDeal(jade, { accountId: acc.id!, pipelineId: await uid('p-us-dealer'), title: `Alta ${tag()}`, nextStep: 'Reunir documentos', nextStepDue: todayUS })
     const won = await stage('p-us-dealer', 'won')
     const carrier = await stage('p-us-dealer', 'carrier')
@@ -195,7 +195,7 @@ describe('Operaciones: lista de alta por embudo y Merchant ID duplicado', () => 
     const orders = await one(admin<{ id: string; ops_checklist: boolean }[]>`select id, ops_checklist from crm.pipelines where market_code = 'US' and multi_open and is_active order by position limit 1`)
     expect(orders.ops_checklist).toBe(false)
     expect((await one(admin<{ ops_checklist: boolean }[]>`select ops_checklist from crm.pipelines where id = ${await uid('p-us-dealer')}`)).ops_checklist).toBe(true)
-    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes pedido ${tag()}`, segment: 'orders', force: true })
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes pedido ${tag()}`, segment: 'orders', force: true, reason: 'Prueba: es otro comercio' })
     const first = await one(admin<{ id: string }[]>`select id from crm.stages where pipeline_id = ${orders.id} and kind = 'open' order by position limit 1`)
     const before = (await getOpsQueue(tom, { view: 'all' })).counts
     // el pedido entra directo a una etapa de Operaciones (como dueño del esquema: aquí se prueba la cola, no la entrega)
@@ -221,8 +221,8 @@ describe('Operaciones: lista de alta por embudo y Merchant ID duplicado', () => 
   it('el Merchant ID repetido en el mercado avisa cuál comercio lo tiene y pide confirmar; queda en la bitácora', async () => {
     const jade = await ctxFor('jade.kim')
     const tom = await ctxFor('tom.reyes')
-    const a = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes MID Uno ${tag()}`, segment: 'dealer', force: true })
-    const b = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes MID Dos ${tag()}`, segment: 'dealer', force: true })
+    const a = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes MID Uno ${tag()}`, segment: 'dealer', force: true, reason: 'Prueba: es otro comercio' })
+    const b = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes MID Dos ${tag()}`, segment: 'dealer', force: true, reason: 'Prueba: es otro comercio' })
     const ref = `MID-${tag().toUpperCase()}`
     await setMerchantRef(tom, a.id!, ref)
     const err = await setMerchantRef(tom, b.id!, ` ${ref.toLowerCase()} `).catch((e) => e)
@@ -286,7 +286,7 @@ describe('motivos de pérdida de calle: de México', () => {
     for (const code of ['no_cash_handling', 'landline_only', 'store_closed_down', 'store_no_interest', 'price']) expect(mx, code).toContain(code)
     // y el dominio repite el límite: un negocio de US no se pierde con un motivo de calle de México
     const jade = await ctxFor('jade.kim')
-    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes motivo ${tag()}`, segment: 'dealer', force: true })
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Ajustes motivo ${tag()}`, segment: 'dealer', force: true, reason: 'Prueba: es otro comercio' })
     const id = await createDeal(jade, { accountId: acc.id!, pipelineId: await uid('p-us-dealer'), title: `Motivo ${tag()}`, nextStep: 'Llamar', nextStepDue: todayUS })
     const lost = await stage('p-us-dealer', 'lost')
     await expect(moveDeal(jade, id, lost, { reasonCode: 'landline_only' })).rejects.toMatchObject({ code: 'invalid' })

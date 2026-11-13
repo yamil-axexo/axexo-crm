@@ -99,6 +99,19 @@ export const CAPABILITIES = {
   // Vistas guardadas como colas: cada persona guarda y fija las suyas; compartir con el equipo es de quien dirige.
   'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
   'view.share': MANAGERS,
+  // Paquete datos (0023). Cola de duplicados: buscar en lote, descartar un par y revisar avisos saltados es de quien lidera el
+  // mercado o administra; fusionar y deshacer sigue siendo solo de administración ('account.merge').
+  'duplicate.review': ['admin', 'market_lead'],
+  // Identificadores de otros sistemas: los agrega y los cierra quien cuida los datos del mercado.
+  'alias.manage': ['admin', 'market_lead', 'ops'],
+  // Campos: quien lidera un mercado propone; administración aprueba ('config.manage'). Listas de proceso del mercado.
+  'field.propose': ['admin', 'market_lead'],
+  'process.define': ['admin', 'market_lead'],
+  // Tablero de calidad de datos: cada quien sobre lo que ve (supervisión, su equipo). Leadership también lo lee, por su
+  // alcance global (la pantalla lo deja entrar con `ctx.isGlobal`; aquí no se le da una capacidad que no sea de lectura declarada).
+  'data.quality': [...MANAGERS, 'ops'],
+  // Matriz de productos por comercio y su estado con cada proveedor: la mantiene Operaciones.
+  'account.products': ['admin', 'ops'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

@@ -454,3 +454,48 @@ insert into crm.portfolio_snapshots (snapshot_date, market_code, lifecycle, acco
 select (now() at time zone mk.timezone)::date - g.n, a.market_code, a.lifecycle, count(*)::int
   from crm.accounts a join crm.markets mk on mk.code = a.market_code and mk.status = 'live' cross join generate_series(1, 14) g(n)
  where a.archived_at is null and a.kind = 'store' group by 1, 2, 3;
+-- datos
+-- Dos árboles de tres niveles reales, con nombres inventados: un ISO con su agente y sus puntos de venta (US) y una cadena con
+-- su región y sus sucursales (MX). Así la jerarquía de N niveles se ve en pantalla, con sus totales por nodo.
+insert into crm.accounts (id, market_code, legal_entity_id, parent_id, kind, account_type, name, segment, lifecycle, lifecycle_at, owner_id, phone, locality, region, country, created_at)
+select pg_temp.uid(k), m, pg_temp.uid(case m when 'MX' then 'le-mx' else 'le-us' end), case when par is null then null else pg_temp.uid(par) end, kind, ty, nm, seg, lc,
+       now() - interval '20 days', pg_temp.uid(o), ph, loc, reg, m, now() - make_interval(days => age)
+from (values
+  ('dat-us-iso',    'US', null,           'distributor', 'iso',       'Lone Star Payments ISO',        'dealer', 'active',     'sam.ortiz',  '+12105550140', 'San Antonio', 'TX', 200),
+  ('dat-us-agent',  'US', 'dat-us-iso',   'distributor', 'iso_agent', 'Rio Grande Agents',             'dealer', 'active',     'sam.ortiz',  '+12105550141', 'Laredo',      'TX', 150),
+  ('dat-us-pdv-1',  'US', 'dat-us-agent', 'store',       'branch',    'Frontera Wireless Laredo',      'dealer', 'active',     'sam.ortiz',  '+19565550142', 'Laredo',      'TX', 90),
+  ('dat-us-pdv-2',  'US', 'dat-us-agent', 'store',       'branch',    'Frontera Wireless Eagle Pass',  'dealer', 'onboarding', 'sam.ortiz',  '+18305550143', 'Eagle Pass',  'TX', 30),
+  ('dat-mx-chain',  'MX', null,           'chain',       'chain',     'Súper La Colmena',          'b2b',    'active',     'diana.cruz', '+524775550150', 'León',       'Guanajuato', 220),
+  ('dat-mx-region', 'MX', 'dat-mx-chain', 'chain',       'region',    'Súper La Colmena Región Bajío',       'b2b',    'active',     'diana.cruz', '+524775550151', 'León',       'Guanajuato', 180),
+  ('dat-mx-suc-1',  'MX', 'dat-mx-region','store',       'branch',    'Súper La Colmena Sucursal Centro',    'b2b',    'active',     'diana.cruz', '+524775550152', 'León',       'Guanajuato', 120),
+  ('dat-mx-suc-2',  'MX', 'dat-mx-region','store',       'branch',    'Súper La Colmena Sucursal Irapuato',  'b2b',    'onboarding', 'diana.cruz', '+524625550153', 'Irapuato',   'Guanajuato', 25)
+) v(k, m, par, kind, ty, nm, seg, lc, o, ph, loc, reg, age);
+insert into crm.account_links (child_id, parent_id, valid_from)
+select a.id, a.parent_id, a.created_at from crm.accounts a where a.id in (pg_temp.uid('dat-us-agent'), pg_temp.uid('dat-us-pdv-1'), pg_temp.uid('dat-us-pdv-2'), pg_temp.uid('dat-mx-region'), pg_temp.uid('dat-mx-suc-1'), pg_temp.uid('dat-mx-suc-2'));
+insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, effective_from)
+select a.id, a.market_code, l.layer, 'user', a.owner_id::text, u.full_name, a.created_at
+  from crm.accounts a join crm.users u on u.id = a.owner_id cross join (values ('origin'), ('owner')) l(layer)
+ where a.id in (pg_temp.uid('dat-us-iso'), pg_temp.uid('dat-us-agent'), pg_temp.uid('dat-us-pdv-1'), pg_temp.uid('dat-us-pdv-2'), pg_temp.uid('dat-mx-chain'), pg_temp.uid('dat-mx-region'), pg_temp.uid('dat-mx-suc-1'), pg_temp.uid('dat-mx-suc-2'));
+-- Cada producto del catálogo de ejemplo con su proveedor, y el plazo de respuesta de los operadores de US (cuatro semanas).
+update crm.products p set provider_id = k.id from crm.ops_catalog k
+ where k.kind = 'provider' and ((p.id = pg_temp.uid('prod-us-sim') and k.code = 'carrier_north') or (p.id = pg_temp.uid('prod-us-topup') and k.code = 'carrier_coast')
+    or (p.id = pg_temp.uid('prod-mx-chip') and k.code = 'red_centro'));
+update crm.ops_catalog set sla_days = 28 where kind = 'provider' and market_code = 'US';
+-- Productos de los dos puntos de venta del ISO: uno activo y uno enviado al proveedor hace más de cuatro semanas (fuera de plazo).
+insert into crm.account_products (account_id, market_code, product_id, provider_id, status, requested_at, submitted_at, decided_at, activated_at, status_at)
+select pg_temp.uid(acc), 'US', pg_temp.uid(prod), (select id from crm.ops_catalog where kind = 'provider' and code = prov), st,
+       now() - make_interval(days => req), case when sub is null then null else now() - make_interval(days => sub) end,
+       case when st = 'active' then now() - interval '50 days' end, case when st = 'active' then now() - interval '45 days' end,
+       now() - make_interval(days => coalesce(sub, req))
+from (values
+  ('dat-us-pdv-1', 'prod-us-sim',   'carrier_north', 'active',    80, 70),
+  ('dat-us-pdv-1', 'prod-us-topup', 'carrier_coast', 'submitted', 40, 35),
+  ('dat-us-pdv-2', 'prod-us-sim',   'carrier_north', 'submitted', 12, 10)
+) v(acc, prod, prov, st, req, sub);
+-- Una lista de proceso de ejemplo en México: la capacitación del comercio, al lado del embudo.
+insert into crm.process_lists (id, market_code, code, name_es, name_en, statuses, attributes) values
+  (pg_temp.uid('dat-proc-mx-training'), 'MX', 'merchant_training', 'Capacitación del comercio', 'Merchant training',
+   '[{"code":"to_schedule","es":"Por agendar","en":"To schedule"},{"code":"scheduled","es":"Agendada","en":"Scheduled"},{"code":"completed","es":"Completada","en":"Completed"}]'::jsonb,
+   '[{"key":"session_date","es":"Fecha de la sesión","en":"Session date"}]'::jsonb);
+insert into crm.process_memberships (list_id, account_id, market_code, status, attrs)
+values (pg_temp.uid('dat-proc-mx-training'), pg_temp.uid('dat-mx-suc-2'), 'MX', 'to_schedule', '{}'::jsonb);
