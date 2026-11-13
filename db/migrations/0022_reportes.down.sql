@@ -2,6 +2,7 @@ drop table crm.saved_view_pins;
 drop policy saved_views_read on crm.saved_views;
 create policy saved_views_read on crm.saved_views for select to contigo_app
   using (user_id = (select app.current_user_id()) or is_shared);
+drop function app.team_board_views(timestamptz);
 drop function app.my_team_ids();
 drop index crm.saved_views_user_idx;
 alter table crm.saved_views drop column team_id;

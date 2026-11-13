@@ -71,6 +71,23 @@ export const CAPABILITIES = {
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // Página Reportes (paquete reportes): la ve todo el mundo, cada quien con lo de su alcance (RLS y el alcance del reporte deciden las filas).
+  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  // Guardar un reporte con sus filtros es de la persona (como reportar un problema): también quien solo lee. Compartirlo con el equipo es de quien dirige.
+  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'report.share': MANAGERS,
+  // Reportes de Finanzas y conciliación con el archivo de ventas. No existe un rol de Finanzas: hoy entran leadership, quien lidera y administración.
+  'report.finance': ['admin', 'lt', 'market_lead'],
+  'report.reconcile': ['admin', 'lt', 'market_lead'],
+  // "Lo que llevo": los números que alimentan el incentivo de quien vende (sin montos de comisión).
+  'report.carry': SELLERS,
+  // Uso real de CONTIGO por persona y equipo. Supervisión ve a su equipo; ventas y operaciones no.
+  'adoption.team': ['admin', 'lt', 'market_lead', 'supervisor'],
+  // Dueño de cada indicador: lo cambia administración.
+  'metric.owner': ['admin'],
+  // Vistas guardadas como colas: cada persona guarda y fija las suyas; compartir con el equipo es de quien dirige.
+  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'view.share': MANAGERS,
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

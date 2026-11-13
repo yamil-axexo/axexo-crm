@@ -252,6 +252,19 @@ $$;
 revoke execute on function app.my_team_ids() from public;
 grant execute on function app.my_team_ids() to contigo_app;
 
+-- Uso real (GOB-03): cuántas veces abrió quien supervisa el tablero de su equipo. Solo conteos; el alcance lo decide la función.
+create function app.team_board_views(p_since timestamptz) returns table (team_id uuid, views int)
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select m.team_id, count(e.id)::int
+    from crm.memberships m
+    left join crm.usage_events e on e.user_id = m.user_id and e.event = 'view.supervisor' and e.at >= p_since
+   where m.role = 'supervisor' and m.team_id is not null and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
+     and (m.market_code = any(app.full_markets()) or m.team_id = any(app.my_team_ids()))
+   group by m.team_id
+$$;
+revoke execute on function app.team_board_views(timestamptz) from public;
+grant execute on function app.team_board_views(timestamptz) to contigo_app;
+
 drop policy saved_views_read on crm.saved_views;
 create policy saved_views_read on crm.saved_views for select to contigo_app
   using (user_id = (select app.current_user_id())
