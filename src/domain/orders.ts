@@ -22,7 +22,7 @@ export async function sendOrderToOps(ctx: Ctx, dealId: string): Promise<{ mailbo
     ctx.assert('deal.edit', d.market_code)
     if (!d.has_items) throw invalid('Solo un pedido se envía a Operaciones.', 'Only an order can be sent to Operations.')
     if (d.status === 'lost') throw invalid('Un pedido perdido no se envía.', 'A lost order cannot be sent.')
-    const items = await tx<{ name: string; quantity: string; sum_minor: string | null }[]>`select name, quantity::text, sum_minor::text from crm.deal_items where deal_id = ${dealId} order by position, created_at`
+    const items = await tx<{ name: string; quantity: string; sum_minor: string | null; discount_pct: string | null }[]>`select name, quantity::text, sum_minor::text, discount_pct::text from crm.deal_items where deal_id = ${dealId} order by position, created_at`
     if (items.length === 0) throw invalid('Agrega al menos una línea antes de enviar el pedido.', 'Add at least one line before sending the order.')
     const waiting = await tx`select 1 from crm.order_dispatches where deal_id = ${dealId} and received_at is null limit 1`
     if (waiting[0]) throw invalid('Este pedido ya está en la cola de Operaciones. Cuando lo reciban, lo puedes volver a enviar si cambia.', 'This order is already in the Operations queue. Once they receive it, you can send it again if it changes.')
@@ -34,6 +34,16 @@ export async function sendOrderToOps(ctx: Ctx, dealId: string): Promise<{ mailbo
       values (${dealId}, ${d.market_code}, ${ctx.user.id}, ${mailbox}, ${total}, ${items.length})
       returning id, (sent_at at time zone ${ctx.market(d.market_code).timezone})::date::text as on`
     const link = `/deals/${dealId}/pedido`
+    // E11.F1 y E11.F4: el mensaje al buzón de pedidos lleva lo mismo que la hoja impresa: el descuento de cada línea y los datos de envío.
+    const en = ctx.market(d.market_code).locale === 'en'
+    const lines = items.map((it) => `${Number(it.quantity)} × ${it.name}${Number(it.discount_pct ?? 0) > 0 ? (en ? ` (less ${Number(it.discount_pct)}% discount)` : ` (menos ${Number(it.discount_pct)}% de descuento)`) : ''}`)
+    const order = (await tx<{ carrier: string; customer_number: string | null; due_on: string | null; po_number: string | null; ship_to: string | null; terms: string | null }[]>`
+      select carrier, customer_number, due_on::text, po_number, ship_to, terms from crm.deal_orders where deal_id = ${dealId}`)[0]
+    const shipping = order
+      ? ([[en ? 'Carrier' : 'Paquetería', order.carrier], [en ? 'Customer number' : 'Número de cliente', order.customer_number], [en ? 'Due date' : 'Fecha de entrega', order.due_on],
+          [en ? 'PO number' : 'Orden de compra (PO)', order.po_number], [en ? 'Shipping address' : 'Dirección de envío', order.ship_to], [en ? 'Terms' : 'Términos', order.terms]] as [string, string | null][])
+          .filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`)
+      : []
     const amount = `${(total / 100).toFixed(2)} ${d.currency}`
     await notifyMany(tx, ctx, await peopleWithRole(tx, d.market_code, ['ops']), {
       kind: 'order_sent', market: d.market_code, link, accountId: d.account_id, dealId,
@@ -43,7 +53,7 @@ export async function sendOrderToOps(ctx: Ctx, dealId: string): Promise<{ mailbo
     await notifyOutside(tx, ctx, {
       kind: 'order_sent', template: 'order_to_ops', market: d.market_code, recipient: 'mailbox', address: mailbox, locale: ctx.market(d.market_code).locale === 'en' ? 'en' : 'es',
       accountId: d.account_id, dealId,
-      vars: { comercio: d.account, negocio: d.title, quien: ctx.user.name, fecha: disp[0]!.on, enlace: link, detalle: [...items.map((it) => `${Number(it.quantity)} × ${it.name}`), `Total: ${amount}`].join('\n') },
+      vars: { comercio: d.account, negocio: d.title, quien: ctx.user.name, fecha: disp[0]!.on, enlace: link, detalle: [...lines, `Total: ${amount}`, ...shipping].join('\n') },
     })
     await audit(tx, ctx, 'order.sent_to_ops', 'deal', dealId, d.market_code, null, { lines: items.length, total_minor: total, mailbox: Boolean(mailbox) })
     await emit(tx, 'order.sent_to_ops', 'deal', dealId, d.market_code, { lines: items.length, total_minor: total })

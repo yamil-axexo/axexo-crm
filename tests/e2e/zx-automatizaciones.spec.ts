@@ -43,6 +43,8 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
     await sql`update crm.activities set done_at = now(), outcome = 'done' where done_at is null and (source = 'rule' or approval_id is not null) and created_at >= ${started}`
     await sql`update crm.leads set status = 'contacted', first_touch_at = now() where business_name like 'Zx escalado %'`
     await sql`update crm.leads set escalation_level = 0, escalated_at = null where escalation_level > 0`
+    // Los avisos de escalamiento y de automatizaciones salen por el servicio de avisos: se dan por vistos para no cambiar el Hoy de las pruebas que siguen.
+    await sql`update crm.notices set seen_at = now() where seen_at is null and kind in ('lead_escalated', 'automation') and created_at >= ${started}`
     await sql.end()
   })
 

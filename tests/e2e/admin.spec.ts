@@ -295,11 +295,16 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       await expect(page.getByTestId('audit-row')).toHaveCount(50)
     })
 
-    test('página de estado: la abren administración y leadership desde el menú de la cuenta; ventas no', async ({ page }) => {
+    test('página de estado: leadership la abre desde el menú de la cuenta y administración desde sus secciones; ventas no', async ({ page }) => {
       for (const persona of ['nora.salas', 'luis.tovar']) {
         await loginAs(page, persona)
         await openMenu(page)
-        await page.getByTestId('nav-status').click()
+        if (persona === 'nora.salas') {
+          // El menú de quien administra ya no cabía en un teléfono: Estado de CONTIGO le queda en Administración, sección Control.
+          await expect(page.getByTestId('nav-status')).toHaveCount(0)
+          await page.getByTestId('nav-admin').click()
+          await page.getByTestId('pill-estado').click()
+        } else await page.getByTestId('nav-status').click()
         await expect(page).toHaveURL(/\/estado$/)
         await expect(page.locator('h1')).toHaveText('Estado de CONTIGO')
         await expect(page.getByTestId('status-env')).toContainText('Pruebas automáticas')
