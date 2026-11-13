@@ -3,7 +3,7 @@ import { withUser, withoutUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { invalid } from '@/lib/errors'
-import { LIMITS, defaultMinFillSeconds, ipHash, rateHit } from '@/server/protect'
+import { LIMITS, defaultFormSubmitsPerIp, defaultMinFillSeconds, ipHash, rateHit } from '@/server/protect'
 import { antibot } from '@/server/adapters/antibot'
 
 // SEG-10: defensas de los formularios públicos, en este orden: límite por IP y por formulario, campo trampa, llave de la
@@ -16,7 +16,7 @@ const count = (slug: string, reason: Rejection) => withoutUser((tx) => tx`select
 
 async function limits(slug: string): Promise<{ minFill: number; perMinute: number }> {
   const rows = await withoutUser((tx) => tx<{ min_fill_seconds: number | null; rate_per_minute: number | null }[]>`select min_fill_seconds, rate_per_minute from app.form_limits(${slug})`)
-  return { minFill: rows[0]?.min_fill_seconds ?? defaultMinFillSeconds(), perMinute: rows[0]?.rate_per_minute ?? LIMITS.formSubmitsPerIp }
+  return { minFill: rows[0]?.min_fill_seconds ?? defaultMinFillSeconds(), perMinute: rows[0]?.rate_per_minute ?? defaultFormSubmitsPerIp() }
 }
 
 /** Al mostrar la página: cuenta la vista por IP y, si pasa, anota la llave de esa página. */

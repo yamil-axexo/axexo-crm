@@ -427,6 +427,8 @@ test.describe('Trabajo de campo en inglés y en teléfono (equipo US)', () => {
     // wave 4: a visit with no sale asks why
     await expect(sheet.getByTestId('sheet-no-sale-reason').locator('option')).not.toHaveCount(1)
     await sheet.getByTestId('sheet-no-sale-reason').selectOption({ index: 1 })
+    // US tiene su lista de propósitos de visita (us-embudo, E12.F1): toda visita hecha la pide
+    await sheet.getByTestId('sheet-visit-reason').selectOption({ index: 1 })
     await sheet.getByText('Visit', { exact: true }).last().click()
     await sheet.getByTestId('log-save').click()
     await expect(page.getByTestId('toast')).toContainText(`Visit saved on ${store.name}. Next step: Visit ${store.name}`)

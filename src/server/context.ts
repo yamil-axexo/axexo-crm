@@ -26,7 +26,8 @@ export type Market = {
 }
 
 export type Ctx = {
-  user: { id: string; name: string; email: string; isSystem: boolean }
+  /** `locale` es el idioma guardado de la persona (los avisos se escriben en ese idioma), que puede no ser el de la pantalla. */
+  user: { id: string; name: string; email: string; isSystem: boolean; locale?: Locale }
   memberships: Membership[]
   markets: Market[]
   locale: Locale
@@ -69,7 +70,7 @@ export async function loadCtx(userId: string, localeOverride?: Locale): Promise<
       workdays: m.workdays?.length ? m.workdays : [1, 2, 3, 4, 5],
     }))
     const ctx: Ctx = {
-      user: { id: u.id, name: u.full_name, email: u.email, isSystem: u.is_system },
+      user: { id: u.id, name: u.full_name, email: u.email, isSystem: u.is_system, locale: u.locale },
       memberships,
       markets: list,
       locale,

@@ -29,7 +29,7 @@ async function enrollment(name: string, stage: string, custom: Record<string, un
   await sql`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${acc.id}, ${contact.id}, 'US', 'decision_maker')`
   const deal = (await sql<{ id: string }[]>`
     insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, amount_minor, next_step, next_step_due, decision_maker_id, decision_maker_met, custom, created_by)
-    values ('US', ${await uid('p-us-dealer')}, ${await uid(`s-us-dealer-${stage}`)}, ${acc.id}, ${jade}, ${`Onboarding: ${name}`}, 'USD', ${extra.amount ?? null}, 'Call the owner',
+    values ('US', ${await uid('p-us-dealer')}, ${await uid(`s-us-dealer-${stage}`)}, ${acc.id}, ${jade}, ${`Onboarding: ${name}`}, 'USD', ${extra.amount ?? null}, 'Call the store manager',
             (now() at time zone 'America/New_York')::date + 1, ${contact.id}, true, ${sql.json(custom as never)}, ${jade}) returning id`)[0]!
   return { accountId: acc.id, dealId: deal.id }
 }
