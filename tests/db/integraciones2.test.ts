@@ -297,11 +297,12 @@ describe('E6.F8 / E18.F7 / E18.F8: recarga de un mercado e importación de la ho
 
 describe('GOB-05 y E6.F4: carga de Pipedrive con historial, árbol, duplicados y respaldo', () => {
   let mock: Mock
+  let twinId = ''
   beforeAll(async () => {
     mock = await startMock(Number(process.env.UNIT_PIPEDRIVE_PORT ?? 46560))
     await clearLoads()
     // Un comercio que ya existe en CONTIGO con el mismo nombre que una organización de Pipedrive: la carga lo debe proponer como duplicado.
-    await createAccount(ana, { market: 'MX', name: 'Tienda Sintética 4', segment: 'd2d', kind: 'store' })
+    twinId = (await createAccount(ana, { market: 'MX', name: 'Tienda Sintética 4', segment: 'd2d', kind: 'store' })).id!
     await startImport(nora, 'full')
     for (let i = 0; i < 400; i++) {
       const r = await importStep(nora, 4000)
@@ -345,7 +346,8 @@ describe('GOB-05 y E6.F4: carga de Pipedrive con historial, árbol, duplicados y
     const merged = await admin`select 1 from crm.merge_events where merged_at > now() - interval '10 minutes'`
     expect(merged.length).toBe(0)
     const pair = await admin`select 1 from crm.duplicate_pairs p join crm.accounts a on a.id in (p.a_id, p.b_id)
-      join crm.account_aliases al on al.account_id = a.id and al.system = 'pipedrive' and al.external_id = '2004' where p.status = 'open'`
+      join crm.account_aliases al on al.account_id = a.id and al.system = 'pipedrive' and al.external_id = '2004'
+     where p.status = 'open' and ${twinId}::uuid in (p.a_id, p.b_id)`
     expect(pair.length).toBe(1)
   })
 
