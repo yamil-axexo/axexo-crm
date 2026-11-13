@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Ctx } from '@/server/context'
-import { accountOrders } from '@/dal/orders'
+import { accountOrders } from '@/dal/order-history'
 import { Badge } from '@/ui/kit'
 import { day, daysSince, money } from '@/lib/format'
 
