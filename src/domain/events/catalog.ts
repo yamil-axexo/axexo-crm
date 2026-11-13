@@ -97,7 +97,7 @@ const SILENT: [prefix: string, why: Pair][] = [
   // cargas desde hojas (visitas pegadas, tiendas migradas): cada registro creado emite el suyo:
   ['sheet.', WHY.migration],
   ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
-  ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
+  ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal], ['care.', WHY.internal],
 ]
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',

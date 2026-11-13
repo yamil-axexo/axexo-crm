@@ -123,6 +123,25 @@ export const CAPABILITIES = {
   // Los leads descartados como base de correo: la descarga lleva correos, así que es de quien lidera el mercado y de
   // administración, y solo trae a quien dio su consentimiento (domain/mx-reports.ts).
   'lead.mailing_export': ['admin', 'market_lead'],
+  // Cuidado del comercio (paquete ciclo-cs). Entregas entre equipos con acuse: las crea y las recibe quien trabaja el mercado.
+  'handoff.create': [...SELLERS, 'ops'],
+  // Atender o descartar una alerta del comercio, y trabajar oportunidades de expansión.
+  'alert.work': [...SELLERS, 'ops'],
+  'expansion.work': [...SELLERS, 'ops'],
+  // Ventanas del ciclo de vida, números de las alertas, guías de acción, pesos del puntaje, modelo de atención y reglas de expansión.
+  'care.manage': ['admin', 'market_lead'],
+  // Marcar un comercio como perdido (o regresarlo a inactivo), con motivo: quien dirige y Operaciones.
+  'care.stage': [...MANAGERS, 'ops'],
+  // Publicar el puntaje de salud al equipo, después de validarlo.
+  'health.publish': ['admin'],
+  // Constancia de capacitación y cambio de encargado visto en la visita.
+  'training.record': [...SELLERS, 'ops'],
+  'manager.change': [...SELLERS, 'ops'],
+  // Plan de cuenta, relaciones por producto y revisiones de cuentas corporativas.
+  'account.plan': [...SELLERS, 'ops'],
+  // Comentarios de producto desde campo: los registra quien atiende al comercio; los responde quien lidera el mercado o administración.
+  'feedback.create': [...SELLERS, 'ops'],
+  'feedback.manage': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
