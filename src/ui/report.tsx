@@ -8,7 +8,7 @@ import { NavSelect } from '@/ui/board'
 import { buttonClass, cx, shown } from '@/ui/kit'
 
 /** "Cómo se calcula": la definición de una cifra, a un toque y sin salir de la pantalla. */
-export function Def({ t, k, testId, named }: { t: T; k: MetricKey; testId?: string; named?: boolean }) {
+export function Def({ t, k, testId, named, owners }: { t: T; k: MetricKey; testId?: string; named?: boolean; owners?: Record<string, string> }) {
   const d = METRICS[k]
   const row = (label: string, text: string) => (
     <div className="mt-2 first:mt-0"><dt className="text-[12px] font-semibold text-muted-2">{label}</dt><dd className="text-[13px] text-strong">{text}</dd></div>
@@ -22,13 +22,14 @@ export function Def({ t, k, testId, named }: { t: T; k: MetricKey; testId?: stri
         {'den' in d && row(t('Denominador', 'Denominator'), t(d.den[0], d.den[1]))}
         {row(t('Ventana', 'Window'), t(d.window[0], d.window[1]))}
         {row(t('Fuente', 'Source'), t(d.source[0], d.source[1]))}
+        {row(t('Quién responde por este número', 'Who answers for this number'), owners?.[k] ?? t(d.owner[0], d.owner[1]))}
       </dl>
     </details>
   )
 }
 
 /** Una cifra con su nombre, su enlace a la lista que la respalda y su definición. */
-export function Metric({ t, k, value, hint, href, label, tone, testId }: { t: T; k: MetricKey; value: ReactNode; hint?: string; href?: string; label?: string; tone?: 'good' | 'warn'; testId?: string }) {
+export function Metric({ t, k, value, hint, href, label, tone, testId, owners }: { t: T; k: MetricKey; value: ReactNode; hint?: string; href?: string; label?: string; tone?: 'good' | 'warn'; testId?: string; owners?: Record<string, string> }) {
   const d = METRICS[k]
   const text = <span className={cx('num text-[22px] leading-8 font-semibold [overflow-wrap:anywhere] md:text-[26px] md:leading-9', tone === 'good' ? 'text-brand-text' : tone === 'warn' ? 'text-amber-text' : 'text-strong')}>{shown(value)}</span>
   return (
@@ -42,7 +43,7 @@ export function Metric({ t, k, value, hint, href, label, tone, testId }: { t: T;
         ) : text}
       </p>
       {hint && <p className="text-[13px] text-muted">{hint}</p>}
-      <Def t={t} k={k} />
+      <Def t={t} k={k} owners={owners} />
     </div>
   )
 }

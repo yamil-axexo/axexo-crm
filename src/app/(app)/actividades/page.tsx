@@ -1,3 +1,4 @@
+import { ViewsSection } from '../views-section'
 import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { withUser } from '@/server/db'
@@ -11,10 +12,11 @@ import { flat } from '@/server/params'
 
 type Row = { id: string; kind: string; subject: string; due_at: Date | null; done_at: Date | null; account_id: string | null; account_name: string | null; deal_id: string | null; owner_name: string | null; motor: string | null }
 
-export default async function ActividadesPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+export default async function ActividadesPage({ searchParams }: { searchParams: Promise<{ view?: string; cola?: string }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
-  const view = flat(await searchParams).view ?? 'mine'
+  const sp = flat(await searchParams)
+  const view = sp.view ?? 'mine'
   const rows = await withUser(ctx.user.id, (tx) => tx<Row[]>`
     select a.id, a.kind, a.subject, a.due_at, a.done_at, a.account_id, ac.name as account_name, a.deal_id, u.full_name as owner_name,
            coalesce((select p.motor from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where d.id = a.deal_id), ac.segment,
@@ -38,6 +40,7 @@ export default async function ActividadesPage({ searchParams }: { searchParams: 
           { key: 'done', href: qs('/actividades', { view: 'done' }), label: t('Hechas', 'Done') },
         ]}
       />
+      <ViewsSection object="activity" filters={{ view }} current={sp.cola} />
       <Card className="mt-6" pad={false}>
         {rows.length === 0 ? (
           <div className="p-7"><Empty title={t('Nada por aquí', 'Nothing here')} hint={t('Cuando un negocio tenga próximo paso, la tarea aparece sola.', 'When a deal has a next step, the task shows up on its own.')} /></div>

@@ -1,0 +1,26 @@
+drop table crm.saved_view_pins;
+drop policy saved_views_read on crm.saved_views;
+create policy saved_views_read on crm.saved_views for select to contigo_app
+  using (user_id = (select app.current_user_id()) or is_shared);
+drop function app.team_board_views(timestamptz);
+drop function app.my_team_ids();
+drop index crm.saved_views_user_idx;
+alter table crm.saved_views drop column team_id;
+alter table crm.saved_views drop constraint saved_views_name_check;
+delete from crm.saved_views where object = 'activity';
+alter table crm.saved_views drop constraint saved_views_object_check;
+alter table crm.saved_views add constraint saved_views_object_check check (object in ('account','lead','deal'));
+alter table crm.visits drop column trust_flags, drop column trust_score;
+drop function app.run_reconciliation(numeric);
+drop index crm.merchant_metrics_market_asof_idx;
+drop function app.sales_cutoff(text);
+drop view crm.reconciliation_diffs;
+drop table crm.reconciliation_runs;
+alter table crm.merchant_metrics_daily drop column status;
+drop function app.take_report_snapshots();
+drop table crm.portfolio_snapshots;
+drop table crm.pipeline_snapshots;
+drop table crm.report_outbox;
+drop table crm.report_deliveries;
+drop table crm.saved_reports;
+drop table crm.metric_owners;

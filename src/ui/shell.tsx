@@ -165,7 +165,7 @@ export function AccountMenu({ initials, label, children }: { initials: string; l
           // Elegir un destino cierra el menú; los formularios (idioma, salir) siguen su envío normal.
           if ((e.target as HTMLElement).closest('a')) setOpen(false)
         }}
-        className="absolute top-[calc(100%+10px)] right-0 z-50 w-72 animate-pop rounded-[16px] border border-line bg-surface p-2 shadow-[var(--cg-shadow-lift)]"
+        className="absolute top-[calc(100%+10px)] right-0 z-50 max-h-[calc(100dvh-88px)] w-72 animate-pop overflow-y-auto overscroll-contain rounded-[16px] border border-line bg-surface p-2 shadow-[var(--cg-shadow-lift)]"
         data-testid="me-panel"
       >
         {children}

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import { requireCtx, systemCtx } from '@/server/context'
-import { getLeadWatch, getSupervisorBoard, teamPeople, type RepRow } from '@/dal/boards'
+import { getLeadWatch, getSupervisorBoard, teamPeople, track, type RepRow } from '@/dal/boards'
 import { teamsWithoutSupervisor } from '@/dal/b2b'
 import { ROLE_LABEL, rolesIn } from '@/domain/policy'
 import { getRepartoSources } from '@/dal/reparto'
@@ -46,6 +46,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const teamOptions = options.teams.filter((x) => !sp.market || x.market_code === sp.market)
   const team = sp.equipo === 'none' ? 'none' : teamOptions.some((x) => x.id === sp.equipo) ? sp.equipo : undefined
   const board = await getSupervisorBoard(ctx, { ...sp, team })
+  // Uso real (Adopción): cuenta que quien supervisa abrió el tablero de su equipo, no que entró a CONTIGO.
+  if (teamView) await track(ctx, 'view.supervisor')
   const canReport = teamView && ctx.can('report.view')
   const weeks = canReport ? await getWeeklyResults(ctx, { market: sp.market, team }) : []
   const live = ctx.markets.filter((m) => m.status === 'live')

@@ -254,23 +254,21 @@ test.describe('panel del LT', () => {
 })
 
 test.describe('adopción', () => {
-  test('leadership ve quién entró, cuándo fue la última vez y cuántas actividades registró; supervisión no', async ({ page }) => {
-    await loginAs(page, 'marco.pena')
+  // Cambiado a propósito por el paquete `reportes` (GOB-03): Adopción ya no cuenta ingresos (el catálogo lo marca como lo que
+  // no hay que medir). Mide uso real: actividades registradas, próximo paso al día y leads atendidos a tiempo. Supervisión ve a su equipo.
+  test('leadership ve el uso real por persona, sin ingresos; quien lidera ve su mercado y supervisión, su equipo', async ({ page }) => {
     await loginAs(page, 'luis.tovar', { stay: true })
     await page.getByTestId('lt-adoption-link').click()
     await expect(page.locator('h1')).toHaveText('Adopción')
     const people = int(await page.getByTestId('adoption-people').innerText())
     await expect(page.getByTestId('adoption-row')).toHaveCount(people)
     const marco = page.getByTestId('adoption-row').filter({ hasText: 'Marco Peña' })
-    await expect(marco).toContainText('Ventas · MX · D2D Centro')
-    expect(int(await marco.getByTestId('adoption-logins').innerText())).toBeGreaterThan(0)
-    await expect(marco.getByTestId('adoption-last')).not.toContainText('Nunca')
+    await expect(marco).toContainText('D2D Centro')
+    await expect(marco.getByTestId('adoption-week')).toBeVisible()
     await expect(page.getByTestId('adoption-list')).not.toContainText('CONTIGO (sistema)')
-    const never = int(await page.getByTestId('adoption-never').innerText())
-    await page.getByTestId('pill-nunca').click()
-    await expect(page).toHaveURL(/ver=nunca/)
-    await expect(page.getByTestId('adoption-row')).toHaveCount(never)
-    for (const row of await page.getByTestId('adoption-row').all()) await expect(row.getByTestId('adoption-last')).toContainText('Nunca ha entrado')
+    await expect(page.getByTestId('adoption-logins')).toHaveCount(0)
+    await expect(page.locator('main')).not.toContainText('Último ingreso')
+    await expect(page.getByTestId('adoption-note')).toContainText('no se cuentan ingresos')
 
     // quien lidera México ve solo a la gente de México
     await loginAs(page, 'ana.robles')
@@ -279,8 +277,11 @@ test.describe('adopción', () => {
     await expect(page.getByTestId('adoption-row').filter({ hasText: 'Sam Ortiz' })).toHaveCount(0)
     await expect(page.getByTestId('adoption-row').filter({ hasText: 'Nora Salas' })).toHaveCount(0)
 
+    // supervisión ve a su equipo, no al otro
     await loginAs(page, 'fernando.ibarra')
-    expect((await page.goto('/reportes/adopcion'))?.status()).toBe(404)
+    expect((await page.goto('/reportes/adopcion'))?.status()).toBe(200)
+    await expect(page.getByTestId('adoption-row').filter({ hasText: 'Marco Peña' })).toHaveCount(1)
+    await expect(page.getByTestId('adoption-row').filter({ hasText: 'Diana Cruz' })).toHaveCount(0)
   })
 })
 

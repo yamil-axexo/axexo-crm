@@ -18,7 +18,8 @@ import { LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
 export const EXPORT_CAPS: Partial<Record<Role, number>> = { admin: 10000, lt: 10000, market_lead: 5000, supervisor: 2000 }
 /** Umbral diario por persona (últimas 24 horas): pasado cualquiera de los dos, la exportación se marca y avisa. */
 export const EXPORT_DAILY = { rows: 20000, files: 20 } as const
-export type ExportWhat = 'closed_deals' | 'field_stores' | 'field_visits' | 'accounts' | 'leads'
+/** Qué se exportó: una lista, un reporte fijo o un reporte de la galería (`report_<clave>`). La base solo exige el formato. */
+export type ExportWhat = 'closed_deals' | 'field_stores' | 'field_visits' | 'accounts' | 'leads' | `report_${string}` | 'visit_detail' | `market_${string}`
 
 export function exportCap(ctx: Ctx, market?: string | null): number {
   const caps = ctx.memberships.filter((m) => m.market === null || !market || m.market === market).map((m) => EXPORT_CAPS[m.role] ?? 0)

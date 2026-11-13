@@ -7,6 +7,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { ROLE_LABEL, rolesIn, type Role } from '@/domain/policy'
 import { DomainError, forbidden, invalid, notFound } from '@/lib/errors'
 import { peopleWithRole } from '@/domain/automation/people'
+import { notify } from '@/domain/notify'
 
 // PIPE-02: el paso de una etapa a otra es un dato. Dice quién lo puede dar, si pide evidencia (un enlace con nota,
 // nunca el archivo) y si pide la aprobación de alguien, con plazo y suplente. La regla vive aquí y la consulta
@@ -202,13 +203,14 @@ export async function decideApproval(ctx: Ctx, approvalId: string, decision: 'ap
       await move(tx, requester, a)
       await tx`select set_config('app.user_id', ${ctx.user.id}, true)`
     }
-    // Quien lo pidió se entera en Hoy, en su idioma.
-    const en = i.locale === 'en'
-    const body = decision === 'approve'
-      ? (en ? `${ctx.user.name} approved it: ${i.title} moved to "${i.name_en}".` : `${ctx.user.name} lo aprobó: ${i.title} pasó a "${i.name_es}".`)
-      : (en ? `${ctx.user.name} declined moving ${i.title} to "${i.name_en}": ${note}` : `${ctx.user.name} no aprobó pasar ${i.title} a "${i.name_es}": ${note}`)
-    await tx`insert into crm.notices (market_code, user_id, from_user_id, kind, account_id, deal_id, body)
-             values (${a.market_code}, ${a.requested_by}, ${ctx.user.id}, 'mention', ${i.account_id}, ${a.deal_id}, ${body.slice(0, 600)})`
+    // Quien lo pidió se entera por el servicio único de avisos (campana, Hoy y los canales que eligió), en su idioma.
+    await notify(tx, ctx, {
+      to: a.requested_by, kind: 'approval', market: a.market_code, link: `/deals/${a.deal_id}`, accountId: i.account_id, dealId: a.deal_id,
+      title: decision === 'approve' ? [`Paso aprobado: ${i.title}`, `Step approved: ${i.title}`] : [`Paso no aprobado: ${i.title}`, `Step declined: ${i.title}`],
+      body: decision === 'approve'
+        ? [`${ctx.user.name} lo aprobó: ${i.title} pasó a "${i.name_es}".`, `${ctx.user.name} approved it: ${i.title} moved to "${i.name_en}".`]
+        : [`${ctx.user.name} no aprobó pasar ${i.title} a "${i.name_es}": ${note}`, `${ctx.user.name} declined moving ${i.title} to "${i.name_en}": ${note}`],
+    })
   })
 }
 

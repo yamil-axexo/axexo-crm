@@ -155,6 +155,18 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'csv_import.completed': ['Importó un archivo', 'Imported a file'],
   'csv_import.undone': ['Deshizo una importación', 'Undid an import'],
   'export.alert': ['Pasó el umbral diario de exportaciones', 'Went over the daily export threshold'],
+  'saved_report.saved': ['Guardó un reporte', 'Saved a report'],
+  'saved_report.deleted': ['Borró un reporte guardado', 'Deleted a saved report'],
+  'saved_report.scheduled': ['Programó un reporte', 'Scheduled a report'],
+  'saved_report.delivered': ['Entregó un reporte programado', 'Delivered a scheduled report'],
+  'snapshot.taken': ['Tomó la foto diaria', 'Took the daily snapshot'],
+  'reconciliation.ran': ['Concilió con el archivo de ventas', 'Reconciled with the sales file'],
+  'agency.labels_set': ['Cambió quién cuenta como agencia', 'Changed who counts as an agency'],
+  'metric.owner_set': ['Cambió quién responde por un indicador', 'Changed who answers for a metric'],
+  'saved_view.saved': ['Guardó una vista', 'Saved a view'],
+  'saved_view.deleted': ['Borró una vista', 'Deleted a view'],
+  'saved_view.pinned': ['Fijó una vista como cola', 'Pinned a view as a queue'],
+  'saved_view.unpinned': ['Quitó una cola de su menú', 'Removed a queue from the menu'],
   'session.started': ['Inició sesión', 'Signed in'],
   'session.ended': ['Cerró sesión', 'Signed out'],
 }
@@ -170,6 +182,8 @@ export const AUDIT_GROUPS = {
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
+  // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
+  saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const

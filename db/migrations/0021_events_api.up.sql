@@ -324,7 +324,7 @@ create table crm.export_log (
   id           uuid primary key default app.uuid_v7(),
   user_id      uuid not null references crm.users(id),
   market_code  text references crm.markets(code),
-  what         text not null check (what in ('closed_deals','field_stores','field_visits','accounts','leads')),
+  what         text not null check (what ~ '^[a-z][a-z0-9_-]{1,59}$'),   -- lista, reporte fijo o report_<clave> de la galería
   reason       text not null check (char_length(btrim(reason)) between 8 and 300),
   rows         int not null check (rows >= 0),
   row_cap      int not null,

@@ -12,7 +12,7 @@ import { Empty, Field, LinkButton, Pills, cx } from '@/ui/kit'
 import { DataTools } from '@/ui/data-tools'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { FichaPanel } from '@/ui/panel'
-import { ago, num } from '@/lib/format'
+import { ago, day, num } from '@/lib/format'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { KIND, MOTOR, lab, qs } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
@@ -21,13 +21,15 @@ import { accountTypeOptions, intakeFields } from '@/dal/b2b'
 import { IntakeFields } from '@/ui/intake'
 import { Ficha, fichaTab, type FichaTab } from './ficha'
 import { flat } from '@/server/params'
+import { ViewsSection } from '../views-section'
+import { salesCutoff } from '@/dal/reportes'
 import { visitorNames } from '@/dal/field'
 import { marketPipelines } from '@/dal/leads'
 
 /** Las vistas compartidas que vienen de fábrica se guardaron con nombre en español: en inglés se leen en inglés. Las que crea cada equipo salen como las escribió. */
 const VIEW_EN: Record<string, string> = { 'En riesgo': 'At risk', 'Sin dueño': 'No owner', 'Esperando primera venta': 'Awaiting first sale' }
 
-type Params = AccountFilters & { vista?: string; ficha?: string; tab?: string; repartir?: string }
+type Params = AccountFilters & { vista?: string; ficha?: string; tab?: string; repartir?: string; cola?: string }
 
 export default async function ComerciosPage({ searchParams }: { searchParams: Promise<Params> }) {
   const ctx = await requireCtx()
@@ -62,6 +64,8 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const firstPipe = ctx.can('account.create') ? (await marketPipelines(ctx, live.find((x) => ctx.can('account.create', x.code))?.code))[0] : undefined
   const defaultSegment = firstPipe && firstPipe.motor in MOTOR ? firstPipe.motor : 'd2d'
   await track(ctx, 'view.comercios')
+  // REP-04: todo dato del archivo de ventas va con su fecha de corte a la vista.
+  const cutoff = tree ? null : await salesCutoff(ctx, sp.market)
   const multi = ctx.markets.length > 1
   // El estado de la lista vive en la URL: abrir o cerrar la ficha no pierde filtros, búsqueda ni página.
   const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito, repartir: repartir ? '1' : undefined }
@@ -133,12 +137,14 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
             { key: 'sin-transaccionar', href: filter('sin-transaccionar'), label: m('merchants.filter.idle'), count: data.counts.idle },
             { key: 'sin-paso', href: filter('sin-paso'), label: m('merchants.filter.nostep'), count: data.counts.nostep },
             // vistas guardadas del equipo; las que repiten un filtro de arriba no se duplican
-            ...views.filter((v) => !v.filters.owner && v.filters.lifecycle !== 'at_risk').map((v) => {
+            ...views.filter((v) => v.name in VIEW_EN && !v.filters.owner && v.filters.lifecycle !== 'at_risk').map((v) => {
               const f = v.filters
               return { key: f.lifecycle ? `lc:${f.lifecycle}` : f.kind ? `k:${f.kind}` : `v:${v.id}`, href: qs('/comercios', { market: sp.market, owner: sp.owner, ...f }), label: t(v.name, VIEW_EN[v.name] ?? v.name) }
             }),
           ]}
         />}
+
+        {!tree && <ViewsSection object="account" filters={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito }} current={sp.cola} />}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <form action="/comercios" method="get" role="search" className="flex min-w-0 flex-1 basis-64 flex-wrap gap-2">
@@ -282,6 +288,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 <div className="p-6"><Empty title={m('merchants.empty.title')} hint={m('merchants.empty.body')} /></div>
               ) : (
                 <>
+                  {cutoff && <p className="border-b border-line px-5 py-2 text-[12.5px] text-muted" data-testid="list-asof">{t(`Ventas y última transacción con corte al ${day(cutoff, locale)}, según el archivo diario de ventas.`, `Sales and last transaction as of ${day(cutoff, locale)}, per the daily sales file.`)}</p>}
                   <div aria-hidden className={cx('hidden border-b border-line px-5 py-3 text-[13px] font-medium text-muted', cols, repartir && 'ml-11')}>
                     <span>{m('merchants.col.merchant')}</span><span>{m('merchants.col.health')}</span><span>{m('merchants.col.owner')}</span><span>{m('merchants.col.lastTxn')}</span>
                   </div>

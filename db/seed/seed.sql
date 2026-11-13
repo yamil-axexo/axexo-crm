@@ -424,3 +424,33 @@ update crm.accounts a set address_line = 'Av. Principal 120, Centro', postal_cod
                  where x.market_code = 'MX' and x.kind = 'store' and x.archived_at is null
                    and x.owner_id in (pg_temp.uid('lucia.vega'), pg_temp.uid('marco.pena'))
                  order by x.owner_id, x.name, x.id);
+
+-- reportes
+-- Vistas compartidas de fábrica (UX-03). Reconstruyen, con los campos que existen en CONTIGO, los filtros que el equipo
+-- hizo en Pipedrive: negocios sin persona ("US Dealer Enrollment - deals without rep", "Open (No Sales Contact)"), negocios
+-- abiertos sin actividad próxima ("Open no activity", "Open (No Last Activity Date)") y organizaciones de US ("US - Organizations").
+insert into crm.saved_views (user_id, object, name, filters, is_shared) values
+  (pg_temp.uid('nora.salas'), 'deal', 'Negocios sin persona asignada', jsonb_build_object('pipeline', pg_temp.uid('p-us-dealer')::text, 'owner', 'none', 'vista', 'lista'), true),
+  (pg_temp.uid('nora.salas'), 'deal', 'Negocios abiertos sin próximo paso', jsonb_build_object('pipeline', pg_temp.uid('p-us-dealer')::text, 'paso', 'sin', 'vista', 'lista'), true),
+  (pg_temp.uid('nora.salas'), 'account', 'Organizaciones de US', '{"market":"US","kind":"organization"}', true),
+  (pg_temp.uid('nora.salas'), 'lead', 'Leads sin persona asignada', '{"owner":"none","status":"open"}', true),
+  (pg_temp.uid('nora.salas'), 'activity', 'Tareas del equipo', '{"view":"team"}', true);
+-- En CONTIGO "dueño" es solo el del comercio: la vista de fábrica de comercios sin persona se llama como el resto del producto.
+update crm.saved_views set name = 'Sin persona asignada' where name = 'Sin dueño' and is_shared;
+-- Los filtros de negocios perdidos de Pipedrive ("Lost", "Lost no response") viven como reporte guardado y compartido.
+insert into crm.saved_reports (user_id, report, name, params, is_shared, market_code) values
+  (pg_temp.uid('nora.salas'), 'cerrados', 'Negocios perdidos del mes en US', '{"periodo":"mes","mercado":"US","resultado":"lost"}', true, 'US');
+-- Foto diaria de los últimos 14 días (sintética, a partir de lo abierto hoy) para que el histórico tenga con qué dibujarse.
+insert into crm.pipeline_snapshots (snapshot_date, market_code, pipeline_id, stage_id, deals, no_next_step, amount_minor, currency)
+select (now() at time zone mk.timezone)::date - g.n, p.market_code, p.id, s.id,
+       greatest(0, count(d.id)::int + (pg_temp.h('snap' || s.id::text || g.n::text) % 5) - 2),
+       count(d.id) filter (where d.next_step is null or d.next_step_due is null)::int, coalesce(sum(d.amount_minor), 0), mk.currency
+  from crm.pipelines p join crm.stages s on s.pipeline_id = p.id and s.kind in ('open', 'awaiting_txn')
+  join crm.markets mk on mk.code = p.market_code and mk.status = 'live'
+  cross join generate_series(1, 14) g(n)
+  left join crm.deals d on d.stage_id = s.id and d.status = 'open'
+ group by 1, 2, 3, 4, g.n, mk.currency;
+insert into crm.portfolio_snapshots (snapshot_date, market_code, lifecycle, accounts)
+select (now() at time zone mk.timezone)::date - g.n, a.market_code, a.lifecycle, count(*)::int
+  from crm.accounts a join crm.markets mk on mk.code = a.market_code and mk.status = 'live' cross join generate_series(1, 14) g(n)
+ where a.archived_at is null and a.kind = 'store' group by 1, 2, 3;
