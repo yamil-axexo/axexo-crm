@@ -271,11 +271,10 @@ describe('LEAD-03 y E3.F10: reglas de asignación', () => {
       expect(small.steps[0]).toMatchObject({ rule: 'Tiendas grandes a Marco', outcome: 'no_match' })
       expect((await admin`select 1 from crm.assignment_log`).length).toBe(0)
 
-      const a = await send(sys, 'tiendas-mx', { size_units: '12' })
+      const a = await send(sys, 'tiendas-mx', { store_count: '12' })
       expect((await lead(a)).owner_id).toBe(marco)
-      expect((await one(admin`select size_units from crm.leads where id = ${a}`)).size_units).toBe(12)
       // Marco llegó a su tope: el siguiente grande pasa a la regla 2.
-      const b = await send(sys, 'tiendas-mx', { size_units: '15' })
+      const b = await send(sys, 'tiendas-mx', { store_count: '15' })
       expect((await lead(b)).owner_id).toBe(lucia)
       const log = await one(admin<{ rule_name: string; detail: { steps: { rule: string; outcome: string }[] } }[]>`select rule_name, detail from crm.assignment_log where lead_id = ${b}`)
       expect(log.rule_name).toBe('Tiendas a Lucía')
@@ -382,7 +381,7 @@ describe('LEAD-02, LEAD-01, LEAD-05, E3.F3, E3.F8 y ACT-01', () => {
     await qualifyLead(marco, leadId)
     const out = await convertLead(marco, leadId)
     expect(out.accountId).toBe(acc.id)
-    expect((await admin`select 1 from crm.activities where account_id = ${acc.id} and lead_id = ${leadId}`).length).toBeGreaterThan(0)
+    expect((await admin`select 1 from crm.activities where account_id = ${acc.id!} and lead_id = ${leadId}`).length).toBeGreaterThan(0)
     expect((await admin`select 1 from crm.audit_events where action = 'lead.linked_to_account' and object_id = ${leadId}`).length).toBe(1)
   })
 
@@ -400,7 +399,7 @@ describe('LEAD-02, LEAD-01, LEAD-05, E3.F3, E3.F8 y ACT-01', () => {
     const l = await one(admin`select referred_by_account_id, labels from crm.leads where id = ${out.leadId}`)
     expect(l.referred_by_account_id).toBe(acc.id)
     expect(l.labels).toContain('referido')
-    expect((await admin`select 1 from crm.source_touches where lead_id = ${out.leadId} and referral_account_id = ${acc.id}`).length).toBe(1)
+    expect((await admin`select 1 from crm.source_touches where lead_id = ${out.leadId} and referral_account_id = ${acc.id!}`).length).toBe(1)
     // Un código que no existe o de otro mercado no atribuye nada y no tumba el formulario.
     const other = await intakeFromForm(sys, 'tiendas-mx', { business_name: `Tienda Sin Ref ${tag()}`, contact_name: 'Pedro Sol', phone: phone(), ref: 'ZZZZZZZZ' }, `t-${tag()}${tag()}`)
     expect((await one(admin`select referred_by_account_id from crm.leads where id = ${other.leadId}`)).referred_by_account_id).toBeNull()

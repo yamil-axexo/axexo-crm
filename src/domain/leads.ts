@@ -17,9 +17,9 @@ import { resolveOwner, logAssignment } from '@/domain/embudo/routing'
 import { carryTouches, enqueueConversions, readOrigin, recordTouch, saveFirstTouch } from '@/domain/embudo/attribution'
 import { referralFrom } from '@/domain/embudo/referrals'
 
-/** Tamaño que declara quien llena el formulario (cuántos puntos de venta), si el formulario lo pregunta. */
+/** Número de tiendas que declara quien llena el formulario (la misma respuesta `store_count` que ya se guarda y se filtra, E15.F5). */
 const sizeFrom = (raw: unknown): number | null => {
-  const v = Number((raw as Record<string, unknown> | null)?.size_units)
+  const v = Number((raw as Record<string, unknown> | null)?.store_count)
   return Number.isInteger(v) && v >= 1 && v <= 100000 ? v : null
 }
 import { applyTerritoryOwners } from '@/domain/mx-config'
@@ -301,7 +301,6 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       { source: form.is_campaign ? 'web_campaign' : 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin, accountType: form.offer_types.includes(p.company_type) ? p.company_type : form.account_type },
     )
     await logAssignment(tx, form.market_code, leadId, routed)
-    if (size) await tx`update crm.leads set size_units = ${size} where id = ${leadId}`
     // LEAD-02 / E3.F6: primer toque completo (TikTok, LinkedIn, X, página de llegada y de origen) y, si vino por referido, quién refirió.
     await saveFirstTouch(tx, { market: form.market_code, leadId, source: form.is_campaign ? 'web_campaign' : 'web_form', values: readOrigin(raw), referralAccountId: referral?.accountId ?? null })
     if (referral) await audit(tx, sys, 'lead.referred', 'lead', leadId, form.market_code, null, { referred_by_account_id: referral.accountId, code: referral.code })

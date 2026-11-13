@@ -18,7 +18,7 @@ drop index crm.leads_referred_idx;
 drop index crm.leads_labels_gin;
 alter table crm.leads
   drop constraint leads_labels_check,
-  drop column size_units, drop column labels, drop column referred_by_account_id,
+  drop column labels, drop column referred_by_account_id,
   drop column referrer, drop column landing_page, drop column twclid, drop column li_fat_id, drop column ttclid;
 
 drop table crm.ticket_refs;

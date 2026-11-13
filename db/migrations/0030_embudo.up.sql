@@ -268,8 +268,6 @@ alter table crm.leads
   add column referred_by_account_id uuid references crm.accounts(id),
   -- E3.F3: etiquetas del lead, filtrables.
   add column labels        text[] not null default '{}',
-  -- LEAD-03: tamaño declarado (cuántos puntos de venta), para rutear por tamaño.
-  add column size_units    integer check (size_units is null or (size_units >= 1 and size_units <= 100000)),
   add constraint leads_labels_check check (coalesce(array_length(labels, 1), 0) <= 12);
 create index leads_labels_gin on crm.leads using gin (labels);
 create index leads_referred_idx on crm.leads (referred_by_account_id) where referred_by_account_id is not null;
