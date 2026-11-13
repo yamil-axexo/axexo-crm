@@ -94,7 +94,7 @@ export async function escalationAction(_: R | null, fd: FormData): Promise<R> {
 
 export async function addEvidenceAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await addEvidence(ctx, str(fd, 'deal_id'), { toStageId: str(fd, 'to_stage_id'), url: str(fd, 'url'), note: str(fd, 'note') })
+    await addEvidence(ctx, str(fd, 'deal_id'), { toStageId: str(fd, 'to_stage_id'), url: str(fd, 'url'), note: str(fd, 'note'), documentId: str(fd, 'document_id'), contentHash: str(fd, 'content_hash') })
     return { message: ['Evidencia agregada. Ya puedes mover el negocio a esa etapa.', 'Evidence added. You can now move the deal to that stage.'] }
   })
 }

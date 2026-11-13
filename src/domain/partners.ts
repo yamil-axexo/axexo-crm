@@ -28,7 +28,17 @@ export const SETTLEMENT_LABEL: Record<(typeof SETTLEMENTS)[number], Pair> = {
   ach_credit: ['Crédito por ACH', 'ACH credit'],
   other: ['Otro (en notas)', 'Other (see notes)'],
 }
-export type CommissionLine = { product: string; pct: number }
+export type CommissionLine = { product: string; pct: number; /** PIPE-07 (embudo2): el producto del catálogo (crm.products) al que se liga la línea, si se encontró. */ product_id?: string | null; product_code?: string | null }
+
+/** PIPE-07 (embudo2): cada línea se liga al catálogo de productos por nombre o código. La que no se encuentra queda marcada "sin ligar". */
+export async function linkCommissionLines(tx: Tx, lines: CommissionLine[]): Promise<CommissionLine[]> {
+  const products = await tx<{ id: string; name: string; code: string | null }[]>`select id, name, code from crm.products where is_active`
+  return lines.map((l) => {
+    const key = l.product.trim().toLowerCase()
+    const hit = products.find((p) => p.name.trim().toLowerCase() === key || (p.code ?? '').trim().toLowerCase() === key)
+    return { ...l, product_id: hit?.id ?? null, product_code: hit?.code ?? null }
+  })
+}
 
 /** "Recargas: 4.5" por renglón. Acepta coma decimal. Devuelve las líneas o un error claro. */
 export function parseCommissionLines(text: string): CommissionLine[] {
@@ -81,14 +91,15 @@ export async function saveTerms(ctx: Ctx, accountId: string, raw: TermsInput): P
     const max = await tx<{ v: number }[]>`select coalesce(max(version), 0)::int as v from crm.commercial_terms where account_id = ${a.id}`
     const version = (max[0]?.v ?? 0) + 1
     const id = await newId(tx)
+    const linked = await linkCommissionLines(tx, lines)
     await tx`insert into crm.commercial_terms (id, account_id, market_code, legal_entity_id, version, commission_lines, settlement, fees, nda, term_months,
                                               valid_from, valid_to, renewal_notice_days, note, supersedes, created_by)
-             values (${id}, ${a.id}, ${a.market_code}, ${a.legal_entity_id}, ${version}, ${tx.json(lines)}, ${v.settlement}, ${clean(v.fees)}, ${v.nda},
+             values (${id}, ${a.id}, ${a.market_code}, ${a.legal_entity_id}, ${version}, ${tx.json(linked as never)}, ${v.settlement}, ${clean(v.fees)}, ${v.nda},
                      ${v.termMonths}, ${v.validFrom}::date, (${v.validFrom}::date + make_interval(months => ${v.termMonths}))::date,
                      ${v.renewalNoticeDays}, ${clean(v.note)}, ${prev[0]?.id ?? null}, ${ctx.user.id})`
     // La bitácora dice qué versión y cuántos productos, nunca los porcentajes: los términos son dato reservado.
     await audit(tx, ctx, 'terms.versioned', 'account', a.id, a.market_code, prev[0] ? { version: prev[0].version } : null,
-      { version, products: lines.length, settlement: v.settlement, nda: v.nda, term_months: v.termMonths })
+      { version, products: lines.length, linked: linked.filter((l) => l.product_id).length, settlement: v.settlement, nda: v.nda, term_months: v.termMonths })
     return { id, version }
   })
 }

@@ -4,7 +4,8 @@ import { accountContracts } from '@/dal/partners'
 import { CONTRACT_STATUS_LABEL, SETTLEMENT_LABEL, SETTLEMENTS } from '@/domain/partners'
 import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { day, num } from '@/lib/format'
+import { day, money, num } from '@/lib/format'
+import { commissionStatement } from '@/dal/embudo2-terms'
 import * as A from '@/app/(app)/partners/actions'
 
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,7 @@ export default async function ContractsPage({ params }: { params: Promise<{ id: 
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const d = await accountContracts(ctx, id)
   if (!d) notFound()
+  const statement = d.account.can_terms_view ? await commissionStatement(ctx, id) : null
   const a = d.account
   const current = d.terms.find((x) => x.is_current)
   const canTerms = a.can_terms_edit && ctx.can('terms.manage', a.market_code)
@@ -51,7 +53,7 @@ export default async function ContractsPage({ params }: { params: Promise<{ id: 
               <li key={v.id} className={row} data-testid="terms-row">
                 <div className="min-w-0">
                   <p className="text-[15px] font-semibold text-strong">{t(`Versión ${v.version}`, `Version ${v.version}`)} {v.is_current && <Badge tone="good">{t('Vigente', 'Current')}</Badge>}</p>
-                  <p className={small}>{v.commission_lines.map((l) => `${l.product}: ${pct(l.pct)}`).join(' · ')}</p>
+                  <p className={small}>{v.commission_lines.map((l) => `${l.product}${l.product_code ? ` (${l.product_code})` : ''}: ${pct(l.pct)}`).join(' · ')}</p>
                   <p className={small}>
                     {t(...SETTLEMENT_LABEL[v.settlement as 'prepaid'])} · {t(`${v.term_months} meses`, `${v.term_months} months`)} · {day(v.valid_from, locale)} {t('a', 'to')} {day(v.valid_to, locale)}
                     {' · '}{v.nda ? t('Con acuerdo de confidencialidad', 'With NDA') : t('Sin acuerdo de confidencialidad', 'No NDA')}
@@ -100,6 +102,22 @@ export default async function ContractsPage({ params }: { params: Promise<{ id: 
           </ActionForm>
         )}
       </Card>
+
+      {a.can_terms_view && statement && (
+        <Card data-testid="terms-statement">
+          <CardTitle title={t('Estado de comisiones del mes (vista previa)', 'Commission statement for the month (preview)')}
+            hint={t(`Sale de los términos vigentes (versión ${statement.version}) y de los pagos del mes del archivo de ventas${statement.as_of ? `, corte del ${day(statement.as_of, locale)}` : ''}. Cómo y cuándo se paga lo define el paquete de comisiones [pendiente: Finanzas].`, `It comes from the current terms (version ${statement.version}) and the month's payments in the sales file${statement.as_of ? `, as of ${day(statement.as_of, locale)}` : ''}. How and when it is paid is defined by the commissions package [pending: Finance].`)} />
+          <p className={small} data-testid="terms-statement-channel">{statement.channel ? t(`Canal que la gana: ${statement.channel}`, `Channel that earns it: ${statement.channel}`) : t('Sin canal atribuido: la comisión queda sin a quién pagarse hasta que se atribuya.', 'No channel attributed: the commission has nobody to be paid to until it is attributed.')}</p>
+          <ul className="mt-2 divide-y divide-line" data-testid="terms-statement-lines">
+            {statement.lines.map((l) => (
+              <li key={l.product} className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-[14px]" data-testid="terms-statement-line">
+                <span className="text-strong">{l.product}{l.product_code ? ` (${l.product_code})` : ''} · {pct(l.pct)} {!l.linked && <Badge tone="warn">{t('sin ligar al catálogo de productos', 'not linked to the product catalog')}</Badge>}</span>
+                <span className="text-muted-2">{l.payments_mtd_minor === null ? t('sin pagos en el archivo de ventas', 'no payments in the sales file') : t(`pagos ${money(l.payments_mtd_minor, l.currency ?? 'USD', locale)} · comisión ${money(l.commission_minor, l.currency ?? 'USD', locale)}`, `payments ${money(l.payments_mtd_minor, l.currency ?? 'USD', locale)} · commission ${money(l.commission_minor, l.currency ?? 'USD', locale)}`)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card data-testid="contracts-card">
         <CardTitle

@@ -16,6 +16,8 @@ export async function addActivityAction(_: ActionResult<unknown> | null, fd: For
       body: str(fd, 'body'),
       dueAt: str(fd, 'due_at'),
       notify: kind === 'note' ? str(fd, 'notify') : '',
+      // ACT-01 (embudo2): quién ve la actividad.
+      visibility: (['team', 'managers', 'restricted'] as const).find((v) => v === str(fd, 'visibility')) ?? 'team',
     })
     return { message: ['Guardado en el hilo.', 'Saved to the thread.'] }
   })

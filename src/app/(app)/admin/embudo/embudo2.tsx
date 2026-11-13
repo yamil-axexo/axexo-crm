@@ -127,3 +127,26 @@ export async function ProposedFunnelValues({ ctx }: { ctx: Ctx }) {
     </Card>
   )
 }
+
+/** E12.F4: la lista de propósitos de visita de un mercado es propuesta hasta que ventas la confirme; confirmarla queda en la bitácora. */
+export async function VisitPurposesProposal({ ctx }: { ctx: Ctx }) {
+  const { t } = ctx
+  const rows = (await listFunnelSettings(ctx)).filter((r) => r.key === 'visit_purposes_confirmed' && r.value !== true)
+  if (rows.length === 0) return null
+  return (
+    <div className="mb-3 space-y-2" data-testid="visit-purposes-proposed">
+      {rows.map((r) => (
+        <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-[10px] bg-surface-3 px-3 py-2 text-[13.5px] text-strong">
+          <span className="flex-1">{t(`${r.market_code ?? ''}: la lista de propósitos es un valor propuesto, [pendiente: ${r.pending_owner ?? 'Ventas'}]. Se usa así mientras ventas confirma la lista del sistema anterior.`, `${r.market_code ?? ''}: the purpose list is a proposed value, [pending: ${r.pending_owner ?? 'Sales'}]. It is used as is while sales confirms the list from the previous system.`)}</span>
+          {ctx.can('config.manage') && (
+            <ActionForm action={saveFunnelSettingAction} testId="visit-purposes-confirm">
+              <input type="hidden" name="key" value="visit_purposes_confirmed" /><input type="hidden" name="market" value={r.market_code ?? ''} />
+              <input type="hidden" name="value" value="true" /><input type="hidden" name="confirm" value="on" />
+              <Submit size="sm" variant="ghost" testId="visit-purposes-confirm-btn">{t('Ventas la confirmó', 'Sales confirmed it')}</Submit>
+            </ActionForm>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}

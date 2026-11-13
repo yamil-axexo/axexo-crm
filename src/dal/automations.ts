@@ -122,7 +122,9 @@ export type DealSteps = {
   goal: { due_at: Date; late: boolean; hours: number } | null
   /** Pasos configurados desde la etapa actual que piden algo. */
   steps: { to_stage_id: string; to_es: string; to_en: string; requires_evidence: boolean; evidence_es: string | null; evidence_en: string | null; needs_approval: boolean; has_evidence: boolean }[]
-  evidence: { id: string; to_es: string; to_en: string; url: string; note: string; added_by: string | null; added_at: Date }[]
+  evidence: { id: string; to_es: string; to_en: string; url: string | null; note: string; added_by: string | null; added_at: Date; content_hash: string | null; requirement: string | null }[]
+  /** PIPE-02 (embudo2): documentos del expediente de alta del comercio que pueden servir de evidencia (recibidos o válidos). */
+  documents: { id: string; requirement: string; status: string; content_hash: string | null }[]
   pending: { id: string; to_es: string; to_en: string; requested_by: string; requester: string | null; approver: string | null; approver_role: Role | null; due_at: Date; late: boolean; escalated: boolean; backup: string | null; mine: boolean; can_decide: boolean } | null
   last: { status: string; to_es: string; to_en: string; decided_by: string | null; decided_at: Date | null; note: string | null } | null
 }
@@ -145,8 +147,12 @@ export async function dealSteps(ctx: Ctx, dealId: string): Promise<DealSteps | n
          and (t.requires_evidence or t.needs_approval) and s.archived_at is null
        order by t.to_stage_id, t.from_stage_id nulls last`
     const evidence = await tx<DealSteps['evidence']>`
-      select e.id, s.name_es as to_es, s.name_en as to_en, e.url, e.note, u.full_name as added_by, e.added_at
-        from crm.deal_evidence e join crm.stages s on s.id = e.to_stage_id left join crm.users u on u.id = e.added_by where e.deal_id = ${dealId} order by e.added_at desc limit 20`
+      select e.id, s.name_es as to_es, s.name_en as to_en, e.url, e.note, u.full_name as added_by, e.added_at, e.content_hash, od.requirement
+        from crm.deal_evidence e join crm.stages s on s.id = e.to_stage_id left join crm.users u on u.id = e.added_by
+        left join crm.onboarding_documents od on od.id = e.document_id where e.deal_id = ${dealId} order by e.added_at desc limit 20`
+    const documents = await tx<DealSteps['documents']>`
+      select od.id, od.requirement, od.status, od.content_hash from crm.onboarding_documents od join crm.deals dd on dd.account_id = od.account_id
+       where dd.id = ${dealId} and od.status in ('received', 'valid') order by od.requirement`
     const ap = await tx<{ id: string; market_code: string; status: string; to_es: string; to_en: string; requested_by: string; requester: string | null; approver_id: string | null; approver: string | null; approver_role: Role | null
       backup_id: string | null; backup: string | null; due_at: Date; late: boolean; escalated_at: Date | null; decided_by: string | null; decided_at: Date | null; note: string | null }[]>`
       select a.id, a.market_code, a.status, s.name_es as to_es, s.name_en as to_en, a.requested_by, r.full_name as requester, a.approver_id, p.full_name as approver, a.approver_role,
@@ -161,6 +167,7 @@ export async function dealSteps(ctx: Ctx, dealId: string): Promise<DealSteps | n
       goal: deal.status === 'open' && deal.due_at && deal.sla_hours ? { due_at: deal.due_at, late: Boolean(deal.late), hours: deal.sla_hours } : null,
       steps: [...steps],
       evidence: [...evidence],
+      documents: [...documents],
       pending: open ? {
         id: open.id, to_es: open.to_es, to_en: open.to_en, requested_by: open.requested_by, requester: open.requester, approver: open.approver, approver_role: open.approver_role, due_at: open.due_at,
         late: open.late, escalated: Boolean(open.escalated_at), backup: open.backup, mine: open.requested_by === ctx.user.id,

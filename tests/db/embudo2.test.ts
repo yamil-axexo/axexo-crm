@@ -309,3 +309,23 @@ describe('UX-03: colas oficiales por rol', () => {
     expect(list2.items.some((x) => x.id === acc.id)).toBe(false)
   })
 })
+
+describe('PIPE-07: los términos alimentan el estado de comisiones y se ligan al catálogo de productos', () => {
+  it('una línea con un producto del catálogo queda ligada; la comisión sale de los pagos del archivo de ventas; la atribución dice quién la gana', async () => {
+    const { saveTerms } = await import('@/domain/partners')
+    const { commissionStatement } = await import('@/dal/embudo2-terms')
+    const robert = await ctxFor('robert.hale')
+    const acc = await createAccount(await ctxFor('jade.kim'), { market: 'US', kind: 'store', name: `Terms ${tag()}`, segment: 'dealer', force: true })
+    await saveTerms(robert, acc.id!, { lines: 'OPS-SIM: 4\nGift cards: 2', settlement: 'prepaid', termMonths: 12, validFrom: isoDay(new Date(), 'America/New_York') })
+    const t = await one(admin<{ commission_lines: { product: string; product_id: string | null; product_code: string | null }[] }[]>`select commission_lines from crm.commercial_terms where account_id = ${acc.id!} and is_current`)
+    expect(t.commission_lines.map((l) => [l.product, Boolean(l.product_id), l.product_code])).toEqual([['OPS-SIM', true, 'OPS-SIM'], ['Gift cards', false, null]])
+    await admin`insert into crm.store_sales_lines (account_id, as_of, market_code, line_kind, line_key, mtd, currency) values (${acc.id!}, ${isoDay(new Date(), 'America/New_York')}, 'US', 'payments', 'OPS-SIM', 50000, 'USD')`
+    const ch = await admin<{ party_label: string }[]>`select party_label from crm.account_attributions where account_id = ${acc.id!} and layer = 'channel' and effective_to is null`
+    const s = (await commissionStatement(robert, acc.id!))!
+    expect(s.channel).toBe(ch[0]?.party_label ?? null)
+    expect(s.lines[0]).toMatchObject({ product: 'OPS-SIM', linked: true, payments_mtd_minor: 50000, commission_minor: 2000 })
+    expect(s.lines[1]).toMatchObject({ linked: false, payments_mtd_minor: null })
+    // Quien no ve los términos (dato reservado, otro mercado) tampoco ve el estado de comisiones.
+    expect(await commissionStatement(await ctxFor('marco.pena'), acc.id!)).toBeNull()
+  })
+})

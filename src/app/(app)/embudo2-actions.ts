@@ -15,7 +15,7 @@ const int = (v: string): number | null => (/^\d{1,6}$/.test(v.trim()) ? Number(v
 export async function saveFunnelSettingAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     await saveFunnelSetting(ctx, { key: str(fd, 'key'), market: str(fd, 'market') || null, value: str(fd, 'value'), confirm: fd.get('confirm') === 'on' })
-    return { message: ['Valor guardado. El cambio quedó en la bitácora.', 'Value saved. The change is in the audit log.'], revalidate: ['/admin/embudo'] }
+    return { message: ['Valor guardado. El cambio quedó en la bitácora.', 'Value saved. The change is in the audit log.'], revalidate: ['/admin/embudo', '/admin/operaciones'] }
   })
 }
 
