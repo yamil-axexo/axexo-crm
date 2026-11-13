@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { partnerPortal, partnersAdmin } from '@/dal/partners'
+import { boardConfig, partnerBoard } from '@/dal/role-boards'
+import { metricOwners } from '@/dal/reportes'
+import { RoleBoard } from '@/ui/role-board'
 import { LIFECYCLE } from '@/lib/labels'
 import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader, Table } from '@/ui/kit'
 import { ActionForm, RevealOnce, Submit } from '@/ui/client'
@@ -27,16 +30,13 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
 
   if (ctx.can('partner.portal') && !ctx.can('partner.manage')) {
     const p = await partnerPortal(ctx)
-    const stores = p.nodes.filter((n) => n.kind === 'store')
+    const [board, boardValues, owners] = await Promise.all([boardConfig(ctx, 'partner'), partnerBoard(ctx, p.roots.map((r) => r.id)), metricOwners(ctx)])
     return (
       <div className="mx-auto max-w-[960px] space-y-8">
         <PageHeader eyebrow={t('Portal de partners', 'Partner portal')} title={p.roots.map((r) => r.name).join(', ') || t('Tu red', 'Your network')}
           desc={t('Lo que ves es tu red: tu nodo y lo que cuelga de él, con el estado del alta de cada punto. Solo lectura.', 'What you see is your network: your node and everything under it, with each store’s onboarding status. Read-only.')} />
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Card data-testid="portal-nodes"><p className={small}>{t('Nodos', 'Nodes')}</p><p className="text-[26px] font-semibold">{num(p.nodes.length, locale)}</p></Card>
-          <Card data-testid="portal-active"><p className={small}>{t('Puntos activos', 'Active stores')}</p><p className="text-[26px] font-semibold">{num(stores.filter((s) => s.lifecycle === 'active').length, locale)}</p></Card>
-          <Card data-testid="portal-tier"><p className={small}>{t('Nivel', 'Tier')}</p><p className="text-[26px] font-semibold">{p.roots.map((r) => (locale === 'en' ? r.tier_en : r.tier)).filter(Boolean).join(', ') || t('Por calcular', 'Not calculated yet')}</p></Card>
-        </div>
+        {/* REP-01 (reportes2): de 5 a 7 cifras del partner, cada una con su definición y su dueño (crm.role_boards). */}
+        <RoleBoard t={t} locale={locale} items={board} values={boardValues} owners={owners} testId="partner-board" />
         <Card pad={false} data-testid="portal-tree">
           <div className="p-7 pb-0"><CardTitle title={t('Tu red', 'Your network')} /></div>
           {p.nodes.length === 0 ? (

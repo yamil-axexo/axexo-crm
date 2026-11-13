@@ -21,7 +21,10 @@ export default async function ReportsPage() {
   const [saved, deliveries, tz, boards] = await Promise.all([listSavedReports(ctx), listDeliveries(ctx), readerTimeZone(ctx), getBoards(ctx)])
   await track(ctx, 'view.reportes')
   // "Negocios cerrados" lo ve quien tiene reportes o quien vende (los suyos).
+  // reportes2: quien solo es de Finanzas ve sus reportes (los de Finanzas e Indicadores), no los de ventas.
+  const financeOnly = ctx.memberships.every((m) => m.role === 'finance')
   const visible = REPORTS.filter((r) => (r.key === 'cerrados' ? ctx.can('report.view') || ctx.can('report.own') : ctx.can(r.cap)))
+    .filter((r) => !financeOnly || r.group === 'finance' || r.key === 'indicadores')
   const groups = (Object.keys(GROUP_LABEL) as ReportDef['group'][]).map((g) => ({ g, items: visible.filter((r) => r.group === g) })).filter((x) => x.items.length > 0)
   const href = (s: { report: string; params: Record<string, string> }) => {
     const def = reportByKey(s.report)

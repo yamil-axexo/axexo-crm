@@ -116,9 +116,10 @@ export const CAPABILITIES = {
   // por las mismas reglas que el alta a mano; la base repite el límite (app.can_import).
   'data.import': ['admin', 'market_lead'],
   // Página Reportes (paquete reportes): la ve todo el mundo, cada quien con lo de su alcance (RLS y el alcance del reporte deciden las filas).
-  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  // reportes2: también Finanzas y KAM (Finanzas solo ve en la galería sus reportes: ver reportes/page.tsx).
+  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'kam'],
   // Guardar un reporte con sus filtros es de la persona (como reportar un problema): también quien solo lee. Compartirlo con el equipo es de quien dirige.
-  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'kam'],
   'report.share': MANAGERS,
   // Reportes de Finanzas y conciliación con el archivo de ventas. No existe un rol de Finanzas: hoy entran leadership, quien lidera y administración.
   'report.finance': ['admin', 'lt', 'market_lead', 'finance'],
@@ -130,7 +131,7 @@ export const CAPABILITIES = {
   // Dueño de cada indicador: lo cambia administración.
   'metric.owner': ['admin'],
   // Vistas guardadas como colas: cada persona guarda y fija las suyas; compartir con el equipo es de quien dirige.
-  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'kam'],
   'view.share': MANAGERS,
   // Paquete datos (0023). Cola de duplicados: buscar en lote, descartar un par y revisar avisos saltados es de quien lidera el
   // mercado o administra; fusionar y deshacer sigue siendo solo de administración ('account.merge').
