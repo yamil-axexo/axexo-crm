@@ -90,11 +90,13 @@ export async function saveAutomation(ctx: Ctx, id: string, raw: AutomationInput)
       const ok = await tx`select 1 from crm.pipelines where market_code = ${a.market_code} and motor = ${v.motor}`
       if (!ok[0]) throw invalid('Ese tipo de venta no tiene embudo en este mercado.', 'That sales type has no pipeline in this market.')
     }
+    // AUT-03 (embudo2): cada automatización tiene dueño. No se guarda sin uno.
+    if (!v.ownerId) throw invalid('Elige quién responde por esta automatización.', 'Choose who answers for this automation.')
     if (v.ownerId) {
       const ok = await tx<{ ok: boolean }[]>`select app.works_in(${v.ownerId}, ${a.market_code}) as ok`
       if (!ok[0]?.ok) throw invalid('Quien responde por la automatización tiene que trabajar en ese mercado.', 'The automation’s owner must work in that market.')
     }
-    await tx`update crm.automations set name_es = ${v.nameEs}, name_en = ${v.nameEn}, motor = ${v.motor || null}, owner_id = ${v.ownerId || null},
+    await tx`update crm.automations set name_es = ${v.nameEs}, name_en = ${v.nameEn}, motor = ${v.motor || null}, owner_id = ${v.ownerId}, owner_review = false,
               conditions = ${tx.json(def.conditions as never)}, actions = ${tx.json(def.actions as never)}, version = version + 1, touched_by_person = true, updated_by = ${ctx.user.id}, updated_at = now()
               where id = ${id}`
     // Con otras condiciones, lo que ya había hecho deja de contar: cada registro se vuelve a evaluar con la versión nueva.
@@ -154,3 +156,19 @@ export async function runJobNow(ctx: Ctx, key: string): Promise<RunOutcome> {
 }
 
 export { SOURCES }
+
+/** AUT-03 (embudo2): confirmar o cambiar quién responde por una automatización (la lista "Dueño por revisar"). */
+export async function setAutomationOwner(ctx: Ctx, id: string, ownerId: string): Promise<void> {
+  ctx.assert('automation.manage')
+  if (!/^[0-9a-f-]{36}$/.test(ownerId)) throw invalid('Elige quién responde por esta automatización.', 'Choose who answers for this automation.')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string; owner_id: string; owner_review: boolean }[]>`select market_code, owner_id, owner_review from crm.automations where id = ${id} for update`
+    const a = rows[0]
+    if (!a) throw notFound()
+    ctx.market(a.market_code)
+    const ok = await tx<{ ok: boolean }[]>`select app.works_in(${ownerId}, ${a.market_code}) as ok`
+    if (!ok[0]?.ok) throw invalid('Quien responde por la automatización tiene que trabajar en ese mercado.', 'The automation’s owner must work in that market.')
+    await tx`update crm.automations set owner_id = ${ownerId}, owner_review = false, updated_by = ${ctx.user.id}, updated_at = now() where id = ${id}`
+    await audit(tx, ctx, 'automation.owner_set', 'automation', id, a.market_code, { owner_id: a.owner_id, review: a.owner_review }, { owner_id: ownerId, review: false })
+  })
+}

@@ -413,11 +413,25 @@ export async function setFieldActive(ctx: Ctx, id: string, active: boolean): Pro
 
 // ---------------------------------------------------------------- motivos de pérdida
 
-const reasonInput = z.object({ labelEs: label, labelEn: label, market: z.string().length(2).or(z.literal('')), motors: z.array(z.enum(MOTORS)).max(MOTORS.length) })
+const reasonInput = z.object({ labelEs: label, labelEn: label, market: z.string().length(2).or(z.literal('')), motors: z.array(z.enum(MOTORS)).max(MOTORS.length), kind: z.enum(['lost', 'no_sale']).optional().default('lost') })
 
-/** Un motivo de pérdida nuevo. Sin tipos de venta marcados, vale para todos los embudos. */
+/**
+ * PIPE-04: cuántos motivos activos hay y cuántos caben. Base (todos los mercados) con tope `reason_core_max`; cada mercado
+ * puede agregar hasta `reason_max_extensions` propios. Los topes son valores de crm.funnel_settings (propuestos, C1 decide).
+ */
+async function reasonRoom(tx: Tx, kind: string, market: string | null, except: string | null): Promise<{ n: number; cap: number | null }> {
+  const r = await tx<{ n: number; cap: number | null }[]>`
+    select (select count(*)::int from crm.loss_reasons where kind = ${kind} and is_active and market_code is not distinct from ${market} and code is distinct from ${except}) as n,
+           (app.funnel_setting(${market}, ${market ? 'reason_max_extensions' : 'reason_core_max'}))::text::int as cap`
+  return r[0]!
+}
+const fullMsg = (market: string | null, cap: number) => invalid(
+  market ? `Este mercado ya tiene ${cap} motivos propios activos, el tope. Desactiva uno antes de agregar otro.` : `Ya hay ${cap} motivos de base activos, el tope. Desactiva uno antes de agregar otro.`,
+  market ? `This market already has ${cap} active reasons of its own, the cap. Turn one off before adding another.` : `There are already ${cap} active base reasons, the cap. Turn one off before adding another.`)
+
+/** Un motivo nuevo (de pérdida o de no venta). Sin tipos de venta marcados, vale para todos los embudos. Lo agrega quien custodia el catálogo. */
 export async function createLossReason(ctx: Ctx, input: z.input<typeof reasonInput>): Promise<string> {
-  ctx.assert('config.manage')
+  ctx.assert('reason.custody')
   const parsed = reasonInput.safeParse(input)
   if (!parsed.success) throw invalid('El motivo lleva nombre en español y en inglés.', 'A reason needs a name in Spanish and in English.')
   const v = parsed.data
@@ -425,30 +439,38 @@ export async function createLossReason(ctx: Ctx, input: z.input<typeof reasonInp
   return withUser(ctx.user.id, async (tx) => {
     const market = v.market || null
     if (market && !(await tx`select 1 from crm.markets where code = ${market}`)[0]) throw invalid('Ese mercado no existe.', 'That market does not exist.')
+    const room = await reasonRoom(tx, v.kind, market, null)
+    if (room.cap !== null && room.n >= room.cap) throw fullMsg(market, room.cap)
     const code = await freeCode(slug(v.labelEn), async (c) => !!(await tx`select 1 from crm.loss_reasons where code = ${c}`)[0])
     await tx`insert into crm.loss_reasons (code, kind, label_es, label_en, market_code, motors, position)
-             values (${code}, 'lost', ${v.labelEs}, ${v.labelEn}, ${market}, ${v.motors.length ? v.motors : null}::text[], (select coalesce(max(position), 0) + 1 from crm.loss_reasons))`
-    await audit(tx, ctx, 'loss_reason.created', 'loss_reason', null, market, null, { code, label_es: v.labelEs, motors: v.motors })
+             values (${code}, ${v.kind}, ${v.labelEs}, ${v.labelEn}, ${market}, ${v.motors.length ? v.motors : null}::text[], (select coalesce(max(position), 0) + 1 from crm.loss_reasons))`
+    await audit(tx, ctx, 'loss_reason.created', 'loss_reason', null, market, null, { code, kind: v.kind, label_es: v.labelEs, motors: v.motors })
     return code
   })
 }
 
-/** En qué embudos se ofrece un motivo (por tipo de venta) y si sigue vigente. Lo ya registrado con ese motivo no cambia. */
+/** En qué embudos se ofrece un motivo (por tipo de venta) y si sigue vigente. Lo ya registrado con ese motivo no cambia: un motivo nunca se borra. */
 export async function updateLossReason(ctx: Ctx, code: string, input: { motors: string[]; active: boolean }): Promise<void> {
-  ctx.assert('config.manage')
+  ctx.assert('reason.custody')
   const motors = z.array(z.enum(MOTORS)).max(MOTORS.length).safeParse(input.motors)
   if (!motors.success) throw invalid('Revisa los tipos de venta.', 'Check the sale types.')
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ kind: string; market_code: string | null; motors: string[] | null; is_active: boolean }[]>`
       select kind, market_code, motors, is_active from crm.loss_reasons where code = ${code} for update`
     const r = rows[0]
-    if (!r || r.kind !== 'lost') throw notFound()
+    if (!r) throw notFound()
     const next = motors.data.length ? [...motors.data].sort() : null
     const before = { motors: r.motors ? [...r.motors].sort() : null, is_active: r.is_active }
     const after = { motors: next, is_active: input.active }
     if (JSON.stringify(before) === JSON.stringify(after)) return
-    await tx`update crm.loss_reasons set motors = ${next}::text[], is_active = ${input.active} where code = ${code}`
-    await audit(tx, ctx, 'loss_reason.updated', 'loss_reason', null, r.market_code, before, { ...after, code })
+    if (input.active && !r.is_active) {
+      const room = await reasonRoom(tx, r.kind, r.market_code, code)
+      if (room.cap !== null && room.n >= room.cap) throw fullMsg(r.market_code, room.cap)
+    }
+    await tx`update crm.loss_reasons set motors = ${next}::text[], is_active = ${input.active},
+               retired_at = case when ${input.active} then null else coalesce(retired_at, now()) end,
+               retired_by = case when ${input.active} then null else coalesce(retired_by, ${ctx.user.id}::uuid) end where code = ${code}`
+    await audit(tx, ctx, 'loss_reason.updated', 'loss_reason', null, r.market_code, before, { ...after, code, kind: r.kind })
   })
 }
 

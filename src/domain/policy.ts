@@ -256,6 +256,15 @@ export const CAPABILITIES = {
   'ia.ask': ['admin', 'lt', 'market_lead', 'supervisor'],
   'ia.oversee': ['admin', 'lt'],
   'ia.manage': ['admin'],
+  // embudo2 (PIPE-04): el catálogo de motivos lo custodia C1 desde administración. Ventas propone cambios por Solicitudes
+  // (config.request); quien custodia los aplica. Un motivo usado nunca se borra: se marca inactivo.
+  'reason.custody': ['admin'],
+  // embudo2 (LEAD-03): confirmar o descartar la sugerencia de pasar un lead de una tienda saturada al canal indirecto.
+  'routing.suggestion': ['admin', 'market_lead', 'supervisor'],
+  // embudo2 (ACT-01): corregir una actividad ya hecha agrega una fila nueva; la original queda como estaba.
+  'activity.correct': [...FIELD, 'ops'],
+  // embudo2 (UX-03): publicar una vista como cola oficial de un rol.
+  'view.official': ['admin'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
@@ -291,6 +300,8 @@ export const CAP_AREA: Partial<Record<Capability, AdminArea | 'any'>> = {
   'load.configure': 'integrations',
   'pipedrive.backup': 'integrations',
   'market.reset_test': 'integrations',
+  'reason.custody': 'config',
+  'view.official': 'config',
 }
 
 const grants = (m: Membership, cap: Capability): boolean => {

@@ -7,7 +7,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { moveDealTx } from '@/domain/deals'
 import { assignLeadTx } from '@/domain/leads'
 import { DomainError } from '@/lib/errors'
-import { CUSTOM_PREFIX, DEFAULTS, FIELDS, isCustomField, type Action, type Condition, type Definition, type NoticeKind, type Source } from '@/domain/automation/catalog'
+import { ADDED_DEFAULT_KEYS, CUSTOM_PREFIX, DEFAULTS, FIELDS, isCustomField, type Action, type Condition, type Definition, type NoticeKind, type Source } from '@/domain/automation/catalog'
 import { runRebuiltAction, type RebuiltAction } from '@/domain/automation/rebuilt'
 import { resolveTarget } from '@/domain/automation/people'
 import { setWaitingOnTx } from '@/domain/automation/transitions'
@@ -59,6 +59,10 @@ function recordSet(tx: Tx, source: Source): Frag {
              s.kind as stage_kind, s.code as stage_code, s.is_ops as is_ops_stage, (d.paused_at is not null) as paused,
              extract(epoch from (now() - d.stage_entered_at)) / 86400.0 as stage_age_days,
              (lim.days > 0 and d.stage_entered_at < now() - make_interval(days => lim.days)) as over_stage_limit,
+             (lim.days > 0 and d.stage_entered_at < now() - make_interval(days => lim.days)
+               and (coalesce((app.funnel_setting(d.market_code, 'rot_respects_next_step'))::text, 'true') <> 'true'
+                    or d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)})) as rotting,
+             d.next_step_due,
              (s.sla_hours is not null and app.business_minutes(d.market_code, d.stage_entered_at, now()) > s.sla_hours * 60) as over_stage_sla,
              case when d.next_step is null or d.next_step_due is null then 9999 else ${marketToday(tx, tx`d.market_code`)} - d.next_step_due end as next_step_days_late,
              d.revisit_needed, ${marketToday(tx, tx`d.market_code`)} - d.revisit_due as revisit_days_late,
@@ -67,7 +71,12 @@ function recordSet(tx: Tx, source: Source): Frag {
         from crm.deals d
         join crm.stages s on s.id = d.stage_id
         join crm.pipelines p on p.id = d.pipeline_id
-        cross join lateral (select case when d.waiting_on = 'third_party' and s.rot_days_waiting is not null then s.rot_days_waiting else s.rot_days end as days) lim
+        -- PIPE-03: cada espera con su umbral (al cliente, al carrier, a otro tercero); sin umbral propio, el de la etapa.
+        cross join lateral (select case d.waiting_on
+                                     when 'third_party' then coalesce(s.rot_days_waiting, s.rot_days)
+                                     when 'customer' then coalesce(s.rot_days_customer, s.rot_days)
+                                     when 'carrier' then coalesce(s.rot_days_carrier, s.rot_days_waiting, s.rot_days)
+                                     else s.rot_days end as days) lim
        where d.status = 'open')`
   }
   if (source === 'lead') {
@@ -76,7 +85,11 @@ function recordSet(tx: Tx, source: Source): Frag {
              l.motor, l.business_name as label, l.business_name, l.sla_due_at,
              l.status, (l.first_touch_at is not null) as touched, (l.sla_due_at < now()) as first_contact_overdue,
              case when l.sla_due_at < now() then app.business_minutes(l.market_code, l.sla_due_at, now()) / 60.0 else 0 end as overdue_business_hours,
-             (l.owner_id is not null) as has_owner, l.id::text as dedupe_id
+             (l.owner_id is not null) as has_owner, l.id::text as dedupe_id,
+             (case when coalesce(app.funnel_setting(l.market_code, 'lead_sla_clock') #>> '{}', 'contact') = 'attempt' then l.first_touch_at else l.first_contact_at end) is null
+               and l.status = 'new' as contact_pending,
+             (l.status in ('contacted', 'qualified') and not exists (select 1 from crm.activities x where x.lead_id = l.id and x.done_at is null
+               and x.kind in ('task', 'visit', 'call', 'meeting'))) as no_next_task
         from crm.leads l
        where l.status in ('new', 'contacted', 'qualified'))`
   }
@@ -85,7 +98,10 @@ function recordSet(tx: Tx, source: Source): Frag {
       select a.id, a.market_code, a.id as account_id, null::uuid as deal_id, null::uuid as lead_id, a.owner_id, a.owner_id as ball_owner_id,
              a.segment as motor, a.name as label, a.name, a.lifecycle, a.lifecycle_at,
              (a.lifecycle in ('active', 'at_risk', 'onboarding')) as is_customer,
-             (a.owner_id is not null) as has_owner, (a.parent_id is not null) as is_branch, a.id::text as dedupe_id, a.custom
+             (a.owner_id is not null) as has_owner, (a.parent_id is not null) as is_branch, a.id::text as dedupe_id, a.custom,
+             (a.lifecycle = 'onboarding' and not exists (select 1 from crm.deals d where d.account_id = a.id and d.status = 'open')
+               and not exists (select 1 from crm.activities x where x.account_id = a.id and x.done_at is null
+                                and x.kind in ('task', 'visit', 'call', 'meeting', 'handoff'))) as onboarding_no_next_task
         from crm.accounts a
        where a.archived_at is null)`
   }
@@ -107,11 +123,13 @@ function noticeDetail(tx: Tx, kind: NoticeKind): Frag {
     case 'revisit_due': return tx`jsonb_build_object('title', r.title, 'due', r.revisit_due, 'reason', r.revisit_reason)`
     case 'activation_risk': return tx`jsonb_build_object('title', r.title, 'since', r.stage_entered_at)`
     case 'no_next_step': return tx`jsonb_build_object('title', r.title)`
-    case 'stalled_deal': return tx`jsonb_build_object('title', r.title, 'since', r.stage_entered_at, 'limit_days', r.limit_days)
+    case 'stalled_deal': return tx`jsonb_build_object('title', r.title, 'since', r.stage_entered_at, 'limit_days', r.limit_days, 'next_step_due', r.next_step_due)
                                    || case when r.waiting_on is null then '{}'::jsonb else jsonb_build_object('waiting_on', r.waiting_on) end`
     case 'reactivation': return tx`jsonb_build_object('name', r.name, 'since', r.lifecycle_at)`
     case 'unowned_account': return tx`jsonb_build_object('name', r.name, 'lifecycle', r.lifecycle)`
     case 'duplicate_suspect': return tx`jsonb_build_object('name', r.name, 'other_id', r.other_id, 'other_name', r.other_name, 'match', 'phone')`
+    case 'lead_no_next_step': return tx`jsonb_build_object('name', r.business_name, 'status', r.status)`
+    case 'onboarding_no_next_step': return tx`jsonb_build_object('name', r.name, 'since', r.lifecycle_at)`
   }
 }
 
@@ -156,6 +174,13 @@ export async function ensureDefaults(tx: Tx): Promise<number> {
   const markets = await tx<{ code: string }[]>`select m.code from crm.markets m where not exists (select 1 from crm.automations a where a.market_code = m.code and a.pipedrive_ref is null) order by m.code`
   let n = 0
   for (const m of markets) for (const d of DEFAULTS) n += await insertDefinition(tx, m.code, d, null, true)
+  // Reglas de base que llegaron después (ACT-02): los mercados que ya tenían las suyas también las reciben, una sola vez.
+  const added = DEFAULTS.filter((d) => (ADDED_DEFAULT_KEYS as readonly string[]).includes(d.key))
+  const missing = await tx<{ code: string; key: string }[]>`
+    select m.code, k.key from crm.markets m cross join unnest(${added.map((d) => d.key)}::text[]) k(key)
+     where exists (select 1 from crm.automations a where a.market_code = m.code and a.pipedrive_ref is null)
+       and not exists (select 1 from crm.automations a where a.market_code = m.code and a.key = k.key)`
+  for (const x of missing) n += await insertDefinition(tx, x.code, added.find((d) => d.key === x.key)!, null, true)
   return n
 }
 

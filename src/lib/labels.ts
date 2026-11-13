@@ -60,6 +60,8 @@ export const EXCEPTION: Record<string, { label: Pair; action: Pair }> = {
   unmatched_event: { label: ['Evento sin comercio', 'Event with no merchant'], action: ['Revisar integración', 'Review the integration'] },
   under_plan: { label: ['Va por debajo de su meta del mes', 'Behind on this month’s target'], action: ['Revisarlo en el uno a uno', 'Go over it in the one-on-one'] },
   perfect_store_low: { label: ['Punto de venta por debajo del mínimo', 'Store below the minimum score'], action: ['Visitar y completar lo que falta', 'Visit and complete what is missing'] },
+  lead_no_next_step: { label: ['Lead contactado sin tarea siguiente', 'Contacted lead with no next task'], action: ['Agendar la siguiente tarea', 'Schedule the next task'] },
+  onboarding_no_next_step: { label: ['Comercio en alta sin tarea siguiente', 'Onboarding merchant with no next task'], action: ['Agendar la siguiente tarea', 'Schedule the next task'] },
 }
 
 export const ACTIVITY: Record<string, Pair> = {

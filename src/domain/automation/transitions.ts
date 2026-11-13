@@ -131,25 +131,46 @@ export async function cancelPendingApproval(tx: Tx, dealId: string, keepId: stri
   if (rows.length) await tx`update crm.activities set done_at = now(), outcome = 'done' where approval_id = any(${rows.map((r) => r.id)}::uuid[]) and done_at is null`
 }
 
-const evidenceInput = z.object({ toStageId: z.guid(), url: z.string().trim().max(480), note: z.string().trim().min(2).max(300) })
+const evidenceInput = z.object({
+  toStageId: z.guid(), url: z.string().trim().max(480).optional().default(''), note: z.string().trim().min(2).max(300),
+  /** PIPE-02 (embudo2): un documento del expediente de alta del comercio (con su huella), en vez de un enlace suelto. */
+  documentId: z.guid().or(z.literal('')).optional().default(''),
+  /** Huella SHA-256 del documento, si quien lo sube la tiene (64 caracteres hexadecimales). */
+  contentHash: z.string().trim().toLowerCase().regex(/^([0-9a-f]{64})?$/).optional().default(''),
+})
 
-/** Evidencia de un paso: un enlace (dónde está el documento) con una nota. CONTIGO no guarda el archivo. */
+/**
+ * Evidencia de un paso: un documento con su huella (del expediente de alta, o con la huella que trae) o un enlace con nota.
+ * CONTIGO no guarda el archivo: con la bóveda apagada (CONTIGO_DOCUMENT_VAULT) queda la referencia y la huella.
+ */
 export async function addEvidence(ctx: Ctx, dealId: string, input: z.input<typeof evidenceInput>): Promise<void> {
   const parsed = evidenceInput.safeParse(input)
-  if (!parsed.success) throw invalid('Elige la etapa, pega el enlace y escribe una nota corta (2 a 300 letras).', 'Pick the stage, paste the link and write a short note (2 to 300 characters).')
+  if (!parsed.success) throw invalid('Elige la etapa, el documento o el enlace, y escribe una nota corta (2 a 300 letras). La huella, si la pones, son 64 caracteres.', 'Pick the stage, the document or the link, and write a short note (2 to 300 characters). The fingerprint, if you add one, is 64 characters.')
   const v = parsed.data
-  if (!/^https:\/\/\S{4,480}$/.test(v.url) || v.url.length < 12) throw invalid('El enlace tiene que empezar con https:// y no llevar espacios.', 'The link must start with https:// and have no spaces.')
+  if (!v.url && !v.documentId && !v.contentHash) throw invalid('Elige un documento del expediente, pega el enlace o pon la huella del documento.', 'Pick a document from the file, paste the link or add the document fingerprint.')
+  if (v.url && (!/^https:\/\/\S{4,480}$/.test(v.url) || v.url.length < 12)) throw invalid('El enlace tiene que empezar con https:// y no llevar espacios.', 'The link must start with https:// and have no spaces.')
   assertNoProhibited(v.note, v.url)
   await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ market_code: string; pipeline_id: string; status: string }[]>`select market_code, pipeline_id, status from crm.deals where id = ${dealId} for update`
+    const rows = await tx<{ market_code: string; pipeline_id: string; status: string; account_id: string }[]>`select market_code, pipeline_id, status, account_id from crm.deals where id = ${dealId} for update`
     const d = rows[0]
     if (!d) throw notFound('No encontramos ese negocio.', 'We could not find that deal.')
     ctx.assert('deal.edit', d.market_code)
     if (d.status !== 'open') throw invalid('Un negocio cerrado ya no recibe evidencia.', 'A closed deal no longer takes evidence.')
     const st = await tx`select 1 from crm.stages where id = ${v.toStageId} and pipeline_id = ${d.pipeline_id} and archived_at is null`
     if (!st[0]) throw invalid('Esa etapa no es de este embudo.', 'That stage is not part of this pipeline.')
-    await tx`insert into crm.deal_evidence (deal_id, market_code, to_stage_id, url, note, added_by) values (${dealId}, ${d.market_code}, ${v.toStageId}, ${v.url}, ${v.note}, ${ctx.user.id})`
-    await audit(tx, ctx, 'deal.evidence_added', 'deal', dealId, d.market_code, null, { to_stage_id: v.toStageId })
+    let hash: string | null = v.contentHash || null
+    let ref: string | null = null
+    if (v.documentId) {
+      const doc = await tx<{ content_hash: string | null; storage_ref: string | null; link: string | null; status: string }[]>`
+        select content_hash, storage_ref, link, status from crm.onboarding_documents where id = ${v.documentId} and account_id = ${d.account_id}`
+      if (!doc[0]) throw invalid('Ese documento no es del expediente de este comercio.', 'That document is not in this merchant’s file.')
+      if (doc[0].status === 'missing' || doc[0].status === 'rejected') throw invalid('Ese documento falta o fue rechazado: no sirve como evidencia.', 'That document is missing or was rejected: it cannot be evidence.')
+      hash = doc[0].content_hash ?? hash
+      ref = doc[0].storage_ref
+    }
+    await tx`insert into crm.deal_evidence (deal_id, market_code, to_stage_id, url, note, added_by, document_id, content_hash, storage_ref)
+             values (${dealId}, ${d.market_code}, ${v.toStageId}, ${v.url || null}, ${v.note}, ${ctx.user.id}, ${v.documentId || null}, ${hash}, ${ref})`
+    await audit(tx, ctx, 'deal.evidence_added', 'deal', dealId, d.market_code, null, { to_stage_id: v.toStageId, document_id: v.documentId || null, content_hash: hash })
   })
 }
 
