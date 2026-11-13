@@ -319,14 +319,7 @@ create policy sheet_rows_ins on crm.sheet_rows for insert to contigo_app
               and exists (select 1 from crm.sheet_loads l where l.id = sheet_rows.load_id and l.market_code = sheet_rows.market_code));
 
 -- El arranque lo ve quien lidera o supervisa el mercado y leadership; lo cambia administración y quien lidera el mercado.
-create function app.lead_markets() returns text[]
-language sql stable security definer set search_path = crm, app, pg_catalog as $$
-  select case when app.is_admin()
-              then coalesce((select array_agg(code) from crm.markets), '{}')
-              else coalesce((select array_agg(distinct market_code) from app.active_memberships() where role = 'market_lead'), '{}')
-         end
-$$;
-grant execute on function app.lead_markets() to contigo_app;
+-- app.lead_markets() (mercados donde la persona lidera) ya existe desde 0023_datos: es la misma función, aquí solo se usa.
 
 -- Las personas con acceso vigente al mercado, con su rol de mayor alcance, desde cuándo, cuándo entraron por última vez y
 -- si son personas clave. La ve quien dirige en ese mercado y leadership; nadie más recibe filas.
