@@ -182,13 +182,21 @@ export async function closedDealsForExport(tx: Tx, ctx: Ctx, p: MarketPeriods, f
 // ------------------------------------------------------------------ tasa de cambio
 export type FxRate = { currency: string; as_of: string; usd_rate: string; source: string; loaded_by: string | null; loaded_at: Date }
 
-/** La tasa vigente por moneda: la de fecha más reciente. USD no necesita tasa. Si una moneda no tiene, no aparece. */
-export async function getFxRates(ctx: Ctx): Promise<FxRate[]> {
+/**
+ * La tasa vigente por moneda. Sin fecha: la de fecha más reciente (lo que Administración muestra como "la de hoy").
+ * Con `at` (moneda → día): la vigente ESE día, es decir la más reciente que no pasa de él. Así un total de un corte se
+ * convierte con la tasa de su corte y no cambia cuando después se carga otra (MULTI-01). USD no necesita tasa.
+ * Si una moneda no tiene tasa para su día, no aparece.
+ */
+export async function getFxRates(ctx: Ctx, at?: Record<string, string | null | undefined>): Promise<FxRate[]> {
+  const dated = JSON.stringify(Object.fromEntries(Object.entries(at ?? {}).filter(([, d]) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))))
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<FxRate[]>`
       select distinct on (f.currency) trim(f.currency) as currency, f.as_of::text, f.usd_rate::text, f.source, u.full_name as loaded_by, f.loaded_at
         from crm.fx_rates f left join crm.users u on u.id = f.loaded_by
-       where f.currency <> 'USD' order by f.currency, f.as_of desc`
+       where f.currency <> 'USD'
+         and ((${dated}::jsonb ->> trim(f.currency)) is null or f.as_of <= (${dated}::jsonb ->> trim(f.currency))::date)
+       order by f.currency, f.as_of desc`
     return [...rows]
   })
 }

@@ -1,10 +1,12 @@
 import 'server-only'
 import { NextResponse, type NextRequest } from 'next/server'
 import { ZodError } from 'zod'
-import { withoutUser } from '@/server/db'
+import { runVia, withoutUser } from '@/server/db'
 import { hashKey } from '@/domain/admin'
 import { DomainError } from '@/lib/errors'
 import { LIMITS, clientIp, ipHash, rateHit } from '@/server/protect'
+import { cleanRequestId, currentRequestId, withRequestId } from '@/server/request-id'
+import { recordError, recordRequest } from '@/server/telemetry'
 import type { ApiKey } from '@/dal/api-v1'
 
 /**
@@ -39,15 +41,36 @@ async function authenticate(request: NextRequest, scope: string): Promise<Auth> 
   return { key: { id: c.id, scopes: c.scopes, market: c.market_code, mode: c.mode, ratePerMinute: c.rate_per_minute, createdBy: c.created_by } }
 }
 
-function failure(e: unknown, scope: string): NextResponse {
+async function failure(e: unknown, scope: string): Promise<NextResponse> {
   if (e instanceof DomainError) return NextResponse.json({ error: e.code, message: e.en }, { status: e.status })
   if (e instanceof ZodError) return NextResponse.json({ error: 'invalid' }, { status: 422 })
-  console.error(JSON.stringify({ level: 'error', msg: 'api_failed', scope }))
-  return NextResponse.json({ error: 'internal' }, { status: 500 })
+  // GOB-07: el error inesperado queda con el identificador de la llamada, sin datos de nadie; quien llama recibe la misma referencia.
+  const requestId = await currentRequestId()
+  const err = e as { code?: string; name?: string }
+  console.error(JSON.stringify({ level: 'error', msg: 'api_failed', scope, request_id: requestId, name: err?.name ?? 'Error', code: err?.code ?? null }))
+  if (requestId) await recordError('api', scope, requestId, err?.name ?? 'Error', err?.code ?? null)
+  return NextResponse.json({ error: 'internal', request_id: requestId }, { status: 500 })
+}
+
+/**
+ * GOB-07: cada llamada lleva su identificador (el que manda quien llama, si tiene forma de identificador, o uno nuevo),
+ * vuelve en el encabezado x-request-id, queda en la bitácora y en el registro de errores, y se mide (tiempo y si falló).
+ */
+async function traced(request: NextRequest, scope: string, run: () => Promise<NextResponse>): Promise<NextResponse> {
+  const requestId = cleanRequestId(request.headers.get('x-request-id'))
+  const started = Date.now()
+  const response = await withRequestId(requestId, run)
+  response.headers.set('x-request-id', requestId)
+  await recordRequest('api', scope, Date.now() - started, response.status >= 500, requestId)
+  return response
 }
 
 /** Entradas (POST): eventos de la Sales App, archivo diario y formularios del sitio. */
-export async function apiHandler(request: NextRequest, scope: string, fn: (body: unknown, idempotencyKey: string | null) => Promise<unknown>) {
+export function apiHandler(request: NextRequest, scope: string, fn: (body: unknown, idempotencyKey: string | null) => Promise<unknown>) {
+  return traced(request, scope, () => handlePost(request, scope, fn))
+}
+
+async function handlePost(request: NextRequest, scope: string, fn: (body: unknown, idempotencyKey: string | null) => Promise<unknown>): Promise<NextResponse> {
   const auth = await authenticate(request, scope)
   if ('response' in auth) return auth.response
   let body: unknown
@@ -57,18 +80,26 @@ export async function apiHandler(request: NextRequest, scope: string, fn: (body:
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
   }
   try {
-    return NextResponse.json(await fn(body, request.headers.get('idempotency-key')))
+    return NextResponse.json(await runVia('api', () => fn(body, request.headers.get('idempotency-key'))))
   } catch (e) {
     return failure(e, scope)
   }
 }
 
 /** Lecturas (GET) de la API v1. */
-export async function apiRead(request: NextRequest, scope: string, fn: (key: ApiKey, params: URLSearchParams) => Promise<unknown>) {
+export function apiRead(request: NextRequest, scope: string, fn: (key: ApiKey, params: URLSearchParams) => Promise<unknown>) {
+  return traced(request, scope, () => handleGet(request, scope, fn))
+}
+
+async function handleGet(request: NextRequest, scope: string, fn: (key: ApiKey, params: URLSearchParams) => Promise<unknown>): Promise<NextResponse> {
   const auth = await authenticate(request, scope)
   if ('response' in auth) return auth.response
   try {
-    return NextResponse.json(await fn(auth.key, request.nextUrl.searchParams), {
+    const out = await fn(auth.key, request.nextUrl.searchParams)
+    // SEG-03: cada lectura con una llave queda en el registro de lecturas de la base, con cuántas filas salieron (los datos de prueba no cuentan).
+    const rows = Array.isArray((out as { data?: unknown } | null)?.data) ? (out as { data: unknown[] }).data.length : 0
+    if (auth.key.mode === 'live') await withoutUser((tx) => tx`select app.log_read('api', ${scope}, ${rows}, ${auth.key.market}, null, ${auth.key.id})`)
+    return NextResponse.json(out, {
       headers: { 'cache-control': 'no-store', 'x-ratelimit-limit': String(auth.key.ratePerMinute), 'x-contigo-data': auth.key.mode === 'test' ? 'synthetic' : 'live' },
     })
   } catch (e) {

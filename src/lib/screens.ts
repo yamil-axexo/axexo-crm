@@ -6,6 +6,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/leads', 'Leads', 'Leads'],
   ['/pipelines', 'Negocios', 'Deals'],
   ['/deals', 'Negocios, detalle de un negocio o de un pedido', 'Deals, a deal or an order page'],
+  ['/comercios/cerca', 'Cerca de mí', 'Near me'],
   ['/comercios', 'Comercios', 'Merchants'],
   ['/actividades', 'Actividades', 'Activities'],
   ['/buscar', 'Buscar', 'Search'],
@@ -15,6 +16,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/cerrados', 'Negocios cerrados', 'Closed deals'],
   ['/reportes/campo', 'Reporte de campo', 'Field report'],
   ['/reportes/adopcion', 'Adopción', 'Adoption'],
+  ['/reportes/consolidado', 'Consolidado en USD', 'Consolidated in USD'],
   ['/reportes/mercado', 'Reporte del mercado', 'Market report'],
   ['/arranque', 'Arranque y hojas', 'Rollout and sheets'],
   ['/avisos/preferencias', 'Preferencias de avisos', 'Notice preferences'],
@@ -33,10 +35,13 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/indicadores-campo', 'Indicadores de campo', 'Field indicators'],
   ['/reportes/indicadores', 'Indicadores y responsables', 'Metrics and owners'],
   ['/reportes/pronostico', 'Pronóstico', 'Forecast'],
+  ['/reportes/embudo', 'Reporte del embudo: motivos, revisitas, próximos pasos y origen', 'Pipeline report: reasons, revisits, next steps and origin'],
   ['/reportes', 'Reportes', 'Reports'],
   // Va antes de /admin: la primera ruta que coincide es la que nombra la pantalla.
   ['/admin/operaciones', 'Administración, Operaciones', 'Administration, Operations'],
+  ['/admin/embudo', 'Administración, Asignación y embudo', 'Administration, Assignment and pipeline'],
   ['/admin/integraciones', 'Administración, Eventos, API y datos', 'Administration, Events, API and data'],
+  ['/admin/gobierno', 'Administración, Gobierno', 'Administration, Governance'],
   ['/admin', 'Administración', 'Administration'],
   ['/importar', 'Importar un archivo', 'Import a file'],
   ['/datos', 'Datos', 'Data'],
@@ -44,6 +49,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/bienvenida', 'Primeros pasos', 'First steps'],
   ['/ayuda', 'Ayuda', 'Help'],
   ['/reportar', 'Reportar un problema', 'Report a problem'],
+  ['/solicitudes', 'Pedir un cambio', 'Request a change'],
 ]
 
 export function screenLabel(t: T, path: string | null | undefined): string {

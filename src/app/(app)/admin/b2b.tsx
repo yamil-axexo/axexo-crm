@@ -1,5 +1,6 @@
 import type { Ctx } from '@/server/context'
 import { getB2bConfig } from '@/dal/b2b'
+import { approvedFieldRequests } from '@/dal/gobierno'
 import { FIELD_OBJECTS, FIELD_TYPES, LEVELS, MOTORS } from '@/domain/b2b'
 import { Badge, Card, CardTitle, Field } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
@@ -22,6 +23,8 @@ const TYPE: Record<string, [string, string]> = { text: ['Texto', 'Text'], number
 export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipelines: Pipe[]; stages: Stage[] }) {
   const { t } = ctx
   const d = await getB2bConfig(ctx)
+  // E7.F6: las solicitudes de campo ya aprobadas, para ligar el campo a la que lo pidió.
+  const fieldRequests = ctx.can('config.manage') ? await approvedFieldRequests(ctx) : []
   const live = ctx.markets.filter((m) => m.status === 'live')
   // Dos campos con el mismo nombre (uno por tipo de persona, por ejemplo) se distinguen por cuándo aparece cada uno: no se leen como repetidos.
   const sameName = (f: (typeof d.fields)[number]) => d.fields.filter((x) => x.object === f.object && x.label_es === f.label_es).length > 1
@@ -216,6 +219,14 @@ export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipeline
                 <Field label={t('¿Qué decisión habilita este campo?', 'Which decision does this field enable?')} className="col-span-2" hint={t('Sin una decisión escrita no se crea. Quien lo crea queda como responsable; el resto de su gobierno se completa en Datos, Campos.', 'It is not created without a written decision. Whoever creates it becomes its owner; the rest of its governance is completed under Data, Fields.')}>
                   <textarea name="decision" rows={2} required minLength={10} maxLength={400} className="input !h-auto py-3" data-testid="field-new-decision" />
                 </Field>
+                {fieldRequests.length > 0 && (
+                  <Field label={t('Solicitud que lo pidió (opcional)', 'Request that asked for it (optional)')} className="col-span-2">
+                    <select name="request_id" className="input" defaultValue="" data-testid="field-new-request">
+                      <option value="">{t('Ninguna', 'None')}</option>
+                      {fieldRequests.map((r) => <option key={r.id} value={r.id}>{r.title}{r.market_code ? ` · ${r.market_code}` : ''}</option>)}
+                    </select>
+                  </Field>
+                )}
                 <label className="col-span-2 flex min-h-11 cursor-pointer items-center gap-3 text-[14px]"><input type="checkbox" name="in_intake" className="h-5 w-5 shrink-0" data-testid="field-new-intake" />{t('Pedirlo al dar de alta un comercio', 'Ask for it when a merchant is created')}</label>
                 <div className="col-span-2 flex justify-end"><Submit testId="field-new-save">{t('Crear campo', 'Create field')}</Submit></div>
               </ActionForm>

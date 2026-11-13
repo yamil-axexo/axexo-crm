@@ -1,6 +1,7 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
+import { runVia } from '@/server/db'
 import { IMPORT_KINDS, IMPORT_MAX_BYTES, previewImport, runImport, undoImport, type ImportKind } from '@/domain/csv-import'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { invalid, type ActionResult } from '@/lib/errors'
@@ -21,7 +22,8 @@ export async function importCsvAction(_: ActionResult<ImportState> | null, fd: F
     if (file.size > IMPORT_MAX_BYTES) throw invalid('El archivo pesa más de 900 KB. Divídelo en partes.', 'The file is larger than 900 KB. Split it into parts.')
     const base = { kind, market: str(fd, 'market'), fileName: (file.name || 'archivo.csv').slice(0, 160), text: await file.text() }
     if (str(fd, 'intent') === 'run') {
-      const out = await runImport(ctx, { ...base, checksum: str(fd, 'checksum') })
+      // SEG-03: las filas que entran por archivo quedan en la bitácora de la base con la vía "importación".
+      const out = await runVia('import', () => runImport(ctx, { ...base, checksum: str(fd, 'checksum') }))
       return {
         data: { step: 'done', ...out },
         message: [`Importación terminada: ${out.created} creados, ${out.duplicates} duplicados que no se tocaron y ${out.rejected} rechazados.`, `Import finished: ${out.created} created, ${out.duplicates} duplicates left untouched and ${out.rejected} rejected.`],

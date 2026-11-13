@@ -111,7 +111,7 @@ export const METRICS = {
     label: ['Volumen consolidado (USD)', 'Consolidated volume (USD)'],
     what: ['El volumen de 30 días de cada mercado, convertido a USD con la tasa cargada por administración y sumado. Si a una moneda le falta tasa, no se consolida.', 'Each market’s 30-day volume, converted to USD at the rate loaded by administration, then added up. If a currency has no rate, nothing is consolidated.'],
     owner: FINANCE,
-    window: ['Los 30 días que terminan en la fecha de corte del archivo diario de ventas. La tasa es la de fecha más reciente.', 'The 30 days ending on the daily sales file’s cutoff date. The rate is the most recently dated one.'],
+    window: ['Los 30 días que terminan en la fecha de corte del archivo diario de ventas. La tasa es la vigente en esa fecha de corte.', 'The 30 days ending on the daily sales file’s cutoff date. The rate is the one in force on that cutoff date.'],
     source: ['Archivo diario de ventas y tasa de cambio de Administración', 'Daily sales file and the exchange rate in Administration'],
   },
   lossReasons: {
@@ -162,7 +162,7 @@ export const METRICS = {
   },
   financeUsd: {
     label: ['Consolidado en USD', 'Consolidated in USD'],
-    what: ['Los montos ganados de cada moneda, convertidos a USD con la tasa que cargó administración y sumados. La tasa y su fecha van a la vista. Si a una moneda le falta tasa, no se consolida.', 'The amounts won in each currency, converted to USD at the rate administration loaded, then added up. The rate and its date are shown. If a currency has no rate, nothing is consolidated.'],
+    what: ['Los montos ganados de cada moneda, convertidos a USD con la tasa del día en que se ganó cada negocio (queda guardada en el negocio) y sumados. Las tasas y sus fechas van a la vista. Si a un negocio le falta la tasa de su fecha, no se consolida.', 'The amounts won in each currency, converted to USD at the rate of the day each deal was won (it stays stored on the deal), then added up. The rates and their dates are shown. If a deal has no rate for its date, nothing is consolidated.'],
     owner: FINANCE, window: PERIOD, source: ['CONTIGO y tasa de cambio de Administración', 'CONTIGO and the exchange rate in Administration'],
   },
   nodeRollup: {

@@ -264,13 +264,14 @@ test.describe('reportar un problema', () => {
     await page.getByTestId('report-body').fill(`${MARK} la tarjeta ${card} no pasó`)
     await page.getByTestId('report-send').click()
     await expect(page.getByTestId('form-error')).toContainText('número de tarjeta')
-    await expect(page.getByTestId('report-row')).toHaveCount(0)
+    // zx-avisos ya dejó un reporte de Marco en esta corrida: aquí cuentan solo los de esta prueba
+    await expect(page.getByTestId('report-row').filter({ hasText: MARK })).toHaveCount(0)
 
     await page.getByTestId('report-body').fill(body)
     await page.getByTestId('report-urgency').selectOption('high')
     await page.getByTestId('report-send').click()
     await expect(page.getByTestId('form-ok')).toContainText('Recibido')
-    const mine = page.getByTestId('report-row')
+    const mine = page.getByTestId('report-row').filter({ hasText: MARK })
     await expect(mine).toHaveCount(1)
     await expect(mine.first()).toHaveAttribute('data-status', 'open')
     await expect(mine.first()).toContainText(body)

@@ -1,6 +1,19 @@
 import 'server-only'
 import postgres from 'postgres'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { randomUUID } from 'node:crypto'
 import { env } from '@/env'
+import { currentRequestId } from '@/server/request-id'
+
+/**
+ * SEG-03: por dónde entra cada cambio. La bitácora que escribe la base lo guarda en cada fila (app.via).
+ * Sin declarar, un cambio con identidad es de la pantalla; uno del usuario de sistema, de una integración o tarea.
+ */
+export type Via = 'screen' | 'api' | 'form' | 'import' | 'job'
+const viaStore = new AsyncLocalStorage<{ via: Via; requestId: string }>()
+export function runVia<T>(via: Via, fn: () => Promise<T>): Promise<T> {
+  return viaStore.run({ via, requestId: randomUUID() }, fn)
+}
 
 // PORT-01 / PORT-02: este es el único punto de conexión a la base y solo corre en el servidor.
 // PERF-04: compatible con pooler en modo transacción (sin prepared statements; la identidad viaja con set_config local).
@@ -26,9 +39,13 @@ function client(): Sql {
 }
 
 /** AUTHZ-04: toda consulta de negocio corre dentro de una transacción con la identidad fijada. */
-export function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  // GOB-07: el identificador de la petición viaja con la transacción y queda en cada evento de la bitácora.
+  const requestId = await currentRequestId()
   return client().begin(async (tx) => {
-    await tx`select set_config('app.user_id', ${userId}, true)`
+    // SEG-03 y GOB-07: la vía de entrada y un solo identificador de petición (el de la entrada; si no hay, el de la vía).
+    const v = viaStore.getStore()
+    await tx`select set_config('app.user_id', ${userId}, true), set_config('app.via', ${v?.via ?? ''}, true), set_config('app.request_id', ${requestId || v?.requestId || ''}, true)`
     return fn(tx)
   }) as Promise<T>
 }
@@ -69,9 +86,11 @@ export const marketToday = (tx: Tx, market: postgres.Fragment | string) =>
 
 /**
  * El día hábil del mercado que cae `plus` días después de hoy: si ese día el mercado no trabaja (su horario hábil, por
- * defecto lunes a viernes), el siguiente que sí. Un próximo paso por defecto no cae en sábado ni en domingo.
+ * defecto lunes a viernes) o es festivo en ese mercado (crm.market_holidays), el siguiente que sí. Un próximo paso por
+ * defecto no cae en sábado, en domingo ni en festivo.
  */
 export const marketWorkday = (tx: Tx, market: string, plus: number) =>
-  tx`(select g::date from generate_series(${marketToday(tx, market)} + ${plus}::int, ${marketToday(tx, market)} + ${plus}::int + 7, interval '1 day') g
+  tx`(select g::date from generate_series(${marketToday(tx, market)} + ${plus}::int, ${marketToday(tx, market)} + ${plus}::int + 14, interval '1 day') g
        where extract(isodow from g)::int = any(coalesce((select h.days from crm.market_hours h where h.market_code = ${market}), '{1,2,3,4,5}'::int[]))
+         and not exists (select 1 from crm.market_holidays f where f.market_code = ${market} and f.day = g::date)
        order by g limit 1)`

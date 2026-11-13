@@ -13,6 +13,16 @@ import { scrub } from '@/domain/pipedrive/mapping'
 import { territoryFor, type Territory } from '@/lib/territory'
 import { notify, notifyOutside } from '@/domain/notify'
 import { isWebSource, type WebSource } from '@/lib/lead-source'
+import { resolveOwner, logAssignment } from '@/domain/embudo/routing'
+import { carryTouches, enqueueConversions, readOrigin, recordTouch, saveFirstTouch } from '@/domain/embudo/attribution'
+import { referralFrom } from '@/domain/embudo/referrals'
+
+/** Número de tiendas que declara quien llena el formulario (la misma respuesta `store_count` que ya se guarda y se filtra, E15.F5). */
+const sizeFrom = (raw: unknown): number | null => {
+  const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const v = Number(body.x_store_count ?? body.store_count)
+  return Number.isInteger(v) && v >= 1 && v <= 100000 ? v : null
+}
 import { applyTerritoryOwners } from '@/domain/mx-config'
 
 export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
@@ -195,7 +205,11 @@ export async function createImportedLead(ctx: Ctx, input: LeadInput): Promise<st
   const v = leadInput.parse(input)
   ctx.assert('data.import', v.market)
   return withUser(ctx.user.id, async (tx) => {
-    const id = await insertLead(tx, ctx, { ...v, alreadyContacted: false }, { source: 'import', formId: null, ownerId: null, slaMinutes: 60 })
+    // LEAD-03: un lead que entra por archivo también pasa por las reglas de asignación escritas del mercado. Sin una regla que
+    // lo decida sigue naciendo sin dueño (lo ve todo el mercado y se reparte), como siempre.
+    const routed = await resolveOwner(tx, { market: v.market, source: 'import', motor: v.motor, locality: v.locality }, { rulesOnly: true })
+    const id = await insertLead(tx, ctx, { ...v, alreadyContacted: false }, { source: 'import', formId: null, ownerId: routed.ownerId, slaMinutes: routed.slaMinutes ?? 60 })
+    if (routed.ownerId) await logAssignment(tx, v.market, id, routed)
     await markUntrusted(tx, 'lead', id, v.market, 'csv_import', ['business_name', 'contact_name', ...(v.locality ? ['locality'] : []), ...(v.message ? ['message'] : [])])
     return id
   })
@@ -260,6 +274,8 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
     // Segunda solicitud de la misma empresa (mismo teléfono o correo): no nace otro lead ni se gasta un turno.
     const repeat = await repeatRequest(tx, sys, form, p)
     if (repeat) {
+      // LEAD-02: la segunda llegada es el último toque; el primero no se pisa.
+      await recordTouch(tx, { market: form.market_code, leadId: repeat, touch: 'last', source: form.is_campaign ? 'web_campaign' : 'web_form', values: readOrigin(raw) })
       await tx`update crm.inbound_events set status = 'processed', processed_at = now(), payload = ${tx.json({ form: slug, lead_id: repeat, merged: true })}
                where id = ${seen[0].id}`
       return { leadId: repeat, duplicate: false, merged: true }
@@ -272,14 +288,18 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       consentAt: consented ? (given && given.getTime() <= Date.now() ? given : new Date()) : null,
       consentText: consented ? cleanAttribution(p.consent_text) ?? CONSENT_TEXT[form.locale === 'en' ? 'en' : 'es'] : null,
     }
-    let ownerId: string | null = null
-    let sla = 60
-    if (form.routing_rule_id) {
-      const pick = await tx<{ owner: string | null; sla_minutes: number }[]>`
-        select app.rr_next(${form.routing_rule_id}) as owner, (select sla_minutes from crm.routing_rules where id = ${form.routing_rule_id}) as sla_minutes`
-      ownerId = pick[0]?.owner ?? null
-      sla = pick[0]?.sla_minutes ?? 60
-    }
+    // LEAD-05: el enlace de referido de un comercio trae su código; el lead queda atribuido a ese comercio.
+    const referral = await referralFrom(tx, raw, form.market_code)
+    // LEAD-03: las reglas de asignación del mercado deciden en orden; si ninguna decide, el turno del formulario (lo de siempre);
+    // y antes de dejar el lead sin dueño, le toca a quien lidera el mercado (E3.F10).
+    const size = sizeFrom(raw)
+    const dupAccount = await tx<{ id: string }[]>`select id from app.duplicate_candidates(${form.market_code}, ${p.business_name}, ${p.phone ? toE164(p.phone, sys.market(form.market_code).phoneCc) : null}) limit 1`
+    const routed = await resolveOwner(tx, { market: form.market_code, source: form.is_campaign ? 'web_campaign' : 'web_form', motor: form.motor, formId: form.id, locality: p.locality,
+      sizeUnits: size, accountId: dupAccount[0]?.id ?? null, formRotationId: form.routing_rule_id })
+    const ownerId = routed.ownerId
+    // La meta de primer contacto es la de la regla que decidió; si la regla no trae una, la del turno del formulario (como siempre).
+    const formSla = routed.slaMinutes === null && form.routing_rule_id ? (await tx<{ sla_minutes: number }[]>`select sla_minutes from crm.routing_rules where id = ${form.routing_rule_id}`)[0]?.sla_minutes : null
+    const sla = routed.slaMinutes ?? formSla ?? 60
     const leadId = await insertLead(
       tx,
       sys,
@@ -287,6 +307,10 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       // Un formulario de campaña deja el origen "Campaña web" (E15.F2). El tipo de empresa que eligió la persona manda sobre el del formulario (E15.F3).
       { source: form.is_campaign ? 'web_campaign' : 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin, accountType: form.offer_types.includes(p.company_type) ? p.company_type : form.account_type },
     )
+    await logAssignment(tx, form.market_code, leadId, routed)
+    // LEAD-02 / E3.F6: primer toque completo (TikTok, LinkedIn, X, página de llegada y de origen) y, si vino por referido, quién refirió.
+    await saveFirstTouch(tx, { market: form.market_code, leadId, source: form.is_campaign ? 'web_campaign' : 'web_form', values: readOrigin(raw), referralAccountId: referral?.accountId ?? null })
+    if (referral) await audit(tx, sys, 'lead.referred', 'lead', leadId, form.market_code, null, { referred_by_account_id: referral.accountId, code: referral.code })
     // El lead lleva el embudo de campaña y el identificador de canal de su formulario (E15.F1): se filtran y se reportan.
     if (form.funnel || form.channel_id) await tx`update crm.leads set funnel = ${form.funnel}, channel_id = ${form.channel_id} where id = ${leadId}`
     // Lo que este formulario pide además de lo básico (por ejemplo, lo mínimo para calificar una cuenta B2B) queda en el lead.
@@ -378,6 +402,8 @@ export async function qualifyLead(ctx: Ctx, leadId: string): Promise<void> {
     if (!['new', 'contacted'].includes(lead.status)) throw invalid('Solo se califica un lead nuevo o contactado.', 'Only a new or contacted lead can be qualified.')
     await tx`update crm.leads set status = 'qualified', first_touch_at = coalesce(first_touch_at, now()) where id = ${leadId}`
     await audit(tx, ctx, 'lead.qualified', 'lead', leadId, lead.market_code, { status: lead.status }, { status: 'qualified' })
+    // LEAD-02: "lead calificado" es la conversión que se devuelve a la plataforma del clic (queda en cola; el envío está apagado).
+    await enqueueConversions(tx, { market: lead.market_code, event: 'qualified_lead', leadId })
   })
 }
 
@@ -590,6 +616,8 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     if (!level || !role.success) throw invalid('Elige una opción de la lista.', 'Pick an option from the list.')
     const ownerId = lead.owner_id ?? ctx.user.id
 
+    // LEAD-01: un lead ligado desde el inicio a un comercio que ya existe se convierte dentro de ese comercio, sin crear otro.
+    if (!opts.linkAccountId && lead.account_id) opts = { ...opts, linkAccountId: lead.account_id }
     let accountId = opts.linkAccountId ?? null
     if (accountId) {
       const acc = await tx`select 1 from crm.accounts where id = ${accountId} and market_code = ${lead.market_code} and archived_at is null`
@@ -670,6 +698,8 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     }
     // E16.F2: una tienda de venta puerta a puerta es del gerente de su territorio, también cuando nace de un lead.
     if (!opts.linkAccountId) await applyTerritoryOwners(tx, [accountId])
+    // LEAD-02: la atribución del lead viaja al comercio y al negocio.
+    await carryTouches(tx, leadId, accountId, dealId)
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`
     await audit(tx, ctx, 'lead.converted', 'lead', leadId, lead.market_code, { status: 'qualified' },
       { status: 'converted', account_id: accountId, deal_id: dealId, pipeline_id: pipe.id, account_type: opts.linkAccountId ? null : accountType, contact_role: opts.linkAccountId ? null : role.data, history_moved: moved.count })

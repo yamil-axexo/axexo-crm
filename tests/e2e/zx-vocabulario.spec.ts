@@ -31,7 +31,14 @@ const visible = (page: Page) =>
     }
     add(document.title)
     // Los datos (nombres de comercios, notas, títulos de negocios) no son texto de la interfaz: van marcados o son enlaces a un registro.
+    // Lo guardado en otro idioma que el de la pantalla (un aviso se escribe en el idioma guardado de quien lo recibe) lleva su
+    // atributo lang y no se revisa contra el idioma de la pantalla.
+    const docLang = document.documentElement.lang
+    const other = [...document.querySelectorAll<HTMLElement>('body [lang]')].filter((el) => el.getAttribute('lang') !== docLang)
+    const before = other.map((el) => el.style.display)
+    for (const el of other) el.style.display = 'none'
     add(document.body.innerText)
+    other.forEach((el, i) => { el.style.display = before[i]! })
     for (const el of document.querySelectorAll('option, dialog')) add(el.textContent)
     for (const el of document.querySelectorAll('[aria-label],[placeholder],[title],[alt]')) for (const a of ['aria-label', 'placeholder', 'title', 'alt']) add(el.getAttribute(a))
     return [...out]

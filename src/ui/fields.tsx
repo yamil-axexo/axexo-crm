@@ -26,11 +26,21 @@ const SECTION: Record<string, [string, string]> = {
 }
 
 /**
- * Bloques de la venta B2B (para calificar, términos comerciales y expediente): se ven completos, también lo que falta,
- * para que el equipo sepa qué le falta a la cuenta. El expediente guarda el estado de cada documento, nunca el documento.
+ * Bloques de campos de la ficha. Las secciones salen de crm.field_sections: las tres comunes (para calificar, términos
+ * comerciales y expediente) y las que cada mercado agregó. Primero van las del equipo de quien lee (ventas u operaciones),
+ * después el resto en su orden. Se ven completas, también lo que falta. El expediente guarda el estado de cada documento,
+ * nunca el documento.
  */
-export function FieldSections({ defs, values, t, locale }: { defs: FieldDef[]; values: Record<string, unknown>; t: T; locale: Locale }) {
-  const groups = (['qualify', 'terms', 'file'] as const).map((k) => ({ k, items: defs.filter((d) => d.section === k) })).filter((g) => g.items.length > 0)
+export function FieldSections({ defs, values, t, locale, team }: { defs: FieldDef[]; values: Record<string, unknown>; t: T; locale: Locale; team?: string | null }) {
+  const byCode = new Map<string, { k: string; label: [string, string]; team: string | null; pos: number; items: FieldDef[] }>()
+  for (const d of defs) {
+    if (!d.section) continue
+    const g = byCode.get(d.section) ?? { k: d.section, label: d.section_es && d.section_en ? [d.section_es, d.section_en] : (SECTION[d.section] ?? [d.section, d.section]), team: d.section_team, pos: d.section_pos ?? 999, items: [] }
+    g.items.push(d)
+    byCode.set(d.section, g)
+  }
+  const mine = (g: { team: string | null }) => (team && g.team === team ? 0 : 1)
+  const groups = [...byCode.values()].sort((a, b) => mine(a) - mine(b) || a.pos - b.pos || a.k.localeCompare(b.k))
   if (groups.length === 0) return null
   return (
     <div className="space-y-5" data-testid="field-sections">
@@ -38,9 +48,9 @@ export function FieldSections({ defs, values, t, locale }: { defs: FieldDef[]; v
         const docs = g.k === 'file' ? g.items.filter((d) => d.applies_when) : []
         const ready = docs.filter((d) => values[d.key] === 'Validado').length
         return (
-          <section key={g.k} data-testid={`field-section-${g.k}`}>
+          <section key={g.k} data-testid={`field-section-${g.k}`} data-team={g.team ?? ''}>
             <h4 className="text-[13px] font-semibold text-muted-2">
-              {t(...SECTION[g.k]!)}
+              {t(...g.label)}
               {g.k === 'file' && docs.length > 0 && <span className="ml-2 font-normal text-muted" data-testid="file-progress">{t(`${ready} de ${docs.length} documentos validados`, `${ready} of ${docs.length} documents validated`)}</span>}
             </h4>
             {g.k === 'file' && <p className="text-[13px] text-muted">{t('Aquí va el estado de cada documento. El documento se guarda fuera de CONTIGO.', 'This holds the status of each document. The document itself is kept outside CONTIGO.')}</p>}

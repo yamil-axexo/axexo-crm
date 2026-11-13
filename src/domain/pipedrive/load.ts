@@ -3,6 +3,7 @@ import type { Tx } from '@/server/db'
 import { evaluateRules } from '@/domain/rules'
 import { accountRule, dealRule, leadRule, skipReason } from '@/domain/intake'
 import { missingForStage } from '@/domain/deals'
+import { recordStageGaps } from '@/domain/embudo/stage-conditions'
 import * as M from './mapping'
 import { SRC, accountsByOrg, bump, ensureLossReason, loadRefs, markLoaded, newIds, refMap, saveRefs, sid, type Json, type Raw, type Refs } from './refs'
 
@@ -465,6 +466,9 @@ const loadDeals: Loader = async (tx, runId, sysId) => {
                from jsonb_to_recordset(${J(tx, links)}) as x(account_id uuid, id uuid) join crm.accounts a on a.id = x.account_id
               where not exists (select 1 from crm.account_contacts ac where ac.account_id = x.account_id and ac.contact_id = x.id and ac.valid_to is null)`
   }
+  // PIPE-01: la carga histórica no se rechaza por lo que una etapa pide, pero tampoco lo salta en silencio: lo que le falta a
+  // cada negocio para la etapa en la que entra queda anotado (crm.deal_stage_gaps) y se ve en el negocio y en Reportes.
+  await recordStageGaps(tx)
   const cols = tx`x(id uuid, market text, pipeline_id uuid, stage_id uuid, pd_stage_id uuid, account_id uuid, owner_id uuid, title text, amount_minor bigint,
     currency text, status text, loss_reason_code text, loss_note text, decision_maker_id uuid, stage_entered_at timestamptz, won_at timestamptz,
     lost_at timestamptz, closed_by text, custom jsonb, created_at timestamptz)`

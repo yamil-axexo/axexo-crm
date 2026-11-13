@@ -21,6 +21,8 @@ export default async function ForecastPage({ searchParams }: { searchParams: Pro
     <>
       <ReportHeader r={r} desc={t('Cuántos de los negocios abiertos de hoy se esperan ganar. Es un rango con su supuesto a la vista, no una meta ni una promesa.', 'How many of today’s open deals are expected to be won. It is a range with its assumption in view, not a target or a promise.')} />
       <ReportFilters t={t} locale={locale} base="/reportes/pronostico" params={params} selects={[sel.market, sel.pipeline, sel.team, sel.owner]} />
+      {/* E1.F10: el pronóstico en dinero, en USD y con todos los mercados juntos, vive en el Consolidado (una sola regla de conversión). */}
+      {ctx.can('board.lt') && <p className="mb-5 text-[13.5px] text-muted-2">{t('Este reporte cuenta negocios. Su monto en USD, ponderado por etapa, está en ', 'This report counts deals. Their amount in USD, weighted by stage, is in ')}<Link href="/reportes/consolidado" className="font-medium text-blue-text underline" data-testid="forecast-usd-link">{t('Consolidado en USD', 'Consolidated in USD')}</Link>.</p>}
       {pipelines.length === 0 && <Empty title={t('No hay embudos con estos filtros', 'No pipelines with these filters')} hint={t('Quita un filtro para verlos todos.', 'Remove a filter to see them all.')} />}
       {pipelines.map((p) => {
         const stages = rows.filter((x) => x.pipeline_id === p.pipeline_id).map((s) => ({ s, rate: stageRate(s) }))

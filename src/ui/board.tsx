@@ -154,7 +154,7 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
       </nav>
 
       {/* Un embudo de más de cinco etapas usa el ancho de la ventana en escritorio, con columnas más angostas (regla .board-wide en globals.css). */}
-      <div className={cx('flex gap-3 md:-mx-2 md:overflow-x-auto md:px-2 md:pb-4', cols.length > 5 && 'board-wide')} data-testid="board" data-wide={cols.length > 5 ? '1' : undefined}>
+      <div className={cx('flex gap-3 md:-mx-2 md:overflow-x-auto md:px-2 md:pb-4', cols.length > 5 && 'board-wide', cols.length > 8 && 'board-dense')} data-testid="board" data-wide={cols.length > 5 ? '1' : undefined}>
         {cols.map((col) => {
           const list = cards.filter((c) => c.stageId === col.id)
           return (

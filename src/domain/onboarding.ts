@@ -18,6 +18,7 @@ export async function getOnboarding(ctx: Ctx): Promise<Onboarding> {
 
 /** Marcar o desmarcar un paso. La lista es de la persona: la base no deja tocar la de nadie más. */
 export async function toggleStep(ctx: Ctx, key: string): Promise<void> {
+  if (ctx.viewAs) return // ver como otra persona no marca sus pasos
   if (!STEPS[trackOf(ctx.memberships)].some((s) => s.key === key)) throw invalid('Ese paso no es de tu lista.', 'That step is not on your list.')
   await withUser(ctx.user.id, async (tx) => {
     await tx`insert into crm.user_onboarding (user_id) values (${ctx.user.id}) on conflict (user_id) do nothing`
@@ -29,6 +30,7 @@ export async function toggleStep(ctx: Ctx, key: string): Promise<void> {
 
 /** Esconder la lista (deja de salir en Hoy) o volver a mostrarla. Lo marcado se conserva. */
 export async function setOnboardingHidden(ctx: Ctx, hidden: boolean): Promise<void> {
+  if (ctx.viewAs) return
   await withUser(ctx.user.id, async (tx) => {
     await tx`insert into crm.user_onboarding (user_id) values (${ctx.user.id}) on conflict (user_id) do nothing`
     await tx`update crm.user_onboarding set hidden_at = ${hidden ? tx`now()` : null} where user_id = ${ctx.user.id}`

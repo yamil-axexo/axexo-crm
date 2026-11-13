@@ -42,7 +42,13 @@ export const NOTICE_KINDS = {
   automation: { label: ['Avisos de una automatización', 'Notices from an automation'], hint: ['Los que manda una regla que administración configuró.', 'The ones a rule set up by administration sends.'], defaults: ['in_app'], action: true, locked: false, urgent: false },
   scheduled_report: { label: ['Reportes programados', 'Scheduled reports'], hint: ['El resumen de un reporte que programaste.', 'The summary of a report you scheduled.'], defaults: ['in_app', 'email'], action: false, locked: false, urgent: false },
   export_alert: { label: ['Exportaciones sobre el umbral diario', 'Exports over the daily threshold'], hint: ['Para administración: alguien pasó el umbral de archivos o filas en un día.', 'For administration: someone went over the daily file or row threshold.'], defaults: ['in_app', 'email'], action: true, locked: false, urgent: false },
+  // Seguridad (0027): alertas para quien lleva la bitácora, y el aviso a quien recibe un acceso.
+  security_alert: { label: ['Alertas de seguridad', 'Security alerts'], hint: ['Para quien lleva la bitácora: exportaciones, búsquedas o revelados sobre el umbral, llaves por vencer y cambios por fuera de la aplicación.', 'For whoever handles the audit log: exports, searches or reveals over the threshold, keys about to expire and changes outside the application.'], defaults: ['in_app', 'email'], action: true, locked: false, urgent: false },
+  access_review: { label: ['Revisión de accesos de tu mercado', 'Access review for your market'], hint: ['Para quien lidera un mercado: cuando Administración abre la revisión y te toca decir qué acceso se mantiene.', 'For a market lead: when Administration opens the review and it is your turn to say which access stays.'], defaults: ['in_app', 'email'], action: true, locked: false, urgent: false },
+  access_granted: { label: ['Te dieron un acceso', 'You were given access'], hint: ['Cuando Administración te da un rol o cambia lo que puedes hacer.', 'When Administration gives you a role or changes what you can do.'], defaults: ['in_app', 'email'], action: false, locked: true, urgent: false },
   report: { label: ['Respuesta a un problema que reportaste', 'Answer to a problem you reported'], hint: ['Y, para administración, cada reporte nuevo.', 'And, for administration, each new report.'], defaults: ['in_app'], action: false, locked: false, urgent: false },
+  service_alert: { label: ['Un objetivo de servicio no se cumple', 'A service objective is not met'], hint: ['Para administración: disponibilidad o tiempos de respuesta fuera del objetivo.', 'For administration: availability or response times outside the objective.'], defaults: ['in_app', 'email'], action: true, locked: false, urgent: true },
+  config_request: { label: ['Respuesta a un cambio que pediste', 'Answer to a change you asked for'], hint: ['Y, para administración, cada solicitud nueva.', 'And, for administration, each new request.'], defaults: ['in_app'], action: false, locked: false, urgent: false },
 } as const satisfies Record<string, KindDef>
 
 export type NoticeKind = keyof typeof NOTICE_KINDS
@@ -67,7 +73,7 @@ export const DELIVERY_STATUS: Record<string, Pair> = {
   held_digest: ['En espera: va en el resumen', 'On hold: goes in the summary'],
   held_limit: ['En espera: límite diario del canal', 'On hold: daily channel limit'],
   digested: ['Incluido en un resumen', 'Included in a summary'],
-  skipped_consent: ['No sale: el lead no dio su consentimiento', 'Not sent: the lead gave no consent'],
+  skipped_consent: ['No sale: la persona no dio su consentimiento o pidió la baja', 'Not sent: the person gave no consent or opted out'],
   skipped_no_address: ['No sale: falta la dirección de destino', 'Not sent: the destination address is missing'],
   blocked_template: ['No sale: falta el texto de la plantilla', 'Not sent: the template text is missing'],
 }

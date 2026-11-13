@@ -143,9 +143,17 @@ describe('reportes de E8', () => {
     expect(fin.rows.some((r) => r.entity)).toBe(true)
     const needs = fin.totals.filter((x) => x.amount > 0 && x.currency !== 'USD')
     if (needs.every((x) => fin.rates.some((r) => r.currency === x.currency))) expect(fin.usd).not.toBeNull()
+    // Paquete mercados (MULTI-01): el consolidado usa la tasa que quedó guardada en cada negocio al ganarse. Borrar las tasas
+    // cargadas no mueve lo ya cerrado; lo que deja sin consolidar es un negocio ganado sin tasa para su fecha.
     await admin`delete from crm.fx_rates`
-    const noRate = await getFinanceReport(nora, year(nora), {})
-    if (needs.length) { expect(noRate.usd).toBeNull(); expect(noRate.missing).toContain(needs[0]!.currency) }
+    expect((await getFinanceReport(nora, year(nora), {})).usd).toBe(fin.usd)
+    if (needs.length) {
+      await admin`update crm.deals set fx_rate = null, fx_rate_date = null, fx_source = null, amount_usd_minor = null
+                   where id = (select id from crm.deals where status = 'won' and trim(currency) = ${needs[0]!.currency} and amount_minor is not null order by won_at desc limit 1)`
+      const noRate = await getFinanceReport(nora, year(nora), {})
+      expect(noRate.usd).toBeNull()
+      expect(noRate.missing).toContain(needs[0]!.currency)
+    }
     // Supervisión no tiene mercados completos: el reporte no le devuelve nada.
     expect((await getFinanceReport(await ctxFor('fernando.ibarra'), year(nora), {})).rows.length).toBe(0)
   })

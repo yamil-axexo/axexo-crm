@@ -20,7 +20,11 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
   const period = marketPeriods(ctx, sp.periodo, sp.desde, sp.hasta, '30d')
   const scope = ctx.markets.filter((m) => m.status === 'live' && ctx.can('board.lt', m.code))
   const market = scope.some((m) => m.code === sp.mercado) ? sp.mercado : undefined
-  const [data, fx] = await Promise.all([getLeadershipPanel(ctx, period, market), getFxRates(ctx)])
+  const data = await getLeadershipPanel(ctx, period, market)
+  // MULTI-01: el volumen de 30 días se convierte con la tasa vigente en la fecha de corte de sus datos, no con la última cargada.
+  const cutoff: Record<string, string> = {}
+  for (const m of data.markets) if (m.as_of && (!cutoff[m.currency] || m.as_of < cutoff[m.currency]!)) cutoff[m.currency] = m.as_of
+  const fx = await getFxRates(ctx, cutoff)
   await track(ctx, 'view.panel-lt')
   // REP-01: cada indicador con su dueño; el que cargó administración manda sobre el dueño por defecto.
   const owners = await metricOwners(ctx)
@@ -128,6 +132,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
               </ul>
             ) : <p className="mt-2 text-[13.5px] text-muted" data-testid="lt-fx">{t('Todo el volumen ya está en USD: no se usa ninguna tasa.', 'All of the volume is already in USD: no rate is used.')}</p>}
             <Def t={t} owners={owners} k="volumeUsd" />
+            <p className="mt-2 text-[13.5px]"><Link href="/reportes/consolidado" className="font-medium text-blue-text underline" data-testid="lt-consolidated">{t('Negocios abiertos y ganados en USD, por mercado, entidad o unidad de negocio', 'Open and won deals in USD, by market, entity or business unit')}</Link></p>
           </div>
           <div>
             <p className="text-[13px] font-medium text-muted-2">{t('Por mercado, en su moneda', 'By market, in its own currency')}</p>

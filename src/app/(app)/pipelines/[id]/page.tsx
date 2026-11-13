@@ -29,7 +29,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   // Persona y equipo: filtros para supervisión, quien lidera y leadership, dentro de su alcance.
   const options = ctx.can('report.view') ? await getReportOptions(ctx) : null
   const team = sp.equipo === 'none' ? 'none' : options?.teams.some((x) => x.id === sp.equipo) ? sp.equipo : undefined
-  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin', paused: sp.paso === 'pausa', team }), listPipelines(ctx)])
+  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin', paused: sp.paso === 'pausa', revisit: sp.paso === 'revisita', team }), listPipelines(ctx)])
   if (!board) notFound()
   await track(ctx, 'view.pipeline')
   const market = ctx.market(board.pipeline.market_code)
@@ -68,7 +68,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
       {quietDays > 0 && <Link href={here({})} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid={`quiet-clear${suffix}`}>{t('Volver al tablero', 'Back to the board')}</Link>}
     </form>
   )
-  const activeFilters = [team, sp.owner, sp.paso === 'sin' || sp.paso === 'pausa' ? sp.paso : undefined, quietDays > 0 ? 'quietos' : undefined].filter(Boolean).length
+  const activeFilters = [team, sp.owner, sp.paso === 'sin' || sp.paso === 'pausa' || sp.paso === 'revisita' ? sp.paso : undefined, quietDays > 0 ? 'quietos' : undefined].filter(Boolean).length
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
@@ -153,9 +153,10 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
               <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
             </nav>}
             <nav aria-label={m('deals.filter')} className="inline-flex rounded-full border border-line bg-surface p-1">
-              <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' && sp.paso !== 'pausa' ? 'page' : undefined} className={seg(sp.paso !== 'sin' && sp.paso !== 'pausa')} data-testid="filter-all">{m('deals.filter.all')}</Link>
+              <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' && sp.paso !== 'pausa' && sp.paso !== 'revisita' ? 'page' : undefined} className={seg(sp.paso !== 'sin' && sp.paso !== 'pausa' && sp.paso !== 'revisita')} data-testid="filter-all">{m('deals.filter.all')}</Link>
               <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
               <Link href={here({ paso: 'pausa' })} aria-current={sp.paso === 'pausa' ? 'page' : undefined} className={seg(sp.paso === 'pausa')} data-testid="filter-paused">{t(`En pausa (${paused})`, `On hold (${paused})`)}</Link>
+              <Link href={here({ paso: 'revisita' })} aria-current={sp.paso === 'revisita' ? 'page' : undefined} className={seg(sp.paso === 'revisita')} data-testid="filter-revisit">{t(`Revisita a quien decide (${revisits})`, `Revisit to decision-maker (${revisits})`)}</Link>
             </nav>
             {canBulk && <div className="w-full md:hidden">{quietForm('-m')}</div>}
           </FilterFold>

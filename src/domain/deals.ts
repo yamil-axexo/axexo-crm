@@ -8,6 +8,7 @@ import { DomainError, invalid, notFound } from '@/lib/errors'
 import { day as dayLabel, isoDay } from '@/lib/format'
 import { cancelPendingApproval, transitionGate } from '@/domain/automation/transitions'
 import { notify, notifyMany, peopleWithRole } from '@/domain/notify'
+import { requirementsFor } from '@/domain/embudo/stage-conditions'
 
 export type StageKind = 'open' | 'awaiting_txn' | 'won' | 'lost'
 
@@ -276,11 +277,12 @@ export async function moveDealTx(tx: Tx, ctx: Ctx, dealId: string, toStageId: st
       if ((extra?.ret?.note ?? '').trim().length > 300) throw invalid('Deja la nota del motivo en 300 caracteres o menos.', 'Keep the reason note to 300 characters or fewer.')
     }
     // Avanzar saltando etapas no evita lo que piden las de en medio: se exige la suma de todas hasta la de destino.
-    const skipped = await tx<{ required_fields: string[] }[]>`
-      select s.required_fields from crm.stages s
+    const skipped = await tx<{ id: string; required_fields: string[] }[]>`
+      select s.id, s.required_fields from crm.stages s
        where s.pipeline_id = ${d.pipeline_id} and s.kind in ('open', 'awaiting_txn') and s.position < ${stage.position}
          and s.position > (select c.position from crm.stages c where c.id = ${d.stage_id})`
-    const gate = { kind: stage.kind, required_fields: [...new Set([...stage.required_fields, ...skipped.flatMap((s) => s.required_fields)])] }
+    // PIPE-01: un requisito con condición (mercado, tipo de cuenta, monto) solo se exige cuando aplica a este negocio.
+    const gate = { kind: stage.kind, required_fields: await requirementsFor(tx, d, [stage, ...skipped]) }
     if (gate.required_fields.includes('items')) {
       const n = await tx<{ n: number }[]>`select count(*)::int as n from crm.deal_items where deal_id = ${dealId}`
       d.items_count = n[0]?.n ?? 0

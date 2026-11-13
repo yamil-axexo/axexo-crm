@@ -155,14 +155,14 @@ test.describe('AUT-04 · API de lectura', () => {
     expect((await get('/api/v1/catalogs', rotated, other)).status()).toBe(200)
     await page.reload()
     await expect(page.getByTestId('key-row').filter({ hasText: 'Tablero de prueba' })).toHaveCount(2)
-    await expect(page.getByTestId('key-row').filter({ hasText: 'vigente hasta el' })).toHaveCount(1)
-    await expect(page.getByTestId('key-row').filter({ hasText: 'nació de una rotación' })).toHaveCount(1)
+    await expect(page.getByTestId('key-row').filter({ hasText: 'Tablero de prueba' }).filter({ hasText: 'vigente hasta el' })).toHaveCount(1)
+    await expect(page.getByTestId('key-row').filter({ hasText: 'Tablero de prueba' }).filter({ hasText: 'nació de una rotación' })).toHaveCount(1)
 
     // Revocar pide confirmación y corta de inmediato.
-    const fresh = page.getByTestId('key-row').filter({ hasText: 'nació de una rotación' })
+    const fresh = page.getByTestId('key-row').filter({ hasText: 'Tablero de prueba' }).filter({ hasText: 'nació de una rotación' })
     await fresh.getByTestId('key-revoke').click()
     await fresh.getByTestId('key-revoke-confirm').click()
-    await expect(page.getByTestId('key-row').filter({ hasText: 'revocada' })).toHaveCount(1)
+    await expect(page.getByTestId('key-row').filter({ hasText: 'Tablero de prueba' }).filter({ hasText: 'revocada' })).toHaveCount(1)
     expect((await get('/api/v1/catalogs', rotated, other)).status()).toBe(401)
   })
 
