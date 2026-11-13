@@ -6,7 +6,8 @@ import type { Ctx } from '@/server/context'
 import { audit, clean, newId } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
 import { forbidden, invalid, notFound } from '@/lib/errors'
-import { esignAdapter, externalIdentityAdapter, queueExternal } from '@/server/adapters/partners'
+import { esignAdapter, externalIdentityAdapter } from '@/server/adapters/partners'
+import { queueExternal } from '@/domain/external-queue'
 
 /**
  * Paquete partners-contratos (0043).
@@ -336,7 +337,7 @@ export async function addMilestone(ctx: Ctx, planId: string, raw: z.input<typeof
   const p = milestoneInput.safeParse(raw)
   if (!p.success) throw invalid('Escribe el hito y su lado.', 'Write the milestone and its side.')
   const v = p.data
-  if (v.side === 'axexo' ? !v.ownerUserId : v.ownerName.length < 2) throw invalid('Cada hito lleva dueño: de nuestro lado una persona de CONTIGO, del lado del cliente su nombre.', 'Each milestone has an owner: on our side a CONTIGO user, on the client side their name.')
+  if (v.side === 'axexo' ? !v.ownerUserId : v.ownerName.length < 2) throw invalid('Cada hito lleva responsable: de nuestro lado una persona de CONTIGO, del lado del cliente su nombre.', 'Each milestone has an owner: on our side a CONTIGO user, on the client side their name.')
   assertNoProhibited(v.title, v.ownerName)
   await withUser(ctx.user.id, async (tx) => {
     const plan = await tx<{ account_id: string; market_code: string }[]>`select account_id, market_code from crm.integration_plans where id = ${uuid.parse(planId)}`

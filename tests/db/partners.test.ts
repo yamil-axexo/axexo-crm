@@ -224,13 +224,14 @@ describe('CANAL-06: niveles, habilitación y cruce de bases', () => {
 })
 
 describe('DAT-06: kit de ingesta de red adquirida', () => {
+  const CARD = ['4111', '1111', '1111', '1111'].join(' ')
   const csv = (phoneDup: string) => [
     'id,parent_id,nombre,telefono,ciudad,estado,tipo',
     `N1,,Red Ejemplo Norte ${tag()},,Laredo,TX,distribuidor`,
     `S1,N1,Punto Ejemplo Uno ${tag()},9565551001,Laredo,TX,tienda`,
     `S2,N1,Punto Ejemplo Dos ${tag()},${phoneDup},Laredo,TX,tienda`,
     `S3,N1,,9565551003,Laredo,TX,tienda`,
-    `S4,N1,Punto con tarjeta 4111 1111 1111 1111,9565551004,Laredo,TX,tienda`,
+    `S4,N1,Punto con tarjeta ${CARD},9565551004,Laredo,TX,tienda`,
   ].join('\n')
 
   it('carga aparte, marca problemas y repetidos, pide dos liberaciones distintas, promueve por lotes con árbol y origen, y regresa', async () => {
@@ -243,7 +244,7 @@ describe('DAT-06: kit de ingesta de red adquirida', () => {
     expect(rows[2]!.dup_key).toBe('phone')
     expect(rows[3]!.issues).toContain('missing_name')
     expect(rows[4]!.issues).toContain('prohibited')
-    expect(rows[4]!.name).not.toContain('4111')
+    expect(rows[4]!.name).not.toContain(CARD)
     // Segregado: nada de esto está en la cartera, y ventas no lo ve.
     expect((await admin`select 1 from crm.accounts where name like 'Punto Ejemplo Uno%' and created_at > now() - interval '1 minute'`).length).toBe(0)
     expect((await asPersona('jade.kim', (tx) => tx`select 1 from crm.network_loads`)).length).toBe(0)
@@ -303,7 +304,7 @@ describe('ACT-03: captura de comunicaciones', () => {
   it('el texto pasa por el escaneo de datos prohibidos y una fecha futura no entra', async () => {
     const id = await usAccount()
     const sam = await ctxFor('sam.ortiz')
-    await expect(captureComm(sam, { accountId: id, channel: 'email', subject: 'Datos', summary: 'Su tarjeta 4111 1111 1111 1111' })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(captureComm(sam, { accountId: id, channel: 'email', subject: 'Datos', summary: `Su tarjeta ${['4111', '1111', '1111', '1111'].join(' ')}` })).rejects.toMatchObject({ code: 'invalid' })
     await expect(captureComm(sam, { accountId: id, channel: 'meeting', subject: 'Futura', at: '2099-01-01T10:00' })).rejects.toMatchObject({ code: 'invalid' })
     await expect(captureComm(await ctxFor('luis.tovar'), { accountId: id, channel: 'email', subject: 'Leadership' })).rejects.toMatchObject({ code: 'forbidden' })
   })

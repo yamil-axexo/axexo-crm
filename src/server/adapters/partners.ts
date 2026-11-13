@@ -1,5 +1,4 @@
 import 'server-only'
-import type { Tx } from '@/server/db'
 
 /**
  * Adaptadores del paquete partners-contratos. Todos construidos y APAGADOS: no llaman a nada y la operación queda en
@@ -46,13 +45,6 @@ const capture = (envVar: string) => {
 export const gmailCaptureAdapter = () => capture(GMAIL_ENV)
 export const calendarCaptureAdapter = () => capture(CALENDAR_ENV)
 export const whatsappCaptureAdapter = () => capture(WHATSAPP_CAPTURE_ENV)
-
-export type ExternalItem = { adapter: 'esign' | 'external_identity' | 'gmail' | 'calendar' | 'whatsapp_capture'; object: string; objectId: string | null; market: string | null; summary: string; status: 'channel_off' | 'simulated' }
-/** Deja a la vista lo que habría salido por un adaptador apagado. */
-export async function queueExternal(tx: Tx, userId: string, i: ExternalItem): Promise<void> {
-  await tx`insert into crm.external_queue (adapter, object, object_id, market_code, summary, status, created_by)
-           values (${i.adapter}, ${i.object}, ${i.objectId}, ${i.market}, ${i.summary.slice(0, 300)}, ${i.status}, ${userId})`
-}
 
 /** Para "Estado de CONTIGO": cada adaptador del paquete, si está apagado y qué falta para encenderlo. */
 export function partnersAdapterStatus(): { key: string; name: Pair; what: Pair; mode: Mode; envVar: string; needs: Pair }[] {

@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 const small = 'text-[13px] text-muted'
 const TONE = { pending: 'neutral', in_progress: 'info', done: 'good', blocked: 'bad' } as const
 
-/** PIPE-08: plan compartido de integración. Hitos con dueño de cada lado, fechas y estado; los días a certificación como línea base. */
+/** PIPE-08: plan compartido de integración. Hitos con responsable de cada lado, fechas y estado; los días a certificación como línea base. */
 export default async function PlanPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
@@ -27,12 +27,12 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
       <PageHeader
         eyebrow={a.name}
         title={t('Plan de integración', 'Integration plan')}
-        desc={t('Especificaciones, ambiente de pruebas y certificación, con un dueño por hito de cada lado. El cliente todavía no entra a CONTIGO: compártele el avance por tu medio.', 'Specs, sandbox and certification, with one owner per milestone on each side. The client cannot sign in to CONTIGO yet: share progress your usual way.')}
+        desc={t('Especificaciones, ambiente de pruebas y certificación, con un responsable por hito de cada lado. El cliente todavía no entra a CONTIGO: compártele el avance por tu medio.', 'Specs, sandbox and certification, with one owner per milestone on each side. The client cannot sign in to CONTIGO yet: share progress your usual way.')}
         actions={<LinkButton href={`/comercios/${id}?tab=datos`} testId="plan-back">{t('Volver', 'Back')}</LinkButton>}
       />
 
       {d.plans.length === 0 && (
-        <Empty title={t('Sin plan de integración', 'No integration plan')} hint={t('Para cuentas corporativas que se integran por API: el plan nace con los hitos de siempre y tú pones dueños y fechas.', 'For corporate accounts integrating by API: the plan starts with the usual milestones and you set owners and dates.')} />
+        <Empty title={t('Sin plan de integración', 'No integration plan')} hint={t('Para cuentas corporativas que se integran por API: el plan nace con los hitos de siempre y tú pones responsables y fechas.', 'For corporate accounts integrating by API: the plan starts with the usual milestones and you set owners and dates.')} />
       )}
 
       {d.plans.map((p) => {
@@ -59,7 +59,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
                       <p className="text-[12.5px] font-semibold text-muted-2">{t(...PLAN_PHASE_LABEL[m.phase as 'specs'])} · {m.side === 'client' ? t('Cliente', 'Client') : 'axexo'}</p>
                       <p className="text-[15px] font-semibold text-strong">{m.title}</p>
                       <p className={small}>
-                        {t('Dueño', 'Owner')}: {m.owner}
+                        {t('Responsable', 'Owner')}: {m.owner}
                         {m.due_on ? ` · ${t('para el', 'due')} ${day(m.due_on, locale)}` : ` · ${t('sin fecha', 'no date')}`}
                         {m.done_on ? ` · ${t('hecho el', 'done on')} ${day(m.done_on, locale)}` : ''}
                         {m.note ? ` · ${m.note}` : ''}
@@ -99,10 +99,10 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
                       <Field label={t('Lado', 'Side')}>
                         <select name="side" className="input" defaultValue="axexo"><option value="axexo">axexo</option><option value="client">{t('Cliente', 'Client')}</option></select>
                       </Field>
-                      <Field label={t('Dueño de axexo', 'axexo owner')} hint={t('Si el hito es de axexo.', 'If the milestone is axexo’s.')}>
+                      <Field label={t('Responsable en axexo', 'axexo owner')} hint={t('Si el hito es de axexo.', 'If the milestone is axexo’s.')}>
                         <select name="owner_user_id" className="input" defaultValue=""><option value="">{t('Elige a quién', 'Choose who')}</option>{d.people.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select>
                       </Field>
-                      <Field label={t('Dueño del cliente', 'Client owner')} hint={t('Si el hito es del cliente: su nombre.', 'If the milestone is the client’s: their name.')}><input name="owner_name" className="input" maxLength={120} /></Field>
+                      <Field label={t('Responsable del cliente', 'Client owner')} hint={t('Si el hito es del cliente: su nombre.', 'If the milestone is the client’s: their name.')}><input name="owner_name" className="input" maxLength={120} /></Field>
                       <Field label={t('Fecha', 'Date')}><input name="due_on" type="date" className="input" /></Field>
                     </div>
                     <div className="mt-5"><Submit>{t('Agregar', 'Add')}</Submit></div>
