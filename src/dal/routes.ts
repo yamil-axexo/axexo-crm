@@ -36,5 +36,7 @@ export async function routeStoresOf(tx: Tx, market: string, ownerId: string): Pr
 
 export async function routeStores(ctx: Ctx, market: string): Promise<RouteStore[]> {
   ctx.market(market)
-  return withUser(ctx.user.id, (tx) => routeStoresOf(tx, market, ctx.user.id))
+  // La pantalla usa la forma de siempre; las cifras por tienda van a la API de la herramienta de rutas.
+  const rows = await withUser(ctx.user.id, (tx) => routeStoresOf(tx, market, ctx.user.id))
+  return rows.map(({ activations_mtd: _m, activations_prev_month: _p, sales_as_of: _s, ...r }) => r)
 }

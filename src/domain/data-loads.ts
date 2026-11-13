@@ -4,7 +4,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
-import { LOAD_KEYS } from '@/server/loads'
+import { LOAD_KEYS } from '@/domain/loads'
 
 /** E5.F3: responsable y hora esperada de una carga. Sin hora, la carga no se vigila por horario. */
 const loadInput = z.object({

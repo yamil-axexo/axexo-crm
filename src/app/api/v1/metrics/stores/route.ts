@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { apiHandler } from '@/server/api'
 import { systemCtx } from '@/server/context'
 import { ingestStoreSales } from '@/domain/store-sales'
-import { loadBlocked, withLoad } from '@/server/loads'
+import { loadBlocked, withLoad } from '@/domain/loads'
 import { DomainError } from '@/lib/errors'
 
 // E5.F1: archivo de cifras de ventas por tienda (store_sales_daily v1, docs/contracts/store-sales-daily-v1.md). Idempotente

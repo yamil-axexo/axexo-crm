@@ -8,7 +8,7 @@ import { CRM_OBJECT, closesByTransaction, last4, marketFromPipelineName, motorFr
 import { SRC, addIssue, bump, ensureLossReason, rawRows, saveRefs, sid, type Issue, type Json } from './refs'
 export type { Issue } from './refs'
 import { LOADERS, finish } from './load'
-import { finishOpenLoad, loadBlocked, startLoad } from '@/server/loads'
+import { finishOpenLoad, loadBlocked, startLoad } from '@/domain/loads'
 
 /**
  * Migración desde Pipedrive en tres tiempos, reanudable y repetible (REL-07):

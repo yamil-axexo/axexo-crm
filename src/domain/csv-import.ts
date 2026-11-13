@@ -12,7 +12,7 @@ import { parseCsv } from '@/lib/csv'
 import { toCsv } from '@/lib/periods'
 import { toE164 } from '@/lib/format'
 import { DomainError, invalid, notFound } from '@/lib/errors'
-import { loadBlocked, withLoad } from '@/server/loads'
+import { loadBlocked, withLoad } from '@/domain/loads'
 
 // AUT-07: importación por archivo CSV de comercios, contactos y leads. El archivo se lee en memoria y NO se guarda.
 // 1) Vista previa: se valida TODO antes de escribir, fila por fila (requeridos, formatos, datos prohibidos, duplicados).

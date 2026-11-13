@@ -10,7 +10,7 @@ import { storeSales, teamStoreSales } from '@/dal/store-sales'
 import { simulatedStoreSalesFiles } from '@/server/adapters/sales-file'
 import { findJob, runJob } from '@/server/jobs/runner'
 import { JOBS } from '@/server/jobs/registry'
-import { finishLoad, startLoad, watchLateLoads, withLoad } from '@/server/loads'
+import { finishLoad, startLoad, watchLateLoads, withLoad } from '@/domain/loads'
 import { configureLoad, setLoadWindow } from '@/domain/data-loads'
 import { withSystem } from '@/server/db'
 import { ingestRouteCheckin, readRouteStores, routeStoresOut } from '@/domain/route-tool'
@@ -324,13 +324,14 @@ describe('GOB-05 y E6.F4: carga de Pipedrive con historial, árbol, duplicados y
   it('el historial de etapas trae cada cambio con su fecha real', async () => {
     const ev = await admin<{ to_name: string; at: Date }[]>`
       select s.name_es as to_name, e.at from crm.deal_stage_events e join crm.stages s on s.id = e.to_stage_id
-        join crm.external_refs r on r.internal_id = e.deal_id and r.system = 'pipedrive' and r.object = 'deal' and r.external_id = '7001'
+        join crm.external_refs r on r.internal_id = e.deal_id and r.system = 'pipedrive' and r.object = 'deal' and r.external_id = '7102'
        order by e.at`
     const names = ev.map((e) => e.to_name)
-    expect(names).toContain('Prospect')
     expect(names).toContain('Contacted')
-    // El cambio a Contacted llegó con su fecha real (además del registro con que arranca la historia al importar el negocio).
-    expect(ev.filter((e) => e.to_name === 'Contacted').map((e) => e.at.toISOString().slice(0, 10))).toContain('2026-10-08')
+    expect(names).toContain('Committed')
+    // Cada cambio llegó con su fecha real (además del registro con que arranca la historia al importar el negocio).
+    expect(ev.filter((e) => e.to_name === 'Contacted').map((e) => e.at.toISOString().slice(0, 10))).toContain('2026-09-25')
+    expect(ev.filter((e) => e.to_name === 'Committed').map((e) => e.at.toISOString().slice(0, 10))).toContain('2026-10-08')
   })
 
   it('la organización matriz de Pipedrive cuelga a la hija en el árbol', async () => {

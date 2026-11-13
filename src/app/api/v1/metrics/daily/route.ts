@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { apiHandler } from '@/server/api'
 import { systemCtx } from '@/server/context'
 import { ingestMetricsFile } from '@/domain/integrations'
-import { loadBlocked, withLoad } from '@/server/loads'
+import { loadBlocked, withLoad } from '@/domain/loads'
 import { DomainError } from '@/lib/errors'
 
 // AUT-06: carga del archivo diario merchant_metrics_daily (v1) que produce S5. Idempotente por contenido.

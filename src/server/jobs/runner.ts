@@ -4,7 +4,7 @@ import { runVia, withSystem } from '@/server/db'
 import { env } from '@/env'
 import { JOBS } from './registry'
 import type { Job } from './types'
-import { finishLoad, startLoad, type LoadStart } from '@/server/loads'
+import { finishLoad, startLoad, type LoadStart } from '@/domain/loads'
 
 // El corredor de las tareas programadas. Decide a cuál le toca, no deja que la misma corra dos veces a la vez
 // (candado de la base, por transacción: sirve también detrás de un pooler) y deja cada corrida en `crm.job_runs`:

@@ -3,7 +3,7 @@ import { getLoads } from '@/dal/loads'
 import { Badge, Card, CardTitle, Field } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { dayTime, num } from '@/lib/format'
-import { documentVault } from '@/server/adapters/document-vault'
+import type { VaultAdapter } from '@/server/adapters/document-vault'
 import { configureLoadAction, setLoadWindowAction } from './actions'
 
 const STATUS: Record<string, [string, string]> = {
@@ -16,11 +16,10 @@ const ERR: Record<string, [string, string]> = { abandoned: ['se quedó colgada',
  * E5.F3/F4/F5: cargas de datos visibles. Cada una con responsable, hora esperada, la última corrida y lo que hizo.
  * Ventana diaria sin cargas por mercado. E5.F7: qué ya no depende de Pipedrive (firma). E5.F9: la bóveda, apagada.
  */
-export async function LoadsCard({ ctx, tz }: { ctx: Ctx; tz: string }) {
+export async function LoadsCard({ ctx, tz, vault }: { ctx: Ctx; tz: string; vault: Pick<VaultAdapter, 'mode' | 'envVar'> }) {
   const { t, locale } = ctx
   const { loads, windows, people } = await getLoads(ctx)
   const canEdit = ctx.can('load.configure')
-  const vault = documentVault()
   return (
     <Card data-testid="status-loads">
       <CardTitle title={t('Cargas de datos', 'Data loads')} hint={t('Cada carga deja su inicio y su fin. Nunca corren dos a la vez ni dentro de la ventana de mantenimiento de su mercado. Si una falla o no llega a su hora, su responsable recibe un aviso; sin responsable, administración.', 'Each load records its start and end. Two never run at once, nor inside their market’s maintenance window. If one fails or does not arrive on time, its owner gets a notice; with no owner, administration does.')} />

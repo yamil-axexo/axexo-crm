@@ -144,10 +144,10 @@ export function buildData() {
   ]
   // GOB-05 (integraciones2): historial de etapas por negocio (/v1/deals/:id/flow) y organización matriz (/v1/organizationRelationships).
   const dealFlows = {
-    7001: [
-      { object: 'dealChange', timestamp: iso(25), data: { id: 90001, field_key: 'stage_id', old_value: null, new_value: '35', log_time: iso(25), user_id: 11 } },
-      { object: 'dealChange', timestamp: iso(12), data: { id: 90002, field_key: 'stage_id', old_value: '35', new_value: '46', log_time: iso(12), user_id: 11 } },
-      { object: 'dealChange', timestamp: iso(11), data: { id: 90003, field_key: 'title', old_value: 'Alta', new_value: 'Alta La Esperanza', log_time: iso(11), user_id: 11 } },
+    7102: [
+      { object: 'dealChange', timestamp: iso(25), data: { id: 90001, field_key: 'stage_id', old_value: '35', new_value: '46', log_time: iso(25), user_id: 11 } },
+      { object: 'dealChange', timestamp: iso(12), data: { id: 90002, field_key: 'stage_id', old_value: '46', new_value: '47', log_time: iso(12), user_id: 11 } },
+      { object: 'dealChange', timestamp: iso(11), data: { id: 90003, field_key: 'title', old_value: 'Alta', new_value: 'Alta sintética 2', log_time: iso(11), user_id: 11 } },
     ],
   }
   const orgRelationships = [{ id: 95001, type: 'parent', rel_owner_org_id: { value: 2000, name: 'Tienda Sintética 0' }, rel_linked_org_id: { value: 2002, name: 'Tienda Sintética 2' }, active_flag: true }]

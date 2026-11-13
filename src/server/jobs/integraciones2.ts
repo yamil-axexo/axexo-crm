@@ -2,7 +2,7 @@ import type { Job } from './types'
 import { salesFileAdapter } from '@/server/adapters/sales-file'
 import { ingestStoreSales } from '@/domain/store-sales'
 import { systemCtx } from '@/server/context'
-import { watchLateLoads } from '@/server/loads'
+import { watchLateLoads } from '@/domain/loads'
 import { systemUserId } from '@/server/db'
 
 /**
