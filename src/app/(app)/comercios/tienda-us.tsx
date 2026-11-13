@@ -129,7 +129,7 @@ export function StoreProfileSection({ ctx, accountId, record, typeName, territor
       {can.edit && (
         <div className="mt-4">
           <Dialog trigger={record.tax_id_last4 ? t('Cambiar Tax ID', 'Change Tax ID') : t('Agregar Tax ID', 'Add Tax ID')} title="Tax ID" size="sm" variant="quiet" testId="tax-id-edit">
-            <ActionForm action={setTaxIdAction} onOk="close" className="space-y-4">
+            <ActionForm action={setTaxIdAction} className="space-y-4">
               <input type="hidden" name="account_id" value={accountId} />
               <Field label={t('Últimos 4 del Tax ID', 'Last 4 of the Tax ID')} hint={t('CONTIGO guarda solo los últimos 4. Con eso se reconoce a la tienda en sus documentos. Si escribes el número completo, se guardan solo los últimos 4.', 'CONTIGO keeps only the last 4. That is enough to recognize the store on its documents. If you enter the full number, only the last 4 are kept.')}>
                 <input name="tax_id" className="input" maxLength={24} autoComplete="off" defaultValue={record.tax_id_last4 ?? ''} data-testid="tax-id-input" />
