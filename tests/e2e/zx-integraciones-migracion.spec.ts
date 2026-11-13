@@ -68,6 +68,7 @@ test.describe('convivencia con Pipedrive y lo reconstruido', () => {
     await expect(cut.getByTestId('cutover-MX')).toContainText('Pipedrive congelado')
     await expect(page.getByTestId('off-MX')).toHaveCount(0)
     await expect(cut.getByTestId('cutover-MX').getByTestId('criterion-freeze')).toContainText('falta correr la última sincronización')
+    await expect(page.getByTestId('freeze-MX')).toHaveText('Descongelar')
     await page.getByTestId('freeze-MX').click() // descongelar
     await expect(cut.getByTestId('cutover-MX')).toContainText('Conviven los dos')
 
