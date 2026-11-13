@@ -76,7 +76,7 @@ export async function recordRestatements(tx: Tx, file: FileLike, batchId: string
         from r join crm.account_aliases al on al.external_id = r.merchant_ref and al.system in ('s5','sales_core') and al.valid_to is null
     )
     insert into crm.metric_restatements (account_id, market_code, as_of, batch_id, before, after)
-    select d.account_id, d.market_code, d.as_of, ${batchId},
+    select d.account_id, d.market_code, d.as_of, ${batchId}::uuid,
            jsonb_build_object('txn_count_30d', d.txn_count_30d, 'volume_minor_30d', d.volume_minor_30d, 'active_days_30d', d.active_days_30d, 'status', d.status, 'batch_id', d.batch_id),
            jsonb_build_object('txn_count_30d', m.txn_count_30d, 'volume_minor_30d', m.volume_minor_30d, 'active_days_30d', m.active_days_30d, 'status', m.status)
       from m join crm.merchant_metrics_daily d on d.account_id = m.account_id and d.as_of = ${file.as_of}
@@ -117,11 +117,11 @@ export async function applyClosing(tx: Tx, sys: Ctx, file: FileLike, batchId: st
         as_of = excluded.as_of, updated_at = now()
     )
     insert into crm.milestone_events (account_id, market_code, kind, action, occurred_at, method, source, batch_id)
-    select account_id, market_code, 'first_funding', 'set', first_funding_at, coalesce(funding_method, 'other'), 's5', ${batchId} from cur where first_funding_at is not null and c_fund is null
+    select account_id, market_code, 'first_funding', 'set', first_funding_at, coalesce(funding_method, 'other'), 's5', ${batchId}::uuid from cur where first_funding_at is not null and c_fund is null
     union all
-    select account_id, market_code, 'first_txn', 'set', first_txn_at, null, 's5', ${batchId} from cur where first_txn_at is not null and c_txn is null
+    select account_id, market_code, 'first_txn', 'set', first_txn_at, null, 's5', ${batchId}::uuid from cur where first_txn_at is not null and c_txn is null
     union all
-    select account_id, market_code, 'habit', 'set', habit_at, null, 's5', ${batchId} from cur where habit_at is not null and c_habit is null
+    select account_id, market_code, 'habit', 'set', habit_at, null, 's5', ${batchId}::uuid from cur where habit_at is not null and c_habit is null
     returning account_id, market_code, kind`
 
   // El comercio que acaba de fondear pasa solo a la etapa que espera la primera venta (si su embudo cierra por transacción y va antes).
@@ -229,8 +229,12 @@ export async function correctMilestoneTx(tx: Tx, ctx: Ctx, c: Correction): Promi
     // La entrega a Operaciones que nació con la venta ya no aplica; el próximo paso vuelve a quien lleva el negocio.
     await tx`update crm.activities set done_at = now(), outcome = 'done' where deal_id = ${d.id} and kind = 'handoff' and source = 's5' and done_at is null`
     if (d.owner_id) {
-      await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, deal_step, source)
-               values (${market}, ${c.accountId}, ${d.id}, 'task', ${step}, ${`${today}T15:00:00Z`}, ${d.owner_id}, ${ctx.user.id}, 'sales', 'rule')`
+      // Un solo próximo paso abierto por negocio: si quedaba uno de antes, ese pasa a ser la revisión; si no, nace.
+      const kept = await tx`update crm.activities set subject = ${step}, due_at = ${`${today}T15:00:00Z`}, owner_id = ${d.owner_id}
+                             where id = (select id from crm.activities where deal_id = ${d.id} and deal_step = 'sales' and done_at is null order by created_at desc limit 1) returning id`
+      if (!kept[0])
+        await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, deal_step, source)
+                 values (${market}, ${c.accountId}, ${d.id}, 'task', ${step}, ${`${today}T15:00:00Z`}, ${d.owner_id}, ${ctx.user.id}, 'sales', 'rule')`
       if (d.owner_id !== ctx.user.id)
         await notify(tx, ctx, {
           to: d.owner_id, kind: 'returned', market, link: `/deals/${d.id}`, accountId: c.accountId, dealId: d.id,

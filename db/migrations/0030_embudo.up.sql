@@ -358,7 +358,7 @@ alter table crm.conversion_events force row level security;
 revoke all on crm.conversion_events from contigo_app;
 grant select, insert, update on crm.conversion_events to contigo_app;
 create policy conversion_events_read on crm.conversion_events for select to contigo_app
-  using (market_code = any((select app.full_markets())::text[]) or (select app.is_admin()));
+  using (market_code = any((select app.write_markets())::text[]) or market_code = any((select app.full_markets())::text[]));
 create policy conversion_events_ins on crm.conversion_events for insert to contigo_app
   with check (market_code = any((select app.write_markets())::text[]));
 create policy conversion_events_upd on crm.conversion_events for update to contigo_app
