@@ -529,6 +529,7 @@ create policy duplicate_bypasses_upd on crm.duplicate_bypasses for update to con
 
 -- Cola de duplicados y fusiones: las ve quien ve todo el mercado; decide quien lidera el mercado o administra; fusiona administración.
 create policy duplicate_pairs_read on crm.duplicate_pairs for select to contigo_app using (market_code = any((select app.full_markets())::text[]));
+create policy duplicate_pairs_ins on crm.duplicate_pairs for insert to contigo_app with check (market_code = any((select app.lead_markets())::text[]));
 create policy duplicate_pairs_upd on crm.duplicate_pairs for update to contigo_app
   using (market_code = any((select app.lead_markets())::text[])) with check (market_code = any((select app.lead_markets())::text[]));
 create policy merge_events_read on crm.merge_events for select to contigo_app using (market_code = any((select app.full_markets())::text[]));
