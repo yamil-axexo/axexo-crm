@@ -42,8 +42,8 @@ export async function requirementsFor(tx: Tx, deal: { market_code: string; accou
  * Dentro de esta transacción, lo que entre a una etapa sin lo que la etapa pide no se rechaza: queda anotado en
  * crm.deal_stage_gaps. Solo lo usan la importación histórica y el movimiento forzado al archivar una etapa.
  */
-export async function recordStageGaps(tx: Tx): Promise<void> {
-  await tx`select set_config('app.stage_gate', 'record', true)`
+export async function recordStageGaps(tx: Tx, source: 'import' | 'admin' = 'import'): Promise<void> {
+  await tx`select set_config('app.stage_gate', 'record', true), set_config('app.stage_gate_source', ${source}, true)`
 }
 
 const condInput = z.object({

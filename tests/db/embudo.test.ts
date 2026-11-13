@@ -64,6 +64,7 @@ describe('PIPE-01: los requisitos de etapa también los impone la base', () => {
     })
     const gap = await one(admin<{ missing: string[]; source: string }[]>`select missing, source from crm.deal_stage_gaps where deal_id = ${dealId}`)
     expect(gap.missing.sort()).toEqual(['amount', 'decision_maker'])
+    expect(gap.source).toBe('import')
     // La marca solo vale dentro de esa transacción: la siguiente escritura vuelve a estar bajo el candado.
     await expect(withUser(diana.user.id, (tx) => tx`update crm.deals set stage_id = ${stage('integracion')} where id = ${dealId}`)).rejects.toMatchObject({ code: '23514' })
     await withUser(diana.user.id, (tx) => tx`update crm.deals set stage_id = ${stage('calificacion')} where id = ${dealId}`)

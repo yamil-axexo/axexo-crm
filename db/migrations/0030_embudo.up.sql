@@ -83,7 +83,9 @@ begin
   end if;
   if coalesce(current_setting('app.stage_gate', true), '') = 'record' then
     insert into crm.deal_stage_gaps (deal_id, market_code, stage_id, missing, source)
-    values (new.id, new.market_code, new.stage_id, v_missing, case when tg_op = 'INSERT' then 'import' else 'admin' end)
+    values (new.id, new.market_code, new.stage_id, v_missing,
+            case when current_setting('app.stage_gate_source', true) in ('import', 'admin') then current_setting('app.stage_gate_source', true)
+                 when tg_op = 'INSERT' then 'import' else 'admin' end)
     on conflict (deal_id) do update set stage_id = excluded.stage_id, missing = excluded.missing, source = excluded.source, recorded_at = now();
     return null;
   end if;
