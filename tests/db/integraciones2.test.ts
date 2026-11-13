@@ -21,6 +21,7 @@ import { previewImport, runImport, undoImport, sheetLeadState } from '@/domain/c
 import { importStep, startImport } from '@/domain/pipedrive/import'
 import { pipedriveBackup, BACKUP_FORMAT } from '@/domain/pipedrive/backup'
 import { systemContext } from './helpers'
+import { createAccount } from '@/domain/accounts'
 
 type Mock = { data: Record<string, unknown>; close: () => Promise<void> }
 const admin = owner()
@@ -299,6 +300,8 @@ describe('GOB-05 y E6.F4: carga de Pipedrive con historial, árbol, duplicados y
   beforeAll(async () => {
     mock = await startMock(Number(process.env.UNIT_PIPEDRIVE_PORT ?? 46560))
     await clearLoads()
+    // Un comercio que ya existe en CONTIGO con el mismo nombre que una organización de Pipedrive: la carga lo debe proponer como duplicado.
+    await createAccount(ana, { market: 'MX', name: 'Tienda Sintética 4', segment: 'd2d', kind: 'store' })
     await startImport(nora, 'full')
     for (let i = 0; i < 400; i++) {
       const r = await importStep(nora, 4000)
@@ -341,6 +344,9 @@ describe('GOB-05 y E6.F4: carga de Pipedrive con historial, árbol, duplicados y
   it('los duplicados de la carga quedan en la cola, sin fusionar nada', async () => {
     const merged = await admin`select 1 from crm.merge_events where merged_at > now() - interval '10 minutes'`
     expect(merged.length).toBe(0)
+    const pair = await admin`select 1 from crm.duplicate_pairs p join crm.accounts a on a.id in (p.a_id, p.b_id)
+      join crm.account_aliases al on al.account_id = a.id and al.system = 'pipedrive' and al.external_id = '2004' where p.status = 'open'`
+    expect(pair.length).toBe(1)
   })
 
   it('E6.F4: el respaldo trae todo lo importado con formato y queda en la bitácora', async () => {
