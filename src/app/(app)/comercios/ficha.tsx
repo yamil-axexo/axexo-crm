@@ -556,6 +556,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             {aliases.length === 0 && <p className="mt-2 text-[13px] text-muted">{t('Todavía no existe en la Sales App ni en los datos de ventas.', 'It is not in the Sales App or the sales data yet.')}</p>}
           </section>
 
+          <section className={section} data-testid="account-security">
+            <h3 className={cx(h3, 'mb-2')}>{t('Equipo y datos reservados', 'Team and restricted data')}</h3>
+            <p className="mb-3 text-[13px] text-muted">{t('Quién más trabaja esta cuenta, sus datos reservados y el consentimiento de sus contactos.', 'Who else works this account, its restricted data and its contacts’ consent.')}</p>
+            <LinkButton href={`/comercios/${a.id}/equipo`} size="sm" testId="account-security-open">{t('Abrir', 'Open')}</LinkButton>
+          </section>
+
           {defs.length > 0 && (
             <section className={section} data-testid="account-custom">
               <h3 className={cx(h3, 'mb-2')}>{t('Campos adicionales', 'Additional fields')}</h3>
