@@ -11,6 +11,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { territoryFor, type Territory } from '@/lib/territory'
 import { isWebSource, type WebSource } from '@/lib/lead-source'
+import { applyTerritoryOwners } from '@/domain/mx-config'
 
 export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
 
@@ -615,6 +616,8 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
                        ${isWebSource(lead.source) ? ctx.t('Mensaje del formulario', 'Message from the form') : ctx.t('Mensaje del lead', 'Message on the lead')},
                        ${lead.message.trim().slice(0, 1000)}, ${lead.created_at}, ${ownerId}, ${ctx.user.id}, 'rule')`
     }
+    // E16.F2: una tienda de venta puerta a puerta es del gerente de su territorio, también cuando nace de un lead.
+    if (!opts.linkAccountId) await applyTerritoryOwners(tx, [accountId])
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`
     await audit(tx, ctx, 'lead.converted', 'lead', leadId, lead.market_code, { status: 'qualified' },
       { status: 'converted', account_id: accountId, deal_id: dealId, pipeline_id: pipe.id, account_type: opts.linkAccountId ? null : accountType, contact_role: opts.linkAccountId ? null : role.data, history_moved: moved.count })

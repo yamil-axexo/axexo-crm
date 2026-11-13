@@ -1,4 +1,5 @@
 import 'server-only'
+import { assertRolloutAllows } from '@/domain/rollout'
 import { z } from 'zod'
 import { createHash, randomBytes } from 'node:crypto'
 import { marketToday, withUser, type Tx } from '@/server/db'
@@ -109,6 +110,8 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
     if (dup[0]) throw invalid('Esa persona ya tiene ese rol.', 'That person already has that role.')
     const expires = v.expires || null
     if (expires) await assertFutureDay(tx, expires, market)
+    // E18.F2: con "primero quienes lideran" activo en el mercado, Ventas entra solo si la persona es clave.
+    await assertRolloutAllows(tx, market, v.role, v.email)
     await tx`insert into crm.memberships (user_id, market_code, role, team_id, valid_to)
              values (${userId}, ${market}, ${v.role}, ${teamId}, ${expires ? endOfDay(tx, expires, market) : null})`
     // Dar Administración deja escrito el alcance que se confirmó, si el correo es de otro dominio que el de quien la da y si tiene fecha de fin.

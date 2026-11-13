@@ -328,6 +328,23 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
 $$;
 grant execute on function app.lead_markets() to contigo_app;
 
+-- Las personas con acceso vigente al mercado, con su rol de mayor alcance, desde cuándo, cuándo entraron por última vez y
+-- si son personas clave. La ve quien dirige en ese mercado y leadership; nadie más recibe filas.
+create function app.rollout_people(p_market text)
+returns table (user_id uuid, full_name text, role text, team text, since timestamptz, last_login timestamptz, is_key boolean)
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select distinct on (u.id) u.id, u.full_name, m.role, t.name, m.valid_from,
+         (select max(e.at) from crm.audit_events e where e.actor_id = u.id and e.action = 'session.started'),
+         exists (select 1 from crm.rollout_key_people k where k.market_code = p_market and k.email = u.email)
+    from crm.memberships m join crm.users u on u.id = m.user_id left join crm.teams t on t.id = m.team_id
+   where m.market_code = p_market and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
+     and u.is_active and not u.is_system
+     and (app.is_global() or p_market = any(app.manage_markets()))
+   order by u.id, array_position(array['market_lead','supervisor','ops','rep'], m.role)
+$$;
+revoke execute on function app.rollout_people(text) from public;
+grant execute on function app.rollout_people(text) to contigo_app;
+
 create policy market_rollout_read on crm.market_rollout for select to contigo_app
   using (market_code = any((select app.my_markets())::text[]));
 create policy market_rollout_ins on crm.market_rollout for insert to contigo_app

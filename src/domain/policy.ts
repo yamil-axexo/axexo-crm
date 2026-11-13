@@ -71,6 +71,17 @@ export const CAPABILITIES = {
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // México (paquete mx). Mientras las hojas se retiran, quien dirige un equipo carga las visitas que el campo sigue anotando
+  // ahí; las tiendas ya migradas (un negocio ganado en su fecha real) las carga quien lidera el mercado o administración.
+  'visit.sheet_load': MANAGERS,
+  'deal.migrated_load': ['admin', 'market_lead'],
+  // Arranque del mercado (primero quienes lideran, pasos de capacitación): lo ve quien dirige y leadership; lo cambia
+  // administración y quien lidera el mercado.
+  'rollout.read': ['admin', 'lt', 'market_lead', 'supervisor'],
+  'rollout.manage': ['admin', 'market_lead'],
+  // Los leads descartados como base de correo: la descarga lleva correos, así que es de quien lidera el mercado y de
+  // administración, y solo trae a quien dio su consentimiento (domain/mx-reports.ts).
+  'lead.mailing_export': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

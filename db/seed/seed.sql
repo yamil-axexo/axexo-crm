@@ -445,3 +445,9 @@ alter table crm.leads enable trigger user;
 -- Meta de respuesta: una hora hábil para cadenas y distribuidores, un día hábil para tiendas (E15.F9).
 update crm.routing_rules set sla_minutes = 60, sla_business_days = null where id = pg_temp.uid('rr-mx-b2b');
 update crm.routing_rules set sla_business_days = 1 where id = pg_temp.uid('rr-mx-d2d');
+-- Algunos leads descartados de México dejaron correo y aceptaron recibir correos: son la base de correo (correos inventados).
+alter table crm.leads disable trigger user;
+update crm.leads l set email = 'contacto' || (pg_temp.h('em' || l.id::text) % 9000 + 1000)::text || '@ejemplo.test',
+       consent_at = l.created_at, consent_text = 'Acepto que axexo me escriba por correo sobre sus productos y novedades.'
+ where l.market_code = 'MX' and l.status = 'disqualified' and pg_temp.h('cs' || l.id::text) % 2 = 0;
+alter table crm.leads enable trigger user;
