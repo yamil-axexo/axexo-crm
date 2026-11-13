@@ -29,6 +29,7 @@ const GO_HOME: Record<Home, L> = {
   '/panel-lt': { es: 'Ir al Panel del LT', en: 'Go to the Leadership panel' },
   '/admin': { es: 'Ir a Administración', en: 'Go to Administration' },
   '/partners': { es: 'Ir a mi portal', en: 'Go to my portal' },
+  '/reportes/finanzas': { es: 'Ir a mis reportes', en: 'Go to my reports' },
 }
 
 /** Primer ingreso: cómo se usa CONTIGO, paso a paso, y la lista de primeros pasos de la persona según su rol. */

@@ -29,13 +29,14 @@ export async function revokeApiClient(ctx: Ctx, id: string): Promise<void> {
   })
 }
 
-const SALES_ROLES = ['rep', 'supervisor', 'market_lead'] as const
+const SALES_ROLES = ['rep', 'supervisor', 'market_lead', 'kam'] as const
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 const grant = z.object({
   email: z.string().trim().toLowerCase().email(),
   fullName: z.string().trim().min(2).max(120),
-  role: z.enum(['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops']),
+  // reportes2: Finanzas (solo lectura de sus reportes) y KAM (cuentas clave) se dan como cualquier rol de mercado.
+  role: z.enum(['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'kam']),
   market: z.string().length(2).or(z.literal('')),
   teamId: z.guid().or(z.literal('')).optional(),
   // "Vence el": el rol vale hasta el final de ese día y deja de valer solo, sin que nadie lo quite.

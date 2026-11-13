@@ -289,6 +289,117 @@ export const METRICS = {
     what: ['Señal para decidir si un equipo pasa a la siguiente etapa del despliegue: quien supervisa usa CONTIGO (revisó el tablero de su equipo esta semana) y el equipo tiene un resultado (visitas por alta o comercios activos). Es una señal para conversar, no una calificación.', 'A signal to decide whether a team moves to the next rollout stage: the supervisor uses CONTIGO (opened the team board this week) and the team has an outcome (visits per enrolled store or active merchants). It is a prompt for a conversation, not a grade.'],
     owner: C1, window: ['Esta semana y los últimos 30 días.', 'This week and the last 30 days.'], source: CONTIGO,
   },
+  // ------------------------------------------------------------------ reportes2 (REP-01): tableros por rol. La lista de cada rol vive en
+  // crm.role_boards (Administración la cambia); aquí vive la definición de cada cifra, una sola vez.
+  kamAccounts: {
+    label: ['Cuentas clave que llevo', 'Key accounts I own'],
+    what: ['Cadenas, distribuidores y organizaciones a nombre de la persona KAM, sin archivar.', 'Chains, distributors and organizations owned by the KAM, not archived.'],
+    owner: SALES, window: TODAY, source: CONTIGO,
+  },
+  kamStoresActive: {
+    label: ['Tiendas activas en mis cuentas', 'Active stores in my accounts'],
+    what: ['Tiendas que cuelgan de las cuentas clave de la persona (a cualquier profundidad) con estado activo. El estado lo manda el archivo diario de ventas cuando lo trae.', 'Stores under the person’s key accounts (at any depth) whose status is active. The status comes from the daily sales file when it carries it.'],
+    owner: DATA, window: FILE_WINDOW, source: FILE,
+  },
+  kamOpen: {
+    label: ['Oportunidades abiertas', 'Open opportunities'],
+    what: ['Negocios abiertos de la persona sobre sus cuentas clave.', 'The person’s open deals on their key accounts.'],
+    owner: SALES, window: TODAY, source: CONTIGO,
+  },
+  kamCommit: {
+    label: ['Comprometido', 'Commit'],
+    what: ['Oportunidades abiertas en categoría Comprometido. Si quien dirige ajustó la categoría, cuenta el ajuste.', 'Open opportunities in the Commit category. If the manager adjusted the category, the adjustment counts.'],
+    owner: SALES, window: TODAY, source: CONTIGO,
+  },
+  kamNoNextStep: {
+    label: ['Sin próximo paso', 'No next step'],
+    what: ['Oportunidades abiertas de la persona sin próximo paso o con la fecha vencida.', 'The person’s open opportunities with no next step or an overdue date.'],
+    owner: SALES, window: TODAY, source: CONTIGO,
+  },
+  kamWon90: {
+    label: ['Ganadas en 90 días', 'Won in 90 days'],
+    what: ['Negocios de la persona ganados en los últimos 90 días.', 'The person’s deals won in the last 90 days.'],
+    owner: SALES, window: ['Los últimos 90 días.', 'The last 90 days.'], source: CONTIGO,
+  },
+  partnerPoints: {
+    label: ['Puntos de venta en mi red', 'Points of sale in my network'],
+    what: ['Tiendas que cuelgan del partner, a cualquier profundidad, sin archivar.', 'Stores under the partner, at any depth, not archived.'],
+    owner: MARKET, window: TODAY, source: CONTIGO,
+  },
+  partnerActive: {
+    label: ['Puntos activos', 'Active points'],
+    what: ['Puntos de venta de la red con estado activo. El estado lo manda el archivo diario de ventas cuando lo trae.', 'Points of sale in the network whose status is active. The status comes from the daily sales file when it carries it.'],
+    owner: DATA, window: FILE_WINDOW, source: FILE,
+  },
+  partnerActiveRate: {
+    label: ['Porcentaje activo', 'Active share'],
+    what: ['Qué parte de los puntos de venta de la red está activa.', 'The share of the network’s points of sale that are active.'],
+    num: ['Puntos activos.', 'Active points.'], den: ['Puntos de venta de la red.', 'Points of sale in the network.'],
+    owner: DATA, window: FILE_WINDOW, source: FILE,
+  },
+  partnerFirstSale30: {
+    label: ['Primera venta en 30 días', 'First sale in 30 days'],
+    what: ['Puntos de la red cuya primera transacción llegó en los últimos 30 días.', 'Points in the network whose first transaction arrived in the last 30 days.'],
+    owner: DATA, window: ['Los últimos 30 días.', 'The last 30 days.'], source: FILE,
+  },
+  partnerAtRisk: {
+    label: ['Puntos en riesgo', 'Points at risk'],
+    what: ['Puntos de venta de la red en riesgo o inactivos.', 'Points of sale in the network that are at risk or inactive.'],
+    owner: DATA, window: FILE_WINDOW, source: FILE,
+  },
+  partnerTier: {
+    label: ['Nivel del partner', 'Partner tier'],
+    what: ['El nivel vigente del partner según los criterios publicados por el mercado.', 'The partner’s current tier under the criteria the market published.'],
+    owner: MARKET, window: TODAY, source: CONTIGO,
+  },
+  opsQueue: {
+    label: ['En mi cola', 'In my queue'],
+    what: ['Negocios abiertos en etapas de Operaciones y expedientes de alta por revisar, en los mercados de la persona.', 'Open deals in Operations stages and enrollment files to review, in the person’s markets.'],
+    owner: OPS, window: TODAY, source: CONTIGO,
+  },
+  opsOverdue: {
+    label: ['Expedientes vencidos', 'Overdue files'],
+    what: ['Expedientes de alta enviados o en revisión cuya fecha límite ya pasó.', 'Submitted or in-review enrollment files whose due date has passed.'],
+    owner: OPS, window: TODAY, source: CONTIGO,
+  },
+  opsReturned: {
+    label: ['Devueltos a Ventas', 'Returned to Sales'],
+    what: ['Expedientes de alta devueltos a Ventas que siguen sin corregirse.', 'Enrollment files returned to Sales that are still not fixed.'],
+    owner: OPS, window: TODAY, source: CONTIGO,
+  },
+  opsPullThrough: {
+    label: ['Aprobados en mesa de control', 'Approved at the control desk'],
+    what: ['De los expedientes que se decidieron en los últimos 30 días, qué parte se aprobó.', 'Of the enrollment files decided in the last 30 days, the share that was approved.'],
+    num: ['Expedientes aprobados.', 'Approved files.'], den: ['Expedientes aprobados más devueltos.', 'Approved plus returned files.'],
+    owner: OPS, window: ['Los últimos 30 días.', 'The last 30 days.'], source: CONTIGO,
+  },
+  opsAwaitingFirstSale: {
+    label: ['Esperando primera venta', 'Awaiting first sale'],
+    what: ['Negocios abiertos en la etapa de espera de la primera transacción.', 'Open deals in the stage that waits for the first transaction.'],
+    owner: OPS, window: TODAY, source: CONTIGO,
+  },
+  opsHandoffsOpen: {
+    label: ['Entregas sin acuse', 'Handoffs not acknowledged'],
+    what: ['Entregas de Ventas a Operaciones que todavía no tienen acuse.', 'Handoffs from Sales to Operations that are not acknowledged yet.'],
+    owner: OPS, window: TODAY, source: CONTIGO,
+  },
+  financeCostMonth: {
+    label: ['Costo de CONTIGO del mes', 'CONTIGO cost this month'],
+    what: ['Suma de los costos cargados para el mes (plataforma, base, terceros, IA, soporte y otros), sin los anulados.', 'Sum of the costs loaded for the month (platform, database, third parties, AI, support and other), without voided ones.'],
+    owner: FINANCE, window: ['El mes más reciente con costos cargados.', 'The most recent month with costs loaded.'], source: ['Costos cargados en Gobierno', 'Costs loaded in Governance'],
+  },
+  financeCostPerPerson: {
+    label: ['Costo por persona activa', 'Cost per active person'],
+    what: ['Costo del mes entre las personas que entraron a CONTIGO ese mes.', 'The month’s cost divided by the people who signed in to CONTIGO that month.'],
+    num: ['Costo del mes.', 'The month’s cost.'], den: ['Personas que entraron en el mes.', 'People who signed in during the month.'],
+    owner: FINANCE, window: ['El mes más reciente con costos cargados.', 'The most recent month with costs loaded.'], source: ['Costos cargados en Gobierno y la bitácora', 'Costs loaded in Governance and the audit log'],
+  },
+  financeCostPerAi: {
+    label: ['Costo por acción de IA', 'Cost per AI action'],
+    what: ['Lo que costó la IA en el mes (lo registrado en cada llamada más lo cargado a mano en el componente IA) entre las acciones de IA del mes. Las corridas de evaluación no cuentan como acción.', 'What AI cost in the month (recorded on each call plus what was loaded by hand under AI) divided by the month’s AI actions. Evaluation runs do not count as actions.'],
+    num: ['Costo de IA del mes.', 'The month’s AI cost.'], den: ['Acciones de IA del mes.', 'AI actions in the month.'],
+    owner: FINANCE, window: ['El mes en curso.', 'The current month.'], source: ['Registro de llamadas de IA y costos cargados', 'AI call log and loaded costs'],
+  },
 } as const satisfies Record<string, MetricDef>
 
 export type MetricKey = keyof typeof METRICS
