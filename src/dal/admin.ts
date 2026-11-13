@@ -135,7 +135,7 @@ export async function getIntegrations(ctx: Ctx) {
         from crm.deals d join crm.stages s on s.id = d.stage_id and s.kind = 'awaiting_txn' join crm.accounts a on a.id = d.account_id
         join crm.markets mk on mk.code = a.market_code
         join crm.account_aliases al on al.account_id = a.id and al.valid_to is null and al.system in ('s5','sales_core')
-       where d.status = 'open' order by d.stage_entered_at limit 6`
+       where d.status = 'open' order by d.stage_entered_at, a.market_code, a.name, al.external_id limit 6` // el desempate deja el orden fijo: varios negocios entran a la etapa el mismo día
     const visitable = await tx<{ account_id: string; name: string; alias: string; market_code: string }[]>`
       select a.id as account_id, a.name, al.external_id as alias, a.market_code
         from crm.deals d join crm.stages s on s.id = d.stage_id and s.kind = 'open' join crm.accounts a on a.id = d.account_id
