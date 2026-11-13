@@ -372,7 +372,7 @@ export async function runAlerts(tx: Tx, actor: Actor, scope: { market?: string; 
              when 'inactive' then a.lifecycle <> 'inactive'
              when 'drop_vs_baseline' then a.lifecycle in ('inactive','churned') or exists (
                select 1 from crm.merchant_metrics_daily m where m.account_id = a.id and m.as_of > (al.opened_at)::date and m.txn_count_30d >= coalesce((al.detail ->> 'baseline')::numeric, 0) * 0.8)
-             when 'low_balance' then exists (select 1 from crm.care_signals s join crm.cs_settings st on st.market_code = a.market_code
+             when 'low_balance' then exists (select 1 from crm.account_balance_latest s join crm.cs_settings st on st.market_code = a.market_code
                                               where s.account_id = a.id and s.as_of > (al.opened_at)::date and s.balance_minor >= coalesce(st.low_balance_minor, 0))
              when 'manager_change' then not exists (select 1 from crm.manager_changes mc where mc.account_id = a.id and mc.trained_at is null)
            end
@@ -417,7 +417,8 @@ export async function runAlerts(tx: Tx, actor: Actor, scope: { market?: string; 
        where a.lifecycle in ('active','at_risk') and b.baseline >= 5 and m.txn_count_30d < b.baseline * (100 - a.drop_pct) / 100.0
       union all
       select a.*, 'low_balance', jsonb_build_object('balance_minor', s.balance_minor, 'limit_minor', a.low_balance_minor, 'as_of', s.as_of)
-        from a join lateral (select x.* from crm.care_signals x where x.account_id = a.id and x.balance_minor is not null order by x.as_of desc limit 1) s on true
+        -- un solo saldo: el más reciente entre fondeo (CANAL-07) y señales de cuidado
+        from a join crm.account_balance_latest s on s.account_id = a.id
        where a.low_balance_minor is not null and a.lifecycle in ('active','at_risk') and s.balance_minor < a.low_balance_minor and s.as_of >= (now() - interval '7 days')::date
       union all
       select a.*, 'manager_change', jsonb_build_object('changed_on', mc.changed_on, 'new_name', mc.new_name)

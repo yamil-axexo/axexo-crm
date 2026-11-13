@@ -11,6 +11,7 @@ import { toE164 } from '@/lib/format'
 import { notify } from '@/domain/notify'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { markUntrusted, plainText } from '@/domain/untrusted'
+import { ingestPerfectStoreTx } from '@/domain/campo-canal/campo'
 import { applyClosing, closingFileFields, closingRowFields, manifestProblem, recordRestatements } from '@/domain/embudo/closing'
 import { decisionMakerContact, ensureRevisitTask, saveDecisionMaker } from '@/domain/embudo/revisit'
 import { noteUnknownReason } from '@/domain/embudo/reasons'
@@ -42,6 +43,10 @@ export const visitEvent = z.object({
     decision_maker_present: z.boolean().nullable().optional(),
     auto_closed: z.boolean().default(false),
     note: z.string().max(500).nullable().optional(),
+    // CAMPO-08: el checklist de punto de venta perfecto vive en la Sales App; aquí llegan solo cuántos ítems cumplió de cuántos.
+    perfect_store: z.object({ items_ok: z.number().int().min(0).max(10), items_total: z.number().int().min(1).max(10) }).nullable().optional(),
+    // CAMPO-07: competencia vista en la visita, por nombre de la lista del mercado, con producto y precio observado.
+    competitors: z.array(z.object({ name: z.string().min(2).max(80), product: z.string().max(80).nullable().optional(), price: z.number().nonnegative().max(1e7).nullable().optional() })).max(10).optional(),
     // PIPE-05: quien decide, cuando no estaba en la visita (opcional: el contrato vigente sigue valiendo sin él).
     decision_maker_contact: decisionMakerContact.nullable().optional(),
     revisit_due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
@@ -254,6 +259,15 @@ async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>, rep
     await ensureRevisitTask(tx, sys, { accountId: acc.id, market: acc.market_code, visitId: d.visit_id, due, reason: revisitReason, visitorId: users[0]?.id ?? null })
   } else if (d.decision_maker_present) {
     await tx`update crm.deals set revisit_needed = false, decision_maker_met = (decision_maker_id is not null) where account_id = ${acc.id} and status = 'open'`
+  }
+  if (d.perfect_store && d.perfect_store.items_ok <= d.perfect_store.items_total) {
+    await ingestPerfectStoreTx(tx, { account_id: acc.id, items_ok: d.perfect_store.items_ok, items_total: d.perfect_store.items_total, observed_at: d.checked_out_at ?? d.checked_in_at, visit_ref: d.visit_id })
+  }
+  for (const c of d.competitors ?? []) {
+    const comp = (await tx<{ id: string }[]>`select id from crm.competitors where market_code = ${acc.market_code} and lower(name) = lower(${c.name}) and is_active`)[0]
+    if (!comp) continue
+    await tx`insert into crm.account_competitors (account_id, market_code, competitor_id, product, price_minor, observed_on, source)
+             values (${acc.id}, ${acc.market_code}, ${comp.id}, ${c.product ? scrub(plainText(c.product)) : null}, ${c.price == null ? null : Math.round(c.price * 100)}, ${d.business_date}::date, 'sales_app')`
   }
   await tx`update crm.inbound_events set status = 'processed', processed_at = now() where id = ${eventId}`
   await audit(tx, sys, 'integration.visit_received', 'account', acc.id, acc.market_code, null, { visit_id: d.visit_id, sale: d.sale, revisit: d.revisit })

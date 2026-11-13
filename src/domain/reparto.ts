@@ -36,7 +36,7 @@ function marketOf(ctx: Ctx, market: string | undefined): string {
 }
 
 /** Quien recibe tiene que vender hoy en ese mercado y, si reparte supervisión, ser de su equipo. Devuelve su nombre. */
-async function assertTarget(tx: Tx, ctx: Ctx, market: string, toUserId: string): Promise<string> {
+export async function assertTarget(tx: Tx, ctx: Ctx, market: string, toUserId: string): Promise<string> {
   if (!isUuid(toUserId)) throw invalid('Elige a quién se lo pasas.', 'Choose who receives it.')
   const rows = await tx<{ full_name: string; mine: boolean }[]>`
     select u.full_name, u.id = any(app.supervised_user_ids()) as mine
@@ -59,7 +59,7 @@ type Acc = { id: string; owner_id: string | null }
  * CAMPO-03 / CANAL-03: el comercio se va con sus negocios abiertos, sus tareas y visitas por hacer y sus pendientes, y la atribución
  * de dueño queda con fecha efectiva (la anterior se cierra, no se borra).
  */
-async function moveAccounts(tx: Tx, ctx: Ctx, market: string, accs: Acc[], toUserId: string, toName: string): Promise<number> {
+export async function moveAccounts(tx: Tx, ctx: Ctx, market: string, accs: Acc[], toUserId: string, toName: string): Promise<number> {
   const moved = accs.filter((a) => a.owner_id !== toUserId).map((a) => a.id)
   if (moved.length === 0) return 0
   const from = [...new Set(accs.filter((a) => a.owner_id !== toUserId).map((a) => a.owner_id ?? 'none'))].slice(0, 20)

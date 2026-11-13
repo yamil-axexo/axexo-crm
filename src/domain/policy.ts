@@ -150,6 +150,32 @@ export const CAPABILITIES = {
   // Los leads descartados como base de correo: la descarga lleva correos, así que es de quien lidera el mercado y de
   // administración, y solo trae a quien dio su consentimiento (domain/mx-reports.ts).
   'lead.mailing_export': ['admin', 'market_lead'],
+  // Paquete campo-canal (0041). Expediente de alta: lo captura quien vende u Operaciones; la mesa de control (validar,
+  // aprobar, devolver, repartir) es de Operaciones y administración.
+  'onboarding.capture': [...SELLERS, 'ops'],
+  'onboarding.review': ['admin', 'ops'],
+  // Umbrales con versión (metas, ventanas, plazos; el saldo bajo es de Cuidado de comercios): los cambia quien lidera el mercado o administra.
+  'threshold.manage': ['admin', 'market_lead'],
+  // Cartera: canal como eje y plan de reparto en borrador (supervisión, su equipo); polos con dueño y perfiles, quien lidera.
+  'portfolio.plan': MANAGERS,
+  'territory.own': ['admin', 'market_lead'],
+  'plan.set': ['admin', 'market_lead'],
+  // Atribución: corregir origen y canal (fila nueva con motivo) y arbitrar disputas. No existe rol de Finanzas: por defecto
+  // arbitra quien lidera el mercado o administración, nunca quien levantó la disputa.
+  'attribution.correct': ['admin', 'market_lead'],
+  'dispute.raise': SELLERS,
+  'dispute.arbitrate': ['admin', 'market_lead'],
+  // Registros de canal: la venta directa no los ve. Los registra y decide quien lidera el mercado, a nombre del aliado.
+  'claim.manage': ['admin', 'market_lead'],
+  // Fondeo: el saldo no se captura; el simulador (fuera de producción) es de administración. El límite lo pide quien vende y lo aprueba otra persona.
+  'funding.simulate': ['admin'],
+  'credit.request': [...SELLERS, 'ops'],
+  'credit.approve': ['admin', 'market_lead'],
+  'competitor.record': [...SELLERS, 'ops'],
+  'priority.read': SELLERS,
+  // Incidentes de campo: cualquiera que trabaja en el mercado reporta; solo quien lidera o administra los ve todos y los atiende.
+  'incident.report': ['admin', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'incident.manage': ['admin', 'market_lead'],
   // Paquete de mercados. Capturar el identificador fiscal lo hace quien lleva la cuenta u Operaciones; revisarlo contra el
   // documento (la capa humana) es de quien lidera el mercado, Operaciones o administración. Cambiar la entidad legal de un
   // comercio es de quien lidera el mercado o de administración. El consolidado en USD lo lee quien ya lee el panel.

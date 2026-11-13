@@ -82,6 +82,7 @@ const WHY = {
   quality: ['Es trabajo interno de calidad de datos (colas, mediciones, revisiones de repetidos): cuando termina en un cambio del registro, como una fusión o una edición, ese cambio emite su propio evento.', 'It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event.'] as Pair,
   internal: ['Es configuración interna de CONTIGO (métricas, plantillas de avisos, ayuda, arranque de un mercado): no cambia comercios, leads ni negocios.', 'It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals.'] as Pair,
   jobs: ['Es la corrida a mano de una tarea programada: lo que la tarea cambie emite su propio evento; la corrida en sí no.', 'It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not.'] as Pair,
+  confidential: ['Es un registro confidencial de campo con acceso restringido: queda en la bitácora y no se publica a otros sistemas.', 'It is a confidential field record with restricted access: it is logged and not published to other systems.'] as Pair,
   security: ['Es un control de seguridad o de privacidad (datos reservados, consentimiento, solicitudes de titulares, revisiones de accesos, ver como, llaves): queda en la bitácora. Publicarlo sacaría de CONTIGO datos de control o de personas.', 'It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO.'] as Pair,
   unknown: ['Acción nueva sin clasificar: no emite hasta que alguien decida aquí si es un cambio de dominio.', 'New action not classified yet: it emits nothing until someone decides here whether it is a domain change.'] as Pair,
 }
@@ -98,6 +99,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   // cargas desde hojas (visitas pegadas, tiendas migradas): cada registro creado emite el suyo:
   ['sheet.', WHY.migration],
   ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
+  // Paquete campo-canal: abrir un documento es una lectura; los incidentes son confidenciales y no salen de CONTIGO;
+  // el simulador de fondeo y los umbrales son configuración interna.
+  ['onboarding.document_opened', WHY.read], ['field_incident.', WHY.confidential], ['funding.simulated', WHY.internal], ['threshold.', WHY.internal],
   // Seguridad (0027):
   ['seat.', WHY.security], ['sensitive.', WHY.security], ['sensitive_field.', WHY.security], ['consent.', WHY.security], ['retention.', WHY.security],
   ['subject_request.', WHY.security], ['view_as.', WHY.security], ['access_review.', WHY.security], ['secret.', WHY.security], ['security.', WHY.security],
@@ -115,6 +119,8 @@ const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exceptio
   // Ola 1 de los 95: identificadores de otros sistemas, mercados, procesos por comercio, proveedores y productos, pedidos,
   // capacitación del dealer, etiquetas de agencias y la configuración de las automatizaciones.
   'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.',
+  // Paquete campo-canal: expediente de alta, atribución corregida, disputas, registros de canal, crédito, cartera y competencia.
+  'onboarding.', 'attribution.', 'dispute.', 'claim.', 'credit.', 'channel.', 'portfolio.', 'seller.', 'competitor.', 'plan.',
   // Paquete mercados: entidad legal, identificador fiscal (el evento lleva qué campos cambiaron, nunca el identificador) y
   // la configuración de WhatsApp de un mercado.
   'entity.', 'taxid.', 'whatsapp.']
