@@ -44,26 +44,26 @@ export default async function BoardsAdminPage() {
       {ctx.can('metric.owner') && (
         <Card data-testid="role-boards-admin">
           <CardTitle title={t('Tableros por rol', 'Boards by role')} hint={t('De 5 a 7 indicadores por rol, en orden. Cada uno tiene su definición en Indicadores y responsables; aquí se elige cuáles van y quién responde.', '5 to 7 indicators per role, in order. Each one has its definition in Metrics and owners; here you choose which go and who answers for them.')} />
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid min-w-0 gap-6 lg:grid-cols-2">
             {ROLES.map((role) => {
               const rows = boards.filter((b) => b.role === role)
               const chosen = new Set(rows.map((r) => r.metric_key))
               const options = METRIC_KEYS.filter((k) => k.startsWith(PREFIX[role]) || chosen.has(k))
               const confirmed = rows.length > 0 && rows.every((r) => r.confirmed)
               return (
-                <ActionForm key={role} action={roleBoardAction} className="rounded-[14px] border border-line p-4" testId={`role-board-${role}`}>
+                <ActionForm key={role} action={roleBoardAction} className="min-w-0 rounded-[14px] border border-line p-4" testId={`role-board-${role}`}>
                   <input type="hidden" name="role" value={role} />
                   <p className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-strong">{t(ROLE_LABEL[role].es, ROLE_LABEL[role].en)} {confirmed ? setBadge : pendingBadge(rows[0]?.pending_owner ?? 'C1 (Yamil Alvarez)')}</p>
                   <ul className="space-y-1">
                     {options.map((k) => {
                       const row = rows.find((r) => r.metric_key === k)
                       return (
-                        <li key={k} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3">
+                        <li key={k} className="grid grid-cols-1 items-center gap-x-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
                           <label className="flex min-h-11 cursor-pointer items-center gap-3 text-[14px]">
                             <input type="checkbox" name="keys" value={k} defaultChecked={chosen.has(k)} className="h-5 w-5 shrink-0" data-testid={`rb-key-${role}-${k}`} />
                             {t(METRICS[k as MetricKey].label[0], METRICS[k as MetricKey].label[1])}
                           </label>
-                          <input name={`owner_${k}`} className="input !h-10" defaultValue={row?.owner_label ?? ''} maxLength={80} placeholder={t(METRICS[k as MetricKey].owner[0], METRICS[k as MetricKey].owner[1])} aria-label={t('Quién responde', 'Who answers for it')} />
+                          <input name={`owner_${k}`} className="input !h-10 w-full min-w-0" defaultValue={row?.owner_label ?? ''} maxLength={80} placeholder={t(METRICS[k as MetricKey].owner[0], METRICS[k as MetricKey].owner[1])} aria-label={t('Quién responde', 'Who answers for it')} />
                         </li>
                       )
                     })}
@@ -80,20 +80,20 @@ export default async function BoardsAdminPage() {
       {ctx.can('config.manage') && (
         <Card data-testid="proposed-admin">
           <CardTitle title={t('Valores propuestos', 'Proposed values')} hint={t('Cada valor dice de quién depende. Guardarlo marcado como "fijado" lo saca de la lista de pendientes.', 'Each value says who it depends on. Saving it marked as "set" takes it off the pending list.')} />
-          <div className="grid gap-5 lg:grid-cols-2">
-            <ActionForm action={proposedAction} className="rounded-[14px] border border-line p-4" testId="pv-manifest">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+            <ActionForm action={proposedAction} className="min-w-0 rounded-[14px] border border-line p-4" testId="pv-manifest">
               <input type="hidden" name="key" value="ingest.require_manifest" />
               <p className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-strong">{t('Manifiesto obligatorio en el archivo de ventas', 'Manifest required in the sales file')} {pv('ingest.require_manifest')?.proposed !== false ? pendingBadge(PROPOSED_OWNER['ingest.require_manifest']) : setBadge}</p>
               <Field label={t('Un archivo sin manifiesto', 'A file with no manifest')}>
-                <select name="value" className="input" defaultValue={String(pv('ingest.require_manifest')?.value ?? false)} data-testid="pv-manifest-value">
-                  <option value="false">{t('Entra (propuesta mientras el manifiesto no llega)', 'Gets in (proposal while the manifest is not delivered)')}</option>
+                <select name="value" className="input w-full max-w-full" defaultValue={String(pv('ingest.require_manifest')?.value ?? false)} data-testid="pv-manifest-value">
+                  <option value="false">{t('Entra igual', 'Gets in anyway')}</option>
                   <option value="true">{t('No entra', 'Is rejected')}</option>
                 </select>
               </Field>
               <ConfirmAndSave t={t} testId="pv-manifest" />
             </ActionForm>
 
-            <ActionForm action={proposedAction} className="rounded-[14px] border border-line p-4" testId="pv-window">
+            <ActionForm action={proposedAction} className="min-w-0 rounded-[14px] border border-line p-4" testId="pv-window">
               <input type="hidden" name="key" value="snapshots.window_days" />
               <p className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-strong">{t('Ventana corta de la foto diaria', 'Short window of the daily snapshot')} {pv('snapshots.window_days')?.proposed !== false ? pendingBadge(PROPOSED_OWNER['snapshots.window_days']) : setBadge}</p>
               <Field label={t('Días que se quedan en CONTIGO', 'Days kept in CONTIGO')} hint={t('Solo se borra lo que ya se entregó al lakehouse. Con el canal apagado no se borra nada.', 'Only what was already delivered to the lakehouse is removed. With the channel off nothing is removed.')}>
@@ -102,7 +102,7 @@ export default async function BoardsAdminPage() {
               <ConfirmAndSave t={t} testId="pv-window" />
             </ActionForm>
 
-            <ActionForm action={proposedAction} className="rounded-[14px] border border-line p-4" testId="pv-quality">
+            <ActionForm action={proposedAction} className="min-w-0 rounded-[14px] border border-line p-4" testId="pv-quality">
               <input type="hidden" name="key" value="quality.exception_rules" />
               <p className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-strong">{t('Reglas de calidad que abren avisos', 'Data quality rules that open notices')} {pv('quality.exception_rules')?.proposed !== false ? pendingBadge(PROPOSED_OWNER['quality.exception_rules']) : setBadge}</p>
               {QUALITY_NOTICE_RULES.map((r) => (
@@ -117,7 +117,7 @@ export default async function BoardsAdminPage() {
               <ConfirmAndSave t={t} testId="pv-quality" />
             </ActionForm>
 
-            <ActionForm action={proposedAction} className="rounded-[14px] border border-line p-4" testId="pv-rollout">
+            <ActionForm action={proposedAction} className="min-w-0 rounded-[14px] border border-line p-4" testId="pv-rollout">
               <input type="hidden" name="key" value="adoption.rollout_rule" />
               <p className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-strong">{t('Paso a despliegue', 'Rollout readiness')} {pv('adoption.rollout_rule')?.proposed !== false ? pendingBadge(PROPOSED_OWNER['adoption.rollout_rule']) : setBadge}</p>
               <Field label={t('Semanas seguidas en que quien supervisa abre el tablero', 'Weeks in a row the supervisor opens the board')}>
@@ -127,7 +127,7 @@ export default async function BoardsAdminPage() {
                 <input name="one_on_ones_min" type="number" min={0} max={20} className="input" defaultValue={Number(pv('adoption.rollout_rule')?.one_on_ones_min ?? 1)} />
               </Field>
               <Field label={t('Resultado que cuenta', 'Outcome that counts')}>
-                <select name="result" className="input" defaultValue={String(pv('adoption.rollout_rule')?.result ?? 'active_30d')}>
+                <select name="result" className="input w-full max-w-full" defaultValue={String(pv('adoption.rollout_rule')?.result ?? 'active_30d')}>
                   <option value="active_30d">{t('Comercios activos a 30 días', 'Merchants active at 30 days')}</option>
                   <option value="visits_per_enrollment">{t('Visitas por alta', 'Visits per enrollment')}</option>
                 </select>
@@ -135,11 +135,11 @@ export default async function BoardsAdminPage() {
               <ConfirmAndSave t={t} testId="pv-rollout" />
             </ActionForm>
 
-            <ActionForm action={proposedAction} className="rounded-[14px] border border-line p-4" testId="pv-brand">
+            <ActionForm action={proposedAction} className="min-w-0 rounded-[14px] border border-line p-4" testId="pv-brand">
               <input type="hidden" name="key" value="orders.brand" />
               <p className="mb-2 flex flex-wrap items-center gap-2 font-semibold text-strong">{t('Encabezado del PDF del pedido', 'Order PDF header')} {pv('orders.brand')?.proposed !== false ? pendingBadge(PROPOSED_OWNER['orders.brand']) : setBadge}</p>
               <Field label={t('Mercado', 'Market')}>
-                <select name="market" className="input" defaultValue={ctx.markets[0]?.code}>{ctx.markets.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select>
+                <select name="market" className="input w-full max-w-full" defaultValue={ctx.markets[0]?.code}>{ctx.markets.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select>
               </Field>
               <Field label={t('Empresa que va en el pedido', 'Company on the order')}><input name="company" className="input" maxLength={80} data-testid="pv-brand-company" /></Field>
               <Field label={t('Línea bajo el nombre (opcional)', 'Line under the name (optional)')}><input name="tagline" className="input" maxLength={120} /></Field>
@@ -160,9 +160,9 @@ export default async function BoardsAdminPage() {
                 <li key={p.id} className="flex flex-wrap items-end justify-between gap-3 py-3" data-testid="user-alias-row">
                   <div className="min-w-0"><p className="font-medium text-strong">{p.full_name}</p>
                     <p className="text-[13px] text-muted">{p.s5 ? t(`ID: ${p.s5}, desde el ${day(p.since!, locale)}`, `ID: ${p.s5}, since ${day(p.since!, locale)}`) : t('Sin ID todavía', 'No ID yet')}</p></div>
-                  <ActionForm action={userAliasAction} className="flex items-end gap-2">
+                  <ActionForm action={userAliasAction} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="user" value={p.id} /><input type="hidden" name="system" value="s5" />
-                    <Field label={t('ID en el archivo de ventas', 'Sales file ID')}><input name="external_id" className="input !h-11 !w-40" required maxLength={80} defaultValue={p.s5 ?? ''} data-testid="user-alias-input" /></Field>
+                    <Field label={t('ID en el archivo de ventas', 'Sales file ID')}><input name="external_id" className="input !h-11 !w-32" required maxLength={80} defaultValue={p.s5 ?? ''} data-testid="user-alias-input" /></Field>
                     <Submit size="sm" variant="ghost" testId="user-alias-save">{t('Guardar', 'Save')}</Submit>
                   </ActionForm>
                 </li>

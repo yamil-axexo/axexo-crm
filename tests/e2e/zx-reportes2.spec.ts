@@ -16,6 +16,17 @@ async function axeClean(page: Page, label: string) {
   const bad = axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(bad.map((v) => `${v.id}: ${v.nodes.length} (${v.nodes[0]?.target.join(' ')})`), label).toEqual([])
 }
+/** Primer ingreso de una persona nueva: la primera vez va a la bienvenida; la segunda, a su pantalla. */
+async function freshLogin(page: Page, persona: string, home: RegExp) {
+  for (let i = 0; i < 2; i++) {
+    await page.context().clearCookies()
+    await page.goto('/login')
+    await page.getByTestId(`persona-${persona}`).click()
+    await page.waitForURL(/\/(bienvenida|hoy|partners|reportes\/finanzas)$/)
+    if (!/bienvenida$/.test(page.url())) break
+  }
+  await expect(page).toHaveURL(home)
+}
 async function both(page: Page, label: string, check: () => Promise<void>) {
   for (const w of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(w)
@@ -28,10 +39,7 @@ async function both(page: Page, label: string, check: () => Promise<void>) {
 
 test.describe('Finanzas', () => {
   test('entra a su reporte, ve el costo de CONTIGO y baja el detalle de visitas; no ve los reportes de ventas', async ({ page }) => {
-    await page.context().clearCookies()
-    await page.goto('/login')
-    await page.getByTestId('persona-marta.ibanez').click()
-    await expect(page).toHaveURL(/\/reportes\/finanzas$/)
+    await freshLogin(page, 'marta.ibanez', /\/reportes\/finanzas$/)
     await expect(page.locator('h1')).toContainText('Finanzas')
     await expect(page.getByTestId('finance-costs')).toBeVisible()
     await expect(page.getByTestId('finance-board-proposed')).toContainText('Valor propuesto')
@@ -51,7 +59,7 @@ test.describe('Finanzas', () => {
 
 test.describe('cuentas clave (KAM) y pronóstico', () => {
   test('la persona KAM ve su tablero, pone la categoría y envía el pronóstico; quien dirige ajusta al lado con nota', async ({ page }) => {
-    await loginAs(page, 'elena.duarte')
+    await freshLogin(page, 'elena.duarte', /\/hoy$/)
     await page.goto('/reportes')
     await page.getByTestId('report-kam').click()
     await expect(page).toHaveURL(/\/reportes\/kam/)
@@ -91,10 +99,7 @@ test.describe('tableros de Operaciones y del partner, y Panel del LT por tipo de
     await axeClean(page, 'operaciones')
   })
   test('el partner ve en su portal de 5 a 7 cifras, cada una con su definición', async ({ page }) => {
-    await page.context().clearCookies()
-    await page.goto('/login')
-    await page.getByTestId('persona-iso.partner').click()
-    await expect(page).toHaveURL(/\/partners$/)
+    await freshLogin(page, 'iso.partner', /\/partners$/)
     await expect(page.getByTestId('partner-board')).toBeVisible()
     const n = await page.getByTestId('partner-board').locator('[data-testid^="rb-partner"]').count()
     expect(n).toBeGreaterThanOrEqual(5)
