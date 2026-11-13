@@ -61,8 +61,8 @@ beforeAll(async () => {
   // Un comercio a nombre de alguien que ya no tiene rol en México, con una visita hecha y otra por hacer.
   store = (await one(admin<{ id: string }[]>`insert into crm.accounts (market_code, kind, name, segment, lifecycle, owner_id, locality, region, country)
     values ('MX', 'store', 'Integra Visita 01', 'd2d', 'prospect', ${ex}, 'Puebla', 'Puebla', 'MX') returning id`)).id
-  done = (await one(admin<{ id: string }[]>`insert into crm.activities (market_code, account_id, kind, subject, done_at, outcome, visited_by, owner_id, created_by)
-    values ('MX', ${store}, 'visit', 'Visita a Integra Visita 01', now() - interval '1 day', 'no_sale', 'Persona De Calle', ${ex}, ${ex}) returning id`)).id
+  done = (await one(admin<{ id: string }[]>`insert into crm.activities (market_code, account_id, kind, subject, done_at, outcome, no_sale_code, visited_by, owner_id, created_by)
+    values ('MX', ${store}, 'visit', 'Visita a Integra Visita 01', now() - interval '1 day', 'no_sale', 'owner_absent', 'Persona De Calle', ${ex}, ${ex}) returning id`)).id
   planned = (await one(admin<{ id: string }[]>`insert into crm.activities (market_code, account_id, kind, subject, due_at, owner_id, created_by)
     values ('MX', ${store}, 'visit', 'Visitar a Integra Visita 01', now() + interval '2 days', ${ex}, ${ex}) returning id`)).id
 })

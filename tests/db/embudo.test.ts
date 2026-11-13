@@ -494,9 +494,12 @@ describe('lecturas de las pantallas del paquete', () => {
     expect((await leadLabelCatalog(marco)).length).toBeGreaterThanOrEqual(4)
 
     // Una cadena con sucursales: el hilo completo trae lo de sus tiendas solo cuando se pide.
-    const parent = await one(admin<{ id: string }[]>`
-      select p.id from crm.accounts p where p.archived_at is null
-         and exists (select 1 from crm.accounts c join crm.visits v on v.account_id = c.id where p.id = any(c.ancestor_ids) and c.archived_at is null) limit 1`)
+    // Los datos sintéticos no traen visitas en sucursales: la prueba deja una actividad en una sucursal de la cadena.
+    const parent = await one(admin<{ id: string; child: string; market_code: string; owner_id: string }[]>`
+      select p.id, c.id as child, c.market_code, coalesce(c.owner_id, p.owner_id) as owner_id from crm.accounts p join crm.accounts c on p.id = any(c.ancestor_ids)
+       where p.archived_at is null and c.archived_at is null and coalesce(c.owner_id, p.owner_id) is not null order by p.id, c.id limit 1`)
+    await admin`insert into crm.activities (market_code, account_id, kind, subject, done_at, owner_id, created_by)
+                values (${parent.market_code}, ${parent.child}, 'note', ${`Nota en la sucursal ${tag()}`}, now(), ${parent.owner_id}, ${parent.owner_id})`
     const wide = (await fullThread(nora, parent.id, { withChildren: true }))!
     const narrow = (await fullThread(nora, parent.id, { withChildren: false }))!
     expect(wide.items.some((i) => i.account_id !== parent.id)).toBe(true)

@@ -23,7 +23,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 - Any 2xx is success. Anything else is retried after 1, 5, 30 and 120 minutes; the fifth failure moves the delivery to dead letters, where an administrator can resend it.
 - At-least-once: a subscriber can receive the same event twice and must discard repeats by `id`.
 
-## Catalog (192 events)
+## Catalog (190 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -98,14 +98,12 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `deal.ops_check` | 1 | Changed a provider or document status. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.ops_taken` | 1 | Took a deal in Operations. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.order_updated` | 1 | Edited an order’s shipping details. | `changed` (string[]), `actor_id` (uuid) |
-| `deal.owner_changed` | 1 | A deal changed owner. | `owner_id` (uuid) |
 | `deal.paused` | 1 | Put a deal on hold. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.reassigned` | 1 | Open deals were moved to another person. | `count` (integer) |
 | `deal.resumed` | 1 | Resumed a deal on hold. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.returned_to_sales` | 1 | Sent a deal back to Sales. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.stage_changed` | 1 | A deal moved to another stage. | `from` (uuid), `to` (uuid), `kind` (string) |
 | `deal.training` | 1 | Changed a deal’s training. | `changed` (string[]), `actor_id` (uuid) |
-| `deal.turn_assigned` | 1 | A deal went in turn to another person. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.updated` | 1 | Edited a deal. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.waiting_on` | 1 | Changed who a deal is waiting on. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.win_corrected` | 1 | Reopened a won deal: the first sale was corrected. | `changed` (string[]), `actor_id` (uuid) |
@@ -469,13 +467,9 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `export.alert` | Went over the daily export threshold | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `ficha.layout_set` | Changed the top facts of the merchant page for a role | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `field_section.created` | Added a field section | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
-| `goal.updated` | Changed a goal | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `help.lesson_saved` | Changed a screen’s lesson | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `import.cancelled` | Stopped the Pipedrive import | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `import.completed` | The Pipedrive import finished | It is a historical or file load: each record created emits its own event; the run itself does not. |
-| `import.conflict_kept` | Kept the CONTIGO value in a clash with Pipedrive | It is a historical or file load: each record created emits its own event; the run itself does not. |
-| `import.conflict_taken` | Used the Pipedrive value in a clash | It is a historical or file load: each record created emits its own event; the run itself does not. |
-| `import.cutover_updated` | Changed the Pipedrive coexistence of a market | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `import.raw_purged` | Emptied the raw Pipedrive copy | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `import.resumed` | Resumed the Pipedrive import | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `import.started` | Started the Pipedrive import | It is a historical or file load: each record created emits its own event; the run itself does not. |

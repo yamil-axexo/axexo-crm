@@ -402,6 +402,8 @@ create policy accounts_agency_wall on crm.accounts as restrictive for select to 
   or market_code = any((select app.full_markets())::text[])
   or recruited_agency_id = any((select app.my_agency_ids())::uuid[])
   or owner_id = (select app.current_user_id())
+  -- Supervisión ve lo de las personas que supervisa aunque lo haya reclutado una agencia (ficha de dealer, E9.F12).
+  or owner_id = any((select app.supervised_user_ids())::uuid[])
   or id = any((select app.team_account_ids(false))::uuid[])
   or id = any((select app.partner_root_ids())::uuid[]) or ancestor_ids && (select app.partner_root_ids())::uuid[]
 );
@@ -462,7 +464,7 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
             or a.id = any(app.partner_root_ids()) or a.ancestor_ids && app.partner_root_ids())
        and (app.is_global() or not (a.market_code = any(app.entity_limited_markets())) or a.legal_entity_id = any(app.my_entity_ids()))
        and (a.recruited_agency_id is null or a.market_code = any(app.full_markets()) or a.recruited_agency_id = any(app.my_agency_ids())
-            or a.owner_id = app.current_user_id() or a.id = any(app.team_account_ids(false))
+            or a.owner_id = app.current_user_id() or a.owner_id = any(app.supervised_user_ids()) or a.id = any(app.team_account_ids(false))
             or a.id = any(app.partner_root_ids()) or a.ancestor_ids && app.partner_root_ids())
   )
 $$;
