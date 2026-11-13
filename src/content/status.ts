@@ -6,11 +6,11 @@ type Pair = [es: string, en: string]
 
 /** Datos de operación que hoy nadie ha definido. La página los muestra como "Por definir", sin inventar un valor. */
 export const UNDEFINED_ITEMS: { key: string; label: Pair; why: Pair }[] = [
-  { key: 'owner', label: ['Responsable técnico', 'Technical owner'], why: ['Quién responde por la herramienta y quién la cubre cuando no está.', 'Who answers for the tool and who covers when they are away.'] },
+  { key: 'owner', label: ['Responsable técnico', 'Technical owner'], why: ['Quién responde por la herramienta y quién la cubre cuando no está. Se anota por componente en Administración, Gobierno.', 'Who answers for the tool and who covers when they are away. It is recorded per component in Administration, Governance.'] },
   { key: 'backup', label: ['Respaldo de la base de datos', 'Database backup'], why: ['Cada cuánto se respalda y dónde queda la copia.', 'How often it is backed up and where the copy is kept.'] },
-  { key: 'restore', label: ['Última restauración probada', 'Last tested restore'], why: ['Todavía no se ha probado recuperar la base desde un respaldo.', 'Recovering the database from a backup has not been tested yet.'] },
-  { key: 'plan', label: ['Plan de restauración', 'Restore plan'], why: ['Cuánta información se puede perder como máximo y en cuánto tiempo vuelve el servicio.', 'How much data can be lost at most and how long the service takes to come back.'] },
-  { key: 'cost', label: ['Costo mensual de operación', 'Monthly running cost'], why: ['Infraestructura y personas. CONTIGO no cobra licencias por usuario.', 'Infrastructure and people. CONTIGO has no per-user licences.'] },
+  { key: 'restore', label: ['Última restauración probada', 'Last tested restore'], why: ['Todavía no se ha probado recuperar la base desde un respaldo. Cada prueba se anota en Administración, Gobierno.', 'Recovering the database from a backup has not been tested yet. Each test is recorded in Administration, Governance.'] },
+  { key: 'plan', label: ['Plan de restauración', 'Restore plan'], why: ['Cuánta información se puede perder como máximo y en cuánto tiempo vuelve el servicio. Lo acordado se anota en Administración, Gobierno.', 'How much data can be lost at most and how long the service takes to come back. What is agreed is recorded in Administration, Governance.'] },
+  { key: 'cost', label: ['Costo mensual de operación', 'Monthly running cost'], why: ['Infraestructura y personas. CONTIGO no cobra licencias por usuario. Los costos se cargan en Administración, Gobierno.', 'Infrastructure and people. CONTIGO has no per-user licences. Costs are loaded in Administration, Governance.'] },
   { key: 'production', label: ['Plataforma de producción', 'Production platform'], why: ['Dónde va a correr cuando salga de staging.', 'Where it will run once it leaves staging.'] },
   { key: 'support', label: ['Canal de soporte', 'Support channel'], why: ['A dónde escribe el equipo cuando algo falla.', 'Where the team writes when something fails.'] },
 ]

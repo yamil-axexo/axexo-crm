@@ -235,6 +235,28 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'saved_view.deleted': ['Borró una vista', 'Deleted a view'],
   'saved_view.pinned': ['Fijó una vista como cola', 'Pinned a view as a queue'],
   'saved_view.unpinned': ['Quitó una cola de su menú', 'Removed a queue from the menu'],
+  // Gobierno (paquete gobierno)
+  'objective.set': ['Fijó un objetivo de servicio o de recuperación', 'Set a service or recovery objective'],
+  'incident.opened': ['Abrió un incidente', 'Opened an incident'],
+  'incident.updated': ['Actualizó un incidente', 'Updated an incident'],
+  'restore_test.recorded': ['Anotó una prueba de restauración', 'Recorded a restore test'],
+  'component.owners_set': ['Cambió quién responde por un componente', 'Changed who answers for a component'],
+  'maintenance.scheduled': ['Agendó una ventana de mantenimiento', 'Scheduled a maintenance window'],
+  'maintenance.closed': ['Cerró una ventana de mantenimiento', 'Closed a maintenance window'],
+  'release.created': ['Creó una versión', 'Created a release'],
+  'release.item_checked': ['Dio por cumplido un punto de la lista de salida', 'Marked a go-live checklist item as done'],
+  'release.announced': ['Anunció una versión', 'Announced a release'],
+  'release.released': ['Marcó una versión como liberada', 'Marked a release as released'],
+  'deployment.recorded': ['Anotó un despliegue', 'Recorded a deployment'],
+  'cost.added': ['Cargó un costo', 'Loaded a cost'],
+  'cost.voided': ['Anuló un costo', 'Voided a cost'],
+  'config_request.created': ['Pidió un cambio de configuración', 'Asked for a configuration change'],
+  'config_request.decided': ['Decidió una solicitud de configuración', 'Decided a configuration request'],
+  'change.reason_added': ['Anotó por qué se hizo un cambio de configuración', 'Recorded why a configuration change was made'],
+  'champion.set': ['Cambió el champion de un equipo', 'Changed a team’s champion'],
+  'champion.reviewed': ['Anotó la revisión mensual con un champion', 'Recorded the monthly review with a champion'],
+  'material.saved': ['Guardó un material de capacitación', 'Saved a training material'],
+  'material.removed': ['Quitó un material de capacitación', 'Removed a training material'],
   'session.started': ['Inició sesión', 'Signed in'],
   'session.ended': ['Cerró sesión', 'Signed out'],
   // 0027 seguridad
@@ -287,6 +309,8 @@ export const AUDIT_GROUPS = {
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
   saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },
   security: { label: ['Seguridad y privacidad', 'Security and privacy'] as Pair, like: ['sensitive.%', 'sensitive_field.%', 'consent.%', 'retention.%', 'subject_request.%', 'view_as.%', 'access_review.%', 'security.%', 'secret.%', 'seat.%'], not: null },
+  // Paquete gobierno: servicio, versiones, costos, solicitudes y motivos de cambio.
+  governance: { label: ['Gobierno', 'Governance'] as Pair, like: ['objective.%', 'incident.%', 'restore_test.%', 'component.%', 'maintenance.%', 'release.%', 'deployment.%', 'cost.%', 'config_request.%', 'change.%', 'champion.%', 'material.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const
@@ -351,6 +375,17 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   secret: ['Conexión hacia afuera', 'Outbound connection'],
   security: ['Seguridad', 'Security'],
   security_alert: ['Alerta de seguridad', 'Security alert'],
+  service_objective: ['Objetivo de servicio', 'Service objective'],
+  incident: ['Incidente', 'Incident'],
+  restore_test: ['Prueba de restauración', 'Restore test'],
+  component: ['Componente', 'Component'],
+  maintenance_window: ['Ventana de mantenimiento', 'Maintenance window'],
+  release: ['Versión', 'Release'],
+  deployment: ['Despliegue', 'Deployment'],
+  cost_entry: ['Costo', 'Cost'],
+  config_request: ['Solicitud de configuración', 'Configuration request'],
+  change_reason: ['Motivo de un cambio', 'Reason for a change'],
+  training_material: ['Material de capacitación', 'Training material'],
 }
 
 /** Los reportes que se pueden exportar, con su nombre. */

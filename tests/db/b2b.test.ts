@@ -175,8 +175,8 @@ describe('campos B2B', () => {
     for (const label of ['CLABE del comercio', 'Número de tarjeta', 'Contraseña del portal', 'Cuenta bancaria']) {
       await expect(createField(nora, { object: 'account', market: 'MX', motor: 'b2b', labelEs: label, labelEn: 'Prueba b2b x', dataType: 'text', decision: 'Decide una prueba del registro' })).rejects.toMatchObject({ code: 'invalid' })
     }
-    await expect(createField(nora, { object: 'deal', market: '', motor: '', labelEs: 'Prueba b2b lista', labelEn: 'B2b test list', dataType: 'select', options: ['Sola'] })).rejects.toMatchObject({ code: 'invalid' })
-    await expect(createField(await ctxFor('ana.robles'), { object: 'deal', market: 'MX', motor: '', labelEs: 'Prueba b2b no', labelEn: 'B2b test no', dataType: 'text' })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(createField(nora, { object: 'deal', market: '', motor: '', labelEs: 'Prueba b2b lista', labelEn: 'B2b test list', purpose: 'Prueba b2b: para segmentar la cartera', dataType: 'select', options: ['Sola'] })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(createField(await ctxFor('ana.robles'), { object: 'deal', market: 'MX', motor: '', labelEs: 'Prueba b2b no', labelEn: 'B2b test no', purpose: 'Prueba b2b: para segmentar la cartera', dataType: 'text' })).rejects.toMatchObject({ code: 'forbidden' })
   })
 })
 

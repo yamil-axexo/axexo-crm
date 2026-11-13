@@ -161,6 +161,12 @@ export const CAPABILITIES = {
   // Consentimiento y baja de un contacto: quien trabaja la cuenta. Levantar una baja es de quien lidera o de privacidad.
   'consent.write': [...FIELD, 'ops'],
   'consent.lift': ['admin', 'market_lead'],
+  // Gobierno (paquete gobierno): objetivos de servicio, incidentes, pruebas de restauración, dueños por componente, versiones,
+  // despliegues, costos y datos de prueba. Lo lee quien responde por los controles; lo escribe administración.
+  'gov.read': ['admin', 'lt'],
+  'gov.manage': ['admin'],
+  // Pedir un cambio de configuración (un campo, una opción, un embudo): cualquier persona con acceso. Decidir es de administración.
+  'config.request': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

@@ -39,6 +39,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   // Va antes de /admin: la primera ruta que coincide es la que nombra la pantalla.
   ['/admin/operaciones', 'Administración, Operaciones', 'Administration, Operations'],
   ['/admin/integraciones', 'Administración, Eventos, API y datos', 'Administration, Events, API and data'],
+  ['/admin/gobierno', 'Administración, Gobierno', 'Administration, Governance'],
   ['/admin', 'Administración', 'Administration'],
   ['/importar', 'Importar un archivo', 'Import a file'],
   ['/datos', 'Datos', 'Data'],
@@ -46,6 +47,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/bienvenida', 'Primeros pasos', 'First steps'],
   ['/ayuda', 'Ayuda', 'Help'],
   ['/reportar', 'Reportar un problema', 'Report a problem'],
+  ['/solicitudes', 'Pedir un cambio', 'Request a change'],
 ]
 
 export function screenLabel(t: T, path: string | null | undefined): string {

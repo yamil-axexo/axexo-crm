@@ -3,13 +3,14 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { after } from 'next/server'
 import { tickJobs } from '@/server/jobs/runner'
-import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
+import { Activity, BarChart3, Bell, CircleHelp, Database, Eye, Megaphone, FileSpreadsheet, GitPullRequestArrow, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
 import { ToastHost } from '@/ui/complete'
 import { ReportLink } from '@/ui/problem-report'
 import { LogHost } from '@/ui/log'
+import { Beacon } from '@/ui/beacon'
 import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
 import { pinnedQueues } from '@/dal/reportes'
@@ -153,6 +154,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {!ctx.can('config.manage') && ctx.can('status.read') && <Link href="/estado" role="menuitem" className={menuLink} data-testid="nav-status"><Activity size={20} strokeWidth={1.75} aria-hidden />{t('Estado de CONTIGO', 'CONTIGO status')}</Link>}
               <Link href="/bienvenida" role="menuitem" className={menuLink} data-testid="nav-welcome"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{m('top.firstSteps')}</Link>
               <Link href="/ayuda" role="menuitem" className={menuLink} data-testid="nav-help"><CircleHelp size={20} strokeWidth={1.75} aria-hidden />{m('top.help')}</Link>
+              <Link href="/solicitudes" role="menuitem" className={menuLink} data-testid="nav-requests"><GitPullRequestArrow size={20} strokeWidth={1.75} aria-hidden />{t('Pedir un cambio', 'Request a change')}</Link>
               <ReportLink className={menuLink} testId="nav-report"><LifeBuoy size={20} strokeWidth={1.75} aria-hidden />{t('Reportar un problema', 'Report a problem')}</ReportLink>
             </div>
             {watchLeads && (
@@ -188,6 +190,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
       <CommandPalette items={palette} labels={{ title: t('Ir a una pantalla o buscar', 'Go to a screen or search'), placeholder: t('Escribe a dónde quieres ir o qué buscas', 'Type where you want to go or what you are looking for'), search: t('Buscar', 'Search for'), hint: t('Flechas para elegir, Enter para ir, Esc para cerrar', 'Arrows to choose, Enter to go, Esc to close'), close: t('Cerrar', 'Close') }} />
+      <Beacon />
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">
         {first && firstText && (

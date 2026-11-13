@@ -3,6 +3,7 @@ import postgres from 'postgres'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import { env } from '@/env'
+import { currentRequestId } from '@/server/request-id'
 
 /**
  * SEG-03: por dónde entra cada cambio. La bitácora que escribe la base lo guarda en cada fila (app.via).
@@ -38,10 +39,13 @@ function client(): Sql {
 }
 
 /** AUTHZ-04: toda consulta de negocio corre dentro de una transacción con la identidad fijada. */
-export function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  // GOB-07: el identificador de la petición viaja con la transacción y queda en cada evento de la bitácora.
+  const requestId = await currentRequestId()
   return client().begin(async (tx) => {
+    // SEG-03 y GOB-07: la vía de entrada y un solo identificador de petición (el de la entrada; si no hay, el de la vía).
     const v = viaStore.getStore()
-    await tx`select set_config('app.user_id', ${userId}, true), set_config('app.via', ${v?.via ?? ''}, true), set_config('app.request_id', ${v?.requestId ?? ''}, true)`
+    await tx`select set_config('app.user_id', ${userId}, true), set_config('app.via', ${v?.via ?? ''}, true), set_config('app.request_id', ${requestId || v?.requestId || ''}, true)`
     return fn(tx)
   }) as Promise<T>
 }
