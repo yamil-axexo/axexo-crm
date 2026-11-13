@@ -9,7 +9,7 @@ import { forbidden, invalid, notFound } from '@/lib/errors'
 import { emailInDomains, domainList } from '@/lib/domains'
 import { open, seal } from '@/server/adapters/field-crypto'
 import { archiveBatchStatus } from '@/server/adapters/audit-archive'
-import { notify, notifyMany } from '@/domain/notify'
+import { notify, notifyMany, peopleWithRole } from '@/domain/notify'
 
 // 0031 seguridad: comandos de SEG-01, 02, 03, 04, 07, 08 y 09. Cada uno revisa el permiso aquí y la base lo repite.
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -471,6 +471,14 @@ export async function openAccessReview(ctx: Ctx, market: string | null, dueOn: s
        where m.market_code is not distinct from ${market} and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
       returning id`
     await audit(tx, ctx, 'access_review.opened', 'access_review', id, market, null, { accesses: items.length, due_on: dueOn })
+    // A quien lidera el mercado le llega el aviso con el enlace: es quien acusa la revisión.
+    if (market) {
+      await notifyMany(tx, ctx, await peopleWithRole(tx, market, ['market_lead']), {
+        kind: 'access_review', market: null, link: '/admin/seguridad?s=accesos',
+        title: [`Te toca revisar los accesos de ${market}`, `It is your turn to review access for ${market}`],
+        body: [`Son ${items.length} accesos. Di cuál se mantiene y cuál se quita antes del ${dueOn}, y cierra la revisión.`, `There are ${items.length} accesses. Say which stays and which goes before ${dueOn}, and close the review.`],
+      })
+    }
     return id
   })
 }

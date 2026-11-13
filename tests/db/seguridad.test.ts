@@ -567,6 +567,8 @@ describe('SEG-07: ver como y recertificación de accesos', () => {
     const ana = await ctxFor('ana.robles')
     const reviewId = await openAccessReview(nora, 'MX', '2026-12-31')
     await expect(openAccessReview(nora, 'MX', '2026-12-31')).rejects.toMatchObject({ code: 'invalid' })
+    // A quien lidera el mercado le llega el aviso con el enlace a la revisión.
+    expect(await admin<{ link: string }[]>`select link from crm.notices where user_id = ${ana.user.id} and kind = 'access_review'`).toMatchObject([{ link: '/admin/seguridad?s=accesos' }])
     await expect(openAccessReview(ana, 'US', '2026-12-31')).rejects.toMatchObject({ code: 'forbidden' })
     const items = await admin<{ id: string; user_id: string }[]>`select id, user_id from crm.access_review_items where review_id = ${reviewId}`
     expect(items.length).toBeGreaterThan(5)
