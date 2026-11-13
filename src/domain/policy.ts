@@ -79,8 +79,9 @@ export const CAPABILITIES = {
   // Campos: quien lidera un mercado propone; administración aprueba ('config.manage'). Listas de proceso del mercado.
   'field.propose': ['admin', 'market_lead'],
   'process.define': ['admin', 'market_lead'],
-  // Tablero de calidad de datos: cada quien sobre lo que ve (supervisión, su equipo). Leadership lo lee.
-  'data.quality': [...MANAGERS, 'lt', 'ops'],
+  // Tablero de calidad de datos: cada quien sobre lo que ve (supervisión, su equipo). Leadership también lo lee, por su
+  // alcance global (la pantalla lo deja entrar con `ctx.isGlobal`; aquí no se le da una capacidad que no sea de lectura declarada).
+  'data.quality': [...MANAGERS, 'ops'],
   // Matriz de productos por comercio y su estado con cada proveedor: la mantiene Operaciones.
   'account.products': ['admin', 'ops'],
 } as const satisfies Record<string, readonly Role[]>

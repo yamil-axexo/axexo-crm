@@ -23,7 +23,7 @@ export default async function DatosPage({ searchParams }: { searchParams: Promis
   const { t } = ctx
   const sp = flat(await searchParams)
   const sees: Record<Tab, boolean> = {
-    calidad: ctx.can('data.quality'),
+    calidad: ctx.can('data.quality') || ctx.isGlobal,
     // La cola la lee quien ve todo el mercado (RLS); decide quien lidera o administra.
     duplicados: ctx.can('duplicate.review') || ctx.isGlobal || ctx.can('alias.manage'),
     campos: ctx.can('field.propose') || ctx.can('config.manage') || ctx.isGlobal,

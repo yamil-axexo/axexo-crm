@@ -358,7 +358,7 @@ export async function addAlias(ctx: Ctx, accountId: string, input: { system: str
     if (!sys[0]) throw invalid('Elige el sistema de la lista.', 'Pick the system from the list.')
     const holder = await tx<{ account_id: string; name: string }[]>`select account_id, name from app.alias_holder(${input.system}, ${externalId})`
     if (holder[0]?.account_id === accountId) throw invalid('Este comercio ya tiene ese identificador.', 'This merchant already has that identifier.')
-    if (holder[0]) throw invalid(`Ese identificador de ${sys[0].label_es} ya es de "${holder[0].name}". Si son el mismo comercio, fusiónalos; si cambió de dueño, ciérralo allá primero.`, `That ${sys[0].label_en} identifier already belongs to "${holder[0].name}". If they are the same merchant, merge them; if it changed hands, close it there first.`)
+    if (holder[0]) throw invalid(`Ese identificador de ${sys[0].label_es} ya es de "${holder[0].name}". Si son el mismo comercio, fusiónalos; si ahora es de este, ciérralo allá primero.`, `That ${sys[0].label_en} identifier already belongs to "${holder[0].name}". If they are the same merchant, merge them; if it now belongs to this one, close it there first.`)
     const id = await newId(tx)
     try {
       await tx`insert into crm.account_aliases (id, account_id, market_code, system, external_id, note, created_by) values (${id}, ${accountId}, ${a.market_code}, ${input.system}, ${externalId}, ${clean(note)}, ${ctx.user.id})`
