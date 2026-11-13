@@ -155,7 +155,7 @@
   "merchants.view.list": "List",
   "merchants.view.tree": "Tree",
   "merchants.view.map": "Map",
-  "merchants.view.mapSoon": "The map comes later",
+  "merchants.view.mapSoon": "The map is off: use Near me",
   "merchants.scope": "Whose",
   "merchants.scope.all": "Everyone's",
   "merchants.scope.mine": "Mine",

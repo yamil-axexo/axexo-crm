@@ -3,7 +3,7 @@ import type { Ctx } from '@/server/context'
 import { getAccountHeader, getAccountMarketData } from '@/dal/markets'
 import { Badge, Field, KeyVal, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { ConfirmButton } from '@/ui/confirm'
+import { ConfirmButton, CopyButton } from '@/ui/confirm'
 import { LocationFields } from '@/ui/geo'
 import { clock, day, dayTime, money, num, phoneText, zoneName } from '@/lib/format'
 import { CONTACT_ROLE, EXCEPTION, lab } from '@/lib/labels'
@@ -263,6 +263,13 @@ export async function FichaMercados({ ctx, id, market, archived, name }: { ctx: 
           {d.whatsapp ? t(`Número de este mercado: ${d.whatsapp.display_name}${d.whatsapp.phone ? ` (${phoneText(d.whatsapp.phone)})` : ''}. `, `This market’s number: ${d.whatsapp.display_name}${d.whatsapp.phone ? ` (${phoneText(d.whatsapp.phone)})` : ''}. `) : t('Este mercado todavía no tiene número de WhatsApp configurado. ', 'This market has no WhatsApp number set up yet. ')}
           {wa.mode === 'off' ? t('El envío desde CONTIGO está apagado: hoy se escribe desde el teléfono, con el botón de arriba.', 'Sending from CONTIGO is off: today you write from your phone, with the button above.') : t('Envío simulado (pruebas).', 'Simulated sending (tests).')}
         </p>
+        {d.whatsapp?.phone && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 text-[13px] text-muted-2" data-testid="wa-me">
+            <span>{t('Para que el comercio escriba primero, compártele este enlace (también sirve impreso en el mostrador):', 'So the merchant writes first, share this link (it also works printed at the counter):')}</span>
+            <span className="num font-medium text-strong [overflow-wrap:anywhere]" data-testid="wa-me-link">wa.me/{d.whatsapp.phone.replace(/\D/g, '')}</span>
+            <CopyButton value={`https://wa.me/${d.whatsapp.phone.replace(/\D/g, '')}`} label={t('Copiar el enlace de WhatsApp del mercado', 'Copy the market’s WhatsApp link')} done={t('Enlace copiado.', 'Link copied.')} />
+          </p>
+        )}
         {canWrite && (
           <ActionForm action={openWhatsappWindowAction} className="mt-3 flex flex-wrap items-end gap-3" testId="wa-form">
             <input type="hidden" name="id" value={id} />

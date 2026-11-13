@@ -298,6 +298,8 @@ test.describe('MULTI-05: WhatsApp por mercado, listo y apagado', () => {
     const wa = page.getByTestId('account-whatsapp')
     await expect(wa.getByTestId('wa-window')).toHaveAttribute('data-open', 'no')
     await expect(wa.getByTestId('wa-channel')).toContainText('apagado')
+    // el enlace para que el comercio escriba primero sale del número del mercado
+    await expect(wa.getByTestId('wa-me-link')).toHaveText('wa.me/525550000000')
     await wa.getByTestId('wa-open').click()
     await expect(wa.getByTestId('wa-window')).toHaveAttribute('data-open', 'yes')
     await expect(page.getByTestId('fact-whatsapp-window')).toBeVisible()
