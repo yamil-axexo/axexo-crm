@@ -1,6 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { ROLE_LABEL, type Role } from '@/domain/policy'
 
 // ------------------------------------------------------------------ REP-03: envíos del pronóstico
 export type Submission = { id: string; version: number; submitter_name: string; period_from: string; period_to: string; n: number; totals: Record<string, { n: number; amount_minor: number }>; submitted_at: string; market_code: string }
@@ -72,7 +73,10 @@ export async function pendingDecisions(ctx: Ctx): Promise<{ key: string; label: 
     }
     const out = Object.entries(pv).filter(([, v]) => v.proposed !== false).map(([k, v]) => ({ key: k, label: LABEL[k] ?? [k, k], pending: String(v.pending ?? '') }))
     const boards = await tx<{ role: string; pending_owner: string }[]>`select role, min(pending_owner) as pending_owner from crm.role_boards where not confirmed group by role order by role`
-    for (const b of boards) out.push({ key: `role_board.${b.role}`, label: [`Indicadores del tablero: ${b.role}`, `Board indicators: ${b.role}`], pending: b.pending_owner })
+    for (const b of boards) {
+      const r = ROLE_LABEL[b.role as Role] ?? { es: b.role, en: b.role }
+      out.push({ key: `role_board.${b.role}`, label: [`Indicadores del tablero: ${r.es}`, `Board indicators: ${r.en}`], pending: b.pending_owner })
+    }
     return out
   })
 }

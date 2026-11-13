@@ -490,12 +490,15 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde', 'since')} {day(a.lifecycle_at, locale, tz)}</KeyVal>
               {/* reportes2 (REP-04): de dónde sale el estado. Si el archivo de ventas lo trae, manda el archivo; si no, se dice que es la regla de respaldo. */}
               {!isParent && ['active', 'at_risk', 'inactive'].includes(a.lifecycle) && (
-                <p className="-mt-1 mb-2 text-[13px] text-muted" data-testid="ficha-status-source">
+                <div className="-mt-1 mb-2">
+                  <dt className="sr-only">{t('De dónde sale el estado', 'Where the status comes from')}</dt>
+                  <dd className="text-[13px] text-muted" data-testid="ficha-status-source">
                   {metrics?.status
                     ? t(`Estado según el archivo de ventas, con corte al ${day(metrics.as_of, locale)}.`, `Status from the sales file, as of ${day(metrics.as_of, locale)}.`)
                     : t('Estado calculado por CONTIGO con su regla de respaldo: el archivo de ventas todavía no trae el estado. [pendiente: Roxanna Quintero (Data y Reportería)]', 'Status worked out by CONTIGO with its fallback rule: the sales file does not carry the status yet. [pending: Roxanna Quintero (Data & Reporting)]')}
                   {' '}<Def t={t} k={a.lifecycle === 'active' ? 'active' : 'risk'} />
-                </p>
+                </dd>
+                </div>
               )}
               {!isParent && metrics && (metrics.tpv_by_product?.length || metrics.commission_minor_30d) ? (
                 <KeyVal k={t('Por producto y comisión, 30 días', 'By product and commission, 30 days')}><span data-testid="fact-tpv-products">
