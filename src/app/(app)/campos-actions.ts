@@ -27,3 +27,8 @@ export async function saveAccountCustomAction(_: R | null, fd: FormData): Promis
 export async function saveDealCustomAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => ({ message: done(await updateCustom(ctx, 'deal', str(fd, 'id'), parse(fd))) }))
 }
+
+/** DAT-05 (datos2): campos adicionales de un contacto. */
+export async function saveContactCustomAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => ({ message: done(await updateCustom(ctx, 'contact', str(fd, 'id'), parse(fd))) }))
+}

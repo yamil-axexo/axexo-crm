@@ -494,7 +494,8 @@ describe('PIPE-03: estancamiento por horario, también en Operaciones, con esper
     const d = await one(admin<{ id: string; owner_id: string; ops_owner_id: string | null }[]>`
       select d.id, d.owner_id, d.ops_owner_id from crm.deals d join crm.stages s on s.id = d.stage_id where s.code = 'carrier' and d.status = 'open' and d.paused_at is null limit 1`)
     const tom = await ctxFor('tom.reyes')
-    await admin`update crm.deals set stage_entered_at = now() - interval '40 days', ops_owner_id = ${tom.user.id} where id = ${d.id}`
+    // embudo2: estancado es pasar el umbral sin un próximo paso por venir; aquí el próximo paso ya venció.
+    await admin`update crm.deals set stage_entered_at = now() - interval '40 days', ops_owner_id = ${tom.user.id}, next_step_due = ${addDays(today, -1)} where id = ${d.id}`
     expect(await runRules()).toMatchObject({ status: 'ok' })
     const ex = await one(admin<{ owner_id: string; detail: { limit_days: number }; key: string }[]>`
       select e.owner_id, e.detail, a.key from crm.exceptions e join crm.automations a on a.id = e.automation_id where e.deal_id = ${d.id} and e.kind = 'stalled_deal' and e.resolved_at is null`)
@@ -514,7 +515,7 @@ describe('PIPE-03: estancamiento por horario, también en Operaciones, con esper
     const tom = await ctxFor('tom.reyes')
     const carrier = await stage('p-us-dealer', 'carrier')
     const d = await one(admin<{ id: string }[]>`select d.id from crm.deals d where d.stage_id = ${carrier} and d.status = 'open' and d.paused_at is null order by d.id desc limit 1`)
-    await admin`update crm.deals set stage_entered_at = now() - interval '40 days' where id = ${d.id}`
+    await admin`update crm.deals set stage_entered_at = now() - interval '40 days', next_step_due = ${addDays(today, -1)} where id = ${d.id}`
     await setStageTimes(nora, carrier, { slaHours: null, rotDaysWaiting: 60 })
     await expect(setWaitingOn(await ctxFor('luis.tovar'), d.id, 'third_party')).rejects.toMatchObject({ code: 'forbidden' })
     await expect(setWaitingOn(tom, d.id, 'el vecino')).rejects.toMatchObject({ code: 'invalid' })
@@ -533,6 +534,10 @@ describe('PIPE-03: estancamiento por horario, también en Operaciones, con esper
     const { diana, id } = await dianaDeal(100)
     await admin`update crm.deals set stage_entered_at = now() - interval '15 days' where id = ${id}` // calificación se estanca a los 14
     await updateDeal(diana, id, { nextStep: 'Seguir', nextStepDue: tomorrow })
+    await runRules()
+    // embudo2 (PIPE-03): con un próximo paso por venir no está estancado; cuando ese paso vence, sí (una nota no cambia nada).
+    expect(await admin`select 1 from crm.exceptions where deal_id = ${id} and kind = 'stalled_deal' and resolved_at is null`).toHaveLength(0)
+    await admin`update crm.deals set next_step_due = ${addDays(today, -1)} where id = ${id}`
     await runRules()
     expect(await admin`select 1 from crm.exceptions where deal_id = ${id} and kind = 'stalled_deal' and resolved_at is null`).toHaveLength(1)
     await pauseDeal(diana, id, { reason: 'El cliente pidió esperar', reviewOn: addDays(today, 3) })

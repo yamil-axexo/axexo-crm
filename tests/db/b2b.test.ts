@@ -319,6 +319,8 @@ describe('en pausa y motivos de pérdida por embudo', () => {
 
   it('administración agrega un motivo y decide en qué embudos se ofrece', async () => {
     const nora = await ctxFor('nora.salas')
+    // embudo2 (PIPE-04): el catálogo base tiene tope (10 propuestos) y la base ya trae más; aquí se sube para probar el alta.
+    await admin`update crm.funnel_settings set value = '60' where key = 'reason_core_max' and market_code is null`
     const code = await createLossReason(nora, { labelEs: `Prueba b2b ${tag()}`, labelEn: `B2b test ${tag()}`, market: '', motors: ['event'] })
     expect((await lossReasonsFor(nora, 'MX', 'event')).map((r) => r.code)).toContain(code)
     expect((await lossReasonsFor(nora, 'MX', 'b2b')).map((r) => r.code)).not.toContain(code)

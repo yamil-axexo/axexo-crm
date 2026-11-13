@@ -84,7 +84,10 @@ describe('cola de Hoy: completar siempre pide el próximo paso (handoff, secció
     expect(rows.find((r) => r.type === 'task' && r.leadId === id)).toMatchObject({ group: 'today', name: expect.stringContaining('Abarrotes Cola') })
     const sys = await systemContext()
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
-    expect((await admin`select 1 from crm.exceptions where lead_id = ${id} and kind = 'lead_sla' and resolved_at is null`).length).toBe(0)
+    // embudo2 (LEAD-04): el reloj de primer contacto se cierra con el contacto efectivo, no con el intento. Con la regla
+    // vencida, un intento sin respuesta deja el aviso abierto; antes de vencer, no hay aviso.
+    const late = (await one(admin<{ late: boolean }[]>`select sla_due_at < now() as late from crm.leads where id = ${id}`)).late
+    expect((await admin`select 1 from crm.exceptions where lead_id = ${id} and kind = 'lead_sla' and resolved_at is null`).length).toBe(late ? 1 : 0)
 
     const again = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Abarrotes Cola ${tag()}`, contactName: 'Rosa Luna', phone: phone() })
     await completeItem(marco, { type: 'lead', id: again, result: 'reached', next: 'proposal', when: tomorrow })

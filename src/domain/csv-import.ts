@@ -5,6 +5,7 @@ import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
 import { addContact, createAccount, CONTACT_ROLES } from '@/domain/accounts'
+import { routeNewAccount } from '@/domain/embudo/routing'
 import { createImportedLead, MOTORS } from '@/domain/leads'
 import { markUntrusted, plainText } from '@/domain/untrusted'
 import { assertNoProhibited } from '@/domain/guard'
@@ -279,7 +280,11 @@ async function runImportNow(ctx: Ctx, raw: z.input<typeof input> & { checksum: s
             outcomes.push({ row_no: r.rowNo, outcome: 'duplicate', object: null, object_id: null, detail: 'duplicate found while importing' })
             continue
           }
-          await withUser(ctx.user.id, (tx) => markUntrusted(tx, 'account', out.id!, p.market, 'csv_import', ['name', ...(x.locality ? ['locality'] : []), ...(x.region ? ['region'] : [])]))
+          await withUser(ctx.user.id, async (tx) => {
+            await markUntrusted(tx, 'account', out.id!, p.market, 'csv_import', ['name', ...(x.locality ? ['locality'] : []), ...(x.region ? ['region'] : [])])
+            // LEAD-03 (embudo2): el comercio importado sin dueño pasa por las reglas de asignación del mercado.
+            await routeNewAccount(tx, out.id!, 'import')
+          })
           outcomes.push({ row_no: r.rowNo, outcome: 'created', object: 'account', object_id: out.id, detail: null })
         } else if (p.kind === 'leads' || p.kind === 'mx_leads') {
           const id = await createImportedLead(ctx, { market: p.market, motor: (x.motor || 'd2d').toLowerCase(), businessName: x.business_name!, contactName: x.contact_name!, phone: x.phone, email: x.email, locality: x.locality, message: x.message })

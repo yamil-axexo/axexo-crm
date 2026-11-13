@@ -1,4 +1,5 @@
 import 'server-only'
+import { recordSeatAtGrant, SEAT_MISSING, seatFields } from '@/domain/seats'
 import { assertRolloutAllows } from '@/domain/rollout'
 import { z } from 'zod'
 import { createHash, randomBytes } from 'node:crypto'
@@ -29,19 +30,22 @@ export async function revokeApiClient(ctx: Ctx, id: string): Promise<void> {
   })
 }
 
-const SALES_ROLES = ['rep', 'supervisor', 'market_lead'] as const
+const SALES_ROLES = ['rep', 'supervisor', 'market_lead', 'kam'] as const
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 const grant = z.object({
   email: z.string().trim().toLowerCase().email(),
   fullName: z.string().trim().min(2).max(120),
-  role: z.enum(['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops']),
+  // reportes2: Finanzas (solo lectura de sus reportes) y KAM (cuentas clave) se dan como cualquier rol de mercado.
+  role: z.enum(['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'kam']),
   market: z.string().length(2).or(z.literal('')),
   teamId: z.guid().or(z.literal('')).optional(),
   // "Vence el": el rol vale hasta el final de ese día y deja de valer solo, sin que nadie lo quite.
   expires: isoDate.or(z.literal('')).optional(),
   // Administración no se da por descuido: quien la otorga confirma que sabe lo que el rol permite.
   confirmAdmin: z.boolean().optional(),
+  // E4.F9 (datos2): el asiento aprobado va antes del acceso.
+  ...seatFields,
 })
 
 export type GrantResult = { userId: string; supervisorWithoutTeam: boolean; expires: string | null }
@@ -67,7 +71,10 @@ export async function grantMembership(ctx: Ctx, input: z.input<typeof grant>, al
 export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowedDomains: readonly string[]): Promise<GrantResult> {
   ctx.assert('access.manage')
   const parsed = grant.safeParse(input)
-  if (!parsed.success) throw invalid('Revisa correo, nombre, rol y fecha de vencimiento.', 'Check the email, name, role and expiry date.')
+  if (!parsed.success) {
+    if (parsed.error.issues.some((i) => String(i.path[0]).startsWith('seat'))) throw invalid(...SEAT_MISSING)
+    throw invalid('Revisa correo, nombre, rol y fecha de vencimiento.', 'Check the email, name, role and expiry date.')
+  }
   const v = parsed.data
   const global = v.role === 'admin' || v.role === 'lt'
   if (!global && !v.market) throw invalid('Ese rol necesita un mercado.', 'That role needs a market.')
@@ -103,8 +110,9 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
     if (expires) await assertFutureDay(tx, expires, market)
     // E18.F2: con "primero quienes lideran" activo en el mercado, Ventas entra solo si la persona es clave.
     await assertRolloutAllows(tx, market, v.role, v.email)
-    await tx`insert into crm.memberships (user_id, market_code, role, team_id, valid_to)
-             values (${userId}, ${market}, ${v.role}, ${teamId}, ${expires ? endOfDay(tx, expires, market) : null})`
+    const mem = await tx<{ id: string }[]>`insert into crm.memberships (user_id, market_code, role, team_id, valid_to)
+             values (${userId}, ${market}, ${v.role}, ${teamId}, ${expires ? endOfDay(tx, expires, market) : null}) returning id`
+    await recordSeatAtGrant(tx, ctx, mem[0]!.id, userId, market, v.role, v)
     // Dar Administración deja escrito el alcance que se confirmó, si el correo es de otro dominio que el de quien la da y si tiene fecha de fin.
     const at = (e: string) => e.slice(e.lastIndexOf('@') + 1).toLowerCase()
     await audit(tx, ctx, 'membership.granted', 'user', userId, market, null, {

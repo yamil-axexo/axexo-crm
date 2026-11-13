@@ -18,10 +18,11 @@ export type ReportScope = { full: string[]; team: string[] }
 export function reportScope(ctx: Ctx, own = false): ReportScope {
   const live = ctx.markets.filter((m) => m.status === 'live').map((m) => m.code)
   const has = (code: string, roles: Role[]) => ctx.memberships.some((m) => roles.includes(m.role) && (m.market === null || m.market === code))
-  const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead']))
+  // reportes2: Finanzas lee su mercado completo (solo lectura), como quien lo lidera.
+  const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead', 'finance']))
   // Supervisión ve a su equipo. Con `own` (solo "Mis negocios cerrados"), quien vende ve lo que lleva: app.supervised_user_ids()
   // devuelve a la propia persona y a quienes supervisa. Los demás reportes no le dan alcance a quien vende.
-  const team = live.filter((c) => !full.includes(c) && has(c, own ? ['supervisor', 'rep'] : ['supervisor']))
+  const team = live.filter((c) => !full.includes(c) && has(c, own ? ['supervisor', 'rep', 'kam'] : ['supervisor']))
   return { full, team }
 }
 export const scopeMarkets = (s: ReportScope) => [...s.full, ...s.team]

@@ -14,6 +14,7 @@ import { ago, dayTime } from '@/lib/format'
 import { MOTOR, lab, qs } from '@/lib/labels'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
+import { setAutomationOwnerAction, setTransitionActiveAction } from '@/app/(app)/embudo2-actions'
 import { createAutomationAction, escalationAction, runJobAction, saveStepAction, stageTimesAction, toggleAutomationAction } from './actions'
 
 export const maxDuration = 60
@@ -122,7 +123,20 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                           <span className="mt-0.5 block text-[12.5px] text-muted-2">{[t(SOURCE_LABEL[r.source].es, SOURCE_LABEL[r.source].en), r.motor ? lab(t, MOTOR[r.motor]) || r.motor : t('todos los tipos de venta', 'all sales types'), t(`versión ${r.version}`, `version ${r.version}`), r.owner_name ? t(`la lleva ${r.owner_name}`, `owned by ${r.owner_name}`) : t('sin responsable', 'nobody answers for it yet')].join(' · ')}</span>
                         </td>
                         <td className="text-[13.5px] text-muted-2">{d.then.map((x) => t(x.es, x.en)).join('. ')}</td>
-                        <td>{r.is_active ? <Badge tone="good">{t('Activa', 'On')}</Badge> : <Badge tone="warn">{t('En pausa', 'Paused')}</Badge>}</td>
+                        <td>
+                          {r.is_active ? <Badge tone="good">{t('Activa', 'On')}</Badge> : <Badge tone="warn">{t('En pausa', 'Paused')}</Badge>}
+                          {r.owner_review && (
+                            <span className="mt-1 flex flex-wrap items-center gap-2" data-testid="auto-owner-review">
+                              <Badge tone="info">{t('Responsable por confirmar', 'Owner to confirm')}</Badge>
+                              {manage && r.owner_id && (
+                                <NoticeForm action={setAutomationOwnerAction} testId="auto-owner-confirm">
+                                  <input type="hidden" name="id" value={r.id} /><input type="hidden" name="owner_id" value={r.owner_id} />
+                                  <Submit variant="ghost" size="sm" testId="auto-owner-confirm-btn">{t('Confirmar', 'Confirm')}</Submit>
+                                </NoticeForm>
+                              )}
+                            </span>
+                          )}
+                        </td>
                         <td className="text-[13.5px] text-muted-2">{r.last_at ? `${ago(r.last_at, locale)} · ${t(`${r.done_7d} en 7 días`, `${r.done_7d} in 7 days`)}` : t('todavía no ha hecho nada', 'it has not done anything yet')}</td>
                         {manage && (
                           <td className="text-right">
@@ -205,7 +219,14 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                   <Table label={t(`Pasos de ${p.name}`, `Steps of ${p.name}`)} head={<><th>{t('Paso', 'Step')}</th><th>{t('Quién lo da', 'Who takes it')}</th><th>{t('Qué pide', 'What it requires')}</th><th className="relative"><span className="sr-only">{t('Editar', 'Edit')}</span></th></>}>
                     {steps.map((s) => (
                       <tr key={s.id} className="table-row" data-testid="step-row">
-                        <td><span className="font-semibold text-strong">{stageName(s.from_stage_id)} → {stageName(s.to_stage_id)}</span>{!s.is_active && <span className="ml-2"><Badge tone="warn">{t('sin efecto', 'off')}</Badge></span>}</td>
+                        <td><span className="font-semibold text-strong">{stageName(s.from_stage_id)} → {stageName(s.to_stage_id)}</span>{!s.is_active && <span className="ml-2"><Badge tone="warn">{t('sin efecto', 'off')}</Badge></span>}
+                          {s.pending_owner && <span className="mt-1 block text-[12.5px] text-muted-2" data-testid="step-proposed">{t(`Valor propuesto, [pendiente: ${s.pending_owner}]`, `Proposed value, [pending: ${s.pending_owner}]`)}</span>}
+                          {s.pending_owner && !s.is_active && (
+                            <NoticeForm action={setTransitionActiveAction} testId="step-activate">
+                              <input type="hidden" name="id" value={s.id} /><input type="hidden" name="active" value="true" />
+                              <Submit variant="ghost" size="sm" testId="step-activate-btn">{t('Activar este paso', 'Turn this step on')}</Submit>
+                            </NoticeForm>
+                          )}</td>
                         <td className="text-[13.5px] text-muted-2">{s.allowed_roles.length ? s.allowed_roles.map((r) => t(ROLE_LABEL[r].es, ROLE_LABEL[r].en)).join(', ') : t('quien ya puede mover el negocio', 'whoever can already move the deal')}</td>
                         <td className="text-[13.5px] text-muted-2" data-testid="step-needs">{[s.requires_evidence ? t(`Evidencia: ${s.evidence_es ?? ''}`, `Evidence: ${s.evidence_en ?? ''}`) : null, s.needs_approval ? t(`Aprueba ${who(s)} en ${s.approval_hours} h hábiles${s.backup_name ? `; suplente, ${s.backup_name}` : ''}`, `${who(s)} approves within ${s.approval_hours} business hours${s.backup_name ? `; backup, ${s.backup_name}` : ''}`) : null].filter(Boolean).join(' · ') || t('nada más', 'nothing else')}</td>
                         <td className="text-right"><Dialog trigger={t('Editar', 'Edit')} title={t('Editar paso', 'Edit step')} size="sm" testId="step-edit"><StepForm pipelineId={p.id} market={p.market_code} stages={stages} step={s} /></Dialog></td>
@@ -224,6 +245,8 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                           <span className="min-w-[180px] flex-1 text-[14px] font-medium text-strong">{t(s.name_es, s.name_en)}{s.is_ops && <span className="ml-2 text-[12.5px] text-muted-2">{t('Operaciones', 'Operations')}</span>}<span className="block text-[12.5px] font-normal text-muted-2">{s.rot_days ? t(`se estanca a los ${s.rot_days} días`, `stalls after ${s.rot_days} days`) : t('nunca se marca como estancada', 'never flagged as stalled')}</span></span>
                           <Field label={t('Meta (horas hábiles)', 'Goal (business hours)')}><input name="sla_hours" type="number" inputMode="numeric" min={1} max={2000} className="input !w-28" defaultValue={s.sla_hours ?? ''} data-testid="stage-sla" /></Field>
                           <Field label={t('Espera de un tercero (días)', 'Third-party wait (days)')}><input name="rot_days_waiting" type="number" inputMode="numeric" min={0} max={365} className="input !w-28" defaultValue={s.rot_days_waiting ?? ''} data-testid="stage-wait" /></Field>
+                          <Field label={t('Espera del cliente (días)', 'Customer wait (days)')}><input name="rot_days_customer" type="number" inputMode="numeric" min={1} max={365} className="input !w-28" defaultValue={s.rot_days_customer ?? ''} data-testid="stage-wait-customer" /></Field>
+                          <Field label={t('Espera del carrier (días)', 'Carrier wait (days)')}><input name="rot_days_carrier" type="number" inputMode="numeric" min={1} max={365} className="input !w-28" defaultValue={s.rot_days_carrier ?? ''} data-testid="stage-wait-carrier" /></Field>
                           <Submit variant="ghost" size="sm" testId="stage-times-save">{t('Guardar', 'Save')}</Submit>
                         </NoticeForm>
                       </li>

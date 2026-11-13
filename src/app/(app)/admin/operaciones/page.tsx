@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getOpsConfig } from '@/dal/ops'
+import { VisitPurposesProposal } from '@/app/(app)/admin/embudo/embudo2'
 import { Card, CardTitle, Field, PageHeader } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { pipelineFlagsAction, saveCatalogAction, saveProductAction, saveVisitReasonAction } from '@/app/(app)/operaciones/actions'
@@ -87,6 +88,7 @@ export default async function OpsConfigPage() {
         <Card data-testid="ops-visit-reasons">
           <CardTitle title={t('Propósitos de visita', 'Visit purposes')}
             hint={t('La lista que elige quien registra una visita. Un mercado con lista la pide en cada visita; uno sin lista no la pregunta. Marca los que son de campaña.', 'The list people pick from when they log a visit. A market with a list asks for it on every visit; one without does not ask. Tick the campaign ones.')} />
+          <VisitPurposesProposal ctx={ctx} />
           {cfg.visitReasons.length === 0 && <p className="text-[14.5px] text-muted" data-testid="visit-reasons-empty">{t('Todavía no hay propósitos. Agrega el primero abajo.', 'No purposes yet. Add the first one below.')}</p>}
           <ul className="divide-y divide-line">
             {cfg.visitReasons.map((c) => (

@@ -23,7 +23,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 - Any 2xx is success. Anything else is retried after 1, 5, 30 and 120 minutes; the fifth failure moves the delivery to dead letters, where an administrator can resend it.
 - At-least-once: a subscriber can receive the same event twice and must discard repeats by `id`.
 
-## Catalog (229 events)
+## Catalog (256 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -45,6 +45,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `account.milestone_corrected` | 1 | Corrected a merchant’s sales milestone. | `changed` (string[]), `actor_id` (uuid) |
 | `account.origin_set` | 1 | Set a merchant’s origin. | `changed` (string[]), `actor_id` (uuid) |
 | `account.owner_by_territory` | 1 | A store went to its territory manager. | `changed` (string[]), `actor_id` (uuid) |
+| `account.owner_followed_parent` | 1 | The merchant took the owner of the record above. | `changed` (string[]), `actor_id` (uuid) |
 | `account.parent_changed` | 1 | Changed a merchant’s parent. | `changed` (string[]), `actor_id` (uuid) |
 | `account.product_set` | 1 | Changed a merchant’s product or its provider status. | `changed` (string[]), `actor_id` (uuid) |
 | `account.profile_set` | 1 | Changed a merchant’s entity, business unit or time zone. | `changed` (string[]), `actor_id` (uuid) |
@@ -68,6 +69,8 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `activity.added` | 1 | Logged an activity. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.comm_captured` | 1 | Logged an email, a meeting or a message in the thread. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.completed` | 1 | Completed an activity. | `changed` (string[]), `actor_id` (uuid) |
+| `activity.corrected` | 1 | Corrected an activity with a new entry. | `changed` (string[]), `actor_id` (uuid) |
+| `activity.custom_updated` | 1 | Edited an activity’s additional fields. | `changed` (string[]), `actor_id` (uuid) |
 | `activity.revisit_scheduled` | 1 | Scheduled the revisit to the decision-maker. | `changed` (string[]), `actor_id` (uuid) |
 | `agency.created` | 1 | Created an agency. | `changed` (string[]), `actor_id` (uuid) |
 | `agency.labels_set` | 1 | Changed who counts as an agency. | `changed` (string[]), `actor_id` (uuid) |
@@ -75,6 +78,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `alias.added` | 1 | Added an ID from another system to a merchant. | `changed` (string[]), `actor_id` (uuid) |
 | `alias.closed` | 1 | Closed a merchant’s ID from another system. | `changed` (string[]), `actor_id` (uuid) |
 | `attribution.corrected` | 1 | Corrected a merchant’s attribution (new row). | `changed` (string[]), `actor_id` (uuid) |
+| `attribution.reclassified` | 1 | Classified a market’s pending origins and recruiting teams. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.created` | 1 | Created an automation. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.paused` | 1 | Paused an automation. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.resumed` | 1 | Turned an automation on. | `changed` (string[]), `actor_id` (uuid) |
@@ -83,10 +87,16 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `claim.extended` | 1 | Extended a channel registration with evidence. | `changed` (string[]), `actor_id` (uuid) |
 | `claim.registered` | 1 | Registered a store for a channel. | `changed` (string[]), `actor_id` (uuid) |
 | `claim.rejected` | 1 | Rejected a channel registration with a reason. | `changed` (string[]), `actor_id` (uuid) |
+| `commission_statement.estimated` | 1 | Calculated a market’s estimated commission statements. | `changed` (string[]), `actor_id` (uuid) |
+| `commission_statement.published` | 1 | Published a commission statement under its written rules. | `changed` (string[]), `actor_id` (uuid) |
 | `competitor.added` | 1 | Added a competitor to the list. | `changed` (string[]), `actor_id` (uuid) |
 | `competitor.observed` | 1 | Recorded competition at a store. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.added` | 1 | Added a contact. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.custom_updated` | 1 | Edited a contact’s additional fields. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.ended` | 1 | Removed a contact from an account. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.merge_undone` | 1 | Undid a contact merge. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.merged` | 1 | Merged a duplicate contact. | `changed` (string[]), `actor_id` (uuid) |
+| `contact.pair_dismissed` | 1 | Marked two contacts as different people. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.primary_set` | 1 | Changed the primary contact. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.updated` | 1 | Edited a contact. | `changed` (string[]), `actor_id` (uuid) |
 | `contract.created` | 1 | Created a contract from the terms. | `changed` (string[]), `actor_id` (uuid) |
@@ -105,6 +115,8 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `deal.created` | 1 | A deal was opened. | `account_id` (uuid) |
 | `deal.custom_updated` | 1 | Edited a deal’s additional fields. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.evidence_added` | 1 | Added evidence to a deal. | `changed` (string[]), `actor_id` (uuid) |
+| `deal.forecast_adjusted` | 1 | Adjusted a deal’s forecast category, with a note. | `changed` (string[]), `actor_id` (uuid) |
+| `deal.forecast_set` | 1 | Set a deal’s forecast category. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.funded` | 1 | The first funding moved a deal to waiting for the first sale. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.handed_to_ops` | 1 | Handed a deal over to Operations. | `changed` (string[]), `actor_id` (uuid) |
 | `deal.item_added` | 1 | Added a line to the order. | `changed` (string[]), `actor_id` (uuid) |
@@ -133,12 +145,19 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `entity.updated` | 1 | Edited a legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `exception.dismissed` | 1 | Dismissed an alert. | `changed` (string[]), `actor_id` (uuid) |
 | `exception.scheduled` | 1 | Handled an alert with a next step. | `changed` (string[]), `actor_id` (uuid) |
+| `expansion.deal_opened` | 1 | Opened an expansion deal. | `changed` (string[]), `actor_id` (uuid) |
+| `feedback.digest_sent` | 1 | Got the weekly feedback digest ready for P&T. | `changed` (string[]), `actor_id` (uuid) |
 | `field.approved` | 1 | Approved a proposed field. | `changed` (string[]), `actor_id` (uuid) |
+| `field.converted_to_list` | 1 | Turned a text field into a list. | `changed` (string[]), `actor_id` (uuid) |
 | `field.created` | 1 | Created a field. | `changed` (string[]), `actor_id` (uuid) |
+| `field.overlap_decided` | 1 | Decided whether a US field matches an imported one. | `changed` (string[]), `actor_id` (uuid) |
+| `field.promotion_closed` | 1 | Closed a request to promote a field to a column. | `changed` (string[]), `actor_id` (uuid) |
+| `field.promotion_requested` | 1 | Requested promoting a field to a column. | `changed` (string[]), `actor_id` (uuid) |
 | `field.proposed` | 1 | Proposed a new field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.rejected` | 1 | Rejected a proposed field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.restored` | 1 | Restored a field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.retired` | 1 | Retired a field. | `changed` (string[]), `actor_id` (uuid) |
+| `field.schema_set` | 1 | Changed a field’s value rules. | `changed` (string[]), `actor_id` (uuid) |
 | `field.section_set` | 1 | Moved a field to another section. | `changed` (string[]), `actor_id` (uuid) |
 | `field.updated` | 1 | Edited a registry field. | `changed` (string[]), `actor_id` (uuid) |
 | `form.campaign_set` | 1 | Changed a form’s campaign group, channel or company types. | `changed` (string[]), `actor_id` (uuid) |
@@ -153,6 +172,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `lead.created` | 1 | A lead came in. | `source` (string), `motor` (string) |
 | `lead.disqualified` | 1 | Disqualified a lead. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.escalated` | 1 | Escalated a lead with no first contact. | `changed` (string[]), `actor_id` (uuid) |
+| `lead.held` | 1 | Held a request nobody could take. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.label_created` | 1 | Added a lead label. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.labels_changed` | 1 | Changed a lead’s labels. | `changed` (string[]), `actor_id` (uuid) |
 | `lead.linked_to_account` | 1 | Linked a lead to an existing merchant. | `changed` (string[]), `actor_id` (uuid) |
@@ -180,6 +200,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `onboarding.auto_approved` | 1 | Prepaid enrollment file approved by rule. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.document_received` | 1 | Marked an enrollment document as received. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.document_reviewed` | 1 | Validated or rejected an enrollment document. | `changed` (string[]), `actor_id` (uuid) |
+| `onboarding.link_created` | 1 | Created a capture link for an onboarding file. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.opened` | 1 | Opened an enrollment file. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.returned` | 1 | Returned an enrollment file with a reason. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.submitted` | 1 | Sent an enrollment file to the control desk. | `changed` (string[]), `actor_id` (uuid) |
@@ -210,10 +231,12 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `process.list_created` | 1 | Created a process list. | `changed` (string[]), `actor_id` (uuid) |
 | `process.list_toggled` | 1 | Turned a process list on or off. | `changed` (string[]), `actor_id` (uuid) |
 | `process.status_changed` | 1 | Changed a merchant’s status on a process list. | `changed` (string[]), `actor_id` (uuid) |
+| `product.entity_set` | 1 | Changed a product’s legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `product.provider_set` | 1 | Changed a product’s provider. | `changed` (string[]), `actor_id` (uuid) |
 | `provider.sla_set` | 1 | Changed a provider’s response deadline. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.assignment_rule_changed` | 1 | Changed the cap of an assignment rule. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.assignment_rule_created` | 1 | Created a lead assignment rule. | `changed` (string[]), `actor_id` (uuid) |
+| `routing.assignment_rule_edited` | 1 | Changed the name or condition of an assignment rule. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.assignment_rule_moved` | 1 | Changed the order of an assignment rule. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.assignment_rule_toggled` | 1 | Turned a lead assignment rule on or off. | `changed` (string[]), `actor_id` (uuid) |
 | `routing.escalation_updated` | 1 | Changed a market’s first-contact escalation. | `changed` (string[]), `actor_id` (uuid) |
@@ -249,6 +272,10 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `training.done` | 1 | Marked a training as done. | `changed` (string[]), `actor_id` (uuid) |
 | `training.no_show` | 1 | Recorded that the dealer missed the training. | `changed` (string[]), `actor_id` (uuid) |
 | `training.scheduled` | 1 | Scheduled a training. | `changed` (string[]), `actor_id` (uuid) |
+| `usage.board_opened` | 1 | A supervisor or lead opened their team board (at most once an hour). | `board` (string) |
+| `usage.one_on_one` | 1 | A supervisor held a 1:1 with the board. The record is the supervisor. | `person_id` (uuid), `held_on` (string) |
+| `usage.queue_item_done` | 1 | Someone handled a notice from their queue. | `exception_id` (uuid), `kind` (string) |
+| `user.alias_set` | 1 | Set a person’s ID in another system. | `changed` (string[]), `actor_id` (uuid) |
 | `user.bootstrap_admin` | 1 | Got Administration from the environment’s bootstrap list. | `changed` (string[]), `actor_id` (uuid) |
 | `user.entity_set` | 1 | Changed a person’s legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `user.territories_changed` | 1 | Changed a person’s territories. | `changed` (string[]), `actor_id` (uuid) |
@@ -478,6 +505,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `api_client.rotated` | Rotated an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `api_client.updated` | Changed the owner or expiry of an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `automation.notified` | An automation notified a person | It is a notice between people inside CONTIGO, not a change to the record. |
+| `automation.owner_set` | Confirmed who answers for an automation | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `automation.task_created` | An automation created a task | It is a notice between people inside CONTIGO, not a change to the record. |
 | `care.alert_dismissed` | Dismissed a merchant alert | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `care.alert_done` | Handled a merchant alert | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
@@ -515,6 +543,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `champion.reviewed` | Recorded the monthly review with a champion | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `champion.set` | Changed a team’s champion | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `change.reason_added` | Recorded why a configuration change was made | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `channel_policy.changed` | Saved a version of the reversal policy | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `comms.saved` | Changed a market’s notice settings | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `component.owners_set` | Changed who answers for a component | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `config_request.created` | Asked for a configuration change | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
@@ -527,13 +556,16 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `cost.voided` | Voided a cost | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `csv_import.completed` | Imported a file | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `csv_import.undone` | Undid an import | It is a historical or file load: each record created emits its own event; the run itself does not. |
+| `decision.set` | Changed a business decision | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `deployment.recorded` | Recorded a deployment | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `document.emailed` | Emailed a document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `document.generated` | Generated a document | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `document.order_pdf` | Downloaded an order PDF | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `duplicate.bypass_reviewed` | Reviewed a skipped duplicate warning | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `duplicate.bypassed` | Created a merchant despite a duplicate warning, with a reason | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `duplicate.dismissed` | Dismissed a pair of possible duplicates | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `duplicate.scanned` | Scanned a market for duplicates | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
+| `enablement.progress_recorded` | Recorded a partner’s training progress | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `event_delivery.resent` | Resent an event to a subscriber | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `event_subscriber.created` | Added an event subscriber | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `event_subscriber.secret_rotated` | Rotated an event subscriber’s secret | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
@@ -546,11 +578,14 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `field_incident.viewed` | Opened a field incident | It is a confidential field record with restricted access: it is logged and not published to other systems. |
 | `field_section.created` | Added a field section | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `flag.changed` | Changed who a feature applies to | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `forecast.submitted` | Submitted the period’s forecast | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `funding.simulated` | Loaded a simulated funding value | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `funnel.setting_changed` | Changed or confirmed a pipeline setting | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `goal.updated` | Changed a goal | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `help.lesson_saved` | Changed a screen’s lesson | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `ia.draft_approved` | Approved a task draft | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `ia.draft_rejected` | Rejected a task draft, with a reason | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
+| `ia.eval_auto_run` | Ran the evaluation on its own because the prompt or model version changed | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `ia.eval_case_added` | Added a case to the evaluation | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `ia.eval_run` | Ran a feature’s evaluation | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
 | `ia.holdout_added` | Made a territory a control group | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
@@ -572,6 +607,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `incident.opened` | Opened an incident | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `incident.updated` | Updated an incident | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `integration.dead_letter` | A Sales App message went to dead letters | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
+| `integration.equipment_received` | An equipment install or removal arrived from the Sales App | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.intake_held` | Held a form submission that could not be saved | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.intake_retried` | Retried a held form submission by hand | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.merchant_approved` | A merchant’s approval arrived | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
@@ -587,12 +623,15 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `load.window_set` | Changed a market’s no-load window | It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not. |
 | `maintenance.closed` | Closed a maintenance window | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `maintenance.scheduled` | Scheduled a maintenance window | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `market.reset_blocked` | Tried to wipe and reload a market in production | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `market.reset_test` | Wiped and reloaded a test market | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `material.removed` | Removed a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `material.saved` | Saved a training material | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `mcp_oauth.authorized` | Allowed an agent to read as this person | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `mcp_oauth.client_created` | Registered an agent that can ask for read permission | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `mcp_oauth.revoked` | Removed an agent’s access | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `metric.board_confirmed` | Confirmed the indicators on a role’s board | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `metric.board_updated` | Changed the indicators on a role’s board | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `metric.owner_set` | Changed who answers for a metric | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `network_load.business_released` | Gave the business release for an acquired network | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `network_load.legal_released` | Gave the legal release for an acquired network | It is a historical or file load: each record created emits its own event; the run itself does not. |
@@ -613,6 +652,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `partner_token.revoked` | Revoked a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `pipedrive.backup_downloaded` | Downloaded the Pipedrive backup | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `platform_value.changed` | Changed a platform value | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `quality.exceptions_opened` | Data quality rules opened notices in the team queue | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.rule_updated` | Edited a data quality rule | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.snapshot_saved` | Saved today’s data quality snapshot | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `recommendation.accepted` | Accepted a suggestion and set the task with a date | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |
@@ -635,6 +675,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `rollout.leaders_first_set` | Changed the leaders-first rule | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `rollout.step_set` | Changed a market rollout step | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `rollout.team_opened` | Opened the market to the field team | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `routing.suggestion_decided` | Decided a saturated store suggestion | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `rules.evaluated` | Ran the rules by hand | Running the rules opens or closes internal notices; it changes no merchants, leads or deals. |
 | `saved_report.deleted` | Deleted a saved report | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `saved_report.delivered` | Delivered a scheduled report | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
@@ -658,6 +699,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `session.started` | Signed in | Sign-ins and sign-outs do not change business data. |
 | `sheet.migrated_loaded` | Loaded migrated stores from the sheet | It is a historical or file load: each record created emits its own event; the run itself does not. |
 | `sheet.visits_loaded` | Loaded visits from the sheet | It is a historical or file load: each record created emits its own event; the run itself does not. |
+| `snapshot.pruned` | Daily snapshots already delivered and outside the window were removed | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `snapshot.taken` | Took the daily snapshot | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `subject_request.anonymized` | Anonymized a person’s data | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `subject_request.closed` | Closed a personal data request | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
@@ -666,5 +708,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `subject_request.updated` | Updated a personal data request | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `template.saved` | Saved a new version of a template | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `threshold.changed` | Changed a threshold (new version) | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `threshold.proposed_value_set` | Set a value that was proposed | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `transition.activated` | Turned a proposed stage step on or off | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `view_as.ended` | Stopped viewing as someone else | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `view_as.started` | Started viewing CONTIGO as someone else | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |

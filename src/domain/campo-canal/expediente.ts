@@ -1,5 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
+import { createHash, randomBytes } from 'node:crypto'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, clean } from '@/domain/common'
@@ -84,29 +85,164 @@ export async function markReceived(ctx: Ctx, docId: string, rawLink: string): Pr
 /** Enviar a la mesa de control. Si es prepago, todo está recibido y la regla está encendida, se aprueba solo. */
 export async function submitFile(ctx: Ctx, fileId: string): Promise<'submitted' | 'auto_approved'> {
   if (!/^[0-9a-f-]{36}$/i.test(fileId)) throw notFound()
+  return withUser(ctx.user.id, (tx) => submitFileTx(tx, ctx, fileId, true))
+}
+
+async function submitFileTx(tx: Tx, ctx: Ctx, fileId: string, check: boolean): Promise<'submitted' | 'auto_approved'> {
+  const f = (await tx<{ market_code: string; status: string; funding: string; account_id: string }[]>`
+    select market_code, status, funding, account_id from crm.onboarding_files where id = ${fileId} for update`)[0]
+  if (!f) throw notFound('No encontramos ese expediente.', 'We could not find that file.')
+  if (check) ctx.assert('onboarding.capture', f.market_code)
+  if (!['draft', 'returned'].includes(f.status)) throw invalid('Este expediente ya se envió.', 'This file was already sent.')
+  const missing = await tx<{ requirement: string }[]>`select requirement from crm.onboarding_documents where file_id = ${fileId} and status in ('missing', 'rejected')`
+  if (missing.length) throw invalid(`Faltan ${missing.length} documentos por recibir o corregir.`, `${missing.length} documents still need to be received or fixed.`)
+  const rule = await threshold(tx, f.market_code, 'prepaid_auto_approve')
+  if (f.funding === 'prepaid' && rule.value >= 1) {
+    await tx`update crm.onboarding_files set status = 'auto_approved', submitted_at = now(), decided_at = now(),
+              decision_note = ${`Aprobado por la regla de prepago, versión ${rule.version}`} where id = ${fileId}`
+    await audit(tx, ctx, 'onboarding.auto_approved', 'onboarding_file', fileId, f.market_code, { status: f.status }, { status: 'auto_approved', rule: 'prepaid_auto_approve', rule_version: rule.version })
+    return 'auto_approved'
+  }
+  const sla = await threshold(tx, f.market_code, 'control_desk_sla_hours')
+  await tx`update crm.onboarding_files set status = 'submitted', submitted_at = now(), due_at = now() + make_interval(hours => ${sla.value}) where id = ${fileId}`
+  await audit(tx, ctx, 'onboarding.submitted', 'onboarding_file', fileId, f.market_code, { status: f.status }, { status: 'submitted', sla_hours: sla.value, sla_version: sla.version })
+  await notifyMany(tx, ctx, await peopleWithRole(tx, f.market_code, ['ops']), {
+    kind: 'lifecycle', market: f.market_code, link: '/campo?tab=expedientes', needsAction: true,
+    title: ['Expediente nuevo en la mesa de control', 'New file at the control desk'], body: [`Plazo: ${sla.value} horas.`, `Deadline: ${sla.value} hours.`],
+  })
+  return 'submitted'
+}
+
+// ------------------------------------------------------------------ campo2: el expediente también nace en la Sales App
+export type SalesAppFile = {
+  person_type?: string | null
+  funding?: string | null
+  documents?: { requirement: string; link?: string | null }[]
+  documents_complete?: boolean | null
+  submitted_at: string
+}
+
+/**
+ * onboarding.submitted abre (o completa) el expediente del comercio, capturado allá una sola vez. Sin tipo de persona o
+ * forma de pago se toma lo más conservador (persona física, prepago con la autoaprobación como esté en el mercado: apagada
+ * de fábrica). Los documentos que trae llegan como recibidos con su enlace https; si viene completo, se envía a la mesa.
+ * Devuelve qué pasó para la bitácora del evento.
+ */
+export async function openFileFromSalesAppTx(tx: Tx, sys: Ctx, acc: { id: string; market_code: string }, d: SalesAppFile): Promise<{ fileId: string | null; outcome: 'opened' | 'updated' | 'submitted' | 'auto_approved' | 'no_form' | 'closed' }> {
+  const personType = (PERSON_TYPES as readonly string[]).includes(d.person_type ?? '') ? d.person_type! : 'individual'
+  const funding = (FUNDINGS as readonly string[]).includes(d.funding ?? '') ? d.funding! : 'prepaid'
+  let file = (await tx<{ id: string; status: string }[]>`
+    select id, status from crm.onboarding_files where account_id = ${acc.id} and status not in ('approved', 'auto_approved') for update`)[0]
+  let outcome: 'opened' | 'updated' = 'updated'
+  if (!file) {
+    const done = await tx`select 1 from crm.onboarding_files where account_id = ${acc.id} and status in ('approved', 'auto_approved')`
+    if (done[0]) return { fileId: null, outcome: 'closed' }
+    const reqs = await tx<{ code: string; pii_class: string; retention_days: number }[]>`
+      select code, pii_class, retention_days from crm.onboarding_requirements
+       where market_code = ${acc.market_code} and person_type = ${personType} and funding in (${funding}, 'any') and is_active order by position`
+    if (reqs.length === 0) return { fileId: null, outcome: 'no_form' }
+    const rows = await tx<{ id: string }[]>`
+      insert into crm.onboarding_files (account_id, market_code, person_type, funding, captured_via, visited_at, created_by)
+      values (${acc.id}, ${acc.market_code}, ${personType}, ${funding}, 'sales_app', ${d.submitted_at}, ${sys.user.id}) returning id, 'draft' as status`
+    file = { id: rows[0]!.id, status: 'draft' }
+    for (const r of reqs) {
+      await tx`insert into crm.onboarding_documents (file_id, account_id, market_code, requirement, pii_class, retention_until)
+               values (${file.id}, ${acc.id}, ${acc.market_code}, ${r.code}, ${r.pii_class}, (now() + make_interval(days => ${r.retention_days}))::date)`
+    }
+    outcome = 'opened'
+    await audit(tx, sys, 'onboarding.opened', 'onboarding_file', file.id, acc.market_code, null, { account_id: acc.id, person_type: personType, funding, captured_via: 'sales_app', documents: reqs.length, defaults: !d.person_type || !d.funding })
+  }
+  if (['draft', 'returned'].includes(file.status)) {
+    for (const doc of d.documents ?? []) {
+      const link = doc.link && /^https:\/\/[^\s]{4,490}$/.test(doc.link) ? doc.link : null
+      const res = await tx`update crm.onboarding_documents set status = 'received', link = coalesce(${link}, link), validated_by = null, validated_at = null, updated_at = now()
+                            where file_id = ${file.id} and requirement = ${doc.requirement} and status in ('missing', 'rejected', 'received')`
+      if (res.count) await audit(tx, sys, 'onboarding.document_received', 'onboarding_file', file.id, acc.market_code, null, { requirement: doc.requirement, status: 'received', has_link: Boolean(link), via: 'sales_app' })
+    }
+    const missing = await tx`select 1 from crm.onboarding_documents where file_id = ${file.id} and status in ('missing', 'rejected') limit 1`
+    if (d.documents_complete && !missing[0]) return { fileId: file.id, outcome: await submitFileTx(tx, sys, file.id, false) }
+  }
+  return { fileId: file.id, outcome }
+}
+
+// ------------------------------------------------------------------ campo2: enlace de captura con código
+const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex')
+
+/** Quien captura genera un enlace para que el comercio deje los enlaces de sus documentos. Se muestra una sola vez. */
+export async function createOnboardingLink(ctx: Ctx, fileId: string): Promise<{ token: string; expiresAt: Date }> {
+  if (!/^[0-9a-f-]{36}$/i.test(fileId)) throw notFound()
   return withUser(ctx.user.id, async (tx) => {
-    const f = (await tx<{ market_code: string; status: string; funding: string; account_id: string }[]>`
-      select market_code, status, funding, account_id from crm.onboarding_files where id = ${fileId} for update`)[0]
+    const f = (await tx<{ account_id: string; market_code: string; status: string }[]>`select account_id, market_code, status from crm.onboarding_files where id = ${fileId}`)[0]
     if (!f) throw notFound('No encontramos ese expediente.', 'We could not find that file.')
     ctx.assert('onboarding.capture', f.market_code)
-    if (!['draft', 'returned'].includes(f.status)) throw invalid('Este expediente ya se envió.', 'This file was already sent.')
-    const missing = await tx<{ requirement: string }[]>`select requirement from crm.onboarding_documents where file_id = ${fileId} and status in ('missing', 'rejected')`
-    if (missing.length) throw invalid(`Faltan ${missing.length} documentos por recibir o corregir.`, `${missing.length} documents still need to be received or fixed.`)
-    const rule = await threshold(tx, f.market_code, 'prepaid_auto_approve')
-    if (f.funding === 'prepaid' && rule.value >= 1) {
-      await tx`update crm.onboarding_files set status = 'auto_approved', submitted_at = now(), decided_at = now(),
-                decision_note = ${`Aprobado por la regla de prepago, versión ${rule.version}`} where id = ${fileId}`
-      await audit(tx, ctx, 'onboarding.auto_approved', 'onboarding_file', fileId, f.market_code, { status: f.status }, { status: 'auto_approved', rule: 'prepaid_auto_approve', rule_version: rule.version })
-      return 'auto_approved'
-    }
-    const sla = await threshold(tx, f.market_code, 'control_desk_sla_hours')
-    await tx`update crm.onboarding_files set status = 'submitted', submitted_at = now(), due_at = now() + make_interval(hours => ${sla.value}) where id = ${fileId}`
-    await audit(tx, ctx, 'onboarding.submitted', 'onboarding_file', fileId, f.market_code, { status: f.status }, { status: 'submitted', sla_hours: sla.value, sla_version: sla.version })
-    await notifyMany(tx, ctx, await peopleWithRole(tx, f.market_code, ['ops']), {
-      kind: 'lifecycle', market: f.market_code, link: '/campo?tab=expedientes', needsAction: true,
-      title: ['Expediente nuevo en la mesa de control', 'New file at the control desk'], body: [`Plazo: ${sla.value} horas.`, `Deadline: ${sla.value} hours.`],
-    })
-    return 'submitted'
+    if (!['draft', 'returned'].includes(f.status)) throw invalid('El expediente ya está en la mesa de control.', 'The file is already at the control desk.')
+    const days = await threshold(tx, f.market_code, 'onboarding_link_days')
+    await tx`update crm.onboarding_links set revoked_at = now() where file_id = ${fileId} and revoked_at is null and used_at is null`
+    const token = randomBytes(24).toString('base64url')
+    const rows = await tx<{ expires_at: Date }[]>`
+      insert into crm.onboarding_links (file_id, account_id, market_code, token_hash, expires_at, created_by)
+      values (${fileId}, ${f.account_id}, ${f.market_code}, ${tokenHash(token)}, now() + make_interval(days => ${days.value}), ${ctx.user.id}) returning expires_at`
+    await audit(tx, ctx, 'onboarding.link_created', 'onboarding_file', fileId, f.market_code, null, { days: days.value, days_version: days.version })
+    return { token, expiresAt: rows[0]!.expires_at }
+  })
+}
+
+export type LinkView = { market_code: string; locale: 'es' | 'en'; store: string; status: string; docs: { id: string; label_es: string; label_en: string; status: string; has_link: boolean }[] }
+
+async function liveLink(tx: Tx, token: string): Promise<{ id: string; file_id: string; market_code: string } | null> {
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return null
+  const rows = await tx<{ id: string; file_id: string; market_code: string }[]>`
+    select id, file_id, market_code from crm.onboarding_links where token_hash = ${tokenHash(token)} and revoked_at is null and used_at is null and expires_at > now()`
+  return rows[0] ?? null
+}
+
+/** Lo que ve quien abre el enlace: solo el nombre de la tienda y la lista de documentos de ese expediente. */
+export async function onboardingLinkView(sys: Ctx, token: string): Promise<LinkView | null> {
+  return withUser(sys.user.id, async (tx) => {
+    const l = await liveLink(tx, token)
+    if (!l) return null
+    const f = (await tx<{ name: string; status: string; locale: 'es' | 'en' }[]>`
+      select a.name, f.status, mk.default_locale as locale from crm.onboarding_files f join crm.accounts a on a.id = f.account_id join crm.markets mk on mk.code = f.market_code where f.id = ${l.file_id}`)[0]
+    if (!f) return null
+    const docs = await tx<LinkView['docs']>`
+      select d.id, coalesce(r.label_es, d.requirement) as label_es, coalesce(r.label_en, d.requirement) as label_en, d.status, d.link is not null as has_link
+        from crm.onboarding_documents d join crm.onboarding_files f on f.id = d.file_id
+        left join crm.onboarding_requirements r on r.market_code = d.market_code and r.code = d.requirement and r.person_type = f.person_type and r.funding in (f.funding, 'any')
+       where d.file_id = ${l.file_id} order by r.position nulls last, d.requirement`
+    return { market_code: l.market_code, locale: f.locale, store: f.name, status: f.status, docs: [...docs] }
+  })
+}
+
+/** Un enlace que ya se usó para enviar: quien lo abre ve que se recibió, sin ningún dato del expediente. */
+export async function onboardingLinkUsed(sys: Ctx, token: string): Promise<boolean> {
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return false
+  return withUser(sys.user.id, async (tx) => (await tx`select 1 from crm.onboarding_links where token_hash = ${tokenHash(token)} and used_at is not null`).length > 0)
+}
+
+/** Quien abre el enlace deja el enlace https de un documento. No ve ni cambia nada más. */
+export async function onboardingLinkReceive(sys: Ctx, token: string, docId: string, rawLink: string): Promise<void> {
+  const link = clean(rawLink)
+  if (!link || !/^https:\/\/[^\s]{4,490}$/.test(link)) throw invalid('El enlace tiene que empezar con https://.', 'The link must start with https://.')
+  assertNoProhibited(link)
+  await withUser(sys.user.id, async (tx) => {
+    const l = await liveLink(tx, token)
+    if (!l) throw notFound('Este enlace ya no sirve. Pide uno nuevo a quien te visitó.', 'This link no longer works. Ask whoever visited you for a new one.')
+    const res = await tx`update crm.onboarding_documents d set status = 'received', link = ${link}, validated_by = null, validated_at = null, updated_at = now()
+                          from crm.onboarding_files f where f.id = d.file_id and d.id = ${docId} and d.file_id = ${l.file_id} and d.status in ('missing', 'rejected', 'received')
+                           and f.status in ('draft', 'returned')`
+    if (!res.count) throw invalid('Ese documento ya no se puede cambiar.', 'That document can no longer be changed.')
+    await audit(tx, sys, 'onboarding.document_received', 'onboarding_file', l.file_id, l.market_code, null, { status: 'received', has_link: true, via: 'link' })
+  })
+}
+
+/** Con todo recibido, quien abre el enlace lo manda a la mesa de control. El enlace queda usado. */
+export async function onboardingLinkSubmit(sys: Ctx, token: string): Promise<'submitted' | 'auto_approved'> {
+  return withUser(sys.user.id, async (tx) => {
+    const l = await liveLink(tx, token)
+    if (!l) throw notFound('Este enlace ya no sirve. Pide uno nuevo a quien te visitó.', 'This link no longer works. Ask whoever visited you for a new one.')
+    const out = await submitFileTx(tx, sys, l.file_id, false)
+    await tx`update crm.onboarding_links set used_at = now() where id = ${l.id}`
+    return out
   })
 }
 

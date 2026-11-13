@@ -1,3 +1,5 @@
+import { withUser } from '@/server/db'
+import { emitUsage } from '@/domain/reportes2'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
@@ -24,6 +26,7 @@ import { ConfirmButton } from '@/ui/confirm'
 import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
 import { flat } from '@/server/params'
 import { TeamStoreSales } from './ventas-equipo'
+import { SaturationSuggestions } from './sugerencias'
 
 /** Columnas de la tabla del equipo. En pantallas angostas cada persona se lee como tarjeta, con el nombre arriba y cada cifra con su etiqueta. */
 const COLS: [es: string, en: string][] = [
@@ -51,6 +54,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const board = await getSupervisorBoard(ctx, { ...sp, team })
   // Uso real (Adopción): cuenta que quien supervisa abrió el tablero de su equipo, no que entró a CONTIGO.
   if (teamView) await track(ctx, 'view.supervisor')
+  // reportes2 (GOB-03): abrir el tablero del equipo es uso de quien supervisa; sale por el outbox (una vez por hora como máximo).
+  if (teamView && !ctx.viewAs) await withUser(ctx.user.id, (tx) => emitUsage(tx, ctx, 'usage.board_opened', null, { board: 'team' }))
   const canReport = teamView && ctx.can('report.view')
   const weeks = canReport ? await getWeeklyResults(ctx, { market: sp.market, team }) : []
   const live = ctx.markets.filter((m) => m.status === 'live')
@@ -118,6 +123,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           {ctx.can('rules.run') && <ActionForm action={runRulesAction}><Submit variant="ghost" testId="run-rules">{t('Actualizar avisos', 'Refresh alerts')}</Submit></ActionForm>}
         </>}
       />
+      <SaturationSuggestions ctx={ctx} />
       {teamView && <GoalsSection ctx={ctx} market={sp.market ?? null} />}
       {live.length > 1 && (
         <div className="mb-6">

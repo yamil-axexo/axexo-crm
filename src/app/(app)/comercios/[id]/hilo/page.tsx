@@ -6,7 +6,9 @@ import { flat } from '@/server/params'
 import { fullThread } from '@/dal/embudo'
 import { MILESTONE_LABEL, type Milestone } from '@/domain/embudo/closing'
 import { TICKET_STATUS_LABEL } from '@/domain/embudo/tickets'
-import { Card, PageHeader, Pills, buttonClass } from '@/ui/kit'
+import { Badge, Card, Field, PageHeader, Pills, buttonClass } from '@/ui/kit'
+import { ActionForm, Dialog, Submit } from '@/ui/client'
+import { correctActivityAction } from '@/app/(app)/embudo2-actions'
 import { ACTIVITY, lab, qs } from '@/lib/labels'
 import { dayTime } from '@/lib/format'
 
@@ -50,6 +52,28 @@ export default async function FullThreadPage({ params, searchParams }: { params:
                 <p className="text-[12.5px] text-muted">{dayTime(e.at, locale, tz)}{e.who ? ` · ${e.who}` : ''}{withChildren && e.account_id !== id ? <> · <Link href={`/comercios/${e.account_id}`} className="underline" data-testid="thread-branch">{e.account_name}</Link></> : null}</p>
                 <p className="text-[15px] font-medium text-strong [overflow-wrap:anywhere]">{title(e)}</p>
                 {detail(e) && <p className="text-[13.5px] text-muted-2 [overflow-wrap:anywhere]">{detail(e)}</p>}
+                {(e.corrected || e.is_correction || (e.visibility && e.visibility !== 'team')) && (
+                  <p className="mt-1 flex flex-wrap gap-2 text-[12.5px]">
+                    {e.corrected && <Badge tone="warn"><span data-testid="thread-corrected">{t('Corregida: la corrección está en el hilo', 'Corrected: the correction is in the thread')}</span></Badge>}
+                    {e.is_correction && <Badge tone="info"><span data-testid="thread-correction">{t('Corrección', 'Correction')}</span></Badge>}
+                    {e.visibility === 'managers' && <Badge>{t('La ven quien dirige', 'Visible to managers')}</Badge>}
+                    {e.visibility === 'restricted' && <Badge>{t('Reservada', 'Restricted')}</Badge>}
+                  </p>
+                )}
+                {e.is_activity && !e.corrected && ctx.can('activity.correct') && (
+                  <div className="mt-1">
+                    <Dialog trigger={t('Corregir', 'Correct')} title={t('Corregir con una entrada nueva', 'Correct with a new entry')} size="sm" variant="quiet" testId="thread-correct">
+                      <ActionForm action={correctActivityAction} onOk="close" className="space-y-4 text-left" testId="thread-correct-form">
+                        <input type="hidden" name="id" value={e.id} /><input type="hidden" name="account_id" value={id} />
+                        <p className="text-[13.5px] text-muted-2">{t('Lo que ya pasó no se borra ni se reescribe: la corrección queda como otra entrada y la original se marca.', 'What already happened is not erased or rewritten: the correction stays as another entry and the original is marked.')}</p>
+                        <Field label={t('Cómo debe decir', 'What it should say')}><input name="subject" className="input" required minLength={2} maxLength={200} defaultValue={e.title} data-testid="thread-correct-subject" /></Field>
+                        <Field label={t('Detalle', 'Detail')}><textarea name="body" className="input min-h-20" maxLength={4000} defaultValue={e.detail ?? ''} /></Field>
+                        <Field label={t('Por qué se corrige', 'Why it is corrected')}><input name="reason" className="input" required minLength={3} maxLength={200} data-testid="thread-correct-reason" /></Field>
+                        <div className="flex justify-end"><Submit testId="thread-correct-save">{t('Agregar corrección', 'Add correction')}</Submit></div>
+                      </ActionForm>
+                    </Dialog>
+                  </div>
+                )}
               </li>
             ))}
           </ol>

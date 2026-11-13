@@ -25,6 +25,7 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
       territoryId: str(fd, 'territory_id'),
       email: str(fd, 'email'),
       addressLine: str(fd, 'address_line'),
+      taxId: str(fd, 'tax_id'),
       force: fd.get('force') === 'on',
       reason: str(fd, 'reason'),
       recruitedBy: str(fd, 'recruited_by'),

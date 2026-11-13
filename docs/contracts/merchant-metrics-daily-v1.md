@@ -71,3 +71,21 @@ overwritten in silence. All of these are optional: a file without them keeps wor
 Pulling the file (instead of receiving it) is an adapter left off (`src/server/adapters/sales-file.ts`, variable `SALES_FILE`).
 Not yet agreed with Data & Reporting: the funding and habit fields, the method list and where the file is left `[pending: Data & Reporting]`.
 
+
+## Late files, required manifest, TPV by product and commission (added 13-nov-2026, package `reportes2`)
+
+- **Late files are rejected.** A file whose `as_of` is earlier than the latest cutoff already applied is recorded as
+  rejected (`stale_as_of`), the answer is 409 and nothing is applied: an older cutoff never moves merchant status back.
+  The same `as_of` is still accepted (it is a correction and keeps its before and after, see PIPE-06).
+- **Manifest can be required.** Administration has a setting (Administración, "Tableros y valores propuestos"):
+  when it is on, a file with no `manifest` is recorded as rejected (`manifest_missing`), 409, nothing applied. It is off
+  (proposed value) until Data & Reporting delivers the manifest in every file.
+- **Optional per-row fields.** CONTIGO stores them as they come and never computes them:
+
+```json
+{ "tpv_by_product": [{ "product": "string (1-60)", "volume_minor_30d": 0 }],
+  "commission_minor_30d": 0 }
+```
+
+Without them, screens say there is no data. With `status` missing, CONTIGO uses its fallback rule and says so on screen
+("Estado calculado por CONTIGO con su regla de respaldo").

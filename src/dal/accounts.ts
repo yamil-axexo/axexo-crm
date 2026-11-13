@@ -170,8 +170,9 @@ export async function getAccount(ctx: Ctx, id: string) {
        where d.account_id = ${id} order by (d.status = 'open') desc, d.created_at desc`
     // El archivo más reciente de S5 y, si existe, el de 30 días antes (hasta 7 días de tolerancia): la comparación no se inventa.
     const metrics = await tx<{ as_of: string; first_txn_at: Date | null; last_txn_at: Date | null; txn_count_30d: number; volume_minor_30d: string; currency: string; active_days_30d: number;
-      prev_as_of: string | null; prev_txn_count_30d: number | null; prev_volume_minor_30d: string | null }[]>`
+      prev_as_of: string | null; prev_txn_count_30d: number | null; prev_volume_minor_30d: string | null; status: string | null; tpv_by_product: { product: string; volume_minor_30d: number }[] | null; commission_minor_30d: string | null }[]>`
       select m.as_of::text, m.first_txn_at, m.last_txn_at, m.txn_count_30d, m.volume_minor_30d::text, m.currency, m.active_days_30d,
+             m.status, m.tpv_by_product, m.commission_minor_30d::text,
              p.as_of::text as prev_as_of, p.txn_count_30d as prev_txn_count_30d, p.volume_minor_30d::text as prev_volume_minor_30d
         from crm.merchant_metrics_daily m
         left join lateral (select x.as_of, x.txn_count_30d, x.volume_minor_30d from crm.merchant_metrics_daily x

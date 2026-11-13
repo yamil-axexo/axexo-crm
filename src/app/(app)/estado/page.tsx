@@ -40,6 +40,8 @@ import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
 import { PlatformCard, StagingBanner } from './plataforma'
 import { realtimeMissing, realtimeMode } from '@/server/adapters/realtime'
+import { campo2AdapterStatus } from '@/server/adapters/campo2'
+import { ProposedCard } from './propuestos'
 
 export const dynamic = 'force-dynamic'
 
@@ -273,6 +275,14 @@ export default async function StatusPage() {
     state: offOr(a.mode),
     last: `${t(...a.needs)} ${t(`${num(partnerQueue[a.key] ?? 0, locale)} en cola sin salir. Se enciende con la variable ${a.envVar}, después de la aprobación.`, `${num(partnerQueue[a.key] ?? 0, locale)} queued, not sent. It is turned on with the ${a.envVar} variable, after approval.`)}`,
   })))
+  // Paquete campo2: resumen de comentarios hacia P&T, avance de Kore Academy de aliados y cruce en el lakehouse. Construidos y apagados.
+  rows.push(...campo2AdapterStatus().map((a) => ({
+    key: `campo2_${a.key}`,
+    name: t(...a.name),
+    what: t(...a.what),
+    state: offOr(a.mode),
+    last: `${t(...a.needs)} ${t(`Se enciende con la variable ${a.envVar}, después de la aprobación.`, `It is turned on with the ${a.envVar} variable, after approval.`)}`,
+  })))
   // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
   rows.push({
     key: 'jobs',
@@ -386,9 +396,11 @@ export default async function StatusPage() {
                 </li>
               ))}
             </ul>
+            <p className="mt-3 text-[13px] text-muted-2">{t('Los valores propuestos, con quién decide cada uno, están en la lista de abajo.', 'Proposed values, with their owner, are in the list below.')}</p>
           </Card>
         </div>
 
+        <ProposedCard ctx={ctx} />
         <Card data-testid="status-close-rules">
           <CardTitle title={t('Cómo se gana cada embudo', 'How each pipeline is won')} hint={t('La regla de cierre vigente y los últimos cambios. Cambiarla aplica desde ese momento a los negocios abiertos.', 'The current closing rule and the latest changes. Changing it applies from that moment to open deals.')} />
           <ul>

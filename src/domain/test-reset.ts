@@ -1,5 +1,6 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { withUser, type Tx } from '@/server/db'
+import { decisionValue } from '@/domain/decisions'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { DomainError, invalid } from '@/lib/errors'
@@ -13,15 +14,31 @@ import { DomainError, invalid } from '@/lib/errors'
  */
 export function resetAllowed(env: Record<string, string | undefined> = process.env): boolean {
   const app = env.APP_ENV ?? 'development'
+  // En producción lo decide productionResetState (E6.F8, datos2): sin esa decisión, bloqueado.
   if (app === 'production') return false
   if (app === 'staging') return env.TEST_RESET_ON_STAGING === '1'
   return true
 }
+/**
+ * E6.F8 (datos2): en producción, borrar y recargar un mercado es una decisión de Dan Mulligan ('market.reset_production' en
+ * Decisiones de negocio). Mientras siga como valor propuesto ("bloqueado"), no corre, y el intento queda en la bitácora.
+ */
+export async function productionResetState(tx: Tx): Promise<'blocked' | 'allowed'> {
+  const d = await decisionValue(tx, 'market.reset_production', null)
+  return d.value === 'allowed' && !d.proposed ? 'allowed' : 'blocked'
+}
+
 export const confirmationFor = (market: string) => [`BORRAR ${market}`, `WIPE ${market}`]
 
 export async function resetTestMarket(ctx: Ctx, market: string, confirmation: string): Promise<Record<string, number>> {
   ctx.assert('market.reset_test')
-  if (!resetAllowed()) throw new DomainError('forbidden', 'En este ambiente no se puede borrar un mercado.', 'A market cannot be wiped in this environment.', 403)
+  if ((process.env.APP_ENV ?? 'development') === 'production') {
+    const state = await withUser(ctx.user.id, (tx) => productionResetState(tx))
+    if (state === 'blocked') {
+      await withUser(ctx.user.id, (tx) => audit(tx, ctx, 'market.reset_blocked', 'market', null, market, null, { reason: 'decision_pending', owner: 'Dan Mulligan' }))
+      throw new DomainError('forbidden', 'En producción, borrar y recargar un mercado está bloqueado: es una decisión pendiente de Dan Mulligan.', 'In production, wiping and reloading a market is blocked: it is a decision pending from Dan Mulligan.', 403)
+    }
+  } else if (!resetAllowed()) throw new DomainError('forbidden', 'En este ambiente no se puede borrar un mercado.', 'A market cannot be wiped in this environment.', 403)
   ctx.market(market)
   if (!confirmationFor(market).includes(confirmation.trim().toUpperCase().replace(/\s+/g, ' ')))
     throw invalid(`Para confirmar escribe exactamente: BORRAR ${market}`, `To confirm, type exactly: WIPE ${market}`)

@@ -8,6 +8,7 @@ import { runAlerts } from '@/domain/care'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 import { isUuid } from '@/lib/ids'
 import { aiReviewDraft, pullCompletions } from '@/server/adapters/care'
+import { deliverFeedbackDigest } from '@/server/adapters/campo2'
 import { isCorporate } from '@/lib/care'
 
 /**
@@ -105,17 +106,25 @@ export async function recordManagerChange(ctx: Ctx, raw: z.input<typeof managerI
   return withUser(ctx.user.id, async (tx) => {
     const a = await loadAccount(tx, v.accountId)
     ctx.assert('manager.change', a.market_code)
-    await notFuture(tx, a.market_code, v.changedOn)
-    const rows = await tx<{ id: string }[]>`
-      insert into crm.manager_changes (account_id, market_code, changed_on, new_name, note, source, recorded_by)
-      values (${a.id}, ${a.market_code}, ${v.changedOn}, ${v.newName}, ${clean(v.note)}, ${v.source}, ${ctx.user.id}) returning id`
-    const en = ctx.market(a.market_code).locale === 'en'
-    await tx`insert into crm.activities (market_code, account_id, kind, subject, body, done_at, owner_id, created_by, source)
-             values (${a.market_code}, ${a.id}, 'note', ${(en ? `New manager: ${v.newName}` : `Cambió el encargado: ${v.newName}`).slice(0, 200)}, ${clean(v.note)}, now(), ${ctx.user.id}, ${ctx.user.id}, 'user')`
-    await audit(tx, ctx, 'care.manager_changed', 'account', a.id, a.market_code, null, { changed_on: v.changedOn, source: v.source })
-    await runAlerts(tx, ctx, { accountId: a.id })
-    return rows[0]!.id
+    return recordManagerChangeTx(tx, ctx, a, v)
   })
+}
+
+/**
+ * CS-06: el mismo registro cuando el cambio llega en la visita de la Sales App (visit.checked_out, campo manager_change).
+ * Corre como sistema dentro de la transacción del evento; el nombre ya llega limpio.
+ */
+export async function recordManagerChangeTx(tx: Tx, ctx: Ctx, a: { id: string; market_code: string }, v: { changedOn: string; newName: string; note?: string; source: 'visit' | 'call' | 'other' }): Promise<string> {
+  await notFuture(tx, a.market_code, v.changedOn)
+  const rows = await tx<{ id: string }[]>`
+    insert into crm.manager_changes (account_id, market_code, changed_on, new_name, note, source, recorded_by)
+    values (${a.id}, ${a.market_code}, ${v.changedOn}, ${v.newName}, ${clean(v.note ?? '')}, ${v.source}, ${ctx.user.id}) returning id`
+  const en = ctx.market(a.market_code).locale === 'en'
+  await tx`insert into crm.activities (market_code, account_id, kind, subject, body, done_at, owner_id, created_by, source)
+           values (${a.market_code}, ${a.id}, 'note', ${(en ? `New manager: ${v.newName}` : `Cambió el encargado: ${v.newName}`).slice(0, 200)}, ${clean(v.note ?? '')}, now(), ${ctx.user.id}, ${ctx.user.id}, 'user')`
+  await audit(tx, ctx, 'care.manager_changed', 'account', a.id, a.market_code, null, { changed_on: v.changedOn, source: v.source })
+  await runAlerts(tx, ctx, { accountId: a.id })
+  return rows[0]!.id
 }
 
 // ================================================================ CS-07 · expansión
@@ -351,5 +360,13 @@ export async function feedbackDigest(tx: Tx): Promise<{ done: number; note: stri
     select w.s, w.e, coalesce((select sum(n) from c), 0)::int, coalesce((select jsonb_agg(jsonb_build_object('market', market_code, 'topic', topic, 'kind', kind, 'count', n) order by n desc) from c), '[]'::jsonb) from w
     on conflict (period_start, period_end) do update set total = excluded.total, counts = excluded.counts, created_at = now()
     returning id, total`
+  // CS-08: el resumen sale hacia P&T. Con el canal apagado queda en cola a la vista; además sale como evento de dominio.
+  const d = rows[0]
+  if (d) {
+    const status = await deliverFeedbackDigest(d)
+    await tx`update crm.feedback_digests set delivery_status = ${status}, delivered_at = ${status === 'simulated' ? new Date() : null} where id = ${d.id}`
+    const sys = await systemCtx()
+    await audit(tx, sys, 'feedback.digest_sent', 'feedback_digest', d.id, null, null, { total: d.total, delivery: status })
+  }
   return { done: rows[0]?.total ?? 0, note: 'weekly digest' }
 }

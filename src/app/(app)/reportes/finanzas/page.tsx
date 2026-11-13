@@ -6,6 +6,9 @@ import { DataTable, linkClass } from '@/ui/reportes'
 import { qs } from '@/lib/labels'
 import { day, money, monthYear, num } from '@/lib/format'
 import { monthEnd } from '@/lib/periods'
+import { boardConfig, costByMonth, financeValues } from '@/dal/role-boards'
+import { RoleBoard } from '@/ui/role-board'
+import { ExportLink } from '@/ui/report'
 import { loadReport, type ReportSp } from '../load'
 import { ReportHeader, exportNote } from '../shell'
 
@@ -16,6 +19,9 @@ export default async function FinanceReportPage({ searchParams }: { searchParams
   const { t, locale } = ctx
   const d = await getFinanceReport(ctx, period, f)
   const n = d.totals.reduce((s, x) => s + x.n, 0), withAmount = d.totals.reduce((s, x) => s + x.withAmount, 0)
+  // GOB-09 (reportes2): el costo de CONTIGO por mes, para Finanzas: costo total, por persona activa y por acción de IA.
+  const costs = ctx.can('cost.read') ? await costByMonth(ctx) : []
+  const board = ctx.can('cost.read') ? (await boardConfig(ctx, 'finance')).filter((i) => i.key.startsWith('financeCost')) : []
   return (
     <>
       <ReportHeader r={r} />
@@ -43,6 +49,26 @@ export default async function FinanceReportPage({ searchParams }: { searchParams
             num(x.with_amount, locale), Number(x.amount) > 0 ? money(Number(x.amount), x.currency, locale) : <NoData locale={locale} />,
           ] }))} />
       </Card>
+      {board.length > 0 && (
+        <Card className="mt-6" data-testid="finance-costs">
+          <CardTitle title={t('Costo de CONTIGO por mes', 'CONTIGO cost by month')} hint={t('Lo cargado en Gobierno, con el costo por persona activa y por acción de IA. Sin costos cargados no hay cifra.', 'What was loaded in Governance, with the cost per active person and per AI action. With no costs loaded there is no figure.')} />
+          <RoleBoard t={t} locale={locale} items={board} values={financeValues(costs)} owners={owners} money={['financeCostMonth', 'financeCostPerPerson']} testId="finance-board" />
+          <DataTable testId="finance-cost-table" label={t('Costo por mes', 'Cost by month')}
+            empty={<div className="pt-5"><Empty title={t('Todavía no hay costos cargados', 'No costs loaded yet')} hint={t('Administración los carga en Gobierno, por mes y componente.', 'Administration loads them in Governance, by month and component.')} /></div>}
+            head={[{ label: t('Mes', 'Month') }, { label: t('Costo', 'Cost'), num: true }, { label: t('Personas activas', 'Active people'), num: true }, { label: t('Por persona', 'Per person'), num: true }, { label: t('Acciones de IA', 'AI actions'), num: true }, { label: t('Costo de IA', 'AI cost'), num: true }, { label: t('Referencia (lo que se deja de pagar)', 'Reference (what is no longer paid)'), num: true }]}
+            rows={costs.map((c) => ({ key: c.month, testId: 'finance-cost-row', cells: [
+              monthYear(`${c.month.slice(0, 7)}-15`, locale), money(Math.round(c.cost * 100), 'USD', locale), c.people === null ? <NoData locale={locale} /> : num(c.people, locale),
+              c.people ? money(Math.round((c.cost / c.people) * 100), 'USD', locale) : <NoData locale={locale} />, num(c.aiActions, locale), money(Math.round(c.aiCost * 100), 'USD', locale),
+              c.reference > 0 ? money(Math.round(c.reference * 100), 'USD', locale) : <NoData locale={locale} />,
+            ] }))} />
+        </Card>
+      )}
+      {ctx.can('visit.reimbursement') && (
+        <p className="mt-6 flex flex-wrap items-center gap-3 text-[14px]" data-testid="finance-visits">
+          <span className="text-muted">{t('Para cruzar visitas con reembolsos de millas:', 'To cross visits with mileage reimbursements:')}</span>
+          <ExportLink t={t} href={qs('/reportes/visitas/export', { mercado: r.f.market })} testId="finance-visit-detail">{t('Detalle de visitas, 31 días (reembolsos)', 'Visit detail, 31 days (reimbursements)')}</ExportLink>
+        </p>
+      )}
       {exportNote(r)}
     </>
   )

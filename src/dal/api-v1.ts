@@ -81,7 +81,8 @@ export async function readResource(key: ApiKey, name: ApiResource['name'], param
     const after = q.cursor ? tx`and x.id > ${q.cursor}` : tx``
     if (name === 'accounts') {
       const rows = await tx<Record<string, unknown>[]>`
-        select x.id, x.market_code as market, x.kind, x.account_type, x.name, x.segment, x.lifecycle, x.parent_id, x.owner_id, x.territory_id, x.locality, x.region,
+        select x.id, x.market_code as market, x.kind, x.account_type, x.name, x.segment, x.lifecycle, x.parent_id, x.owner_id,
+               (select al.external_id from crm.user_aliases al where al.user_id = x.owner_id and al.system = 's5' and al.valid_to is null) as owner_ref, x.territory_id, x.locality, x.region,
                x.merchant_ref, x.created_at, x.updated_at
           from crm.accounts x
          where x.market_code = ${market} and x.archived_at is null ${after}
@@ -92,7 +93,8 @@ export async function readResource(key: ApiKey, name: ApiResource['name'], param
     }
     if (name === 'deals') {
       const rows = await tx<Record<string, unknown>[]>`
-        select x.id, x.market_code as market, x.account_id, x.pipeline_id, x.stage_id, x.owner_id, x.status, x.amount_minor::float8 as amount_minor, trim(x.currency) as currency,
+        select x.id, x.market_code as market, x.account_id, x.pipeline_id, x.stage_id, x.owner_id,
+               (select al.external_id from crm.user_aliases al where al.user_id = x.owner_id and al.system = 's5' and al.valid_to is null) as owner_ref, x.status, x.amount_minor::float8 as amount_minor, trim(x.currency) as currency,
                x.loss_reason_code, x.next_step_due::text as next_step_due, x.won_at, x.lost_at, x.closed_by, x.created_at, x.updated_at
           from crm.deals x
          where x.market_code = ${market} ${after}

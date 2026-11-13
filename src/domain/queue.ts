@@ -1,4 +1,5 @@
 import 'server-only'
+import { emitUsage } from '@/domain/reportes2'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
@@ -128,6 +129,8 @@ export async function completeItem(ctx: Ctx, raw: CompleteInput): Promise<Comple
                  values (${market}, ${accountId}, ${dealId}, ${leadId}, 'task', ${ctx.m(`suggest.${e.kind}` as MessageKey, { name })}, ${note}, now(), ${result}, ${ctx.user.id}, ${ctx.user.id}, 'rule')`
       }
       await audit(tx, ctx, `exception.${resolution}`, 'exception', id, market, null, { kind: e.kind, outcome: result, next })
+      // reportes2 (GOB-03): atender un aviso de la cola es uso que cuenta para la adopción; sale por el outbox.
+      await emitUsage(tx, ctx, 'usage.queue_item_done', market, { exception_id: id, kind: e.kind })
     }
 
     if (next === 'none' || !when) return { next: null, due: null }

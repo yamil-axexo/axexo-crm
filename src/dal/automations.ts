@@ -25,6 +25,8 @@ export type AutomationRow = {
   version: number
   owner_id: string | null
   owner_name: string | null
+  /** AUT-03 (embudo2): quedó con administración por no tener dueño; falta que alguien lo confirme. */
+  owner_review: boolean
   updated_by_name: string | null
   updated_at: Date
   last_at: Date | null
@@ -34,7 +36,7 @@ export type AutomationRow = {
 const SELECT = (tx: Parameters<Parameters<typeof withUser>[1]>[0]) => tx`
   select a.id, a.market_code, a.motor, a.key, a.name_es, a.name_en, a.source, a.trigger_kind, a.trigger_event, a.conditions, a.actions, a.is_active, a.version,
          a.pipedrive_ref, a.description_es, a.description_en, a.off_reason_es, a.off_reason_en,
-         a.owner_id, o.full_name as owner_name, u.full_name as updated_by_name, a.updated_at,
+         a.owner_id, o.full_name as owner_name, a.owner_review, u.full_name as updated_by_name, a.updated_at,
          (select max(l.at) from crm.automation_log l where l.automation_id = a.id) as last_at,
          (select count(*)::int from crm.automation_log l where l.automation_id = a.id and l.outcome = 'done' and l.at > now() - interval '7 days') as done_7d
     from crm.automations a left join crm.users o on o.id = a.owner_id left join crm.users u on u.id = a.updated_by`
@@ -84,20 +86,20 @@ export async function jobsPanel(ctx: Ctx): Promise<{ jobs: JobRow[]; runs: RunRo
   })
 }
 
-export type StepStage = { id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; is_ops: boolean; sla_hours: number | null; rot_days: number; rot_days_waiting: number | null }
+export type StepStage = { id: string; pipeline_id: string; position: number; name_es: string; name_en: string; kind: string; is_ops: boolean; sla_hours: number | null; rot_days: number; rot_days_waiting: number | null; rot_days_customer: number | null; rot_days_carrier: number | null }
 export type StepRow = {
   id: string; pipeline_id: string; from_stage_id: string | null; to_stage_id: string; allowed_roles: Role[]; requires_evidence: boolean; evidence_es: string | null; evidence_en: string | null
-  needs_approval: boolean; approver_role: Role | null; approver_id: string | null; approver_name: string | null; backup_id: string | null; backup_name: string | null; approval_hours: number; is_active: boolean
+  needs_approval: boolean; approver_role: Role | null; approver_id: string | null; approver_name: string | null; backup_id: string | null; backup_name: string | null; approval_hours: number; is_active: boolean; pending_owner: string | null
 }
 
 /** Embudos con sus etapas, los pasos configurados y las personas que pueden aprobar, por mercado. */
 export async function stepsConfig(ctx: Ctx): Promise<{ pipelines: { id: string; market_code: string; name: string }[]; stages: StepStage[]; steps: StepRow[]; people: (Person & { market_code: string | null })[] }> {
   return withUser(ctx.user.id, async (tx) => {
     const pipelines = await tx<{ id: string; market_code: string; name: string }[]>`select id, market_code, name from crm.pipelines where market_code = any(${ctx.markets.map((m) => m.code)}::text[]) order by market_code, position, name`
-    const stages = await tx<StepStage[]>`select id, pipeline_id, position, name_es, name_en, kind, is_ops, sla_hours, rot_days, rot_days_waiting from crm.stages where archived_at is null order by pipeline_id, position`
+    const stages = await tx<StepStage[]>`select id, pipeline_id, position, name_es, name_en, kind, is_ops, sla_hours, rot_days, rot_days_waiting, rot_days_customer, rot_days_carrier from crm.stages where archived_at is null order by pipeline_id, position`
     const steps = await tx<StepRow[]>`
       select t.id, t.pipeline_id, t.from_stage_id, t.to_stage_id, t.allowed_roles, t.requires_evidence, t.evidence_es, t.evidence_en, t.needs_approval, t.approver_role,
-             t.approver_id, a.full_name as approver_name, t.backup_id, b.full_name as backup_name, t.approval_hours, t.is_active
+             t.approver_id, a.full_name as approver_name, t.backup_id, b.full_name as backup_name, t.approval_hours, t.is_active, t.pending_owner
         from crm.stage_transitions t left join crm.users a on a.id = t.approver_id left join crm.users b on b.id = t.backup_id order by t.updated_at`
     const people = await tx<(Person & { market_code: string | null })[]>`
       select distinct u.id, u.full_name, m.market_code from crm.users u join crm.memberships m on m.user_id = u.id
@@ -120,7 +122,9 @@ export type DealSteps = {
   goal: { due_at: Date; late: boolean; hours: number } | null
   /** Pasos configurados desde la etapa actual que piden algo. */
   steps: { to_stage_id: string; to_es: string; to_en: string; requires_evidence: boolean; evidence_es: string | null; evidence_en: string | null; needs_approval: boolean; has_evidence: boolean }[]
-  evidence: { id: string; to_es: string; to_en: string; url: string; note: string; added_by: string | null; added_at: Date }[]
+  evidence: { id: string; to_es: string; to_en: string; url: string | null; note: string; added_by: string | null; added_at: Date; content_hash: string | null; requirement: string | null }[]
+  /** PIPE-02 (embudo2): documentos del expediente de alta del comercio que pueden servir de evidencia (recibidos o válidos). */
+  documents: { id: string; requirement: string; status: string; content_hash: string | null }[]
   pending: { id: string; to_es: string; to_en: string; requested_by: string; requester: string | null; approver: string | null; approver_role: Role | null; due_at: Date; late: boolean; escalated: boolean; backup: string | null; mine: boolean; can_decide: boolean } | null
   last: { status: string; to_es: string; to_en: string; decided_by: string | null; decided_at: Date | null; note: string | null } | null
 }
@@ -130,8 +134,8 @@ export async function dealSteps(ctx: Ctx, dealId: string): Promise<DealSteps | n
   return withUser(ctx.user.id, async (tx) => {
     const d = await tx<{ market_code: string; pipeline_id: string; stage_id: string; status: string; waiting_on: string | null; stage_entered_at: Date; sla_hours: number | null; due_at: Date | null; late: boolean | null }[]>`
       select d.market_code, d.pipeline_id, d.stage_id, d.status, d.waiting_on, d.stage_entered_at, s.sla_hours,
-             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60) end as due_at,
-             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60) < now() end as late
+             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60, app.account_timezone(d.account_id)) end as due_at,
+             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60, app.account_timezone(d.account_id)) < now() end as late
         from crm.deals d join crm.stages s on s.id = d.stage_id where d.id = ${dealId}`
     const deal = d[0]
     if (!deal) return null
@@ -143,8 +147,12 @@ export async function dealSteps(ctx: Ctx, dealId: string): Promise<DealSteps | n
          and (t.requires_evidence or t.needs_approval) and s.archived_at is null
        order by t.to_stage_id, t.from_stage_id nulls last`
     const evidence = await tx<DealSteps['evidence']>`
-      select e.id, s.name_es as to_es, s.name_en as to_en, e.url, e.note, u.full_name as added_by, e.added_at
-        from crm.deal_evidence e join crm.stages s on s.id = e.to_stage_id left join crm.users u on u.id = e.added_by where e.deal_id = ${dealId} order by e.added_at desc limit 20`
+      select e.id, s.name_es as to_es, s.name_en as to_en, e.url, e.note, u.full_name as added_by, e.added_at, e.content_hash, od.requirement
+        from crm.deal_evidence e join crm.stages s on s.id = e.to_stage_id left join crm.users u on u.id = e.added_by
+        left join crm.onboarding_documents od on od.id = e.document_id where e.deal_id = ${dealId} order by e.added_at desc limit 20`
+    const documents = await tx<DealSteps['documents']>`
+      select od.id, od.requirement, od.status, od.content_hash from crm.onboarding_documents od join crm.deals dd on dd.account_id = od.account_id
+       where dd.id = ${dealId} and od.status in ('received', 'valid') order by od.requirement`
     const ap = await tx<{ id: string; market_code: string; status: string; to_es: string; to_en: string; requested_by: string; requester: string | null; approver_id: string | null; approver: string | null; approver_role: Role | null
       backup_id: string | null; backup: string | null; due_at: Date; late: boolean; escalated_at: Date | null; decided_by: string | null; decided_at: Date | null; note: string | null }[]>`
       select a.id, a.market_code, a.status, s.name_es as to_es, s.name_en as to_en, a.requested_by, r.full_name as requester, a.approver_id, p.full_name as approver, a.approver_role,
@@ -159,6 +167,7 @@ export async function dealSteps(ctx: Ctx, dealId: string): Promise<DealSteps | n
       goal: deal.status === 'open' && deal.due_at && deal.sla_hours ? { due_at: deal.due_at, late: Boolean(deal.late), hours: deal.sla_hours } : null,
       steps: [...steps],
       evidence: [...evidence],
+      documents: [...documents],
       pending: open ? {
         id: open.id, to_es: open.to_es, to_en: open.to_en, requested_by: open.requested_by, requester: open.requester, approver: open.approver, approver_role: open.approver_role, due_at: open.due_at,
         late: open.late, escalated: Boolean(open.escalated_at), backup: open.backup, mine: open.requested_by === ctx.user.id,

@@ -51,15 +51,17 @@ test.describe('página Reportes', () => {
     // la definición y quién responde por el número, a un toque
     await page.getByTestId('m-conversion').locator('summary').click()
     await expect(page.getByTestId('m-conversion')).toContainText('Quién responde por este número')
-    // filtro por fuente
-    await page.getByTestId('filter-fuente').selectOption({ label: 'Formulario web' })
-    await expect(page).toHaveURL(/fuente=web_form/)
-    for (const r of await page.getByTestId('leads-row').all()) await expect(r).toContainText('Formulario web')
+    // filtro por fuente. En México los formularios web son de campaña desde el paquete mx (el seed deja sus leads como
+    // "Campaña web"): con "Formulario web" ana.robles no tenía filas y la prueba esperaba una que no existe.
+    await page.getByTestId('filter-fuente').selectOption({ label: 'Campaña web' })
+    await expect(page).toHaveURL(/fuente=web_campaign/)
+    await expect(page.getByTestId('leads-row').first()).toBeVisible()
+    for (const r of await page.getByTestId('leads-row').all()) await expect(r).toContainText('Campaña web')
     // clic al detalle: la lista de leads de ese mes y esa fuente
     const first = page.getByTestId('leads-row').first()
     const n = int(await first.getByTestId('leads-row-link').innerText())
     await first.getByTestId('leads-row-link').click()
-    await expect(page).toHaveURL(/\/leads\?.*source=web_form/)
+    await expect(page).toHaveURL(/\/leads\?.*source=web_campaign/)
     if (n <= 25) await expect(page.getByTestId('lead-row')).toHaveCount(n)
     // exportación gobernada
     await page.goto(`/reportes/leads?${YEAR}`)
@@ -97,8 +99,11 @@ test.describe('página Reportes', () => {
     const db = testDb()
     try {
       const d = (await db`select d.account_id from crm.deals d where d.market_code = 'MX' and d.created_at >= '2026-01-01' order by d.id limit 1`)[0]!
-      await db`delete from crm.account_attributions where account_id = ${d.account_id} and layer = 'origin'`
-      await db`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label) values (${d.account_id}, 'MX', 'origin', 'partner', 'e2e-ag', 'Agencia de ejemplo')`
+      // campo2: un solo modelo de agencia (crm.agencies); cuenta la capa de canal vigente a nombre de una agencia.
+      const ag = (await db`insert into crm.agencies (market_code, name, kind) values ('MX', 'Agencia de ejemplo', 'agency') on conflict do nothing returning id`)[0]
+        ?? (await db`select id from crm.agencies where market_code = 'MX' and name = 'Agencia de ejemplo'`)[0]!
+      await db`update crm.account_attributions set effective_to = now() where account_id = ${d.account_id} and layer = 'channel' and effective_to is null`
+      await db`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label) values (${d.account_id}, 'MX', 'channel', 'partner', ${ag.id}, 'Agencia de ejemplo')`
     } finally { await db.end() }
     await loginAs(page, 'nora.salas')
     await page.goto(`/reportes/agencias?${YEAR}`)

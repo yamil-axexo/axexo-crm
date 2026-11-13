@@ -140,6 +140,74 @@ export async function resolveOwner(tx: Tx, f: LeadFacts, opts: { dryRun?: boolea
 export async function logAssignment(tx: Tx, market: string, leadId: string, r: Routed): Promise<void> {
   await tx`insert into crm.assignment_log (market_code, lead_id, rule_id, rule_name, action, owner_id, detail)
            values (${market}, ${leadId}, ${r.ruleId}, ${r.ruleName}, ${r.action}, ${r.ownerId}, ${tx.json({ by: r.by, steps: r.steps } as never)})`
+  await suggestIfSaturated(tx, market, leadId, r)
+}
+
+/**
+ * LEAD-03 (embudo2): tienda saturada. Si una regla coincidió pero la persona que tocaba ya tenía su tope de leads abiertos,
+ * el sistema no saca nada de la ruta por su cuenta: deja una sugerencia para supervisión (pasar el lead al canal indirecto),
+ * que la confirma o la descarta en /supervisor. La regla automática espera a tener ~3 meses de motivos (PIPE-04).
+ */
+async function suggestIfSaturated(tx: Tx, market: string, leadId: string, r: Routed): Promise<void> {
+  const capped = r.steps.filter((s) => s.outcome === 'capped')
+  if (!capped.length) return
+  await tx`insert into crm.routing_suggestions (market_code, lead_id, kind, detail)
+           values (${market}, ${leadId}, 'saturated', ${tx.json({ rules: capped.map((s) => s.rule), assigned_by: r.by, owner_id: r.ownerId } as never)})
+           on conflict (lead_id, kind) where status = 'open' do nothing`
+}
+
+/**
+ * LEAD-03 (embudo2): un comercio que nace sin dueño por la Sales App o por importación pasa por las mismas reglas que un
+ * lead (solo las escritas: si ninguna coincide queda sin asignar, a la vista de quien dirige). Queda en la bitácora.
+ */
+export async function routeNewAccount(tx: Tx, accountId: string, source: 'sales_app' | 'import'): Promise<Routed | null> {
+  const rows = await tx<{ market_code: string; segment: string; locality: string | null; owner_id: string | null }[]>`
+    select market_code, segment, locality, owner_id from crm.accounts where id = ${accountId}`
+  const a = rows[0]
+  if (!a || a.owner_id) return null
+  const r = await resolveOwner(tx, { market: a.market_code, source, motor: a.segment, locality: a.locality, accountId }, { rulesOnly: true })
+  if (r.ownerId) await tx`update crm.accounts set owner_id = ${r.ownerId} where id = ${accountId} and owner_id is null`
+  await tx`insert into crm.assignment_log (market_code, account_id, rule_id, rule_name, action, owner_id, detail)
+           values (${a.market_code}, ${accountId}, ${r.ruleId}, ${r.ruleName}, ${r.action}, ${r.ownerId}, ${tx.json({ by: r.by, steps: r.steps, source } as never)})`
+  return r
+}
+
+/** LEAD-03 (embudo2): cambiar el nombre y la condición de una regla sin tener que crear otra. */
+export async function editAssignmentRule(ctx: Ctx, id: string, input: { name: string; match: z.input<typeof matchInput> }): Promise<void> {
+  ctx.assert('config.manage')
+  const name = z.string().trim().min(2).max(80).safeParse(input.name)
+  const m = matchInput.safeParse(input.match)
+  if (!name.success || !m.success) throw invalid('Ponle nombre a la regla y revisa la condición.', 'Give the rule a name and check the condition.')
+  if (m.data.sizeMin != null && m.data.sizeMax != null && m.data.sizeMin > m.data.sizeMax) throw invalid('El tamaño mínimo no puede ser mayor que el máximo.', 'The minimum size cannot be greater than the maximum.')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string; name: string; match: RuleMatch }[]>`select market_code, name, match from crm.assignment_rules where id = ${id} for update`
+    const r = rows[0]
+    if (!r) throw notFound('No encontramos esa regla.', 'We could not find that rule.')
+    const match = toMatch(m.data)
+    if (r.name === name.data && JSON.stringify(r.match) === JSON.stringify(match)) return
+    await tx`update crm.assignment_rules set name = ${name.data}, match = ${tx.json(match as never)}, updated_at = now(), updated_by = ${ctx.user.id} where id = ${id}`
+    await audit(tx, ctx, 'routing.assignment_rule_edited', 'assignment_rule', id, r.market_code, { name: r.name, match: r.match }, { name: name.data, match })
+  })
+}
+
+/** Supervisión confirma o descarta la sugerencia. Confirmar le deja la tarea de pasar el lead; descartar no cambia nada. */
+export async function decideRoutingSuggestion(ctx: Ctx, id: string, input: { confirm: boolean; note?: string }): Promise<void> {
+  const note = (input.note ?? '').trim().slice(0, 300)
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string; lead_id: string | null; status: string }[]>`select market_code, lead_id, status from crm.routing_suggestions where id = ${id} for update`
+    const r = rows[0]
+    if (!r) throw notFound()
+    ctx.assert('routing.suggestion', r.market_code)
+    if (r.status !== 'open') throw invalid('Esta sugerencia ya se decidió.', 'This suggestion was already decided.')
+    await tx`update crm.routing_suggestions set status = ${input.confirm ? 'confirmed' : 'dismissed'}, decided_by = ${ctx.user.id}, decided_at = now(), note = ${note || null} where id = ${id}`
+    // Confirmar deja la tarea de pasarlo al canal indirecto a quien decidió (con "Pasar lead" o reasignando): no se mueve solo.
+    if (input.confirm && r.lead_id) {
+      const subject = ctx.locale === 'en' ? 'Hand this lead to the indirect channel (store at its cap)' : 'Pasar este lead al canal indirecto (tienda con su tope lleno)'
+      await tx`insert into crm.activities (market_code, lead_id, kind, subject, body, due_at, owner_id, created_by, source)
+               values (${r.market_code}, ${r.lead_id}, 'task', ${subject}, ${note || null}, now(), ${ctx.user.id}, ${ctx.user.id}, 'rule')`
+    }
+    await audit(tx, ctx, 'routing.suggestion_decided', 'lead', r.lead_id, r.market_code, { status: 'open' }, { status: input.confirm ? 'confirmed' : 'dismissed', note: note || null })
+  })
 }
 
 const matchInput = z.object({

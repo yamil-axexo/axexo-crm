@@ -1,6 +1,6 @@
 // AUT-01: una sola definición de quién puede hacer qué. La usan la UI, las acciones de servidor y la API.
 // La base repite el límite con RLS (AUTHZ-03): esta tabla decide la acción, RLS decide la fila.
-export type Role = 'admin' | 'lt' | 'market_lead' | 'supervisor' | 'rep' | 'ops' | 'agency' | 'partner'
+export type Role = 'admin' | 'lt' | 'market_lead' | 'supervisor' | 'rep' | 'ops' | 'agency' | 'partner' | 'finance' | 'kam'
 
 /**
  * SEG-01: Administración por partes. Una membresía de administración sin partes lo administra todo (como siempre);
@@ -24,9 +24,14 @@ export const ROLE_LABEL: Record<Role, { es: string; en: string }> = {
   ops: { es: 'Operaciones', en: 'Operations' },
   agency: { es: 'Agencia', en: 'Agency' },
   partner: { es: 'Partner', en: 'Partner' },
+  // Finanzas (datos2 + reportes2, un solo rol): lee sus reportes y no hace trabajo comercial. La única excepción: cambiar dueños,
+  // fusionar y editar en bloque en los mercados donde la decisión "Lo que pueden hacer Ventas y Operaciones" está encendida.
+  // KAM vende y lleva cuentas clave (cadenas, distribuidores).
+  finance: { es: 'Finanzas', en: 'Finance' },
+  kam: { es: 'Cuentas clave (KAM)', en: 'Key accounts (KAM)' },
 }
 
-const SELLERS: Role[] = ['admin', 'market_lead', 'supervisor', 'rep']
+const SELLERS: Role[] = ['admin', 'market_lead', 'supervisor', 'rep', 'kam']
 const MANAGERS: Role[] = ['admin', 'market_lead', 'supervisor']
 // E4.F4: una agencia externa captura y trabaja lo que reclutó. No reasigna, no fusiona, no exporta, no toma lo de nadie,
 // no arma árboles y no ve reportes. La base la confina a lo que lleva su marca (0027: recruited_agency_id).
@@ -79,7 +84,7 @@ export const CAPABILITIES = {
   'report.view': ['admin', 'lt', 'market_lead', 'supervisor'],
   'report.export': ['admin', 'lt', 'market_lead', 'supervisor'],
   // Quien vende ve SUS negocios cerrados (los que lleva), sin exportar ni ver los de nadie más.
-  'report.own': ['rep'],
+  'report.own': ['rep', 'kam'],
   // Adopción: conteos de uso por persona. No la ve supervisión ni ventas.
   'adoption.read': ['admin', 'lt', 'market_lead'],
   'config.manage': ['admin'],
@@ -113,13 +118,14 @@ export const CAPABILITIES = {
   // por las mismas reglas que el alta a mano; la base repite el límite (app.can_import).
   'data.import': ['admin', 'market_lead'],
   // Página Reportes (paquete reportes): la ve todo el mundo, cada quien con lo de su alcance (RLS y el alcance del reporte deciden las filas).
-  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  // reportes2: también Finanzas y KAM (Finanzas solo ve en la galería sus reportes: ver reportes/page.tsx).
+  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'kam'],
   // Guardar un reporte con sus filtros es de la persona (como reportar un problema): también quien solo lee. Compartirlo con el equipo es de quien dirige.
-  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'kam'],
   'report.share': MANAGERS,
   // Reportes de Finanzas y conciliación con el archivo de ventas. No existe un rol de Finanzas: hoy entran leadership, quien lidera y administración.
-  'report.finance': ['admin', 'lt', 'market_lead'],
-  'report.reconcile': ['admin', 'lt', 'market_lead'],
+  'report.finance': ['admin', 'lt', 'market_lead', 'finance'],
+  'report.reconcile': ['admin', 'lt', 'market_lead', 'finance'],
   // "Lo que llevo": los números que alimentan el incentivo de quien vende (sin montos de comisión).
   'report.carry': SELLERS,
   // Uso real de CONTIGO por persona y equipo. Supervisión ve a su equipo; ventas y operaciones no.
@@ -127,7 +133,7 @@ export const CAPABILITIES = {
   // Dueño de cada indicador: lo cambia administración.
   'metric.owner': ['admin'],
   // Vistas guardadas como colas: cada persona guarda y fija las suyas; compartir con el equipo es de quien dirige.
-  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'kam'],
   'view.share': MANAGERS,
   // Paquete datos (0023). Cola de duplicados: buscar en lote, descartar un par y revisar avisos saltados es de quien lidera el
   // mercado o administra; fusionar y deshacer sigue siendo solo de administración ('account.merge').
@@ -213,7 +219,7 @@ export const CAPABILITIES = {
   'gov.read': ['admin', 'lt'],
   'gov.manage': ['admin'],
   // Pedir un cambio de configuración (un campo, una opción, un embudo): cualquier persona con acceso. Decidir es de administración.
-  'config.request': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'config.request': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance'],
   // Cuidado del comercio (paquete ciclo-cs). Entregas entre equipos con acuse: las crea y las recibe quien trabaja el mercado.
   'handoff.create': [...SELLERS, 'ops'],
   // Atender o descartar una alerta del comercio, y trabajar oportunidades de expansión.
@@ -260,9 +266,52 @@ export const CAPABILITIES = {
   'platform.manage': ['admin'],
   // IA-06: dejar que un agente (cliente MCP) lea CONTIGO como la persona, con su mismo alcance. Lo decide cada quien para sí.
   'mcp.authorize': ['admin', 'market_lead', 'supervisor', 'rep', 'ops'],
+  // E4.F2 (datos2): Ventas, Operaciones y Finanzas cambian dueños, fusionan duplicados y editan en bloque SOLO en los mercados
+  // donde la decisión "Lo que pueden hacer Ventas y Operaciones" está encendida (Administración, Decisiones de negocio). El
+  // contexto revisa el mercado (server/context.ts); quien dirige o administra ya lo hace con sus capacidades de siempre.
+  'operator.reassign': ['rep', 'ops', 'finance'],
+  'operator.merge': ['rep', 'ops', 'finance'],
+  'operator.bulk_edit': ['rep', 'ops', 'finance'],
+  // embudo2 (PIPE-04): el catálogo de motivos lo custodia C1 desde administración. Ventas propone cambios por Solicitudes
+  // (config.request); quien custodia los aplica. Un motivo usado nunca se borra: se marca inactivo.
+  'reason.custody': ['admin'],
+  // embudo2 (LEAD-03): confirmar o descartar la sugerencia de pasar un lead de una tienda saturada al canal indirecto.
+  'routing.suggestion': ['admin', 'market_lead', 'supervisor'],
+  // embudo2 (ACT-01): corregir una actividad ya hecha agrega una fila nueva; la original queda como estaba.
+  'activity.correct': [...FIELD, 'ops'],
+  // embudo2 (UX-03): publicar una vista como cola oficial de un rol.
+  'view.official': ['admin'],
+  // Paquete campo2 (0039). El aliado registra tiendas a nombre de su propio nodo (la base lo limita a su nodo).
+  'claim.partner_register': ['partner'],
+  // Estado de comisión (conteos, sin montos): lo calcula y lo publica con sus reglas escritas quien lidera el mercado.
+  'statement.manage': ['admin', 'market_lead'],
+  // Política de reversos y árbitro de disputas: escrita y versionada por quien lidera el mercado; se aprueba con Finanzas y Ventas.
+  'channel_policy.manage': ['admin', 'market_lead'],
+  // Avance de capacitación de aliados mientras Kore Academy no lo manda.
+  'enablement.record': ['admin', 'market_lead'],
+  // Paquete reportes2 (0040). Tablero KAM: la persona KAM ve el suyo; quien dirige y leadership, el de las personas KAM de su alcance.
+  'board.kam': ['kam', ...MANAGERS, 'lt'],
+  // Tablero de Operaciones: su cola en cifras, con definición y dueño.
+  'board.ops': ['ops', 'admin', 'market_lead', 'lt'],
+  // Pronóstico por categoría (REP-03): la pone quien lleva la cuenta clave; quien dirige la ajusta al lado, sin borrarla.
+  // El envío del pronóstico es de KAM y de quien dirige; nunca de ventas de calle (el catálogo lo descarta).
+  'forecast.categorize': ['kam', ...MANAGERS],
+  'forecast.adjust': MANAGERS,
+  'forecast.submit': ['kam', 'supervisor', 'market_lead'],
+  // Detalle de visitas para reembolsos (E12.F6): Finanzas lo descarga sin tener la exportación de los demás reportes.
+  'visit.reimbursement': ['admin', 'lt', 'market_lead', 'supervisor', 'finance'],
+  // Costo de CONTIGO por mes para Finanzas (GOB-09): lectura.
+  'cost.read': ['admin', 'lt', 'finance'],
+  // Uso de CONTIGO en las 1:1 (GOB-03): quien supervisa anota que la 1:1 se hizo con el tablero.
+  'one_on_one.record': ['supervisor', 'market_lead'],
+  // Identidad de cada persona en otros sistemas (E8.F7): la pone la parte Integraciones.
+  'user_alias.manage': ['admin'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
+
+/** E4.F2 (datos2): capacidades que además dependen de una decisión por mercado. */
+export const OPERATOR_CAPS: readonly Capability[] = ['operator.reassign', 'operator.merge', 'operator.bulk_edit']
 
 export type Membership = { market: string | null; role: Role; teamId: string | null; /** Solo en administración: null o ausente = todas las partes. */ areas?: AdminArea[] | null }
 
@@ -288,6 +337,8 @@ export const CAP_AREA: Partial<Record<Capability, AdminArea | 'any'>> = {
   'automation.read': 'config',
   'metric.owner': 'config',
   'job.run': 'integrations',
+  'user_alias.manage': 'integrations',
+  'cost.read': 'any',
   'ia.manage': 'config',
   'ia.oversee': 'any',
   'ia.ask': 'any',
@@ -297,6 +348,8 @@ export const CAP_AREA: Partial<Record<Capability, AdminArea | 'any'>> = {
   'market.reset_test': 'integrations',
   'platform.manage': 'config',
   'mcp.authorize': 'any',
+  'reason.custody': 'config',
+  'view.official': 'config',
 }
 
 const grants = (m: Membership, cap: Capability): boolean => {
@@ -318,11 +371,13 @@ export const READ_CAPS: readonly Capability[] = ['board.supervisor', 'exception.
   // Paquete partners-contratos: el portal de partners solo lee.
   'partner.portal',
   // Paquete ia: ver sugerencias, preguntar por cifras y la pantalla de evaluación son lecturas.
-  'ia.read', 'ia.ask', 'ia.oversee']
+  'ia.read', 'ia.ask', 'ia.oversee',
+  // reportes2: tableros y lecturas de Finanzas.
+  'board.kam', 'board.ops', 'visit.reimbursement', 'cost.read']
 
 /** Solo lectura: la persona ve, pero ninguno de sus roles vigentes le deja cambiar nada (Leadership, o un usuario de partner). */
 export function isReadOnly(memberships: Membership[]): boolean {
-  return memberships.length > 0 && memberships.every((m) => m.role === 'lt' || m.role === 'partner')
+  return memberships.length > 0 && memberships.every((m) => m.role === 'lt' || m.role === 'partner' || m.role === 'finance')
 }
 
 /** Administración completa: al menos una membresía de administración sin partes. */
@@ -340,7 +395,7 @@ export function rolesIn(memberships: Membership[], market: string): Role[] {
  * Operaciones, a su cola. Quien no lleva registros propios llega a su tablero: administración a Administración, leadership
  * al Panel del LT y quien lidera un mercado a Mi equipo. Hoy sigue en el menú para todos.
  */
-export type Home = '/hoy' | '/admin' | '/panel-lt' | '/supervisor' | '/operaciones' | '/partners'
+export type Home = '/hoy' | '/admin' | '/panel-lt' | '/supervisor' | '/operaciones' | '/partners' | '/reportes/finanzas'
 export function homePath(memberships: Membership[]): Home {
   const has = (role: Role) => memberships.some((m) => m.role === role)
   if (has('admin')) return '/admin'
@@ -350,5 +405,7 @@ export function homePath(memberships: Membership[]): Home {
   if (has('ops') && !has('supervisor') && !has('rep')) return '/operaciones'
   // Un usuario de partner solo tiene su portal (paquete partners-contratos).
   if (memberships.every((m) => m.role === 'partner')) return '/partners'
+  // Finanzas no lleva registros: empieza en su reporte.
+  if (memberships.every((m) => m.role === 'finance')) return '/reportes/finanzas'
   return '/hoy'
 }

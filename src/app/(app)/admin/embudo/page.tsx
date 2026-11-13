@@ -11,6 +11,7 @@ import { FIELD_LABEL } from '@/domain/deals'
 import { Badge, Card, CardTitle, Field, PageHeader, buttonClass } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { DataTable } from '@/ui/reportes'
+import { EditRuleDialog, FunnelSettingsCard, ReasonCapsCard } from './embudo2'
 import { MOTOR, SOURCE, lab } from '@/lib/labels'
 import { dayTime, num } from '@/lib/format'
 import { changeAssignmentRuleAction, createAssignmentRuleAction, createLeadLabelAction, retryIntakeAction, setStageConditionAction } from '@/app/(app)/embudo-actions'
@@ -69,6 +70,7 @@ export default async function EmbudoAdminPage({ searchParams }: { searchParams: 
               `${t(ACTION_LABEL[r.action as keyof typeof ACTION_LABEL].es, ACTION_LABEL[r.action as keyof typeof ACTION_LABEL].en)}${r.user_name ? `: ${r.user_name}` : r.rotation_name ? `: ${r.rotation_name}` : ''}`,
               r.cap_open ?? t('sin tope', 'no cap'), <Badge key="b" tone={r.is_active ? 'good' : 'neutral'}>{r.is_active ? t('Activa', 'Active') : t('En pausa', 'Paused')}</Badge>,
               <div key="a" className="flex flex-wrap gap-2">
+                <EditRuleDialog ctx={ctx} rule={r} sources={Object.entries(SOURCE).map(([k, v]) => [k, lab(t, v)] as [string, string])} motors={Object.entries(MOTOR).map(([k, v]) => [k, lab(t, v)] as [string, string])} />
                 {(['up', 'down', r.is_active ? 'off' : 'on'] as const).map((op) => (
                   <ActionForm key={op} action={changeAssignmentRuleAction}><input type="hidden" name="id" value={r.id} /><input type="hidden" name="op" value={op} />
                     <Submit variant="ghost" size="sm" testId={`rule-${op}`}>{op === 'up' ? t('Subir', 'Move up') : op === 'down' ? t('Bajar', 'Move down') : op === 'off' ? t('Pausar', 'Pause') : t('Activar', 'Turn on')}</Submit></ActionForm>
@@ -154,6 +156,8 @@ export default async function EmbudoAdminPage({ searchParams }: { searchParams: 
           ))}
         </Card>
 
+        <FunnelSettingsCard ctx={ctx} />
+        <ReasonCapsCard ctx={ctx} />
         <Card data-testid="reason-catalog">
           <CardTitle title={t('Catálogo de motivos', 'Reason catalog')} hint={t('Los motivos se agregan y se apagan en Embudos y campos. Aquí está su versión (sube sola con cada cambio; la lee quien consume el catálogo por la API) y los códigos que llegaron de otro sistema y CONTIGO no conoce.', 'Reasons are added and turned off under Pipelines and fields. Here is their version (it goes up on every change; whoever reads the catalog through the API sees it) and the codes that arrived from another system and CONTIGO does not know.')} />
           <p className="text-[14.5px] text-strong" data-testid="reason-version">{t(`Versión ${cfg.version?.version ?? 1}`, `Version ${cfg.version?.version ?? 1}`)} · {cfg.reasonCounts.map((r) => `${r.kind === 'lost' ? t('pérdida', 'loss') : t('no venta', 'no sale')} ${r.scope === '*' ? t('general', 'global') : r.scope}: ${r.n}`).join(' · ')}</p>
@@ -176,7 +180,7 @@ export default async function EmbudoAdminPage({ searchParams }: { searchParams: 
           <div className="px-5 pt-5 md:px-7 md:pt-7"><CardTitle title={t('Envíos de formulario retenidos', 'Held form submissions')} hint={t('Un envío que no se pudo guardar por una falla nuestra queda aquí y se reintenta solo. Lo que se agota se puede reintentar a mano.', 'A submission that could not be saved because of a failure on our side stays here and is retried automatically. Whatever runs out can be retried by hand.')} /></div>
           <DataTable testId="retries-table" label={t('Envíos retenidos', 'Held submissions')} empty={<p className="px-5 pb-5 text-[14px] text-muted md:px-7" data-testid="retries-empty">{t('No hay envíos retenidos: todo lo que llegó se guardó.', 'There are no held submissions: everything that arrived was saved.')}</p>}
             head={[{ label: t('Llegó', 'Arrived') }, { label: t('Formulario', 'Form') }, { label: t('Estado', 'Status') }, { label: t('Intentos', 'Attempts'), num: true }, { label: t('Acciones', 'Actions') }]}
-            rows={cfg.retries.map((r) => ({ key: r.id, cells: [dayTime(r.created_at, locale), r.slug, r.status === 'failed' ? t('Agotado', 'Out of attempts') : t('Pendiente de reintento', 'Waiting to retry'), r.attempts,
+            rows={cfg.retries.map((r) => ({ key: r.id, cells: [dayTime(r.created_at, locale), r.slug, r.error === 'no_owner' ? t('Nadie lo puede tomar: falta quien lidere el mercado o una regla de reparto', 'Nobody can take it: the market needs a lead or a routing rule') : r.status === 'failed' ? t('Agotado', 'Out of attempts') : t('Pendiente de reintento', 'Waiting to retry'), r.attempts,
               <ActionForm key="a" action={retryIntakeAction}><input type="hidden" name="id" value={r.id} /><Submit variant="ghost" size="sm" testId="retry-now">{t('Reintentar ahora', 'Retry now')}</Submit></ActionForm>] }))} />
         </Card>
 

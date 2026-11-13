@@ -41,7 +41,9 @@ describe('matriz de capacidades (AUT-01)', () => {
       // configuración; pedirlo no cambia nada hasta que administración decide.
       'security.read', 'gov.read', 'config.request',
       // Paquete ia: leadership ve las sugerencias, pregunta por las cifras definidas y lee la evaluación; no acepta ni configura nada.
-      'ia.read', 'ia.ask', 'ia.oversee'].includes(c))
+      'ia.read', 'ia.ask', 'ia.oversee',
+      // Paquete reportes2: leadership lee los tableros KAM y de Operaciones, el costo de CONTIGO y el detalle de visitas para reembolsos.
+      'board.kam', 'board.ops', 'cost.read', 'visit.reimbursement'].includes(c))
     for (const cap of writes) expect(can(m('lt', null), cap, 'MX'), cap).toBe(false)
     expect(can(m('lt', null), 'board.lt')).toBe(true)
   })

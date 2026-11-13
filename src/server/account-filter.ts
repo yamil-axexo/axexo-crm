@@ -32,6 +32,8 @@ export type AccountFilters = {
   pipeline?: string
   /** Visitado por: nombre de quien visitó (vendedor de calle), tal como quedó en "¿Quién visitó?". */
   visito?: string
+  /** UX-03 (embudo2): "sin" = comercios en alta sin fondeo (sin saldo ni límite de crédito en el último dato). */
+  fondeo?: string
 }
 
 type Frag = postgres.Fragment
@@ -83,6 +85,7 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
     ${teamFilter(tx, 'a', f.team)}
     ${isUuid(f.pipeline) ? tx`and exists (select 1 from crm.deals dp where dp.account_id = a.id and dp.pipeline_id = ${f.pipeline})` : tx``}
     ${visito ? tx`and exists (select 1 from crm.activities xv where xv.account_id = a.id and xv.market_code = a.market_code and xv.kind = 'visit' and xv.done_at is not null and lower(btrim(xv.visited_by)) = lower(${visito}))` : tx``}
+    ${f.fondeo === 'sin' ? tx`and a.lifecycle = 'onboarding' and not exists (select 1 from crm.account_funding af where af.account_id = a.id and (af.balance_minor > 0 or coalesce(af.credit_limit_minor, 0) > 0))` : tx``}
     ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'}
                   or a.place_norm like ${'%'} || app.norm(${q}) || ${'%'}
                   ${q.length >= 4 ? tx`or a.address_norm like ${'%'} || app.norm(${q}) || ${'%'}` : tx``}
@@ -94,4 +97,4 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
 
 /** ¿El filtro acota algo además del mercado? Sin esto, "todos los de este filtro" sería el mercado completo. */
 export const narrows = (f: AccountFilters): boolean =>
-  !!(f.q?.trim() || f.lifecycle || f.owner || f.kind || f.ver || f.region || f.city?.trim() || f.territory || f.team || f.pipeline || f.visito?.trim())
+  !!(f.q?.trim() || f.lifecycle || f.owner || f.kind || f.ver || f.region || f.city?.trim() || f.territory || f.team || f.pipeline || f.visito?.trim() || f.fondeo)

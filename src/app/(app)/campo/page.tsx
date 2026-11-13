@@ -3,7 +3,7 @@ import { requireCtx, type Ctx } from '@/server/context'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table, shown } from '@/ui/kit'
-import { ActionForm, Submit } from '@/ui/client'
+import { ActionForm, RevealOnce, Submit } from '@/ui/client'
 import { day, dayTime, isoDay, money, num } from '@/lib/format'
 import * as dal from '@/dal/campo-canal'
 import { THRESHOLDS } from '@/domain/campo-canal/thresholds'
@@ -152,6 +152,7 @@ async function Files({ ctx, market, tz, accountId, fileId }: { ctx: Ctx; market:
   ])
   const current = [...desk, ...open, ...decided].find((f) => f.id === fileId) ?? null
   const docs = current ? await dal.fileDocuments(ctx, current.id) : []
+  const extras = current ? await dal.fileExtras(ctx, current.id, current.account_id) : null
   const vault = documentVault()
   const row = (f: dal.FileRow) => (
     <tr key={f.id} data-testid="file-row" data-status={f.status}>
@@ -214,6 +215,35 @@ async function Files({ ctx, market, tz, accountId, fileId }: { ctx: Ctx; market:
               </li>
             ))}
           </ul>
+          <div className="mt-4 grid grid-cols-1 gap-4 border-t border-line pt-4 md:grid-cols-3" data-testid="file-extras">
+            <div>
+              <p className="text-[13px] font-semibold text-strong">{t('Cómo se capturó', 'How it was captured')}</p>
+              <p className="mt-1 text-[13px] text-muted">{current.captured_via === 'sales_app' ? t('Desde la Sales App, al enviar el alta.', 'From the Sales App, when the sign-up was sent.') : current.captured_via === 'link' ? t('Con el enlace de captura.', 'With the capture link.') : t('En CONTIGO.', 'In CONTIGO.')}{extras && extras.links > 0 ? t(` Enlaces vigentes: ${extras.links}.`, ` Active links: ${extras.links}.`) : ''}</p>
+              {capture && ['draft', 'returned'].includes(current.status) && (
+                <div className="mt-2">
+                  <RevealOnce action={A.onboardingLinkAction} label={t('Cópialo ahora: no se vuelve a mostrar. Quien lo abra solo puede dejar los enlaces de los documentos de este expediente.', 'Copy it now: it is not shown again. Whoever opens it can only leave the document links for this file.')} copyLabel={t('Copiar', 'Copy')}>
+                    <input type="hidden" name="id" value={current.id} />
+                    <Submit size="sm" variant="ghost" testId="file-link">{t('Crear enlace para el comercio', 'Create a link for the merchant')}</Submit>
+                  </RevealOnce>
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-strong">{t('Identificador fiscal', 'Tax ID')}</p>
+              <p className="mt-1 text-[13px] text-muted">{t('Va como dato reservado del comercio: se ve tapado y cada revelado queda en la bitácora.', 'It goes as the merchant’s restricted data: it shows masked and every reveal is logged.')}</p>
+              {capture && (
+                <ActionForm action={A.taxIdAction} className="mt-2 flex flex-wrap gap-2" testId="file-taxid">
+                  <input type="hidden" name="accountId" value={current.account_id} />
+                  <input name="value" className="input w-[200px]" aria-label={t('Identificador fiscal', 'Tax ID')} required maxLength={40} autoComplete="off" />
+                  <Submit size="sm" variant="ghost">{t('Guardar', 'Save')}</Submit>
+                </ActionForm>
+              )}
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-strong">{t('Datos de crédito', 'Credit data')}</p>
+              <p className="mt-1 text-[13px] text-muted" data-testid="file-credit">{current.funding === 'prepaid' ? t('Prepago: no pide crédito.', 'Prepaid: no credit needed.') : extras?.credit ? t(`Solicitud de límite: ${extras.credit.status === 'approved' ? 'aprobada' : extras.credit.status === 'rejected' ? 'rechazada' : 'por decidir'} (${day(extras.credit.requested_at, locale, tz)}).`, `Limit request: ${extras.credit.status === 'approved' ? 'approved' : extras.credit.status === 'rejected' ? 'rejected' : 'pending'} (${day(extras.credit.requested_at, locale, tz)}).`) : t('Crédito ACH sin solicitud de límite todavía: se pide en la pestaña Crédito.', 'ACH credit with no limit request yet: it is requested in the Credit tab.')}</p>
+            </div>
+          </div>
           <div className="mt-4 flex flex-wrap gap-3 border-t border-line pt-4">
             {capture && ['draft', 'returned'].includes(current.status) && (
               <ActionForm action={A.submitFileAction} testId="file-submit"><input type="hidden" name="id" value={current.id} /><Submit testId="file-submit-btn">{t('Enviar a la mesa de control', 'Send to the control desk')}</Submit></ActionForm>
@@ -393,6 +423,13 @@ async function Attribution({ ctx, market, acc, tz, month }: { ctx: Ctx; market: 
               [t('Disputas del mes', 'Disputes this month'), cycle.disputes_opened], [t('Disputas vencidas', 'Overdue disputes'), cycle.disputes_open_late],
             ] as [string, number][]).map(([k, v]) => <div key={k} className="rounded-[12px] bg-surface-2 px-4 py-3"><p className="text-[12.5px] text-muted-2">{k}</p><p className="num text-[20px] font-semibold">{num(v, locale)}</p></div>)}
           </div>
+          {ctx.can('attribution.correct', market) && (
+            <ActionForm action={A.reclassifyAction} className="mt-4 flex flex-wrap items-center gap-3" testId="attr-reclassify">
+              <input type="hidden" name="market" value={market} />
+              <p className="min-w-0 flex-1 basis-72 text-[13.5px] text-muted-2">{t('Cada alta nueva ya nace con su origen clasificado y con el equipo que la reclutó. Esta corrida aplica la misma regla a lo que ya existía: red adquirida si el comercio trae un ID de una red o ese origen; alta nueva en lo demás. Queda en la bitácora con sus conteos.', 'Every new sign-up is born with its origin classified and the team that recruited it. This run applies the same rule to what already existed: acquired network if the merchant carries an ID from a network or that origin; new sign-up otherwise. It is logged with its counts.')}</p>
+              <Submit variant="ghost" testId="attr-reclassify-run">{t('Clasificar lo pendiente', 'Classify what is pending')}</Submit>
+            </ActionForm>
+          )}
           {cycle.gaps.length > 0 && <ul className="mt-4">{cycle.gaps.map((g) => <li key={g.id} className="border-t border-line py-2 text-[14px]"><a className="underline-offset-2 hover:underline" href={`/campo?tab=atribucion&mercado=${market}&cuenta=${g.id}`}>{g.name}</a> · {g.issue === 'no_origin' ? t('sin origen', 'no origin') : t('quien lo lleva no tiene fila vigente', 'owner has no current row')}</li>)}</ul>}
         </Card>
       )}
@@ -404,11 +441,41 @@ async function Disputes({ ctx, market, tz }: { ctx: Ctx; market: string; tz: str
   const { t, locale } = ctx
   const [list, accounts] = await Promise.all([dal.disputes(ctx, market), ctx.can('dispute.raise', market) ? dal.marketAccounts(ctx, market) : Promise.resolve([])])
   const arb = ctx.can('dispute.arbitrate', market)
+  const [policy, leads] = await Promise.all([dal.channelPolicy(ctx, market), ctx.can('channel_policy.manage', market) ? dal.marketPeople(ctx, market, ['market_lead']) : Promise.resolve([])])
   return (
     <div className="flex flex-col gap-6">
       <p className="rounded-[14px] bg-surface-3 px-5 py-4 text-[14px] text-strong" role="note" data-testid="clawback-note">
-        {t('Sin montos: hasta que Finanzas y ventas aprueben por escrito la política de devolución de comisiones (no activación, reverso o baja temprana), aquí no se muestran cantidades. Árbitro por defecto: quien lidera el mercado o administración.', 'No amounts: until Finance and sales approve the commission clawback policy in writing (no activation, reversal or early churn), no amounts are shown here. Default arbiter: the market lead or administration.')}
+        {t('Sin montos: aquí no se muestran cantidades. La política de reversos de abajo dice qué pasa cuando se aprueba una disputa, un ajuste o un reverso.', 'No amounts: no amounts are shown here. The reversal policy below says what happens when a dispute, an adjustment or a reversal is approved.')}
       </p>
+      <Card data-testid="channel-policy">
+        <CardTitle title={t('Política de reversos y quién arbitra', 'Reversal policy and who arbitrates')}
+          right={policy ? <Badge tone={policy.status === 'approved' ? 'good' : 'warn'}>{policy.status === 'approved' ? t(`Aprobada, versión ${policy.version}`, `Approved, version ${policy.version}`) : t(`Propuesta, versión ${policy.version}`, `Proposed, version ${policy.version}`)}</Badge> : undefined} />
+        {policy ? (
+          <>
+            <p className="text-[14px] whitespace-pre-wrap text-strong" data-testid="policy-text">{t(policy.policy_es, policy.policy_en)}</p>
+            <p className="mt-2 text-[13px] text-muted-2">{t(`Ventana: ${policy.clawback_days} días. Arbitra: ${policy.arbiter ?? 'quien lidera el mercado (distinto de quien levantó la disputa) o administración'}.`, `Window: ${policy.clawback_days} days. Arbiter: ${policy.arbiter ?? 'the market lead (someone other than whoever raised it) or administration'}.`)}</p>
+            {policy.status === 'approved'
+              ? <p className="mt-1 text-[13px] text-muted-2">{t(`Aprobada por Finanzas (${policy.approved_finance_by}) y por Ventas (${policy.approved_sales_by}).`, `Approved by Finance (${policy.approved_finance_by}) and by Sales (${policy.approved_sales_by}).`)}</p>
+              : <p className="mt-1 text-[13px] text-amber-text" data-testid="policy-pending">{t(`Valor propuesto, [pendiente: ${policy.pending_owner ?? 'Finanzas y Ventas'}]`, `Proposed value, [pending: ${policy.pending_owner === 'Finanzas y Ventas' || !policy.pending_owner ? 'Finance and Sales' : policy.pending_owner}]`)}</p>}
+          </>
+        ) : <Empty title={t('Este mercado todavía no tiene política', 'This market has no policy yet')} />}
+        {ctx.can('channel_policy.manage', market) && (
+          <details className="mt-4">
+            <summary className="press inline-flex min-h-11 cursor-pointer items-center text-[14px] font-semibold text-brand-text">{t('Escribir una versión nueva', 'Write a new version')}</summary>
+            <ActionForm action={A.channelPolicyAction} className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2" testId="policy-form">
+              <input type="hidden" name="market" value={market} />
+              <Field label={t('Política (español)', 'Policy (Spanish)')}><textarea name="policyEs" className="input min-h-[96px]" required minLength={20} defaultValue={policy?.policy_es ?? ''} /></Field>
+              <Field label={t('Política (inglés)', 'Policy (English)')}><textarea name="policyEn" className="input min-h-[96px]" required minLength={20} defaultValue={policy?.policy_en ?? ''} /></Field>
+              <Field label={t('Días de ventana', 'Window days')}><input name="clawbackDays" type="number" min={0} max={365} className="input" required defaultValue={policy?.clawback_days ?? ''} /></Field>
+              <Field label={t('Quién arbitra', 'Arbiter')}><select name="arbiterId" className={sel} defaultValue={policy?.arbiter_id ?? ''}><option value="">{t('Quien lidera el mercado', 'The market lead')}</option>{leads.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+              <Field label={t('Aprobó por Finanzas (nombre)', 'Approved for Finance (name)')}><input name="financeBy" className="input" maxLength={120} /></Field>
+              <Field label={t('Aprobó por Ventas (nombre)', 'Approved for Sales (name)')}><input name="salesBy" className="input" maxLength={120} /></Field>
+              <Field label={t('Motivo del cambio', 'Reason for the change')}><input name="reason" className="input" required minLength={3} data-testid="policy-reason" /></Field>
+              <div className="md:col-span-2"><p className="mb-3 text-[13px] text-muted-2">{t('Sin las dos aprobaciones queda como propuesta.', 'Without both approvals it stays as a proposal.')}</p><Submit testId="policy-save">{t('Guardar versión', 'Save version')}</Submit></div>
+            </ActionForm>
+          </details>
+        )}
+      </Card>
       {ctx.can('dispute.raise', market) && (
         <Card data-testid="dispute-new">
           <CardTitle title={t('Levantar una disputa o ajuste', 'Raise a dispute or adjustment')} />
@@ -473,7 +540,7 @@ async function Claims({ ctx, market, tz }: { ctx: Ctx; market: string; tz: strin
           <ul>{list.map((c) => (
             <li key={c.id} className="border-t border-line py-4 first:border-t-0" data-testid="claim-row" data-status={c.status}>
               <p className="text-[15px] font-semibold">{c.store_name} · {c.node_label} <Badge tone={ST[c.status]![2]}>{t(ST[c.status]![0], ST[c.status]![1])}</Badge></p>
-              <p className="mt-1 text-[13px] text-muted">{c.channel} · {c.status === 'active' ? t(`hasta ${dayTime(c.expires_at, locale, tz)}`, `until ${dayTime(c.expires_at, locale, tz)}`) : ''}{c.extensions ? t(` · ${c.extensions} extensiones`, ` · ${c.extensions} extensions`) : ''}{c.rejection_reason ? ` · ${c.rejection_reason}` : ''}</p>
+              <p className="mt-1 text-[13px] text-muted">{c.channel}{c.registered_via === 'partner' ? t(' · lo registró el aliado', ' · registered by the partner') : ''} · {c.status === 'active' ? t(`hasta ${dayTime(c.expires_at, locale, tz)}`, `until ${dayTime(c.expires_at, locale, tz)}`) : ''}{c.extensions ? t(` · ${c.extensions} extensiones`, ` · ${c.extensions} extensions`) : ''}{c.rejection_reason ? ` · ${c.rejection_reason}` : ''}</p>
               {c.status === 'active' && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   <ActionForm action={A.extendClaimAction} className="flex gap-2" testId="claim-extend"><input type="hidden" name="id" value={c.id} /><input name="evidence" className="input w-[240px]" placeholder={t('Actividad con la tienda', 'Activity with the store')} aria-label={t('Evidencia', 'Evidence')} /><Submit size="sm" variant="ghost">{t('Extender', 'Extend')}</Submit></ActionForm>
@@ -637,6 +704,16 @@ async function Incidents({ ctx, market, tz, open }: { ctx: Ctx; market: string; 
               <p className="text-[15px] font-semibold"><a className="underline-offset-2 hover:underline" href={`/campo?tab=incidentes&mercado=${market}&incidente=${i.id}`}>{t(...TYPE[i.type]!)} · {i.party_label}</a> <Badge tone={i.status === 'closed' ? 'neutral' : i.status === 'in_review' ? 'warn' : 'bad'}>{i.status === 'open' ? t('Abierto', 'Open') : i.status === 'in_review' ? t('En atención', 'Being handled') : t('Cerrado', 'Closed')}</Badge></p>
               <p className="mt-1 text-[13px] text-muted">{day(i.occurred_on, locale)}{i.account ? ` · ${i.account}` : ''} · {t('reportó', 'reported by')} {i.reported_by}{i.assigned ? ` · ${t('atiende', 'handled by')} ${i.assigned}` : ''} · {dayTime(i.created_at, locale, tz)}</p>
               {open === i.id && <p className="mt-2 text-[14px] whitespace-pre-wrap text-strong" data-testid="incident-detail">{i.description}{i.resolution ? `\n${t('Resolución', 'Resolution')}: ${i.resolution}` : ''}</p>}
+              {open === i.id && (Object.keys(i.attribution).length > 0 || i.trust_score !== null || i.equipment) && (
+                <p className="mt-2 text-[13px] text-muted-2" data-testid="incident-links">
+                  {[i.attribution.origin ? t(`Origen: ${i.attribution.origin}`, `Origin: ${i.attribution.origin}`) : null,
+                    i.attribution.channel ? t(`Canal: ${i.attribution.channel}`, `Channel: ${i.attribution.channel}`) : null,
+                    i.attribution.owner ? t(`Lo llevaba: ${i.attribution.owner}`, `Owner: ${i.attribution.owner}`) : null,
+                    i.trust_score !== null ? t(`Señal de la visita: ${i.trust_score}`, `Visit signal: ${i.trust_score}`) : i.visit_linked ? t('Visita de ese día, sin señal', 'Visit that day, no signal') : null,
+                    i.equipment ? `${i.equipment.kind === 'installed' ? t('Equipo instalado', 'Equipment installed') : t('Equipo retirado', 'Equipment removed')}: ${i.equipment.equipment_type}${i.equipment.equipment_ref ? ` ${i.equipment.equipment_ref}` : ''}` : null,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              )}
               {manage && i.status !== 'closed' && (
                 <ActionForm action={A.handleIncidentAction} className="mt-2 flex flex-wrap gap-2" testId="incident-handle">
                   <input type="hidden" name="id" value={i.id} />
@@ -667,7 +744,9 @@ async function Thresholds({ ctx, market, tz }: { ctx: Ctx; market: string; tz: s
             const def = THRESHOLDS[r.key as keyof typeof THRESHOLDS]
             return (
               <li key={r.key} className="flex flex-col gap-2 border-t border-line py-3 first:border-t-0 md:flex-row md:items-center md:justify-between" data-testid="threshold-row" data-key={r.key}>
-                <span className="text-[14.5px]"><span className="font-semibold">{t(def.es, def.en)}</span>: <span className="num">{Number.isNaN(r.value) ? shown(num(null, locale)) : num(r.value, locale)}</span> <span className="text-[12.5px] text-muted">{t(`versión ${r.version}`, `version ${r.version}`)}{r.by ? ` · ${r.by}` : ''}{r.valid_from ? ` · ${day(r.valid_from, locale, tz)}` : ''}</span></span>
+                <span className="text-[14.5px]"><span className="font-semibold">{t(def.es, def.en)}</span>: <span className="num">{Number.isNaN(r.value) ? shown(num(null, locale)) : num(r.value, locale)}</span> <span className="text-[12.5px] text-muted">{t(`versión ${r.version}`, `version ${r.version}`)}{r.by ? ` · ${r.by}` : ''}{r.valid_from ? ` · ${day(r.valid_from, locale, tz)}` : ''}</span>
+                  {r.pending_owner && <span className="mt-1 block text-[12.5px] text-amber-text" data-testid="threshold-proposed">{t(`Valor propuesto, [pendiente: ${r.pending_owner}]`, `Proposed value, [pending: ${r.pending_owner}]`)}</span>}
+                  {r.review_due && <span className={`mt-1 block text-[12.5px] ${r.review_late ? 'font-medium text-red-text' : 'text-muted'}`} data-testid="threshold-review">{r.review_late ? t(`Calibración vencida: tocaba revisarlo el ${day(r.review_due, locale)}`, `Calibration overdue: it was due for review on ${day(r.review_due, locale)}`) : t(`Próxima calibración: ${day(r.review_due, locale)}`, `Next calibration: ${day(r.review_due, locale)}`)}</span>}</span>
                 <ActionForm action={A.setThresholdAction} className="flex flex-wrap gap-2"><input type="hidden" name="market" value={market} /><input type="hidden" name="key" value={r.key} />
                   <input name="value" type="number" step="any" min={def.min} max={def.max} className="input w-[120px]" aria-label={t('Valor nuevo', 'New value')} required />
                   <input name="reason" className="input w-[200px]" placeholder={t('Motivo', 'Reason')} aria-label={t('Motivo', 'Reason')} required minLength={3} />

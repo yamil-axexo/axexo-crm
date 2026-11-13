@@ -18,7 +18,7 @@ export async function DealSteps({ ctx, dealId, canEdit, market }: { ctx: Ctx; de
   const show = s.pending || s.goal || s.steps.length > 0 || s.evidence.length > 0 || canEdit || s.waiting_on
   if (!show) return null
   const rich = Boolean(s.pending || s.last || s.goal || s.steps.length > 0 || s.evidence.length > 0)
-  const WAIT: Record<string, [string, string]> = { us: ['A nosotros', 'Us'], customer: ['Al cliente', 'The customer'], third_party: ['A un tercero (proveedor, operador)', 'A third party (provider, carrier)'] }
+  const WAIT: Record<string, [string, string]> = { us: ['A nosotros', 'Us'], customer: ['Al cliente', 'The customer'], carrier: ['Al carrier', 'The carrier'], third_party: ['A otro tercero (proveedor)', 'Another third party (provider)'] }
   const approver = s.pending ? (s.pending.escalated && s.pending.backup ? s.pending.backup : s.pending.approver ?? (s.pending.escalated && !s.pending.backup ? t(ROLE_LABEL.market_lead.es, ROLE_LABEL.market_lead.en) : s.pending.approver_role ? t(ROLE_LABEL[s.pending.approver_role].es, ROLE_LABEL[s.pending.approver_role].en) : '')) : ''
   return (
     <Card data-testid="deal-steps">
@@ -88,8 +88,19 @@ export async function DealSteps({ ctx, dealId, canEdit, market }: { ctx: Ctx; de
             <Field label={t('Para qué paso', 'For which step')}>
               <select name="to_stage_id" className="input" required data-testid="evidence-stage">{needsEvidence.map((x) => <option key={x.to_stage_id} value={x.to_stage_id}>{t(`Pasar a "${x.to_es}": ${x.evidence_es ?? ''}`, `Move to "${x.to_en}": ${x.evidence_en ?? ''}`)}</option>)}</select>
             </Field>
+            {s.documents.length > 0 && (
+              <Field label={t('Documento del expediente', 'Document from the file')} hint={t('Queda ligado con su huella. La bóveda de documentos está apagada: CONTIGO guarda la referencia, no el archivo.', 'It is linked with its fingerprint. The document vault is off: CONTIGO keeps the reference, not the file.')}>
+                <select name="document_id" className="input" defaultValue="" data-testid="evidence-document">
+                  <option value="">{t('Ninguno, uso un enlace o una huella', 'None, I will use a link or a fingerprint')}</option>
+                  {s.documents.map((d) => <option key={d.id} value={d.id}>{d.requirement}{d.status === 'valid' ? t(' (validado)', ' (validated)') : ''}</option>)}
+                </select>
+              </Field>
+            )}
             <Field label={t('Enlace al documento', 'Link to the document')} hint={t('Dónde está guardado (empieza con https://). CONTIGO guarda el enlace, no el archivo. No pegues números de cuenta ni identificaciones.', 'Where it is stored (starts with https://). CONTIGO keeps the link, not the file. Do not paste account numbers or IDs.')}>
-              <input name="url" type="url" className="input" required maxLength={480} placeholder="https://" data-testid="evidence-url" />
+              <input name="url" type="url" className="input" maxLength={480} placeholder="https://" data-testid="evidence-url" />
+            </Field>
+            <Field label={t('Huella del documento (opcional)', 'Document fingerprint (optional)')} hint={t('La huella SHA-256 que da el sistema donde está guardado: 64 letras y números. Sirve para probar que el documento no cambió.', 'The SHA-256 fingerprint given by the system where it is stored: 64 letters and digits. It proves the document did not change.')}>
+              <input name="content_hash" className="input" maxLength={64} pattern="[0-9a-fA-F]{64}" data-testid="evidence-hash" />
             </Field>
             <Field label={t('Nota', 'Note')}><input name="note" className="input" required minLength={2} maxLength={300} data-testid="evidence-note" /></Field>
             <div className="flex justify-end"><Submit testId="evidence-save">{t('Guardar evidencia', 'Save evidence')}</Submit></div>
@@ -101,8 +112,8 @@ export async function DealSteps({ ctx, dealId, canEdit, market }: { ctx: Ctx; de
         <ul className="mt-5 divide-y divide-line text-[13.5px]" data-testid="evidence-list">
           {s.evidence.map((e) => (
             <li key={e.id} className="py-2.5" data-testid="evidence-row">
-              <a href={e.url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-text underline [overflow-wrap:anywhere]">{e.note}</a>
-              <span className="block text-muted-2">{[t(`para pasar a "${e.to_es}"`, `to move to "${e.to_en}"`), e.added_by, dayTime(e.added_at, locale, market.timezone)].filter(Boolean).join(' · ')}</span>
+              {e.url ? <a href={e.url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-text underline [overflow-wrap:anywhere]">{e.note}</a> : <span className="font-medium text-strong">{e.note}</span>}
+              <span className="block text-muted-2">{[t(`para pasar a "${e.to_es}"`, `to move to "${e.to_en}"`), e.requirement ? t(`documento: ${e.requirement}`, `document: ${e.requirement}`) : null, e.content_hash ? t(`huella ${e.content_hash.slice(0, 12)}`, `fingerprint ${e.content_hash.slice(0, 12)}`) : null, e.added_by, dayTime(e.added_at, locale, market.timezone)].filter(Boolean).join(' · ')}</span>
             </li>
           ))}
         </ul>
@@ -113,7 +124,7 @@ export async function DealSteps({ ctx, dealId, canEdit, market }: { ctx: Ctx; de
           {canEdit ? (
             <ActionForm action={waitingOnAction} className="flex flex-wrap items-end gap-4" testId="waiting-form">
               <input type="hidden" name="deal_id" value={dealId} />
-              <Field label={t('A quién se espera', 'Who it is waiting on')} hint={t('Si esperas a un tercero, el aviso de estancado usa el plazo de espera de la etapa.', 'If you are waiting on a third party, the stalled notice uses the stage’s waiting limit.')}>
+              <Field label={t('A quién se espera', 'Who it is waiting on')} hint={t('Si esperas al cliente, al carrier o a otro tercero, el aviso de estancado usa el plazo de esa espera en la etapa.', 'If you are waiting on the customer, the carrier or another third party, the stalled notice uses that wait limit in the stage.')}>
                 <select name="waiting_on" className="input" defaultValue={s.waiting_on ?? ''} data-testid="waiting-select">
                   <option value="">{t('A nadie', 'Nobody')}</option>
                   {Object.entries(WAIT).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}

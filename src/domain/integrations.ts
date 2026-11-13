@@ -5,6 +5,7 @@ import { withUser, type Tx } from '@/server/db'
 import { systemCtx, type Ctx } from '@/server/context'
 import { audit, emit, newId } from '@/domain/common'
 import { insertAccountTx } from '@/domain/accounts'
+import { routeNewAccount } from '@/domain/embudo/routing'
 import { accountRule, skipReason } from '@/domain/intake'
 import { DomainError, invalid } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
@@ -12,6 +13,9 @@ import { notify } from '@/domain/notify'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { markUntrusted, plainText } from '@/domain/untrusted'
 import { ingestPerfectStoreTx } from '@/domain/campo-canal/campo'
+import { stampAttributionTx } from '@/domain/campo-canal/attribution'
+import { openFileFromSalesAppTx } from '@/domain/campo-canal/expediente'
+import { recordManagerChangeTx } from '@/domain/care-accounts'
 import { applyClosing, closingFileFields, closingRowFields, manifestProblem, recordRestatements } from '@/domain/embudo/closing'
 import { decisionMakerContact, ensureRevisitTask, saveDecisionMaker } from '@/domain/embudo/revisit'
 import { noteUnknownReason } from '@/domain/embudo/reasons'
@@ -50,6 +54,30 @@ export const visitEvent = z.object({
     // PIPE-05: quien decide, cuando no estaba en la visita (opcional: el contrato vigente sigue valiendo sin él).
     decision_maker_contact: decisionMakerContact.nullable().optional(),
     revisit_due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    // CAMPO-05: señal de confianza de la visita que calcula la Sales App (0 a 100) y sus motivos. Opcional: sin ella, la visita cuenta.
+    trust_score: z.number().int().min(0).max(100).nullable().optional(),
+    trust_flags: z.array(z.string().regex(/^[a-z0-9_]{2,40}$/)).max(10).optional(),
+    // CS-06: el encargado cambió y se supo en la visita (solo el nombre y una nota corta).
+    manager_change: z.object({ new_name: z.string().trim().min(2).max(120), note: z.string().max(300).nullable().optional() }).nullable().optional(),
+  }),
+})
+
+// SEG-06: instalación o retiro de equipo en el punto de venta, registrado en la Sales App.
+export const equipmentEvent = z.object({
+  event_id: z.string().min(8).max(80),
+  type: z.literal('equipment.changed'),
+  version: z.literal(1),
+  occurred_at: iso,
+  data: z.object({
+    customer_id: z.string().min(1).max(80),
+    action: z.enum(['installed', 'retired']),
+    equipment_type: z.string().regex(/^[a-z0-9_]{2,30}$/),
+    equipment_ref: z.string().trim().min(1).max(60).nullable().optional(),
+    reason: z.string().max(200).nullable().optional(),
+    visit_id: z.string().min(1).max(80).nullable().optional(),
+    salesperson_id: z.string().min(1).max(80).nullable().optional(),
+    salesperson_email: z.string().email().optional(),
+    trust_score: z.number().int().min(0).max(100).nullable().optional(),
   }),
 })
 
@@ -89,6 +117,10 @@ export const onboardingEvent = z.object({
     region: z.string().max(120).nullable().optional(),
     salesperson_email: z.string().email().optional(),
     documents_complete: z.boolean().nullable().optional(),
+    // CAMPO-06: con esto el alta abre el expediente aquí, capturado allá una sola vez (todo opcional).
+    person_type: z.enum(['individual', 'company']).nullable().optional(),
+    funding: z.enum(['prepaid', 'ach_credit']).nullable().optional(),
+    documents: z.array(z.object({ requirement: z.string().regex(/^[a-z0-9_]{2,40}$/), link: z.string().max(500).nullable().optional() })).max(30).optional(),
   }),
 })
 
@@ -105,8 +137,8 @@ export const approvedEvent = z.object({
   }),
 })
 
-export const salesAppEvent = z.discriminatedUnion('type', [visitEvent, storeEvent, onboardingEvent, approvedEvent])
-export const SALES_APP_EVENTS = [visitEvent, storeEvent, onboardingEvent, approvedEvent] as const
+export const salesAppEvent = z.discriminatedUnion('type', [visitEvent, storeEvent, onboardingEvent, approvedEvent, equipmentEvent])
+export const SALES_APP_EVENTS = [visitEvent, storeEvent, onboardingEvent, approvedEvent, equipmentEvent] as const
 export type SalesAppEvent = z.infer<typeof salesAppEvent>
 export type IngestResult = { status: 'processed' | 'duplicate' | 'unmatched'; detail?: string; accountId?: string }
 /** Reproceso: el mensaje ya tiene su fila en la bandeja de entrada; se procesa sobre esa misma fila. */
@@ -181,6 +213,7 @@ function route(tx: Tx, sys: Ctx, ev: SalesAppEvent, replay?: Replay): Promise<In
   if (ev.type === 'store.created') return ingestStore(tx, sys, ev, replay)
   if (ev.type === 'onboarding.submitted') return ingestOnboarding(tx, sys, ev, replay)
   if (ev.type === 'merchant.approved') return ingestApproved(tx, sys, ev, replay)
+  if (ev.type === 'equipment.changed') return ingestEquipment(tx, sys, ev, replay)
   return ingestVisit(tx, sys, ev, replay)
 }
 
@@ -242,10 +275,10 @@ async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>, rep
   const note = d.note ? scrub(plainText(d.note)) : null
   const revisitReason = d.revisit_reason ? scrub(plainText(d.revisit_reason)) : null
   const visit = await tx<{ id: string }[]>`insert into crm.visits (market_code, account_id, external_visit_id, salesperson_ref, user_id, business_date, checked_in_at, checked_out_at,
-                                   duration_seconds, outcome, rejection_code, revisit, revisit_reason, decision_maker_seen, auto_closed, note, inbound_event_id)
+                                   duration_seconds, outcome, rejection_code, revisit, revisit_reason, decision_maker_seen, auto_closed, note, inbound_event_id, trust_score, trust_flags)
            values (${acc.market_code}, ${acc.id}, ${d.visit_id}, ${d.salesperson_id}, ${users[0]?.id ?? null}, ${d.business_date}, ${d.checked_in_at},
                    ${d.checked_out_at ?? null}, ${d.duration_seconds ?? null}, ${d.sale ? 'sale' : 'no_sale'}, ${d.sale ? null : (d.rejection_reason ?? null)},
-                   ${d.revisit}, ${revisitReason}, ${d.decision_maker_present ?? null}, ${d.auto_closed}, ${note}, ${eventId})
+                   ${d.revisit}, ${revisitReason}, ${d.decision_maker_present ?? null}, ${d.auto_closed}, ${note}, ${eventId}, ${d.trust_score ?? null}, ${d.trust_flags ?? []}::text[])
            on conflict (external_visit_id) do nothing returning id`
   if (visit[0] && (note || revisitReason)) await markUntrusted(tx, 'visit', visit[0].id, acc.market_code, 'sales_app', [...(note ? ['note'] : []), ...(revisitReason ? ['revisit_reason'] : [])])
   // PIPE-05: la revisita al decisor queda visible en el embudo, no escondida en una nota.
@@ -268,6 +301,13 @@ async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>, rep
     if (!comp) continue
     await tx`insert into crm.account_competitors (account_id, market_code, competitor_id, product, price_minor, observed_on, source)
              values (${acc.id}, ${acc.market_code}, ${comp.id}, ${c.product ? scrub(plainText(c.product)) : null}, ${c.price == null ? null : Math.round(c.price * 100)}, ${d.business_date}::date, 'sales_app')`
+  }
+  // CS-06: el cambio de encargado que se supo en la visita queda como en la pantalla (con su alerta de capacitación).
+  if (d.manager_change && visit[0]) {
+    const name = scrub(plainText(d.manager_change.new_name)).slice(0, 120)
+    if (name.length >= 2) {
+      await recordManagerChangeTx(tx, sys, acc, { changedOn: d.business_date, newName: name, note: d.manager_change.note ? scrub(plainText(d.manager_change.note)).slice(0, 300) : '', source: 'visit' })
+    }
   }
   await tx`update crm.inbound_events set status = 'processed', processed_at = now() where id = ${eventId}`
   await audit(tx, sys, 'integration.visit_received', 'account', acc.id, acc.market_code, null, { visit_id: d.visit_id, sale: d.sale, revisit: d.revisit })
@@ -302,8 +342,14 @@ async function linkOrCreateStore(tx: Tx, sys: Ctx, d: StoreData): Promise<{ acco
     const name = scrub(plainText(d.name)).slice(0, 160)
     accountId = await insertAccountTx(tx, { market: d.market, kind: 'store', accountType: null, name, segment: 'd2d', lifecycle: 'onboarding', parentId: null,
       ownerId: owner[0]?.id ?? null, territoryId: null, phone, locality, region, createdBy: sys.user.id })
+    // LEAD-03 (embudo2): sin vendedor conocido, el punto de venta pasa por las reglas de asignación del mercado.
+    if (!owner[0]?.id) await routeNewAccount(tx, accountId, 'sales_app')
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
              values (${accountId}, ${d.market}, 'origin', 'import', 'sales_app', 'Sales App', ${sys.user.id})`
+    await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
+             select ${accountId}, ${d.market}, 'owner', 'user', u.id::text, u.full_name, ${sys.user.id} from crm.users u where u.id = ${owner[0]?.id ?? null}`
+    // CANAL-03: las altas de la Sales App también nacen con origen clasificado y equipo reclutador.
+    await stampAttributionTx(tx, sys.user.id, accountId)
     await markUntrusted(tx, 'account', accountId, d.market, 'sales_app', ['name', ...(locality ? ['locality'] : []), ...(region ? ['region'] : [])])
   } else {
     await tx`update crm.accounts set lifecycle = 'onboarding' where id = ${accountId} and lifecycle = 'prospect'`
@@ -354,8 +400,34 @@ async function ingestOnboarding(tx: Tx, sys: Ctx, ev: z.infer<typeof onboardingE
   await tx`update crm.accounts set lifecycle = 'onboarding' where id = ${acc.id} and lifecycle = 'prospect'`
   await tx`insert into crm.activities (market_code, account_id, kind, subject, done_at, created_by, source)
            values (${acc.market_code}, ${acc.id}, 'system', ${sysNote(sys, acc.market_code, 'Alta enviada desde la Sales App', 'Onboarding submitted from the Sales App')}, ${d.submitted_at}, ${sys.user.id}, 'sales_app')`
+  // CAMPO-06: el alta abre (o completa) el expediente con lo que trae; sin formulario del mercado, queda dicho en la bitácora.
+  const file = await openFileFromSalesAppTx(tx, sys, acc, { person_type: d.person_type, funding: d.funding, documents: d.documents, documents_complete: d.documents_complete, submitted_at: d.submitted_at })
   await tx`update crm.inbound_events set status = 'processed', market_code = ${acc.market_code}, processed_at = now() where id = ${eventId}`
-  await audit(tx, sys, 'integration.onboarding_received', 'account', acc.id, acc.market_code, null, { customer_id: d.customer_id, documents_complete: d.documents_complete ?? null })
+  await audit(tx, sys, 'integration.onboarding_received', 'account', acc.id, acc.market_code, null, { customer_id: d.customer_id, documents_complete: d.documents_complete ?? null, file: file.outcome })
+  return { status: 'processed', accountId: acc.id }
+}
+
+async function ingestEquipment(tx: Tx, sys: Ctx, ev: z.infer<typeof equipmentEvent>, replay?: Replay): Promise<IngestResult> {
+  const d = ev.data
+  const accs = await tx<{ id: string; market_code: string }[]>`
+    select a.id, a.market_code from crm.account_aliases al join crm.accounts a on a.id = al.account_id
+     where al.system = 'sales_core' and al.external_id = ${d.customer_id} and al.valid_to is null and a.archived_at is null`
+  const acc = accs[0]
+  const eventId = await openEvent(tx, ev, acc?.market_code ?? null, replay)
+  if (!eventId) return { status: 'duplicate' }
+  if (!acc) {
+    await tx`update crm.inbound_events set status = 'rejected', error = 'unknown customer_id', processed_at = now() where id = ${eventId}`
+    return { status: 'unmatched', detail: 'unknown customer_id' }
+  }
+  const users = d.salesperson_email ? await tx<{ id: string }[]>`select id from crm.users where email = ${d.salesperson_email} and is_active` : []
+  const reason = d.reason ? scrub(plainText(d.reason)).slice(0, 200) : null
+  const ref = d.equipment_ref ? scrub(plainText(d.equipment_ref)).slice(0, 60) : null
+  await tx`
+    insert into crm.equipment_events (market_code, account_id, kind, equipment_type, equipment_ref, reason, occurred_at, visit_ref, salesperson_ref, user_id, trust_score, inbound_event_id)
+    values (${acc.market_code}, ${acc.id}, ${d.action}, ${d.equipment_type}, ${ref || null}, ${reason}, ${ev.occurred_at}, ${d.visit_id ?? null}, ${d.salesperson_id ?? null},
+            ${users[0]?.id ?? null}, ${d.trust_score ?? null}, ${eventId})`
+  await tx`update crm.inbound_events set status = 'processed', processed_at = now() where id = ${eventId}`
+  await audit(tx, sys, 'integration.equipment_received', 'account', acc.id, acc.market_code, null, { action: d.action, equipment_type: d.equipment_type })
   return { status: 'processed', accountId: acc.id }
 }
 
@@ -397,6 +469,9 @@ const metricRow = z.object({
   // REP-04: el estado del comercio lo define quien es dueño de la métrica (Data y Reportería) y viaja en el archivo.
   // Es opcional mientras el contrato no lo traiga: sin él, CONTIGO usa su regla de respaldo y lo dice en la pantalla.
   status: z.enum(['active', 'at_risk', 'inactive']).nullable().optional(),
+  // reportes2 (REP-04): TPV por producto y comisión, opcionales en el contrato. Si llegan se guardan tal cual; CONTIGO no los calcula.
+  tpv_by_product: z.array(z.object({ product: z.string().min(1).max(60), volume_minor_30d: z.number().int().nonnegative() })).max(30).nullable().optional(),
+  commission_minor_30d: z.number().int().nonnegative().nullable().optional(),
   // PIPE-06: primer fondeo con su método y hábito, cada uno por separado (opcionales mientras el contrato no los traiga).
   ...closingRowFields,
 })
@@ -429,6 +504,10 @@ export async function ingestMetricsFile(sys: Ctx, raw: unknown): Promise<Metrics
   if (!parsed.success) throw invalid('El archivo no cumple el formato merchant_metrics_daily v1.', 'The file does not match merchant_metrics_daily v1.')
   const file = parsed.data
   const checksum = createHash('sha256').update(JSON.stringify(file)).digest('hex')
+  // AUT-06 (reportes2): un archivo con fecha de corte anterior a la última aplicada a sus comercios llegó tarde: no se aplica nada
+  // (cambiaría el estado de los comercios hacia atrás). El mismo corte sí entra: es una corrección y deja su antes y después. Y si Administración
+  // fijó que el manifiesto es obligatorio, un archivo sin manifiesto tampoco entra.
+  await rejectLateOrBare(sys, file, checksum)
   // PIPE-06: si el manifiesto dice traer otro número de filas, el archivo llegó incompleto: no se aplica nada.
   if (manifestProblem(file)) {
     await withUser(sys.user.id, async (tx) => {
@@ -456,6 +535,33 @@ export async function ingestMetricsFile(sys: Ctx, raw: unknown): Promise<Metrics
   return result
 }
 
+async function rejectLateOrBare(sys: Ctx, file: MetricsFile, checksum: string): Promise<void> {
+  const check = await withUser(sys.user.id, async (tx) => {
+    // El corte se compara contra el último aplicado a los mismos comercios: si alguno ya tiene un corte posterior, el archivo llegó tarde.
+    const last = await tx<{ as_of: string | null; n: number }[]>`
+      select max(mm.as_of)::text as as_of, count(distinct mm.account_id)::int as n
+        from crm.account_aliases al join crm.merchant_metrics_daily mm on mm.account_id = al.account_id and mm.as_of > ${file.as_of}::date
+       where al.system in ('s5','sales_core') and al.valid_to is null and al.external_id = any(${file.rows.map((r) => r.merchant_ref)}::text[])`
+    const req = await tx<{ value: { value?: boolean } }[]>`select value from crm.settings where key = 'ingest.require_manifest'`
+    return { last: last[0]?.as_of ?? null, merchants: last[0]?.n ?? 0, requireManifest: req[0]?.value?.value === true }
+  })
+  const reason = check.last ? 'stale_as_of' : check.requireManifest && !file.manifest ? 'manifest_missing' : null
+  if (!reason) return
+  await withUser(sys.user.id, async (tx) => {
+    await tx`insert into crm.ingest_batches (source, as_of, file_name, checksum, row_count, mode, status, reject_reason)
+             values ('s5', ${file.as_of}, ${file.file_name}, ${checksum}, ${file.rows.length}, ${file.mode}, 'rejected', ${reason})
+             on conflict (source, checksum) do nothing`
+    await audit(tx, sys, 'integration.metrics_quarantined', 'ingest_batch', null, null, null, { as_of: file.as_of, rows: file.rows.length, reason, last_applied: check.last, merchants_ahead: check.merchants })
+  })
+  if (reason === 'stale_as_of')
+    throw new DomainError('stale_cutoff',
+      `El archivo trae corte al ${file.as_of} y ${check.merchants} de sus comercios ya tienen un corte posterior (al ${check.last}). Un corte anterior no cambia el estado de los comercios: no se aplicó nada.`,
+      `The file has a cutoff of ${file.as_of} and ${check.merchants} of its merchants already have a later one (${check.last}). An earlier cutoff does not change merchant status: nothing was applied.`, 409)
+  throw new DomainError('manifest_missing',
+    'El archivo llegó sin manifiesto y Administración lo pide obligatorio. No se aplicó nada.',
+    'The file arrived with no manifest and Administration requires one. Nothing was applied.', 409)
+}
+
 async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promise<MetricsResult> {
   return withUser(sys.user.id, async (tx) => {
     const seen = await tx`select 1 from crm.ingest_batches where source = 's5' and checksum = ${checksum}`
@@ -481,17 +587,18 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
     const loaded = await tx<{ account_id: string }[]>`
       with r as (
         select * from jsonb_to_recordset(${rows}) as x(merchant_ref text, first_txn_at timestamptz, last_txn_at timestamptz,
-               txn_count_30d int, volume_minor_30d bigint, currency text, active_days_30d int, status text)
+               txn_count_30d int, volume_minor_30d bigint, currency text, active_days_30d int, status text, tpv_by_product jsonb, commission_minor_30d bigint)
       ), m as (
         select distinct on (al.account_id) r.*, al.account_id, a.market_code
           from r join crm.account_aliases al on al.external_id = r.merchant_ref and al.system in ('s5','sales_core') and al.valid_to is null
                  join crm.accounts a on a.id = al.account_id and a.archived_at is null
       )
-      insert into crm.merchant_metrics_daily (account_id, as_of, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, batch_id)
-      select account_id, ${file.as_of}, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, ${batchId} from m
+      insert into crm.merchant_metrics_daily (account_id, as_of, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, batch_id, tpv_by_product, commission_minor_30d)
+      select account_id, ${file.as_of}, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, ${batchId}, tpv_by_product, commission_minor_30d from m
       on conflict (account_id, as_of) do update set first_txn_at = coalesce(crm.merchant_metrics_daily.first_txn_at, excluded.first_txn_at),
         last_txn_at = excluded.last_txn_at, txn_count_30d = excluded.txn_count_30d, volume_minor_30d = excluded.volume_minor_30d,
-        active_days_30d = excluded.active_days_30d, status = excluded.status, batch_id = excluded.batch_id
+        active_days_30d = excluded.active_days_30d, status = excluded.status, batch_id = excluded.batch_id,
+        tpv_by_product = excluded.tpv_by_product, commission_minor_30d = excluded.commission_minor_30d
       returning account_id`
     const ids = loaded.map((r) => r.account_id)
     const unmatched = file.rows.length - ids.length

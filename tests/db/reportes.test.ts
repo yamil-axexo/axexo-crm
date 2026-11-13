@@ -117,22 +117,29 @@ describe('reportes de E8', () => {
     expect(team.reduce((n, r) => n + r.deals, 0)).toBeLessThan(open)
     expect(team.every((r) => r.market_code === 'MX')).toBe(true)
   })
-  it('E8.F3: un comercio con origen a nombre de un aliado cuenta como agencia; administración puede marcar otros nombres', async () => {
+  // campo2: un solo modelo de agencia (crm.agencies). Cambiado a propósito: el origen a nombre de un aliado y los nombres marcados ya no deciden.
+  it('E8.F3: cuenta como agencia lo que reclutó una agencia de crm.agencies (negocio, comercio o capa de canal); las etiquetas viejas no deciden', async () => {
     const nora = await ctxFor('nora.salas')
     const before = await getAgencyReport(nora, year(nora), {})
-    expect(before.filter((r) => r.grp === 'agency').length).toBe(0)
-    const deal = await one(admin`select d.account_id from crm.deals d where d.market_code = 'MX' and d.created_at >= '2026-01-01' limit 1`)
-    await admin`delete from crm.account_attributions where account_id = ${deal.account_id} and layer = 'origin'`
+    const agencyDeals = (rows: typeof before) => rows.filter((r) => r.grp === 'agency').reduce((n, r) => n + r.deals, 0)
+    const deal = await one(admin`select d.id, d.account_id from crm.deals d join crm.accounts a on a.id = d.account_id
+                                  where d.market_code = 'MX' and d.created_at >= '2026-01-01' and d.recruited_agency_id is null and a.recruited_agency_id is null limit 1`)
+    const ag = await one(admin<{ id: string }[]>`insert into crm.agencies (market_code, name, kind) values ('MX', ${'Agencia Ruta Norte ' + Math.random().toString(36).slice(2, 6)}, 'agency') returning id`)
+    // un origen a nombre de un aliado ya no basta
+    await admin`update crm.account_attributions set effective_to = now() where account_id = ${deal.account_id} and layer = 'origin' and effective_to is null`
     await admin`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label) values (${deal.account_id}, 'MX', 'origin', 'partner', 'ag-1', 'Agencia Ruta Norte')`
+    expect(agencyDeals(await getAgencyReport(nora, year(nora), {}))).toBe(agencyDeals(before))
+    // la capa de canal vigente a nombre de la agencia sí
+    await admin`update crm.account_attributions set effective_to = now() where account_id = ${deal.account_id} and layer = 'channel' and effective_to is null`
+    await admin`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label) values (${deal.account_id}, 'MX', 'channel', 'partner', ${ag.id}, 'Agencia Ruta Norte')`
     const after = await getAgencyReport(nora, year(nora), {})
-    const ag = after.filter((r) => r.grp === 'agency')
-    expect(ag.length).toBe(1)
-    expect(ag[0]!.label).toBe('Agencia Ruta Norte')
+    expect(agencyDeals(after)).toBeGreaterThan(agencyDeals(before))
+    expect(after.some((r) => r.grp === 'agency' && r.label?.startsWith('Agencia Ruta Norte'))).toBe(true)
     expect(after.reduce((n, r) => n + r.deals, 0)).toBe(before.reduce((n, r) => n + r.deals, 0))
+    // las etiquetas se siguen guardando (modelo anterior) pero no cambian el reporte
     await expect(setAgencyLabels(await ctxFor('ana.robles'), 'Carga inicial')).rejects.toMatchObject({ code: 'forbidden' })
     await setAgencyLabels(nora, 'Carga inicial, Formulario web')
-    const marked = await getAgencyReport(nora, year(nora), {})
-    expect(marked.filter((r) => r.grp === 'agency').reduce((n, r) => n + r.deals, 0)).toBeGreaterThan(ag[0]!.deals)
+    expect(agencyDeals(await getAgencyReport(nora, year(nora), {}))).toBe(agencyDeals(after))
   })
   it('E8.F5: Finanzas suma ganados por moneda y entidad legal igual que Negocios cerrados, y consolida solo con tasa', async () => {
     const nora = await ctxFor('nora.salas')
@@ -235,14 +242,15 @@ describe('conciliación con el archivo de ventas (REP-04)', () => {
     const acc = await one(admin`select a.id from crm.accounts a where a.market_code = 'MX' and a.lifecycle = 'active' and a.kind = 'store' limit 1`)
     await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${acc.id}, 'MX', 's5', 'MID-REP-1')`
     const row = { merchant_ref: 'MID-REP-1', first_txn_at: '2026-06-01T15:00:00+00:00', last_txn_at: '2026-11-10T15:00:00+00:00', txn_count_30d: 90, volume_minor_30d: 900000, currency: 'MXN', active_days_30d: 28 }
+    // reportes2 (AUT-06): las fechas van después del corte del seed (12-nov); un corte anterior al último aplicado ya no entra.
     // Con 28 días de venta la regla propia diría "activo": el archivo dice "en riesgo" y eso queda.
-    await ingestMetricsFile(sys, { as_of: '2026-11-11', file_name: 'rep-1.json', mode: 'delta', rows: [{ ...row, status: 'at_risk' }] })
+    await ingestMetricsFile(sys, { as_of: '2026-11-13', file_name: 'rep-1.json', mode: 'delta', rows: [{ ...row, status: 'at_risk' }] })
     expect((await one(admin`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe('at_risk')
-    expect((await one(admin`select status from crm.merchant_metrics_daily where account_id = ${acc.id} and as_of = '2026-11-11'`)).status).toBe('at_risk')
+    expect((await one(admin`select status from crm.merchant_metrics_daily where account_id = ${acc.id} and as_of = '2026-11-13'`)).status).toBe('at_risk')
     // Sin estado en el archivo: regla de respaldo (28 días de venta: vuelve a activo).
-    await ingestMetricsFile(sys, { as_of: '2026-11-12', file_name: 'rep-2.json', mode: 'delta', rows: [row] })
+    await ingestMetricsFile(sys, { as_of: '2026-11-14', file_name: 'rep-2.json', mode: 'delta', rows: [row] })
     expect((await one(admin`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe('active')
-    await expect(ingestMetricsFile(sys, { as_of: '2026-11-13', file_name: 'rep-3.json', mode: 'delta', rows: [{ ...row, status: 'feliz' }] })).rejects.toBeTruthy()
+    await expect(ingestMetricsFile(sys, { as_of: '2026-11-15', file_name: 'rep-3.json', mode: 'delta', rows: [{ ...row, status: 'feliz' }] })).rejects.toBeTruthy()
   })
   it('lista los ganados sin primera venta en el archivo y las primeras ventas con negocio abierto, y guarda la corrida con su umbral', async () => {
     const nora = await ctxFor('nora.salas')

@@ -30,6 +30,15 @@ export const FIELD_MATRIX: MatrixRow[] = [
     rule: ['Ningún evento de la Sales App mueve la etapa. La aprobación no gana el negocio.', 'No Sales App event moves the stage. Approval does not win the deal.'] },
   { field: ['Primera transacción y actividad de ventas', 'First transaction and sales activity'], owner: 's5', travels: 'merchant_metrics_daily (archivo diario / daily file)',
     rule: ['Gana el negocio y activa el comercio. Llega por el archivo diario, no por evento.', 'Wins the deal and activates the merchant. It arrives in the daily file, not as an event.'] },
+  // campo2 (ola 6): señal de la visita, cambio de encargado, equipo y expediente.
+  { field: ['Señal de confianza de la visita', 'Visit trust signal'], owner: 'sales_app', travels: 'visit.checked_out (trust_score, trust_flags)',
+    rule: ['La calcula la Sales App. CONTIGO no la recalcula: con ella decide si la visita cuenta en los indicadores (umbral del mercado).', 'The Sales App computes it. CONTIGO does not recompute it: it uses it to decide whether the visit counts in the indicators (market threshold).'] },
+  { field: ['Cambio de encargado', 'Manager change'], owner: 'sales_app', travels: 'visit.checked_out (manager_change)',
+    rule: ['Se ve en la visita. En CONTIGO abre la misma alerta de capacitación que cuando se anota a mano.', 'It is seen in the visit. In CONTIGO it opens the same training alert as when it is entered by hand.'] },
+  { field: ['Instalación y retiro de equipo', 'Equipment install and removal'], owner: 'sales_app', travels: 'equipment.changed',
+    rule: ['Se registra allá. CONTIGO lo guarda y lo liga a los incidentes de campo de ese día.', 'It is recorded there. CONTIGO stores it and links it to that day’s field incidents.'] },
+  { field: ['Expediente de alta (tipo de persona, forma de pago, documentos)', 'Onboarding file (person type, payment method, documents)'], owner: 'sales_app', travels: 'onboarding.submitted',
+    rule: ['Se captura una vez allá. CONTIGO abre o completa el expediente y la mesa de control lo valida aquí. Nunca viaja el archivo: solo estado y enlace.', 'It is captured once there. CONTIGO opens or completes the file and the control desk validates it here. The file never travels: only status and a link.'] },
 ]
 
 export const INBOUND_EVENTS: { type: string; version: number; about: Pair; required: string[] }[] = [

@@ -1,4 +1,6 @@
 import { getCarry } from '@/dal/reportes'
+import { myStatements } from '@/dal/partners'
+import { StatementList } from '../../partners/statements'
 import { isUuid } from '@/lib/ids'
 import { Card, CardTitle, NoData } from '@/ui/kit'
 import { Def, Metric, ReportFilters } from '@/ui/report'
@@ -18,7 +20,7 @@ export default async function CarryPage({ searchParams }: { searchParams: Promis
   const picked = ctx.can('report.view') && isUuid(r.sp.persona) && options.people.some((p) => p.id === r.sp.persona) ? r.sp.persona : undefined
   const ownerId = picked ?? ctx.user.id
   const who = picked ? options.people.find((p) => p.id === picked)!.full_name : null
-  const c = await getCarry(ctx, period, ownerId)
+  const [c, statements] = await Promise.all([getCarry(ctx, period, ownerId), picked ? Promise.resolve([]) : myStatements(ctx)])
   const params = { ...r.params, persona: picked, mercado: undefined, embudo: undefined, equipo: undefined }
   return (
     <>
@@ -41,6 +43,12 @@ export default async function CarryPage({ searchParams }: { searchParams: Promis
         </div>
         <Def t={t} k="carryActive" owners={owners} />
       </Card>
+      {!picked && (
+        <Card className="mt-6" data-testid="carry-statements">
+          <CardTitle title={t('Tu estado de comisión del mes', 'Your commission statement for the month')} hint={t('Conteos, sin montos, marcados como estimado o publicado. El premio por umbral y lo de tu equipo se ven aquí; no hay lugar en una tabla contra nadie.', 'Counts, no amounts, marked as estimate or published. The threshold award and your team’s count show here; there is no ranking against anyone.')} />
+          <StatementList t={t} locale={locale} rows={statements} testId="my-statements" />
+        </Card>
+      )}
       <p role="note" className="mt-5 rounded-[14px] bg-surface-3 px-5 py-4 text-[14px] text-strong" data-testid="carry-note">
         {t('Estos son los números que alimentan tu incentivo. CONTIGO no calcula el pago ni muestra montos: eso lo calcula otro sistema, con las reglas que publican Ventas y Finanzas. Si un número de aquí no te cuadra, repórtalo antes del cierre.', 'These are the numbers that feed your incentive. CONTIGO does not calculate the payout or show amounts: another system does that, under the rules Sales and Finance publish. If a number here looks off, report it before the close.')}
       </p>

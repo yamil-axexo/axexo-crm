@@ -8,7 +8,7 @@ import { NoticeForm } from '@/ui/admin'
 import { ago, num } from '@/lib/format'
 import { lab, qs } from '@/lib/labels'
 import { PRODUCT_STATUS, PRODUCT_TONE } from '@/lib/datos-labels'
-import { setProductProviderAction, setProviderSlaAction } from './actions'
+import { openExpansionDealsAction, setProductEntityAction, setProductProviderAction, setProviderSlaAction } from './actions'
 
 /**
  * DAT-07: productos por comercio. Qué producto tiene cada comercio y en qué va con su proveedor, con el reloj del proveedor
@@ -22,6 +22,8 @@ export async function ProductosTab({ ctx, market, provider, status, late, withou
   const markets = ctx.markets.filter((m) => m.status === 'live')
   const filtered = !!(market || provider || st || late)
   const expansion = without ? await expansionList(ctx, without) : null
+  // DAT-07 (datos2): de la base de expansión se abren negocios. Lo hace quien trabaja expansión en el mercado del producto.
+  const canExpand = !!expansion && (expansion.product.market_code ? ctx.can('expansion.work', expansion.product.market_code) : ctx.can('expansion.work'))
 
   return (
     <div className="space-y-8" data-testid="products-tab">
@@ -53,7 +55,7 @@ export async function ProductosTab({ ctx, market, provider, status, late, withou
       <Card pad={false} data-testid="catalog-card">
         <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Catálogo de productos', 'Product catalog')} hint={t('Cada producto es de un mercado y lo entrega un proveedor. Los productos se dan de alta en Administración, Operaciones.', 'Each product belongs to a market and is delivered by a provider. Products are added under Administration, Operations.')} /></div>
         {d.products.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Sin productos', 'No products')} hint={t('Agrega el primero en Administración, Operaciones.', 'Add the first one under Administration, Operations.')} /></div> : (
-          <Table label={t('Catálogo de productos', 'Product catalog')} head={<><th>{t('Producto', 'Product')}</th><th>{t('Mercado', 'Market')}</th><th>{t('Proveedor', 'Provider')}</th><th>{t('Comercios que lo tienen', 'Merchants that have it')}</th><th>{t('Activos que no lo tienen', 'Active ones without it')}</th></>}>
+          <Table label={t('Catálogo de productos', 'Product catalog')} head={<><th>{t('Producto', 'Product')}</th><th>{t('Mercado', 'Market')}</th><th>{t('Proveedor', 'Provider')}</th><th>{t('Entidad legal', 'Legal entity')}</th><th>{t('Comercios que lo tienen', 'Merchants that have it')}</th><th>{t('Activos que no lo tienen', 'Active ones without it')}</th></>}>
             {d.products.map((p) => {
               const options = d.providers.filter((k) => !k.market_code || !p.market_code || k.market_code === p.market_code)
               const current = d.providers.find((k) => k.id === p.provider_id)
@@ -70,6 +72,15 @@ export async function ProductosTab({ ctx, market, provider, status, late, withou
                       </NoticeForm>
                     ) : current ? t(current.label_es, current.label_en) : <NoData locale={locale} />}
                   </td>
+                  <td>
+                    {admin ? (
+                      <NoticeForm action={setProductEntityAction} className="flex items-center gap-2">
+                        <input type="hidden" name="id" value={p.id} />
+                        <select name="legal_entity_id" className="input !w-auto" defaultValue={p.legal_entity_id ?? ''} aria-label={t(`Entidad legal de ${p.name}`, `Legal entity for ${p.name}`)} data-testid="product-entity"><option value="">{t('Sin entidad', 'No entity')}</option>{d.entities.filter((e) => !p.market_code || e.market_code === p.market_code).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select>
+                        <Submit variant="quiet" size="sm" testId="product-entity-save">{t('Guardar', 'Save')}</Submit>
+                      </NoticeForm>
+                    ) : d.entities.find((e) => e.id === p.legal_entity_id)?.name ?? <NoData locale={locale} />}
+                  </td>
                   <td className="num">{num(p.merchants, locale)}</td>
                   <td className="num">{p.without > 0 ? <Link href={`${qs('/datos', { tab: 'productos', sin: p.id })}#expansion`} className="inline-flex min-h-11 items-center font-semibold text-blue-text underline" data-testid="product-without">{num(p.without, locale)}</Link> : 0}</td>
                 </tr>
@@ -83,9 +94,12 @@ export async function ProductosTab({ ctx, market, provider, status, late, withou
         <Card pad={false} id="expansion" data-testid="expansion-card">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t(`A quién ofrecerle ${expansion.product.name}`, `Who to offer ${expansion.product.name} to`)} hint={t('Comercios activos que todavía no lo tienen ni lo tienen en trámite, primero los que más venden.', 'Active merchants that do not have it yet and have no request in progress, best sellers first.')} /></div>
           {expansion.rows.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Todos los comercios activos ya lo tienen', 'Every active merchant already has it')} hint={t('Cuando se active un comercio nuevo, aparece aquí.', 'When a new merchant becomes active, it shows here.')} /></div> : (
-            <Table label={t('Comercios para ofrecer el producto', 'Merchants to offer the product to')} head={<><th>{t('Comercio', 'Merchant')}</th><th>{t('Ciudad', 'City')}</th><th>{t('Quién lo lleva', 'Owner')}</th><th>{t('Ventas en 30 días', 'Sales in 30 days')}</th></>}>
+            <NoticeForm action={openExpansionDealsAction} testId="expansion-form">
+            <input type="hidden" name="product_id" value={expansion.product.id} />
+            <Table label={t('Comercios para ofrecer el producto', 'Merchants to offer the product to')} head={<><th>{canExpand ? <span className="sr-only">{t('Elegir', 'Pick')}</span> : null}</th><th>{t('Comercio', 'Merchant')}</th><th>{t('Ciudad', 'City')}</th><th>{t('Quién lo lleva', 'Owner')}</th><th>{t('Ventas en 30 días', 'Sales in 30 days')}</th></>}>
               {expansion.rows.map((r) => (
                 <tr key={r.id} className="table-row" data-testid="expansion-row">
+                  <td>{canExpand && <label className="flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" name="account_id" value={r.id} className="h-5 w-5" aria-label={t(`Elegir ${r.name}`, `Pick ${r.name}`)} data-testid="expansion-pick" /></label>}</td>
                   <td><Link href={`/comercios/${r.id}`} className="inline-flex min-h-11 items-center font-semibold text-blue-text underline">{r.name}</Link></td>
                   <td className="text-[13.5px]">{r.locality ?? <NoData locale={locale} />}</td>
                   <td className="text-[13.5px]">{r.owner_name ?? <span className="text-amber-text">{t('Sin asignar', 'Unassigned')}</span>}</td>
@@ -93,6 +107,8 @@ export async function ProductosTab({ ctx, market, provider, status, late, withou
                 </tr>
               ))}
             </Table>
+            {canExpand && <div className="flex flex-wrap items-center justify-end gap-3 px-5 py-4 md:px-7"><span className="text-[13px] text-muted">{t('Cada negocio queda a nombre de quien lleva el comercio, con el producto pedido en la matriz.', 'Each deal is owned by whoever owns the merchant, with the product requested in the matrix.')}</span><Submit size="sm" testId="expansion-open">{t('Abrir negocios de expansión', 'Open expansion deals')}</Submit></div>}
+            </NoticeForm>
           )}
           {expansion.rows.length >= 100 && <p className="px-5 py-4 text-[13px] text-muted md:px-7">{t('Se muestran los primeros 100.', 'Showing the first 100.')}</p>}
         </Card>

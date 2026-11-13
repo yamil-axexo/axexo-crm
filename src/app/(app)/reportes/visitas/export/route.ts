@@ -7,7 +7,7 @@ import { DomainError } from '@/lib/errors'
 export async function GET(req: NextRequest) {
   const ctx = await getCtx()
   if (!ctx) return new NextResponse(null, { status: 401 })
-  if (!ctx.can('report.export')) return new NextResponse(null, { status: 404 })
+  if (!ctx.can('report.export') && !ctx.can('visit.reimbursement')) return new NextResponse(null, { status: 404 })
   const sp = req.nextUrl.searchParams
   const pick = (k: string) => (sp.get(k) ?? '').slice(0, 20) || undefined
   try {

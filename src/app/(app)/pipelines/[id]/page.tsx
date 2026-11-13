@@ -29,13 +29,13 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   // Persona y equipo: filtros para supervisión, quien lidera y leadership, dentro de su alcance.
   const options = ctx.can('report.view') ? await getReportOptions(ctx) : null
   const team = sp.equipo === 'none' ? 'none' : options?.teams.some((x) => x.id === sp.equipo) ? sp.equipo : undefined
-  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin', paused: sp.paso === 'pausa', revisit: sp.paso === 'revisita', team }), listPipelines(ctx)])
+  const [board, pipelines] = await Promise.all([getBoard(ctx, id, { owner: sp.owner, noStep: sp.paso === 'sin', paused: sp.paso === 'pausa', revisit: sp.paso === 'revisita', revisitLate: sp.paso === 'revisita-vencida', team }), listPipelines(ctx)])
   if (!board) notFound()
   await track(ctx, 'view.pipeline')
   const market = ctx.market(board.pipeline.market_code)
   const listView = sp.vista === 'lista'
   // Cerrar en bloque lo que lleva más de N días sin movimiento: Operaciones, supervisión y quien lidera.
-  const canBulk = ctx.can('deal.bulk_close', board.pipeline.market_code)
+  const canBulk = ctx.can('deal.bulk_close', board.pipeline.market_code) || ctx.can('operator.bulk_edit', board.pipeline.market_code)
   const quietDays = canBulk && sp.quietos ? Math.min(Math.max(Number(sp.quietos) || 30, 1), 720) : 0
   const [stale, reasons] = quietDays ? await Promise.all([staleDeals(ctx, id, quietDays), lossReasonsFor(ctx, board.pipeline.market_code, board.pipeline.motor)]) : [[], []]
   const stages = board.stages.filter((s) => s.kind === 'open' || s.kind === 'awaiting_txn')
@@ -68,7 +68,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
       {quietDays > 0 && <Link href={here({})} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-blue-text underline" data-testid={`quiet-clear${suffix}`}>{t('Volver al tablero', 'Back to the board')}</Link>}
     </form>
   )
-  const activeFilters = [team, sp.owner, sp.paso === 'sin' || sp.paso === 'pausa' || sp.paso === 'revisita' ? sp.paso : undefined, quietDays > 0 ? 'quietos' : undefined].filter(Boolean).length
+  const activeFilters = [team, sp.owner, sp.paso === 'sin' || sp.paso === 'pausa' || sp.paso === 'revisita' || sp.paso === 'revisita-vencida' ? sp.paso : undefined, quietDays > 0 ? 'quietos' : undefined].filter(Boolean).length
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
 
   const cols: BoardCol[] = stages.map((s, i) => {
@@ -138,6 +138,13 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
             <Link href={here({ vista: undefined })} aria-current={!listView ? 'page' : undefined} className={seg(!listView)} data-testid="view-board">{m('deals.view.board')}</Link>
             <Link href={here({ vista: 'lista' })} aria-current={listView ? 'page' : undefined} className={seg(listView)} data-testid="view-list">{m('deals.view.list')}</Link>
           </nav>
+          {/* reportes2 (E8.F4): en el tablero las vistas del equipo van plegadas, para no empujar las columnas al arrastrar. */}
+          {!listView && (
+            <details className="relative" data-testid="board-views">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-full border border-line bg-surface px-4 text-[14px] font-medium text-strong [&::-webkit-details-marker]:hidden" data-testid="board-views-toggle">{t('Vistas del equipo', 'Team views')}</summary>
+              <div className="card z-30 mt-2 p-3 shadow-lg md:absolute md:left-0 md:w-[36rem]"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team }} current={sp.cola} /></div>
+            </details>
+          )}
           <FilterFold label={t('Filtros', 'Filters')} active={activeFilters}>
             {options && teams.length > 0 && (
               <NavSelect label={t('Equipo', 'Team')} value={here({})} testId="board-team"
@@ -153,10 +160,11 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
               <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
             </nav>}
             <nav aria-label={m('deals.filter')} className="inline-flex rounded-full border border-line bg-surface p-1">
-              <Link href={here({ paso: undefined })} aria-current={sp.paso !== 'sin' && sp.paso !== 'pausa' && sp.paso !== 'revisita' ? 'page' : undefined} className={seg(sp.paso !== 'sin' && sp.paso !== 'pausa' && sp.paso !== 'revisita')} data-testid="filter-all">{m('deals.filter.all')}</Link>
+              <Link href={here({ paso: undefined })} aria-current={!['sin', 'pausa', 'revisita', 'revisita-vencida'].includes(sp.paso ?? '') ? 'page' : undefined} className={seg(!['sin', 'pausa', 'revisita', 'revisita-vencida'].includes(sp.paso ?? ''))} data-testid="filter-all">{m('deals.filter.all')}</Link>
               <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
               <Link href={here({ paso: 'pausa' })} aria-current={sp.paso === 'pausa' ? 'page' : undefined} className={seg(sp.paso === 'pausa')} data-testid="filter-paused">{t(`En pausa (${paused})`, `On hold (${paused})`)}</Link>
               <Link href={here({ paso: 'revisita' })} aria-current={sp.paso === 'revisita' ? 'page' : undefined} className={seg(sp.paso === 'revisita')} data-testid="filter-revisit">{t(`Revisita a quien decide (${revisits})`, `Revisit to decision-maker (${revisits})`)}</Link>
+              <Link href={here({ paso: 'revisita-vencida' })} aria-current={sp.paso === 'revisita-vencida' ? 'page' : undefined} className={seg(sp.paso === 'revisita-vencida')} data-testid="filter-revisit-late">{t('Revisitas vencidas', 'Overdue revisits')}</Link>
             </nav>
             {canBulk && <div className="w-full md:hidden">{quietForm('-m')}</div>}
           </FilterFold>
@@ -202,7 +210,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </div>
       ) : listView ? (
         <>
-        {/* Vistas guardadas (UX-03): viven en la vista Lista. En el tablero empujaban las columnas y estorbaban al arrastrar. */}
+        {/* Vistas guardadas (UX-03): en Lista abiertas; en el tablero, plegadas en "Vistas del equipo" (una sola entrada, reportes2). */}
         <div className="mb-4"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team, orden: sp.orden, vista: 'lista' }} current={sp.cola} /></div>
         <nav aria-label={t('Orden de la lista', 'List order')} className="mb-3 inline-flex flex-wrap items-center gap-1 rounded-full border border-line bg-surface p-1" data-testid="list-order">
           <Link href={here({ orden: undefined })} aria-current={!order ? 'page' : undefined} className={seg(!order)} data-testid="order-stage">{t('Por etapa', 'By stage')}</Link>

@@ -35,6 +35,8 @@ const input = z.object({
   askNext: z.boolean().optional().default(false),
   /** "Avisar a": persona con acceso al registro a quien le aparece el aviso en Hoy. Solo en notas. */
   notify: z.guid().or(z.literal('')).optional().default(''),
+  /** ACT-01: quién la ve. 'team' (quien ve el registro), 'managers' (además de quien la escribe y quien la lleva, solo quien dirige), 'restricted' (solo administración). */
+  visibility: z.enum(['team', 'managers', 'restricted']).optional().default('team'),
 })
 export type ActivityInput = z.input<typeof input>
 export type Recorded = { id: string; kind: string; name: string; next: string | null; due: string | null; /** Campos del negocio que se llenaron con lo escrito en la nota (E12.F3). */ moved?: { key: string; label_es: string; label_en: string }[]; /** SEG-04: se tapó un dato que no se guarda (cuenta o SSN). */ masked?: boolean }
@@ -164,9 +166,9 @@ export async function recordActivity(ctx: Ctx, raw: ActivityInput): Promise<Reco
     const due = v.dueAt ? (v.dueAt.length === 10 ? `${v.dueAt}T15:00:00Z` : v.dueAt) : null
     // Lo que ya pasó queda con su fecha: ahora, o el mediodía del día elegido en la zona del mercado (no tiene hora).
     const done = v.kind === 'task' || planned ? null : v.on ? tx`case when ${v.on}::date = (now() at time zone ${tz})::date then now() else (${v.on}::date + time '12:00') at time zone ${tz} end` : tx`now()`
-    await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, body, due_at, done_at, outcome, visited_by, no_sale_code, visit_reason, owner_id, created_by)
+    await tx`insert into crm.activities (id, market_code, account_id, deal_id, lead_id, kind, subject, body, due_at, done_at, outcome, visited_by, no_sale_code, visit_reason, owner_id, created_by, visibility_class)
              values (${id}, ${market!}, ${accountId}, ${dealId}, ${v.leadId ?? null}, ${v.kind}, ${subject}, ${v.kind === 'visit' && !planned ? body : clean(v.body)},
-                     ${due}, ${done}, ${v.outcome || null}, ${visitor}, ${noSale}, ${purpose}, ${ctx.user.id}, ${ctx.user.id})`
+                     ${due}, ${done}, ${v.outcome || null}, ${visitor}, ${noSale}, ${purpose}, ${ctx.user.id}, ${ctx.user.id}, ${v.visibility})`
     if (v.kind === 'visit' && !planned) await closePlannedVisits(tx, accountId, ctx.user.id, id)
     await audit(tx, ctx, 'activity.added', 'activity', id, market!, null, {
       kind: v.kind, account_id: accountId, ...(v.outcome ? { outcome: v.outcome } : {}), ...(v.kind === 'visit' && !planned ? { origin: 'manual', on: v.on || null, visited_by: visitor, ...(noSale ? { no_sale_reason: noSale } : {}), ...(purpose ? { visit_reason: purpose } : {}), ...(moved && moved.length > 0 ? { note_to_fields: moved.map((m) => m.key) } : {}) } : {}),

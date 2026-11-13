@@ -66,7 +66,7 @@ describe('quién es dueño vigente hoy en un mercado (app.owner_keys)', () => {
     const nora = await personaId('nora.salas')
     await asPersona('nora.salas', async (tx) => {
       const { keys, roles } = await one(tx<{ keys: string[]; roles: string[] }[]>`select app.owner_keys(array['MX','US']) as keys, app.owner_roles() as roles`)
-      expect(roles).toEqual(['rep', 'supervisor', 'market_lead', 'ops', 'agency']) // 0027: la agencia confinada lleva lo que recluta
+      expect(roles).toEqual(['rep', 'supervisor', 'market_lead', 'ops', 'agency', 'kam']) // 0027: la agencia confinada lleva lo que recluta; 0040: KAM lleva cuentas clave
       expect(keys).toContain(`MX:${valeria}`)
       expect(keys).not.toContain(`US:${valeria}`) // opera en México, no en Estados Unidos
       expect(keys.some((k) => k.endsWith(luis))).toBe(false)

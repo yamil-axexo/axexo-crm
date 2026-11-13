@@ -13,9 +13,9 @@ import { LogHost } from '@/ui/log'
 import { Beacon } from '@/ui/beacon'
 import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
-import { pinnedQueues } from '@/dal/reportes'
+import { officialQueues, pinnedQueues } from '@/dal/reportes'
 import { VIEW_EN, VIEW_OBJECT_LABEL, viewHref } from '@/lib/report-catalog'
-import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
+import { OPERATOR_CAPS, ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 import { stopViewAsAction } from '@/app/(app)/admin/seguridad/view-as-actions'
 import { CommandPalette } from '@/ui/palette'
@@ -42,7 +42,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
   const showAdmin = ctx.can('config.manage') || ctx.can('audit.read') || ctx.can('access.manage') || ctx.can('integration.operate') || ctx.can('security.read')
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
-  const readOnly = isReadOnly(ctx.memberships)
+  // Finanzas deja de ser solo lectura en los mercados donde la decisión de datos2 le permite cambiar dueños, fusionar y editar en bloque.
+  const readOnly = isReadOnly(ctx.memberships) && !OPERATOR_CAPS.some((c) => ctx.can(c))
   const counts = await dockCounts(ctx)
   // La campana: cuántos avisos sin leer tiene la persona (AUT-05).
   const unread = ctx.user.isSystem ? 0 : await unreadNotices(ctx)
@@ -76,6 +77,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const viewAsUntil = ctx.viewAs ? new Intl.DateTimeFormat(ctx.locale === 'en' ? 'en-US' : 'es-MX', { hour: 'numeric', minute: '2-digit', timeZone: await readerTimeZone(ctx) }).format(new Date(ctx.viewAs.until)) : ''
   // Colas fijadas por la persona (vistas guardadas), con su contador.
   const queues = await pinnedQueues(ctx)
+  // UX-03 (embudo2): las colas oficiales del rol, con su total en la barra principal.
+  const official = await officialQueues(ctx)
+  const officialTotal = official.reduce((n, q) => n + (q.count ?? 0), 0)
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
   // UX-02: la paleta (Ctrl+K) ofrece los mismos destinos que la persona ya tiene en el dock y en su menú, ni uno más.
   const palette = [
@@ -83,6 +87,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ...create,
     ...(ctx.can('board.supervisor') ? [{ href: '/supervisor', label: m('top.team') }] : []),
     ...(ctx.can('report.gallery') ? [{ href: '/reportes', label: t('Reportes', 'Reports') }] : []),
+    ...(ctx.can('view.save') ? [{ href: '/personas', label: t('Personas de los comercios', 'Merchant contacts') }] : []),
     ...(ctx.can('ia.read') || ctx.can('ia.ask') ? [{ href: '/asistencia', label: t('Asistencia', 'Assistance') }] : []),
     ...(ctx.can('board.lt') ? [{ href: '/panel-lt', label: m('top.leadership') }] : []),
     ...(showAdmin ? [{ href: '/admin', label: m('top.admin') }] : []),
@@ -110,6 +115,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/buscar" aria-label={m('top.searchLabel')} className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-strong md:hidden" data-testid="search-link">
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
+          {official.length > 0 && (
+            <Link href="/colas" className="press relative inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-full border border-line px-1.5 text-[13px] font-semibold text-strong hover:bg-green-50 md:px-3" data-testid="nav-official-queues">
+              <ListChecks size={18} strokeWidth={1.75} aria-hidden className="hidden md:block" />
+              <span className="sr-only md:not-sr-only">{t('Colas', 'Queues')}</span>
+              <span className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="nav-official-count">{officialTotal > 99 ? '99+' : officialTotal}</span>
+            </Link>
+          )}
           <Link href="/avisos" aria-label={bellLabel} title={bellLabel} className={`press relative h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-strong hover:bg-green-50 ${readOnly ? 'hidden md:inline-flex' : 'inline-flex'}`} data-testid="bell">
             <Bell size={20} strokeWidth={1.75} aria-hidden />
             {unread > 0 && <span className="num absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="bell-count">{unread > 99 ? '99+' : unread}</span>}
@@ -150,6 +162,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {/* Quien administra llega a Asistencia desde Administración, IA y asistencia (y desde la paleta): su menú ya no cabe en un teléfono. */}
               {!ctx.can('config.manage') && (ctx.can('ia.read') || ctx.can('ia.ask')) && <Link href="/asistencia" role="menuitem" className={menuLink} data-testid="nav-assist"><Lightbulb size={20} strokeWidth={1.75} aria-hidden />{t('Asistencia', 'Assistance')}</Link>}
               {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
+              {/* reportes2 (E8.F4): la lista de personas de los comercios, con vistas por equipo. */}
+              {ctx.can('view.save') && <Link href="/personas" role="menuitem" className={menuLink} data-testid="nav-contacts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Personas de los comercios', 'Merchant contacts')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {/* Quien administra llega a estas dos pantallas desde Administración: su menú ya no cabe en un teléfono con más entradas. */}
               {!ctx.can('config.manage') && ctx.can('report.view') && <Link href="/reportes/mercado" role="menuitem" className={menuLink} data-testid="nav-market-report"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reporte del mercado', 'Market report')}</Link>}

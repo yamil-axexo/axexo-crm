@@ -25,7 +25,8 @@ const safe = (s: string | null) => (s === null ? '' : scrub(s))
  */
 export async function visitDetail(ctx: Ctx, f: { market?: string; from?: string; to?: string }): Promise<{ rows: VisitDetailRow[]; from: string; to: string; truncated: boolean; markets: string[] }> {
   const scope = reportScope(ctx)
-  const markets = scopeMarkets(scope).filter((c) => ctx.can('report.export', c))
+  // reportes2 (E12.F6): Finanzas lo descarga con su propio permiso, sin tener la exportación de los demás reportes.
+  const markets = scopeMarkets(scope).filter((c) => ctx.can('report.export', c) || ctx.can('visit.reimbursement', c))
   if (markets.length === 0 || (f.market && !markets.includes(f.market))) throw forbidden()
   const iso = /^\d{4}-\d{2}-\d{2}$/
   const today = isoDay(new Date(), ctx.market(f.market ?? markets[0]!).timezone)

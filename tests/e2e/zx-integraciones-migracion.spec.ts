@@ -95,7 +95,7 @@ test.describe('convivencia con Pipedrive y lo reconstruido', () => {
     await page.goto('/admin/automatizaciones')
     const pd = page.getByTestId('auto-pipedrive')
     await expect(pd.getByTestId('auto-pd-row')).toHaveCount(10)
-    await expect(page.locator('[data-testid="auto-market"][data-market="US"]').getByTestId('auto-row')).toHaveCount(9)
+    await expect(page.locator('[data-testid="auto-market"][data-market="US"]').getByTestId('auto-row')).toHaveCount(11) // embudo2: dos reglas de base más (ACT-02)
     await pd.locator('[data-testid="auto-pd-row"][data-key="pd_owner_at_approvals"]').getByTestId('auto-open').click()
     await expect(page.getByTestId('auto-pd-note')).toContainText('Owner - Valentina at Approvals (US)')
     await expect(page.getByTestId('auto-edit')).toHaveCount(0)

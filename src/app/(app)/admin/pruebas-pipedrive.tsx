@@ -28,6 +28,14 @@ export function MigrationToolsCard({ ctx }: { ctx: Ctx }) {
         <p className="mt-1 text-[13.5px] text-muted-2">{t('Para el corte de México: las columnas de promoción no se cargan y los leads muertos entran cerrados con su motivo. Con vista previa, reporte por fila y deshacer.', 'For the Mexico cut-over: promotion columns are not loaded and dead leads come in closed with their reason. With preview, per-row report and undo.')}</p>
         <Link href="/importar?tipo=mx_leads" className="mt-2 inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="mx-sheet-link">{t('Importar la hoja', 'Import the sheet')}</Link>
       </section>
+      {/* E6.F8 (datos2): en producción se ve bloqueado y por qué, no desaparece. */}
+      {ctx.can('market.reset_test') && !resetAllowed() && (
+        <section className="mt-5 border-t border-line pt-5" data-testid="test-reset-blocked">
+          <h3 className="text-[15px] font-semibold text-strong">{t('Borrar y recargar un mercado', 'Wipe and reload a market')}</h3>
+          <p className="mt-1 text-[13.5px] text-muted-2">{t('En este ambiente está bloqueado. En producción es una decisión [pendiente: Dan Mulligan]; mientras no se decida, un mercado se vuelve a cargar con "aplicar el mapeo de nuevo", que no borra nada.', 'It is blocked in this environment. In production it is a decision [pending: Dan Mulligan]; until it is decided, a market is reloaded with "re-apply the mapping", which deletes nothing.')}</p>
+          <Link href="/admin/decisiones" className="mt-2 inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline">{t('Ver la decisión', 'See the decision')}</Link>
+        </section>
+      )}
       {canReset && (
         <section className="mt-5 border-t border-line pt-5" data-testid="test-reset">
           <h3 className="text-[15px] font-semibold text-strong">{t('Borrar y recargar un mercado (solo pruebas)', 'Wipe and reload a market (tests only)')}</h3>

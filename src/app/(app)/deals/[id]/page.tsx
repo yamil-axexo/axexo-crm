@@ -329,6 +329,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                       {people.map((u) => <option key={u.id} value={u.id}>{t(`Avisar a ${u.full_name}`, `Notify ${u.full_name}`)}</option>)}
                     </select>
                   )}
+                  <select name="visibility" className="input !w-auto min-w-[160px]" aria-label={t('Quién la ve', 'Who sees it')} defaultValue="team" data-testid="note-visibility">
+                    <option value="team">{t('La ve el equipo', 'Team can see it')}</option>
+                    <option value="managers">{t('Solo quien dirige', 'Managers only')}</option>
+                    <option value="restricted">{t('Reservada', 'Restricted')}</option>
+                  </select>
                   <Submit variant="ghost" testId="note-add">{t('Agregar', 'Add')}</Submit>
                 </div>
                 {people.length > 0 && <p className="mt-2 text-[13px] text-muted">{t('El aviso sale solo con una nota y le aparece a esa persona en Hoy. No se envía correo.', 'The notice goes out only with a note and shows up in that person’s Today. No email is sent.')}</p>}
