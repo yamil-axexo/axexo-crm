@@ -112,9 +112,9 @@ export function ExportLink({ href, children, testId, t }: { href: string; childr
   const params = [...new URLSearchParams(query)]
   const id = testId ?? 'export-csv'
   return (
-    <details className="relative" data-testid={`${id}-box`}>
+    <details className="relative max-md:w-full" data-testid={`${id}-box`}>
       <summary className={cx(buttonClass('ghost'), 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')} data-testid={id} data-href={href}>{children}</summary>
-      <form method="get" action={path} className="card absolute right-0 z-30 mt-2 w-[min(22rem,calc(100vw-2.5rem))] space-y-3 p-4 text-left shadow-lg max-md:left-0 max-md:right-auto" data-testid={`${id}-form`}>
+      <form method="get" action={path} className="card z-30 mt-2 space-y-3 p-4 text-left shadow-lg max-md:w-full md:absolute md:right-0 md:w-[22rem]" data-testid={`${id}-form`}>
         {params.map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
         <label className="block text-[13px] font-semibold text-muted-2">
           {t('¿Para qué necesitas el archivo?', 'What do you need the file for?')}
