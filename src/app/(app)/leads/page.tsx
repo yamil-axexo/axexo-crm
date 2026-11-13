@@ -1,3 +1,4 @@
+import { ViewsSection } from '../views-section'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { requireCtx } from '@/server/context'
@@ -32,7 +33,7 @@ function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'o
   )
 }
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string; motor?: string; equipo?: string }> }) {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string; motor?: string; equipo?: string; cola?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
   const sp = flat(await searchParams)
@@ -140,6 +141,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </Dialog>
         )}
       </header>
+
+      <div className="mb-4 -mt-1"><ViewsSection object="lead" filters={{ market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, motor, equipo: team }} current={sp.cola} /></div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Pills

@@ -157,6 +157,16 @@ grant execute on function app.take_report_snapshots() to contigo_app;
 -- ---------------------------------------------------------------- 4) conciliación con el archivo de ventas
 alter table crm.merchant_metrics_daily add column status text check (status in ('active','at_risk','inactive'));
 
+-- Fecha de corte del archivo de ventas más reciente, para ponerla a la vista en toda pantalla que muestre sus datos.
+create function app.sales_cutoff(p_market text) returns date
+language sql stable security definer set search_path = crm, app, pg_catalog as $$
+  select max(mm.as_of) from crm.merchant_metrics_daily mm
+   where mm.market_code = any(app.my_markets()) and (p_market is null or mm.market_code = p_market)
+$$;
+revoke execute on function app.sales_cutoff(text) from public;
+grant execute on function app.sales_cutoff(text) to contigo_app;
+create index merchant_metrics_market_asof_idx on crm.merchant_metrics_daily (market_code, as_of desc);
+
 create table crm.reconciliation_runs (
   id                uuid primary key default app.uuid_v7(),
   market_code       text not null references crm.markets(code),

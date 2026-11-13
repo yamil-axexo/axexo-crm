@@ -18,8 +18,9 @@ import { BulkPick } from '@/ui/ops'
 import { ActionForm, Submit } from '@/ui/client'
 import { day } from '@/lib/format'
 import { flat } from '@/server/params'
+import { ViewsSection } from '../../views-section'
 
-export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string; quietos?: string; equipo?: string; orden?: string }> }) {
+export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ owner?: string; vista?: string; paso?: string; quietos?: string; equipo?: string; orden?: string; cola?: string }> }) {
   const ctx = await requireCtx()
   const { t, m, locale } = ctx
   const { id } = await params
@@ -238,6 +239,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </>
       ) : (
         <>
+          <div className="mb-4"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team, orden: sp.orden }} current={sp.cola} /></div>
           <Board
             key={board.deals.map((d) => `${d.id}:${d.stage_id}:${d.next_step_due ?? ''}`).join('|')}
             id={id}

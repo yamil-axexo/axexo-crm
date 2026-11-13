@@ -12,6 +12,8 @@ alter table crm.saved_views drop constraint saved_views_object_check;
 alter table crm.saved_views add constraint saved_views_object_check check (object in ('account','lead','deal'));
 alter table crm.visits drop column trust_flags, drop column trust_score;
 drop function app.run_reconciliation(numeric);
+drop index crm.merchant_metrics_market_asof_idx;
+drop function app.sales_cutoff(text);
 drop view crm.reconciliation_diffs;
 drop table crm.reconciliation_runs;
 alter table crm.merchant_metrics_daily drop column status;

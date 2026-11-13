@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { Activity, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, BarChart3, CircleHelp, Eye, FileSpreadsheet, ListFilter, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -10,6 +10,8 @@ import { ReportLink } from '@/ui/problem-report'
 import { LogHost } from '@/ui/log'
 import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
+import { pinnedQueues } from '@/dal/reportes'
+import { VIEW_EN, VIEW_OBJECT_LABEL, viewHref } from '@/lib/report-catalog'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 
@@ -51,6 +53,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ]
   // Registrar una visita, una llamada o una nota empieza en el dock: quien trabaja en la calle no abre primero la ficha.
   const canLog = ctx.can('activity.write')
+  // Colas fijadas por la persona (vistas guardadas), con su contador.
+  const queues = await pinnedQueues(ctx)
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
 
   return (
@@ -86,6 +90,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
               {ctx.can('board.supervisor') ? <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>
                 : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}
+              {queues.length > 0 && (
+                <div className="border-b border-line pb-1" data-testid="nav-queues">
+                  <p className="px-3 pt-1 pb-0.5 text-[12px] font-semibold text-muted-2">{t('Mis colas', 'My queues')}</p>
+                  {queues.map((q) => (
+                    <Link key={q.id} href={viewHref(q)} role="menuitem" className={`${menuLink} justify-between`} data-testid="nav-queue">
+                      <span className="flex min-w-0 items-center gap-3"><ListFilter size={20} strokeWidth={1.75} aria-hidden className="shrink-0" /><span className="truncate">{t(q.name, VIEW_EN[q.name] ?? q.name)}</span><span className="sr-only">, {t(VIEW_OBJECT_LABEL[q.object][0], VIEW_OBJECT_LABEL[q.object][1])}</span></span>
+                      {q.count !== null && <span className="num shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[12.5px] font-semibold text-strong" data-testid="nav-queue-count">{q.count}</span>}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
               {(ctx.can('report.view') || ctx.can('report.own')) && <Link href="/reportes/cerrados" role="menuitem" className={menuLink} data-testid="nav-closed"><FileSpreadsheet size={20} strokeWidth={1.75} aria-hidden />{t('Negocios cerrados', 'Closed deals')}</Link>}
               {ctx.can('board.lt') && <Link href="/panel-lt" role="menuitem" className={menuLink} data-testid="nav-panel-lt"><LineChart size={20} strokeWidth={1.75} aria-hidden />{m('top.leadership')}</Link>}
               {showAdmin && <Link href="/admin" role="menuitem" className={menuLink} data-testid="nav-admin"><Settings size={20} strokeWidth={1.75} aria-hidden />{m('top.admin')}</Link>}

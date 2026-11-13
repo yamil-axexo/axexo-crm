@@ -4,6 +4,8 @@ import { deployedVersion, env, ssoEnabled } from '@/env'
 import { getStatus, getConfig } from '@/dal/admin'
 import { closeRuleChanges } from '@/dal/b2b'
 import { pipedriveConfigured } from '@/server/adapters/pipedrive'
+import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
+import { adapterQueue } from '@/dal/reportes'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
@@ -49,6 +51,7 @@ export default async function StatusPage() {
         ? { tone: 'good', text: t('Conectada', 'Connected') }
         : { tone: 'warn', text: t('Llave creada, sin datos reales todavía', 'Key created, no real data yet') }
 
+  const reportQueue = await adapterQueue(ctx)
   const rows: { key: string; name: string; what: string; state: { tone: Tone; text: string }; last: string }[] = [
     {
       key: 'google',
@@ -95,6 +98,17 @@ export default async function StatusPage() {
       state: { tone: 'neutral', text: t('Sin conectar', 'Not connected') },
       last: t(`${num(s.outbox_pending, locale)} guardados; nadie los recoge todavía`, `${num(s.outbox_pending, locale)} stored; nobody picks them up yet`),
     },
+    // Canales de salida de Reportes: construidos y apagados. Cada uno dice qué hace falta para encenderlo.
+    ...REPORT_ADAPTERS.map((a) => {
+      const q = reportQueue.find((x) => x.channel === (a.key === 'report_mail' ? 'email' : 'snapshot_file'))
+      return {
+        key: a.key,
+        name: t(a.name[0], a.name[1]),
+        what: t(a.what[0], a.what[1]),
+        state: channelMode(a.key) === 'simulated' ? { tone: 'neutral' as Tone, text: t('Simulado (solo pruebas)', 'Simulated (tests only)') } : { tone: 'neutral' as Tone, text: t('Canal apagado', 'Channel off') },
+        last: t(`${num(q?.n ?? 0, locale)} en cola sin salir. Para encenderlo: ${a.needs[0]}`, `${num(q?.n ?? 0, locale)} queued, not sent. To turn it on: ${a.needs[1]}`),
+      }
+    }),
   ]
 
   return (

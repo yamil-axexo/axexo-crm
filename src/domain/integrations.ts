@@ -158,6 +158,9 @@ const metricRow = z.object({
   volume_minor_30d: z.number().int().nonnegative(),
   currency: z.string().length(3),
   active_days_30d: z.number().int().min(0).max(31),
+  // REP-04: el estado del comercio lo define quien es dueño de la métrica (Data y Reportería) y viaja en el archivo.
+  // Es opcional mientras el contrato no lo traiga: sin él, CONTIGO usa su regla de respaldo y lo dice en la pantalla.
+  status: z.enum(['active', 'at_risk', 'inactive']).nullable().optional(),
 })
 export const metricsFile = z
   .object({
@@ -219,17 +222,17 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
     const loaded = await tx<{ account_id: string }[]>`
       with r as (
         select * from jsonb_to_recordset(${rows}) as x(merchant_ref text, first_txn_at timestamptz, last_txn_at timestamptz,
-               txn_count_30d int, volume_minor_30d bigint, currency text, active_days_30d int)
+               txn_count_30d int, volume_minor_30d bigint, currency text, active_days_30d int, status text)
       ), m as (
         select distinct on (al.account_id) r.*, al.account_id, a.market_code
           from r join crm.account_aliases al on al.external_id = r.merchant_ref and al.system in ('s5','sales_core') and al.valid_to is null
                  join crm.accounts a on a.id = al.account_id and a.archived_at is null
       )
-      insert into crm.merchant_metrics_daily (account_id, as_of, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, batch_id)
-      select account_id, ${file.as_of}, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, ${batchId} from m
+      insert into crm.merchant_metrics_daily (account_id, as_of, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, batch_id)
+      select account_id, ${file.as_of}, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, ${batchId} from m
       on conflict (account_id, as_of) do update set first_txn_at = coalesce(crm.merchant_metrics_daily.first_txn_at, excluded.first_txn_at),
         last_txn_at = excluded.last_txn_at, txn_count_30d = excluded.txn_count_30d, volume_minor_30d = excluded.volume_minor_30d,
-        active_days_30d = excluded.active_days_30d, batch_id = excluded.batch_id
+        active_days_30d = excluded.active_days_30d, status = excluded.status, batch_id = excluded.batch_id
       returning account_id`
     const ids = loaded.map((r) => r.account_id)
     const unmatched = file.rows.length - ids.length
@@ -262,14 +265,21 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
              ${sys.user.id}, 's5'
         from crm.deals d join crm.markets mk on mk.code = d.market_code
        where d.id = any(${won.map((w) => w.id)}::uuid[])`
+    // REP-04: si el archivo trae el estado, manda el archivo. CONTIGO no lo recalcula con otra lógica.
+    await tx`update crm.accounts a set lifecycle = mm.status
+              from crm.merchant_metrics_daily mm
+             where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[]) and mm.status is not null
+               and a.lifecycle <> mm.status
+               and (a.lifecycle in ('active','at_risk','inactive') or (a.lifecycle in ('prospect','onboarding') and mm.first_txn_at is not null))`
+    // Regla de respaldo, solo para las filas que llegan sin estado.
     await tx`update crm.accounts a set lifecycle = 'active'
               from crm.merchant_metrics_daily mm
-             where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[])
+             where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[]) and mm.status is null
                and ((a.lifecycle in ('prospect','onboarding') and mm.first_txn_at is not null)
                     or (a.lifecycle in ('at_risk','inactive') and mm.active_days_30d >= ${AT_RISK_BELOW_ACTIVE_DAYS}))`
     await tx`update crm.accounts a set lifecycle = case when mm.txn_count_30d = 0 then 'inactive' else 'at_risk' end
               from crm.merchant_metrics_daily mm
-             where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[])
+             where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[]) and mm.status is null
                and a.lifecycle in ('active','at_risk') and mm.active_days_30d < ${AT_RISK_BELOW_ACTIVE_DAYS}
                and a.lifecycle <> case when mm.txn_count_30d = 0 then 'inactive' else 'at_risk' end
                and mm.first_txn_at < now() - interval '14 days'`

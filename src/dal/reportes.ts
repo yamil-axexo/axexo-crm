@@ -490,3 +490,45 @@ export async function pinnedViews(ctx: Ctx): Promise<SavedView[]> {
     return [...rows]
   })
 }
+
+/** Las colas fijadas de la persona, con su contador: cuántos registros cumplen hoy el filtro de cada una. */
+export async function pinnedQueues(ctx: Ctx): Promise<(SavedView & { count: number | null })[]> {
+  const pins = await pinnedViews(ctx)
+  if (pins.length === 0) return []
+  const { listAccounts } = await import('@/dal/accounts')
+  const { listLeads } = await import('@/dal/leads')
+  return Promise.all(pins.map(async (v) => {
+    const f = v.filters
+    let count: number | null = null
+    if (v.object === 'account') count = (await listAccounts(ctx, f)).total
+    else if (v.object === 'lead') {
+      const c = (await listLeads(ctx, { ...f, status: undefined, team: f.equipo })).counts
+      const status = f.status ?? 'open'
+      count = status === 'all' ? ['new', 'contacted', 'qualified', 'disqualified', 'converted'].reduce((n, k) => n + (c[k] ?? 0), 0) : (c[status] ?? 0)
+    } else if (v.object === 'deal') {
+      count = await withUser(ctx.user.id, async (tx) => {
+        const rows = await tx<{ n: number }[]>`
+          select count(*)::int as n from crm.deals d where d.status = 'open'
+            ${isUuid(f.pipeline) ? tx`and d.pipeline_id = ${f.pipeline}` : tx``}
+            ${f.owner === 'me' ? tx`and d.owner_id = ${ctx.user.id}` : f.owner === 'none' ? tx`and d.owner_id is null` : isUuid(f.owner) ? tx`and d.owner_id = ${f.owner}` : tx``}
+            ${f.paso === 'sin' ? tx`and (d.next_step_due is null or d.next_step_due < ${marketToday(tx, tx`d.market_code`)})` : tx``}`
+        return rows[0]?.n ?? 0
+      })
+    } else if (f.view !== 'done') {
+      count = await withUser(ctx.user.id, async (tx) => {
+        const rows = await tx<{ n: number }[]>`
+          select count(*)::int as n from crm.activities a where a.kind in ('task', 'handoff', 'visit') and a.done_at is null ${f.view === 'team' ? tx`` : tx`and a.owner_id = ${ctx.user.id}`}`
+        return rows[0]?.n ?? 0
+      })
+    }
+    return { ...v, count }
+  }))
+}
+
+/** Fecha de corte del archivo diario de ventas más reciente que la persona puede ver (REP-04: fecha de corte a la vista). */
+export async function salesCutoff(ctx: Ctx, market?: string): Promise<string | null> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ as_of: string | null }[]>`select app.sales_cutoff(${market ?? null})::text as as_of`
+    return rows[0]?.as_of ?? null
+  })
+}
