@@ -10,6 +10,7 @@ import { DomainError } from '@/lib/errors'
 import { DEFAULTS, FIELDS, type Action, type Condition, type Definition, type NoticeKind, type Source } from '@/domain/automation/catalog'
 import { resolveTarget } from '@/domain/automation/people'
 import { setWaitingOnTx } from '@/domain/automation/transitions'
+import { notify } from '@/domain/notify'
 
 // AUT-03: el motor de las automatizaciones. Lee las definiciones de la base y hace lo que dicen. No hay una regla
 // escrita aquí: aquí solo está qué registros existen (los "conjuntos") y cómo se ejecuta cada tipo de acción, y toda
@@ -221,11 +222,11 @@ async function reconcileNotices(tx: Tx, list: Automation[]): Promise<void> {
 /** Por qué una acción no se hizo, dicho en los dos idiomas: es lo que queda en la bitácora de la regla. */
 const why = (e: unknown): { es: string; en: string } | null => (e instanceof DomainError ? { es: e.es, en: e.en } : null)
 
-/** Una tarea en Hoy para una persona, creada por una automatización. Es también la forma de "avisar" mientras no hay otro canal. */
-async function ruleTask(tx: Tx, sys: Ctx, a: Automation, rec: Rec, userId: string, text: { es: string; en: string }, dueDays: number, asNotice: boolean): Promise<void> {
+/** Una tarea en Hoy para una persona, creada por una automatización: trabajo con fecha, que se completa. */
+async function ruleTask(tx: Tx, sys: Ctx, a: Automation, rec: Rec, userId: string, text: { es: string; en: string }, dueDays: number): Promise<void> {
   const u = await tx<{ locale: 'es' | 'en' }[]>`select locale from crm.users where id = ${userId}`
   const en = u[0]?.locale === 'en'
-  const subject = `${asNotice ? (en ? 'Heads up: ' : 'Aviso: ') : ''}${en ? text.en : text.es}${rec.label ? ` · ${rec.label}` : ''}`.slice(0, 200)
+  const subject = `${en ? text.en : text.es}${rec.label ? ` · ${rec.label}` : ''}`.slice(0, 200)
   sys.assert('activity.write', rec.market_code)
   assertNoProhibited(subject)
   const rows = await tx<{ id: string }[]>`
@@ -233,7 +234,24 @@ async function ruleTask(tx: Tx, sys: Ctx, a: Automation, rec: Rec, userId: strin
     values (${rec.market_code}, ${rec.account_id}, ${rec.deal_id}, ${rec.lead_id}, 'task', ${subject},
             ((${marketToday(tx, rec.market_code)} + ${dueDays}::int)::text || 'T15:00:00Z')::timestamptz, ${userId}, ${sys.user.id}, 'rule')
     returning id`
-  await audit(tx, sys, asNotice ? 'automation.notified' : 'automation.task_created', 'activity', rows[0]!.id, rec.market_code, null, { automation_id: a.id, user_id: userId, deal_id: rec.deal_id, lead_id: rec.lead_id, account_id: rec.account_id })
+  await audit(tx, sys, 'automation.task_created', 'activity', rows[0]!.id, rec.market_code, null, { automation_id: a.id, user_id: userId, deal_id: rec.deal_id, lead_id: rec.lead_id, account_id: rec.account_id })
+}
+
+/**
+ * "Avisar a una persona o a un rol": sale por el servicio único de avisos (src/domain/notify.ts), como todo aviso. Llega a
+ * la campana, al centro de avisos y a Hoy hasta que la persona lo ve; por correo o Slack según su preferencia (canales apagados).
+ */
+async function ruleNotice(tx: Tx, sys: Ctx, a: Automation, rec: Rec, userId: string, text: { es: string; en: string }): Promise<void> {
+  const label = rec.label ? ` · ${rec.label}` : ''
+  const title: [string, string] = [`${text.es}${label}`.slice(0, 160), `${text.en}${label}`.slice(0, 160)]
+  assertNoProhibited(title[0], title[1])
+  const link = rec.deal_id ? `/deals/${rec.deal_id}` : rec.lead_id ? `/leads/${rec.lead_id}` : rec.account_id ? `/comercios/${rec.account_id}` : null
+  const out = await notify(tx, sys, {
+    to: userId, kind: 'automation', market: rec.market_code, title, link, needsAction: true,
+    body: [`Te avisa la automatización "${a.name_es}".`, `Sent by the "${a.name_en}" automation.`],
+    dealId: rec.deal_id, leadId: rec.lead_id, accountId: rec.account_id,
+  })
+  await audit(tx, sys, 'automation.notified', 'notice', out.noticeId, rec.market_code, null, { automation_id: a.id, user_id: userId, deal_id: rec.deal_id, lead_id: rec.lead_id, account_id: rec.account_id })
 }
 
 /** Ejecuta UNA acción sobre UN registro, por la capa de dominio. Devuelve qué hizo; lanza un error de dominio si no se pudo. */
@@ -241,7 +259,10 @@ async function act(tx: Tx, sys: Ctx, a: Automation, action: Exclude<Action, { ty
   if (action.type === 'create_task' || action.type === 'notify') {
     const people = await resolveTarget(tx, action.to, rec)
     if (people.length === 0) throw new DomainError('no_target', 'No hay a quién dársela: nadie tiene ese rol en el mercado.', 'There is nobody to give it to: no one has that role in the market.')
-    for (const p of people) await ruleTask(tx, sys, a, rec, p, { es: action.text_es, en: action.text_en }, action.type === 'create_task' ? action.due_days : 0, action.type === 'notify')
+    for (const p of people) {
+      if (action.type === 'notify') await ruleNotice(tx, sys, a, rec, p, { es: action.text_es, en: action.text_en })
+      else await ruleTask(tx, sys, a, rec, p, { es: action.text_es, en: action.text_en }, action.due_days)
+    }
     return { action: action.type, people: people.length }
   }
   if (action.type === 'assign') {

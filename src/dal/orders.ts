@@ -7,12 +7,14 @@ export type OrderDispatch = { id: string; sent_at: Date; sent_by_name: string; m
 export type OrderPrint = {
   id: string; title: string; market_code: string; currency: string; status: string; created_at: Date; created_by_name: string | null; owner_name: string | null; has_items: boolean
   account: { id: string; name: string; merchant_ref: string | null; phone: string | null; address_line: string | null; locality: string | null; region: string | null; postal_code: string | null }
-  items: { id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; comments: string | null }[]
+  items: { id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; comments: string | null; discount_pct: string | null }[]
+  /** E11.F1: datos de envío del pedido (paquetería, número de cliente, fecha de entrega, PO, dirección, términos). Sin capturar, null. */
+  shipping: { carrier: string; customer_number: string | null; due_on: string | null; po_number: string | null; ship_to: string | null; terms: string | null; description: string | null } | null
   header: string | null
   dispatches: OrderDispatch[]
 }
 
-/** Todo lo que lleva el pedido impreso: comercio, líneas, totales, quién lo levantó y sus envíos a Operaciones. */
+/** Todo lo que lleva el pedido impreso: comercio, datos de envío, líneas con su descuento, totales, quién lo levantó y sus envíos a Operaciones. */
 export async function orderPrint(ctx: Ctx, dealId: string): Promise<OrderPrint | null> {
   if (!isUuid(dealId)) return null
   return withUser(ctx.user.id, async (tx) => {
@@ -26,7 +28,9 @@ export async function orderPrint(ctx: Ctx, dealId: string): Promise<OrderPrint |
     const d = rows[0]
     if (!d) return null
     const items = await tx<OrderPrint['items']>`
-      select id, name, quantity::text, unit_price_minor::text, sum_minor::text, comments from crm.deal_items where deal_id = ${dealId} order by position, created_at`
+      select id, name, quantity::text, unit_price_minor::text, sum_minor::text, comments, discount_pct::text from crm.deal_items where deal_id = ${dealId} order by position, created_at`
+    const shipping = await tx<NonNullable<OrderPrint['shipping']>[]>`
+      select carrier, customer_number, due_on::text, po_number, ship_to, terms, description from crm.deal_orders where deal_id = ${dealId}`
     const dispatches = await tx<OrderDispatch[]>`
       select x.id, x.sent_at, s.full_name as sent_by_name, x.mailbox, x.received_at, r.full_name as received_by_name, x.lines, x.total_minor::text
         from crm.order_dispatches x join crm.users s on s.id = x.sent_by left join crm.users r on r.id = x.received_by
@@ -35,7 +39,7 @@ export async function orderPrint(ctx: Ctx, dealId: string): Promise<OrderPrint |
       id: d.id, title: d.title, market_code: d.market_code, currency: d.currency, status: d.status, created_at: d.created_at, created_by_name: d.created_by_name, owner_name: d.owner_name,
       has_items: d.has_items, header: d.header,
       account: { id: d.account_id, name: d.account_name, merchant_ref: d.merchant_ref, phone: d.phone, address_line: d.address_line, locality: d.locality, region: d.region, postal_code: d.postal_code },
-      items: [...items], dispatches: [...dispatches],
+      items: [...items], dispatches: [...dispatches], shipping: shipping[0] ?? null,
     }
   })
 }

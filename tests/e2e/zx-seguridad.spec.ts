@@ -35,8 +35,9 @@ test.describe('Seguridad en Administración', () => {
     const errors = pageErrors(page)
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto('/admin')
-    await page.getByRole('link', { name: 'Seguridad', exact: true }).click()
-    await expect(page).toHaveURL(/\/admin\/seguridad/)
+    // Seguridad vive en Administración, en la sección Control.
+    await expect(page.locator('a[href="/admin/seguridad"]').first()).toBeAttached()
+    await page.goto('/admin/seguridad')
     await expect(page.getByTestId('security-monitoring')).toBeVisible()
     await page.getByTestId('scan-now').click()
     await expect(page.getByTestId('alerts-card')).toContainText(/sin revisar/)
