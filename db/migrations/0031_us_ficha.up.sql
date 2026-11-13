@@ -228,6 +228,28 @@ begin
    where not exists (select 1 from crm.territories t where t.market_code = p_market
                       and (t.code = v.code or regexp_replace(lower(t.name), '[^a-z0-9]', '', 'g') = regexp_replace(lower(v.name), '[^a-z0-9]', '', 'g')));
 
+  -- E9.F11: los demás campos de la tienda que se conservan. Si la importación ya trajo un campo con ese nombre, se usa ese y aquí
+  -- no se crea otro. Las listas de opciones no están definidas todavía: entran como texto (nada inventado).
+  insert into crm.field_definitions (object, key, label_es, label_en, data_type, market_code, data_class, pii_class, position, purpose, origin)
+  select 'account', v.key, v.es, v.en, v.dtype, p_market, 'internal', v.pii, v.pos, 'Campo de la tienda que el equipo de US conserva (requerimiento E9.F11).', 'Requerimientos v1, E9.F11'
+    from (values ('us_account_manager', 'Account manager', 'Account manager', 'text', 'none', 300),
+                 ('us_dba', 'Nombre comercial (DBA)', 'DBA', 'text', 'none', 301),
+                 ('us_store_owner_name', 'Nombre del dueño de la tienda', 'Store Owner name', 'text', 'personal', 302),
+                 ('us_lead_type', 'Tipo de lead', 'Lead Type', 'text', 'none', 303),
+                 ('us_merchant_classification', 'Clasificación del comercio', 'Merchant Classification', 'text', 'none', 304),
+                 ('us_training', 'Capacitación', 'Training', 'text', 'none', 305),
+                 ('us_churn_status_instapay', 'Estado de baja en InstaPay', 'Churn status InstaPay', 'text', 'none', 310),
+                 ('us_churn_status_tmobile', 'Estado de baja en T-Mobile', 'Churn status T-Mobile', 'text', 'none', 311),
+                 ('us_empower_mids', 'MID en Empower', 'Empower MIDs', 'text', 'none', 320),
+                 ('us_empower_tier', 'Nivel en Empower', 'Empower tier', 'text', 'none', 321),
+                 ('us_empower_signup_date', 'Fecha de registro en Empower', 'Empower sign-up date', 'date', 'none', 322),
+                 ('us_hdn_account', 'Cuenta HDN', 'HDN account', 'text', 'none', 330),
+                 ('us_hdn_user', 'Usuario HDN', 'HDN user', 'text', 'personal', 331),
+                 ('us_hdn_email', 'Correo HDN', 'HDN email', 'text', 'personal', 332),
+                 ('us_hdn_phone', 'Teléfono HDN', 'HDN phone', 'text', 'personal', 333)) v(key, es, en, dtype, pii, pos)
+   where not exists (select 1 from crm.field_definitions f where f.object = 'account' and (f.market_code is null or f.market_code = p_market)
+                      and (f.key = v.key or regexp_replace(lower(f.label_en), '[^a-z0-9]', '', 'g') = regexp_replace(lower(v.en), '[^a-z0-9]', '', 'g')));
+
   if p_carriers then
     insert into crm.ops_catalog (market_code, kind, code, label_es, label_en, position, ref_label)
     select p_market, 'provider', v.code, v.label, v.label, v.pos, v.ref

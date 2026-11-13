@@ -7,7 +7,10 @@ import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { ago, day, money, num } from '@/lib/format'
 import { PRODUCT_STATUS, PRODUCT_TONE } from '@/lib/datos-labels'
 import { lab } from '@/lib/labels'
-import { ORIGIN, recruiterText } from '@/lib/store-labels'
+import { ORIGIN, recruiterText, resolveKept } from '@/lib/store-labels'
+import type { FieldDef } from '@/dal/fields'
+import { fieldText } from '@/ui/fields'
+import type { ReactNode } from 'react'
 import { setCarrierDetailAction, setMerchantOriginAction, setRecruiterAction, setStoreProfileAction, setTaxIdAction } from './tienda-actions'
 
 // La ficha de dealer (épica E9): lo que el equipo de campo de US lee primero (ventas e identificadores), los datos de la
@@ -235,6 +238,38 @@ export function CarrierPortfolio({ ctx, accountId, record, canManage }: { ctx: C
           )}
         </div>
       )}
+    </section>
+  )
+}
+
+/** E9.F11: los demás campos de la tienda, agrupados como los lee el equipo. Se ven todos, también los que están vacíos. */
+export function StoreKeptFields({ ctx, groups, values, action }: { ctx: Ctx; groups: ReturnType<typeof resolveKept<FieldDef>>; values: Record<string, unknown>; action?: ReactNode }) {
+  const { t, locale } = ctx
+  if (groups.length === 0) return null
+  return (
+    <section className={section} data-testid="store-kept-fields">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className={h3}>{t('Más datos de la tienda', 'More store details')}</h3>
+        {action}
+      </div>
+      <div className="mt-2 space-y-5">
+        {groups.map((g) => (
+          <div key={g.id} data-testid={`kept-group-${g.id}`}>
+            <h4 className="text-[13px] font-semibold text-muted-2">{t(g.title[0], g.title[1])}</h4>
+            <dl className="mt-1 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+              {g.fields.map((d) => {
+                const text = fieldText(d, values[d.key], t, locale)
+                return (
+                  <div key={d.key} className="min-w-0 border-t border-line pt-2" data-testid="kept-field" data-key={d.key}>
+                    <dt className="text-[12.5px] font-medium text-muted">{t(d.label_es, d.label_en)}</dt>
+                    <dd className="mt-0.5 text-[14px] break-words text-strong">{text || <NoData locale={locale} />}</dd>
+                  </div>
+                )
+              })}
+            </dl>
+          </div>
+        ))}
+      </div>
     </section>
   )
 }

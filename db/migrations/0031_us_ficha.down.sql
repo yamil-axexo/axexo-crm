@@ -17,6 +17,8 @@ update crm.leads l set account_type = null where l.account_type in ('dealer','is
    and not exists (select 1 from crm.account_types t where t.code = l.account_type and t.market_code is null);
 delete from crm.account_types t where t.market_code is not null and t.code in ('dealer','isp','master_agent','carrier','tsp','vendor');
 update crm.markets set flags = flags - 'dealer_record';
+-- Los campos de E9.F11 que creó la configuración se quitan; sus valores quedan en accounts.custom sin definición (no se pierden).
+delete from crm.field_definitions where object = 'account' and key like 'us\_%' and origin = 'Requerimientos v1, E9.F11';
 
 alter table crm.account_products drop column carrier_ref, drop column kit_sent_on, drop column sims_ordered, drop column training_on;
 alter table crm.ops_catalog drop column ref_label;
