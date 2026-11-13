@@ -479,6 +479,8 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `api_client.updated` | Changed the owner or expiry of an API key | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `automation.notified` | An automation notified a person | It is a notice between people inside CONTIGO, not a change to the record. |
 | `automation.task_created` | An automation created a task | It is a notice between people inside CONTIGO, not a change to the record. |
+| `capture.ingested` | Linked captured emails, meetings or messages to merchants | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `capture.optin_changed` | Changed the capture of their email and calendar | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `care.alert_dismissed` | Dismissed a merchant alert | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `care.alert_done` | Handled a merchant alert | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `care.alerts_run` | Evaluated a market’s alerts | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
@@ -519,6 +521,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `component.owners_set` | Changed who answers for a component | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `config_request.created` | Asked for a configuration change | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `config_request.decided` | Decided a configuration request | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `connector.tested` | Tested a connector’s connection | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
 | `consent.opt_out_lifted` | Lifted an opt-out | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `consent.opted_out` | Recorded an opt-out | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
 | `consent.recorded` | Recorded a consent | It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO. |
@@ -607,6 +610,8 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `partner_token.created` | Created a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `partner_token.revoked` | Revoked a partner read token | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `pipedrive.backup_downloaded` | Downloaded the Pipedrive backup | It is a read leaving CONTIGO or an internal team report: it is logged, it changes no records. |
+| `push.subscribed` | Turned on browser notices | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
+| `push.unsubscribed` | Turned off browser notices | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `quality.rule_updated` | Edited a data quality rule | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `quality.snapshot_saved` | Saved today’s data quality snapshot | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `recommendation.accepted` | Accepted a suggestion and set the task with a date | It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event. |

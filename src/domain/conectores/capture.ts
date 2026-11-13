@@ -90,3 +90,11 @@ export async function setMyCapture(ctx: import('@/server/context').Ctx, p: { gma
     await audit(tx, ctx, 'capture.optin_changed', 'user', ctx.user.id, null, null, { gmail: p.gmail, calendar: p.calendar })
   })
 }
+
+/** La tarea de captura anota hasta cuándo leyó el buzón de una persona y deja un evento con lo que ligó. */
+export async function markPulled(tx: Tx, userId: string): Promise<void> {
+  await tx`update crm.capture_mailboxes set last_pull = now() where user_id = ${userId}`
+}
+export async function logIngest(tx: Tx, systemId: string, r: IngestResult): Promise<void> {
+  if (r.linked > 0) await tx`insert into crm.audit_events (actor_id, action, object, after) values (${systemId}, 'capture.ingested', 'capture', ${tx.json({ linked: r.linked, discarded: r.discarded, duplicates: r.duplicates })})`
+}

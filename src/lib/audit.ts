@@ -458,10 +458,10 @@ export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
   config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'rollout.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%'], not: null },
-  notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%'], not: null },
+  notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%', 'push.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported', 'export.%'], not: null },
-  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%', 'load.%', 'pipedrive.%'], not: null },
+  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%', 'load.%', 'pipedrive.%', 'connector.%', 'capture.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%', 'care.%', 'terms.%', 'contract.%', 'plan.created', 'plan.milestone_%', 'plan.shared', 'partner.%', 'partner_token.%', 'partner_tier.%', 'network_load.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.

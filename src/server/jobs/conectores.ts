@@ -2,7 +2,7 @@ import type { Job } from './types'
 import { calendarCaptureAdapter, gmailCaptureAdapter, type RawCapture } from '@/server/adapters/partners'
 import { auditArchiveMode, uploadArchiveBatch } from '@/server/adapters/audit-archive'
 import { activeCipher, open, seal } from '@/server/adapters/field-crypto'
-import { ingestMailAndMeetings } from '@/domain/conectores/capture'
+import { ingestMailAndMeetings, logIngest, markPulled } from '@/domain/conectores/capture'
 import { errorCode } from '@/server/adapters/live/http'
 
 /**
@@ -31,7 +31,7 @@ export const conectoresJobs: Job[] = [
         try {
           if (o.gmail && gm.mode !== 'off') items.push(...(await gm.pull([o.email], since)))
           if (o.calendar && cal.mode !== 'off') items.push(...(await cal.pull([o.email], since)))
-          await tx`update crm.capture_mailboxes set last_pull = now() where user_id = ${o.user_id}`
+          await markPulled(tx, o.user_id)
         } catch (e) {
           errors.push(errorCode(e))
         }
@@ -39,7 +39,7 @@ export const conectoresJobs: Job[] = [
       // Simulada (pruebas): lo que la prueba dejó preparado, sin buzones.
       if (owners.length === 0 && (gm.mode === 'simulated' || cal.mode === 'simulated')) items.push(...(await gm.pull()), ...(await cal.pull()))
       const r = await ingestMailAndMeetings(tx, sys, items, new Map(owners.map((o) => [o.email, o.user_id])))
-      if (r.linked > 0) await tx`insert into crm.audit_events (actor_id, action, object, after) values (${sys}, 'capture.ingested', 'capture', ${tx.json({ linked: r.linked, discarded: r.discarded, duplicates: r.duplicates })})`
+      await logIngest(tx, sys, r)
       return { done: r.linked, note: `ligadas ${r.linked}, descartadas ${r.discarded}, repetidas ${r.duplicates}${errors.length ? `, errores: ${[...new Set(errors)].join(' ')}` : ''}` }
     },
   },

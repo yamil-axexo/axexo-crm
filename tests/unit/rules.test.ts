@@ -41,7 +41,9 @@ describe('matriz de capacidades (AUT-01)', () => {
       // configuración; pedirlo no cambia nada hasta que administración decide.
       'security.read', 'gov.read', 'config.request',
       // Paquete ia: leadership ve las sugerencias, pregunta por las cifras definidas y lee la evaluación; no acepta ni configura nada.
-      'ia.read', 'ia.ask', 'ia.oversee'].includes(c))
+      'ia.read', 'ia.ask', 'ia.oversee',
+      // Paquete conectores: activar los avisos de SU navegador y la captura de SU correo son preferencias de la persona.
+      'push.subscribe', 'capture.optin'].includes(c))
     for (const cap of writes) expect(can(m('lt', null), cap, 'MX'), cap).toBe(false)
     expect(can(m('lt', null), 'board.lt')).toBe(true)
   })

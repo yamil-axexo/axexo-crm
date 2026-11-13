@@ -81,7 +81,9 @@ export async function pullCompletions(merchantRefs: string[], today: string): Pr
   const mode = careAdapterMode('kore_academy')
   if (mode === 'off') return null
   if (mode === 'live') {
-    const since = new Date(new Date(`${today}T00:00:00Z`).getTime() - 30 * 86_400_000).toISOString().slice(0, 10)
+    const [y, m, d] = today.split('-').map(Number) as [number, number, number]
+    const t = new Date(Date.UTC(y, m - 1, d - 30))
+    const since = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`
     return koreCompletions(merchantRefs, since)
   }
   return merchantRefs.map((ref) => ({ externalId: `sim-${ref}-intro`, merchantRef: ref, personName: 'Encargado de prueba', courseKey: 'intro-ventas', courseTitle: 'Primeros pasos para vender', completedOn: today }))
