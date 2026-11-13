@@ -113,6 +113,7 @@ async function zohoAccess(): Promise<string> {
   return j.access_token
 }
 export const resetZohoToken = () => (zohoToken = null)
+export const zohoProbe = async () => ((await zohoAccess()) ? 'token ok' : '')
 export async function zohoList(module: string, maxPages = 50): Promise<Record<string, unknown>[]> {
   const token = await zohoAccess()
   const out: Record<string, unknown>[] = []
@@ -141,6 +142,13 @@ export async function koreCompletions(merchantRefs: string[], since: string): Pr
     }
   }
   return out
+}
+
+/** Salud de un servicio con contrato propio (Kore Academy, registro fiscal, herramienta de rutas): GET /v1/health. */
+export async function contractHealth(connector: string, urlVar: string, tokenVar: string): Promise<string> {
+  const k = hostOf(connector, process.env[urlVar])
+  const j = (await http({ connector, url: `${k.origin}/v1/health`, allowHosts: [k.host], headers: { authorization: `Bearer ${process.env[tokenVar] ?? ''}` }, attempts: 1 })).json<{ status?: string }>()
+  return j.status === 'ok' ? 'ok' : 'respuesta sin status ok'
 }
 
 // ------------------------------------------------------------------ registro fiscal (contrato genérico: docs/contracts/tax-registry.md)

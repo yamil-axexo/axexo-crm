@@ -38,6 +38,7 @@ import { partnersAdapterStatus } from '@/server/adapters/partners'
 import { externalQueueCounts } from '@/dal/partners'
 import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
+import { ConnectorsCard } from './conectores'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,7 +129,7 @@ export default async function StatusPage() {
       key: 'routes',
       name: t('Herramienta de rutas', 'Route tool'),
       what: t('Tiendas de cada persona para planear su ruta', 'Each person’s stores to plan their route'),
-      state: routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: routes.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`La lista de tiendas por persona ya se arma dentro de CONTIGO. Para encenderlo hace falta elegir la herramienta, su aprobación de tecnología y la variable ${routes.envVar}.`, `The store list per person is already built inside CONTIGO. Turning it on needs the tool chosen, its technology approval and the ${routes.envVar} variable.`),
     },
     // Paquete campo-canal: bóveda de documentos del alta y fondeo desde el archivo de ventas. Construidos y apagados.
@@ -136,69 +137,69 @@ export default async function StatusPage() {
       key: 'document_vault',
       name: t('Bóveda de documentos', 'Document vault'),
       what: t('Archivos del expediente de alta y documentos generados (pedido, propuesta, carta)', 'Enrollment file documents and generated documents (order, proposal, letter)'),
-      state: documentVault().mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: documentVault().mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : documentVault().mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t('El expediente ya guarda estado, quién validó, enlace y bitácora de lectura. Para encenderla: decisión del comité sobre una sola bóveda compartida con Sales Core, bucket privado con enlaces firmados cortos, retención de datos personales, aprobación de tecnología y la variable CONTIGO_DOCUMENT_VAULT.', 'The file already keeps status, who validated, link and read log. To turn it on: committee decision on a single vault shared with Sales Core, private bucket with short signed links, personal data retention, technology approval and the CONTIGO_DOCUMENT_VAULT variable.'),
     },
     {
       key: 'funding_feed',
       name: t('Fondeo, saldo y límite de crédito', 'Funding, balance and credit limit'),
       what: t('Del archivo de ventas o del core, por comercio', 'From the sales file or the core, per merchant'),
-      state: fundingFeed().mode === 'off' ? { tone: 'neutral', text: t('Conexión apagada', 'Connection off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: fundingFeed().mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : fundingFeed().mode === 'off' ? { tone: 'neutral', text: t('Conexión apagada', 'Connection off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t('La ficha, los avisos de saldo bajo y el simulador ya funcionan. Para encenderlo: que el archivo de ventas o el core traigan método, saldo y límite, el contrato acordado, la aprobación de tecnología y la variable CONTIGO_FUNDING_FEED.', 'The merchant view, low balance notices and the simulator already work. To turn it on: the sales file or the core must carry method, balance and limit, the agreed contract, technology approval and the CONTIGO_FUNDING_FEED variable.'),
     },
     {
       key: 'zoho',
       name: t('Zoho', 'Zoho'),
       what: t('Importar de Zoho comercios, contactos y negocios, con el mapa de campos documentado', 'Import merchants, contacts and deals from Zoho, with the documented field map'),
-      state: zoho.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: zoho.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : zoho.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`CONTIGO no tiene acceso a Zoho. Para encenderlo hace falta el acceso de solo lectura, la aprobación de tecnología y la variable ${zoho.envVar}.`, `CONTIGO has no access to Zoho. Turning it on needs read-only access, technology approval and the ${zoho.envVar} variable.`),
     },
     {
       key: 'sales_file',
       name: t('Archivo de ventas: ir a buscarlo', 'Sales file: fetching it'),
       what: t('Primer fondeo y método, primera transacción, hábito y correcciones', 'First funding and method, first transaction, habit and corrections'),
-      state: salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: salesFile.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`Hoy el archivo entra cuando alguien lo entrega por la API. Para que CONTIGO vaya por él hace falta que Data y Reportería confirme el contrato con fondeo y método y dónde deja el archivo, la aprobación de tecnología y la variable ${salesFile.envVar}.`, `Today the file comes in when someone delivers it through the API. For CONTIGO to fetch it, Data and Reporting must confirm the contract with funding and method and where the file is left, plus technology approval and the ${salesFile.envVar} variable.`),
     },
     {
       key: 'store_sales',
       name: t('Cifras de ventas por tienda', 'Store sales figures'),
       what: t('Activaciones por carrier y volumen de pago por Merchant ID, cada noche', 'Activations by carrier and payment volume by Merchant ID, every night'),
-      state: salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: salesFile.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`Hoy entra cuando alguien lo entrega por la API (POST /api/v1/metrics/stores, contrato store_sales_daily v1, propuesta). Para que CONTIGO vaya por él cada noche hace falta que Data y Reportería confirme el contrato y dónde deja el archivo, la aprobación de tecnología y la variable ${salesFile.envVar}.`, `Today it comes in when someone delivers it through the API (POST /api/v1/metrics/stores, store_sales_daily v1 contract, proposed). For CONTIGO to fetch it every night, Data and Reporting must confirm the contract and where the file is left, plus technology approval and the ${salesFile.envVar} variable.`),
     },
     {
       key: 'ad_conversions',
       name: t('Conversiones a plataformas de anuncios', 'Conversions to ad platforms'),
       what: t('Lead calificado y primera transacción para Google, Meta, TikTok, LinkedIn y X', 'Qualified lead and first transaction for Google, Meta, TikTok, LinkedIn and X'),
-      state: adConv.mode === 'off' ? { tone: 'neutral', text: t('Canal apagado', 'Channel off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: adConv.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : adConv.mode === 'off' ? { tone: 'neutral', text: t('Canal apagado', 'Channel off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`Las conversiones se guardan en cola y no sale nada. Para encenderlo hace falta, por plataforma, la cuenta de anuncios y su credencial, la aprobación de tecnología y la variable ${adConv.envVar}.`, `Conversions are queued and nothing leaves. Turning it on needs, per platform, the ad account and its credential, technology approval and the ${adConv.envVar} variable.`),
     },
     // Paquete ia: el modelo de IA, la lectura de documentos y el servidor MCP, apagados y con lo que falta para encenderlos.
     ...aiStatus().map((x) => ({
       key: x.key, name: t(...x.name), what: t('Asistencia (dominio IA)', 'Assistance (AI domain)'),
-      state: x.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn' as Tone, text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: x.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : x.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn' as Tone, text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: `${t(...x.needs)} ${t('Variable', 'Variable')}: ${x.envVar}.`,
     })),
     {
       key: 'support_desk',
       name: t('Mesa de soporte (tickets)', 'Support desk (tickets)'),
       what: t('Tickets como referencia en el hilo del comercio', 'Tickets as a reference in the merchant thread'),
-      state: desk.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      state: desk.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : desk.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`La referencia (número y asunto) la escribe una persona y el estado es el que ella pone. Para traer el estado y abrir el ticket desde aquí hace falta la dirección de la mesa de soporte, su aprobación de tecnología y la variable ${desk.envVar}.`, `The reference (number and subject) is typed by a person and the status is whatever they set. Fetching the status and opening the ticket from here needs the support desk address, its technology approval and the ${desk.envVar} variable.`),
     },
     {
       key: 'outbox',
       name: t('Eventos para otros sistemas', 'Events for other systems'),
       what: t('Lo que CONTIGO publica para que otros lo lean', 'What CONTIGO publishes for others to read'),
-      state: deliveryMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
+      state: deliveryMode() === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : deliveryMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
       last: t(`${num(s.outbox_pending, locale)} guardados, listos para publicar. Para encenderlo: aprobación del transporte, llave de firma y la variable CONTIGO_EVENT_DELIVERY`, `${num(s.outbox_pending, locale)} stored, ready to publish. To turn it on: transport approval, signing key and the CONTIGO_EVENT_DELIVERY variable`),
     },
     {
       key: 'antibot',
       name: t('Verificación anti-bot de formularios', 'Anti-bot check on forms'),
       what: t('Un desafío para distinguir personas de programas', 'A challenge to tell people from programs'),
-      state: antibotMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
+      state: antibotMode() === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : antibotMode() === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') },
       last: t('Activos sin él: límite por dirección, tiempo mínimo y campo trampa. Para encenderlo: aprobar el servicio y la variable CONTIGO_ANTIBOT', 'On without it: per-address limit, minimum time and trap field. To turn it on: approve the service and set the CONTIGO_ANTIBOT variable'),
     },
     // Canales de avisos (paquete avisos): construidos y apagados. Cada uno dice qué falta para encenderlo.
@@ -206,7 +207,7 @@ export default async function StatusPage() {
       key: `channel_${c.channel}`,
       name: t(`Avisos por ${CHANNEL_LABEL[c.channel][0]}`, `Notices by ${CHANNEL_LABEL[c.channel][1]}`),
       what: t('Canal de salida. Dentro de CONTIGO los avisos ya llegan.', 'Outgoing channel. Inside CONTIGO notices already arrive.'),
-      state: c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Apagado', 'Off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
+      state: c.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Apagado', 'Off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
       last: `${t(...c.needs)} ${t(`Se enciende con la variable ${c.envVar}, después de la aprobación.`, `It is turned on with the ${c.envVar} variable, after approval.`)}`,
     })),
     // Conexiones del cuidado del comercio (paquete ciclo-cs): construidas y apagadas.
@@ -214,7 +215,7 @@ export default async function StatusPage() {
       key: `care_${c.key}`,
       name: t(c.name[0], c.name[1]),
       what: t('Dato de otro sistema para el cuidado del comercio', 'Data from another system for merchant care'),
-      state: c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Conexión apagada', 'Connection off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
+      state: c.mode === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Conexión apagada', 'Connection off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
       last: `${t(...c.needs)} ${t(`Se enciende con la variable ${c.envVar}, después de la aprobación.`, `It is turned on with the ${c.envVar} variable, after approval.`)}`,
     })),
     // Archivo de salida de Reportes: construido y apagado. El correo de reportes programados es el canal de correo de Avisos.
@@ -224,7 +225,7 @@ export default async function StatusPage() {
         key: a.key,
         name: t(a.name[0], a.name[1]),
         what: t(a.what[0], a.what[1]),
-        state: channelMode(a.key) === 'simulated' ? { tone: 'neutral' as Tone, text: t('Simulado (solo pruebas)', 'Simulated (tests only)') } : { tone: 'neutral' as Tone, text: t('Canal apagado', 'Channel off') },
+        state: channelMode(a.key) === 'live' ? { tone: 'good' as Tone, text: t('Encendido', 'On') } : channelMode(a.key) === 'simulated' ? { tone: 'neutral' as Tone, text: t('Simulado (solo pruebas)', 'Simulated (tests only)') } : { tone: 'neutral' as Tone, text: t('Canal apagado', 'Channel off') },
         last: t(`${num(q?.n ?? 0, locale)} en cola sin salir. Para encenderlo: ${a.needs[0]}`, `${num(q?.n ?? 0, locale)} queued, not sent. To turn it on: ${a.needs[1]}`),
       }
     }),
@@ -233,12 +234,12 @@ export default async function StatusPage() {
       key: `adapter_${a.key}`,
       name: t(...a.name),
       what: t(...a.what),
-      state: a.mode === 'ready' ? { tone: 'good' as const, text: t('Lista', 'Ready') } : a.mode === 'simulated' ? { tone: 'warn' as const, text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral' as const, text: a.mode === 'missing' ? t('Apagada: falta la llave', 'Off: the key is missing') : t('Apagado', 'Off') },
+      state: a.mode === 'live' ? { tone: 'good' as const, text: t('Encendido', 'On') } : a.mode === 'ready' ? { tone: 'good' as const, text: t('Lista', 'Ready') } : a.mode === 'simulated' ? { tone: 'warn' as const, text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral' as const, text: a.mode === 'missing' ? t('Apagada: falta la llave', 'Off: the key is missing') : t('Apagado', 'Off') },
       last: a.mode === 'ready' ? t('La llave está en el ambiente.', 'The key is in the environment.') : `${t(...a.needs)} ${t(`Se enciende con la variable ${a.envVar}, después de la aprobación.`, `It is turned on with the ${a.envVar} variable, after approval.`)}`,
     })),
   ]
   // Seguridad (0027): tres salidas construidas y apagadas. Cada una dice qué hace CONTIGO mientras tanto y qué falta para encenderla.
-  const offOr = (m: string): { tone: Tone; text: string } => (m === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') })
+  const offOr = (m: string): { tone: Tone; text: string } => (m === 'live' ? { tone: 'good', text: t('Encendido', 'On') } : m === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') })
   rows.push(
     {
       key: 'audit_archive',
@@ -341,11 +342,12 @@ export default async function StatusPage() {
             {gobiernoAdapterStatus(tracesAdapter(), billingAdapter()).map((a) => (
               <li key={a.key} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid={`status-adapter-${a.key}`}>
                 <span className="min-w-0 flex-1 basis-60"><span className="block text-[14px] font-medium text-strong">{t(...a.name)}</span><span className="text-[12.5px] text-muted-2">{t(...a.needs)}</span></span>
-                <Badge>{a.mode === 'off' ? t('Apagado', 'Off') : t('Simulado (pruebas)', 'Simulated (tests)')}</Badge>
+                <Badge>{a.mode === 'live' ? t('Encendido', 'On') : a.mode === 'off' ? t('Apagado', 'Off') : t('Simulado (pruebas)', 'Simulated (tests)')}</Badge>
               </li>
             ))}
           </ul>
         </Card>
+        <ConnectorsCard ctx={ctx} tz={tz} />
         <LoadsCard ctx={ctx} tz={tz} />
         <Card pad={false} data-testid="status-integrations">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Datos e integraciones', 'Data and integrations')} hint={t('De dónde llegan los datos, si la conexión está viva y cuándo llegó lo último.', 'Where the data comes from, whether the connection is live and when the latest arrived.')} /></div>

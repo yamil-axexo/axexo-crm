@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Tx } from '@/server/db'
 import { channelAdapter } from '@/server/adapters/channels'
+import { pushNotice } from '@/domain/conectores/push'
 import { NOTICE_KINDS, OUTSIDE, isPendingText, renderTemplate, wants, type Channel, type KindDef, type NoticeKind, type Prefs, type TemplateVars } from '@/lib/notice-kinds'
 
 /**
@@ -130,6 +131,8 @@ export async function notify(tx: Tx, actor: Actor, n: NotifyInput): Promise<Noti
     await tx`insert into crm.notifications (market_code, notice_id, kind, channel, recipient_kind, recipient_user_id, lead_id, account_id, deal_id, subject, body, status, cost, sent_at, created_by)
              values (${n.market}, ${out.noticeId}, ${n.kind}, 'in_app', 'person', ${who.id}, ${n.leadId ?? null}, ${n.accountId ?? null}, ${n.dealId ?? null}, ${title}, ${body}, 'delivered', 0, now(), ${actor.user.id})`
     out.channels.in_app = 'delivered'
+    // AUT-05: con el push web encendido, el mismo aviso llega a los navegadores donde la persona lo activó.
+    await pushNotice(tx, who.id, { title, body, link: n.link ?? null })
   }
 
   const channels = OUTSIDE.filter((c) => wants(who.prefs, n.kind, c))

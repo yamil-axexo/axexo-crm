@@ -78,3 +78,15 @@ export async function ingestWhatsapp(tx: Tx, systemId: string, msgs: InboundWa[]
   }
   return out
 }
+
+/** ACT-03: cada persona enciende o apaga la captura de SU correo y SU calendario. */
+export async function setMyCapture(ctx: import('@/server/context').Ctx, p: { gmail: boolean; calendar: boolean }): Promise<void> {
+  ctx.assert('capture.optin')
+  const { withUser } = await import('@/server/db')
+  const { audit } = await import('@/domain/common')
+  await withUser(ctx.user.id, async (tx) => {
+    await tx`insert into crm.capture_mailboxes (user_id, gmail, calendar) values (${ctx.user.id}, ${p.gmail}, ${p.calendar})
+             on conflict (user_id) do update set gmail = excluded.gmail, calendar = excluded.calendar, updated_at = now()`
+    await audit(tx, ctx, 'capture.optin_changed', 'user', ctx.user.id, null, null, { gmail: p.gmail, calendar: p.calendar })
+  })
+}
