@@ -5,7 +5,7 @@ import { getAccessControl, getDbLog, getKeys, getMonitoring, getPrivacy, getView
 import { ADMIN_AREAS, AREA_LABEL, ROLE_LABEL, type Role } from '@/domain/policy'
 import { REQUEST_KINDS, THRESHOLD_KEYS } from '@/domain/security'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, buttonClass } from '@/ui/kit'
-import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
+import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { day, dayTime, isoDay, num } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { flat } from '@/server/params'
