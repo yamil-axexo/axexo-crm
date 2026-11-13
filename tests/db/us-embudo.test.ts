@@ -14,6 +14,10 @@ import { getDealOps, gateInfo } from '@/dal/ops'
 import { stageFieldMarks } from '@/dal/fields'
 import { accountOrders } from '@/dal/orders'
 import { visitReasons } from '@/dal/field'
+import { routeStores } from '@/dal/routes'
+import { storeProviders } from '@/dal/store-providers'
+import { exportVisitDetail, visitDetail } from '@/domain/visit-detail'
+import { setOpsCheck } from '@/domain/ops'
 import { addDays, isoDay } from '@/lib/format'
 import { DOCS, PRESENTED, SALES_QUALIFIED, fillEnrollment } from '../support/us-enrollment'
 
@@ -384,5 +388,80 @@ describe('E12.F1, F2 y F4: toda visita lleva su propósito, elegido de una lista
     await expect(saveVisitReason(jade, { market: 'US', labelEs: 'Mío', labelEn: 'Mine' })).rejects.toMatchObject({ code: 'forbidden' })
     expect(await asPersona('jade.kim', (tx) => attempt(tx, (sp) => sp`insert into crm.visit_reasons (market_code, code, label_es, label_en) values ('US', 'mio', 'Mío', 'Mine')`))).toBe('42501')
     expect((await admin`select 1 from crm.audit_events where object_id = ${row.id} and action in ('visit_reason.created', 'visit_reason.updated')`).length).toBe(2)
+  })
+})
+
+describe('E12.F3: lo escrito en la nota de una visita pasa a los campos del negocio', () => {
+  it('los renglones "Campo: valor" llenan el negocio, quedan en la bitácora y salen de la nota; el propósito también se lee de la nota', async () => {
+    const { jade, id, accountId } = await enrollment()
+    const out = await recordActivity(jade, { accountId, kind: 'visit', outcome: 'revisit', next: 'none', askNext: true,
+      body: 'Purpose: Follow-up\nSpoke with the manager\nInterest Level: High\nServices offered today: Top-ups, Bill pay\nOwner cousin: Dana' })
+    expect(out.moved!.map((m) => m.key)).toEqual(['interest_level', 'services_offered_today'])
+    const a = await one(admin<{ body: string; visit_reason: string; deal_id: string }[]>`select body, visit_reason, deal_id from crm.activities where id = ${out.id}`)
+    expect(a).toEqual({ body: 'Spoke with the manager\nOwner cousin: Dana', visit_reason: 'follow_up', deal_id: id })
+    expect((await one(admin<{ custom: Record<string, unknown> }[]>`select custom from crm.deals where id = ${id}`)).custom).toMatchObject({ interest_level: 'High', services_offered_today: ['Top-ups', 'Bill pay'] })
+    expect((await admin`select 1 from crm.audit_events where object_id = ${id} and action = 'deal.custom_updated'`).length).toBe(1)
+    expect((await one(admin<{ after: { note_to_fields: string[] } }[]>`select after from crm.audit_events where object_id = ${out.id} and action = 'activity.added'`)).after.note_to_fields).toEqual(['interest_level', 'services_offered_today'])
+    // una nota sin datos con nombre de campo se guarda tal cual
+    const plain = await recordActivity(jade, { accountId, kind: 'visit', outcome: 'revisit', visitReason: 'training', next: 'none', askNext: true, body: 'Walked the clerk through the portal' })
+    expect(plain.moved).toEqual([])
+    expect((await one(admin<{ body: string }[]>`select body from crm.activities where id = ${plain.id}`)).body).toBe('Walked the clerk through the portal')
+  })
+})
+
+describe('E10.F2: la aprobación por proveedor se ve en la tienda', () => {
+  it('lo que Operaciones anota por proveedor en el negocio aparece en la tienda; sin movimiento no aparece nada', async () => {
+    const { jade, id, accountId } = await enrollment()
+    expect(await storeProviders(jade, accountId)).toEqual([])
+    const tom = await ctxFor('tom.reyes')
+    const north = (await one(admin<{ id: string }[]>`select id from crm.ops_catalog where market_code = 'US' and kind = 'provider' and code = 'carrier_north'`)).id
+    await setOpsCheck(tom, id, north, { status: 'sent', onDate: today })
+    await setOpsCheck(tom, id, north, { status: 'approved', onDate: today })
+    const rows = await storeProviders(jade, accountId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ label_en: 'North carrier', status: 'approved', on_date: today, deal_id: id })
+    // alguien de otro mercado no la ve
+    expect(await storeProviders(await ctxFor('marco.pena'), accountId)).toEqual([])
+  })
+})
+
+describe('E12.F6 y rutas: lecturas para Finanzas y para la herramienta de rutas', () => {
+  it('el detalle de visitas trae una fila por visita con tienda, dirección y propósito; respeta permiso y alcance y deja evento', async () => {
+    const jade = await ctxFor('jade.kim')
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Reembolso ${tag()}`, segment: 'dealer', force: true })
+    await admin`update crm.accounts set address_line = '200 Test Avenue', locality = 'Baltimore', region = 'MD', postal_code = '21201' where id = ${acc.id!}`
+    await recordActivity(jade, { accountId: acc.id!, kind: 'visit', outcome: 'sale', visitReason: 'delivery', next: 'none', askNext: true })
+    const robert = await ctxFor('robert.hale')
+    const data = await visitDetail(robert, { market: 'US' })
+    const row = data.rows.find((r) => r.account_name.startsWith('Reembolso'))!
+    expect(row).toMatchObject({ day: today, market_code: 'US', owner_name: 'Jade Kim', address_line: '200 Test Avenue', locality: 'Baltimore', region: 'MD', postal_code: '21201', purpose_en: 'Material or product drop-off', outcome: 'sale', origin: 'manual' })
+    expect(data.rows.every((r) => r.market_code === 'US')).toBe(true)
+    const out = await exportVisitDetail(await ctxFor('robert.hale'), { market: 'US' })
+    expect(out.csv.split('\n')[0]).toContain('Fecha')
+    expect(out.csv).toContain('200 Test Avenue')
+    expect(out.rows).toBe(data.rows.length)
+    const ev = await one(admin<{ after: { report: string; rows: number } }[]>`select after from crm.audit_events where action = 'report.exported' and after ->> 'report' = 'visit_detail' order by at desc limit 1`)
+    expect(ev.after).toMatchObject({ report: 'visit_detail', rows: out.rows })
+    // quien vende y Operaciones no exportan; el líder de México no ve US; el periodo tiene tope
+    await expect(visitDetail(jade, { market: 'US' })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(visitDetail(await ctxFor('tom.reyes'), { market: 'US' })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(visitDetail(await ctxFor('ana.robles'), { market: 'US' })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(visitDetail(robert, { market: 'US', from: addDays(today, -200), to: today })).rejects.toMatchObject({ code: 'invalid' })
+    // supervisión: solo las visitas de su equipo
+    const kira = await visitDetail(await ctxFor('kira.dunn'), { market: 'US' })
+    expect(kira.rows.some((r) => r.account_name.startsWith('Reembolso'))).toBe(true)
+  })
+
+  it('la lista para la ruta trae solo las tiendas que la persona lleva, con dirección, contacto y desempeño', async () => {
+    const jade = await ctxFor('jade.kim')
+    const mine = await routeStores(jade, 'US')
+    const expected = await one(admin<{ n: number }[]>`select count(*)::int as n from crm.accounts where market_code = 'US' and kind = 'store' and archived_at is null and owner_id = ${await personaId('jade.kim')}`)
+    expect(mine).toHaveLength(Math.min(expected.n, 500))
+    const owners = await admin<{ owner_id: string }[]>`select distinct owner_id from crm.accounts where id = any(${mine.map((s) => s.account_id)}::uuid[])`
+    expect(owners.map((o) => o.owner_id)).toEqual([await personaId('jade.kim')])
+    expect(mine.some((s) => s.txn_count_30d !== null)).toBe(true)
+    expect(Object.keys(mine[0]!).sort()).toEqual(['account_id', 'address', 'approved_products', 'contact', 'last_visit_on', 'locality', 'merchant_ref', 'name', 'phone', 'postal_code', 'region', 'txn_count_30d'])
+    // otro mercado: no es el suyo
+    await expect(routeStores(jade, 'MX')).rejects.toBeTruthy()
   })
 })
