@@ -50,3 +50,38 @@ export async function teamSnapshots(ctx: Ctx, market?: string): Promise<TeamSnap
      where s.snapshot_date >= (now() - interval '45 days')::date ${market ? tx`and s.market_code = ${market}` : tx``}
      order by s.snapshot_date desc, t.name limit 90`)
 }
+
+// ------------------------------------------------------------------ valores propuestos y personas con su ID en S5
+/** Los valores que dependen de otra persona, como están guardados (con `proposed` y `pending`). */
+export async function proposedValues(tx: import('@/server/db').Tx): Promise<Record<string, Record<string, unknown> & { proposed?: boolean; pending?: string; value?: unknown }>> {
+  const rows = await tx<{ key: string; value: Record<string, unknown> }[]>`
+    select key, value from crm.settings where key in ('ingest.require_manifest','snapshots.window_days','quality.exception_rules','adoption.rollout_rule','orders.brand')`
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]))
+}
+
+/** Lo que sigue como propuesta, con quién lo tiene: lo lista Estado de CONTIGO. Incluye los tableros por rol sin confirmar. */
+export async function pendingDecisions(ctx: Ctx): Promise<{ key: string; label: [string, string]; pending: string }[]> {
+  return withUser(ctx.user.id, async (tx) => {
+    const pv = await proposedValues(tx)
+    const LABEL: Record<string, [string, string]> = {
+      'ingest.require_manifest': ['Manifiesto obligatorio en el archivo de ventas', 'Manifest required in the sales file'],
+      'snapshots.window_days': ['Ventana corta de la foto diaria', 'Short window of the daily snapshot'],
+      'quality.exception_rules': ['Reglas de calidad que abren avisos', 'Data quality rules that open notices'],
+      'adoption.rollout_rule': ['Regla de paso a despliegue', 'Rollout readiness rule'],
+      'orders.brand': ['Plantilla de marca del pedido (logotipo y encabezado)', 'Order brand template (logo and header)'],
+    }
+    const out = Object.entries(pv).filter(([, v]) => v.proposed !== false).map(([k, v]) => ({ key: k, label: LABEL[k] ?? [k, k], pending: String(v.pending ?? '') }))
+    const boards = await tx<{ role: string; pending_owner: string }[]>`select role, min(pending_owner) as pending_owner from crm.role_boards where not confirmed group by role order by role`
+    for (const b of boards) out.push({ key: `role_board.${b.role}`, label: [`Indicadores del tablero: ${b.role}`, `Board indicators: ${b.role}`], pending: b.pending_owner })
+    return out
+  })
+}
+
+export async function peopleAliases(ctx: Ctx): Promise<{ id: string; full_name: string; s5: string | null; since: string | null }[]> {
+  return withUser(ctx.user.id, (tx) => tx<{ id: string; full_name: string; s5: string | null; since: string | null }[]>`
+    select u.id, u.full_name, al.external_id as s5, al.valid_from::text as since
+      from crm.users u left join crm.user_aliases al on al.user_id = u.id and al.system = 's5' and al.valid_to is null
+     where u.is_active and not u.is_system
+       and exists (select 1 from crm.memberships m where m.user_id = u.id and m.role = any(app.owner_roles()) and (m.valid_to is null or m.valid_to > now()))
+     order by u.full_name limit 300`)
+}

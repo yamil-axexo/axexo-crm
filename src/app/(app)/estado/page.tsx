@@ -38,6 +38,7 @@ import { partnersAdapterStatus } from '@/server/adapters/partners'
 import { externalQueueCounts } from '@/dal/partners'
 import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
+import { ProposedCard } from './propuestos'
 
 export const dynamic = 'force-dynamic'
 
@@ -385,6 +386,7 @@ export default async function StatusPage() {
           </Card>
         </div>
 
+        <ProposedCard ctx={ctx} />
         <Card data-testid="status-close-rules">
           <CardTitle title={t('Cómo se gana cada embudo', 'How each pipeline is won')} hint={t('La regla de cierre vigente y los últimos cambios. Cambiarla aplica desde ese momento a los negocios abiertos.', 'The current closing rule and the latest changes. Changing it applies from that moment to open deals.')} />
           <ul>

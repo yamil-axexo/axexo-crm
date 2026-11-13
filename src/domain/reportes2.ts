@@ -152,7 +152,9 @@ export async function setProposed(ctx: Ctx, key: string, value: Record<string, u
   if (!parsed.success) throw invalid('Revisa el valor.', 'Check the value.')
   await withUser(ctx.user.id, async (tx) => {
     const before = await readProposed(tx, k)
-    const next = { ...(parsed.data as Record<string, unknown>), proposed: !confirm, pending: PROPOSED_OWNER[k] }
+    // La plantilla del pedido es por mercado: guardar un mercado no borra los demás.
+    const base = k === 'orders.brand' && before ? Object.fromEntries(Object.entries(before).filter(([x]) => x.length === 2)) : {}
+    const next = { ...base, ...(parsed.data as Record<string, unknown>), proposed: !confirm, pending: PROPOSED_OWNER[k] }
     await tx`insert into crm.settings (key, value) values (${k}, ${tx.json(next as never)}) on conflict (key) do update set value = excluded.value`
     await audit(tx, ctx, 'threshold.proposed_value_set', 'setting', null, null, before as Record<string, unknown> | null, { key: k, ...next })
   })
