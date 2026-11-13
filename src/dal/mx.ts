@@ -138,6 +138,9 @@ export async function deadLeadsForMailing(tx: Tx, market: string, tz: string, li
            to_char(l.consent_at at time zone ${tz}, 'YYYY-MM-DD') as consent_on, to_char(l.created_at at time zone ${tz}, 'YYYY-MM-DD') as created_on
       from crm.leads l left join crm.loss_reasons r on r.code = l.disqualify_code
      where l.market_code = ${market} and l.status = 'disqualified' and l.email is not null and l.consent_at is not null
+       -- SEG-04: fuera quien retiró su consentimiento o pidió la baja de correo, aunque lo haya dado antes.
+       and (select mc.ok from app.may_contact('email', lower(l.email::text), 'marketing') mc)
+       and l.anonymized_at is null
      order by l.created_at desc, l.id limit ${limit}`
   return [...rows]
 }

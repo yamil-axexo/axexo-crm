@@ -79,7 +79,14 @@ insert into audit.excluded_tables (table_name, reason) values
   ('import_raw', 'Copia cruda de Pipedrive, se vacía al terminar la migración.'),
   ('external_refs', 'Mapa técnico de identificadores de la importación.'),
   ('merchant_metrics_daily', 'Cifras diarias por comercio que llegan cada noche: la carga queda registrada por lote.'),
-  ('user_onboarding', 'Pasos de primeros pasos vistos por cada persona: no es dato de negocio.');
+  ('user_onboarding', 'Pasos de primeros pasos vistos por cada persona: no es dato de negocio.'),
+  ('rate_counters', 'Contadores del límite de frecuencia: una fila por llamada y minuto, sin datos de negocio.'),
+  ('job_runs', 'Es la bitácora de corridas de las tareas programadas: ya es un registro, no se copia otra vez.'),
+  ('automation_log', 'Es la bitácora de lo que hizo cada automatización: ya es un registro, no se copia otra vez.'),
+  ('event_deliveries', 'Intentos de entrega de un evento a un suscriptor: copia técnica de un cambio que ya quedó registrado.'),
+  ('pipeline_snapshots', 'Foto diaria calculada a partir de los negocios: se puede volver a calcular, no es dato de origen.'),
+  ('portfolio_snapshots', 'Foto diaria calculada a partir de los comercios: se puede volver a calcular, no es dato de origen.'),
+  ('quality_snapshots', 'Foto diaria de calidad de datos, calculada: se puede volver a calcular, no es dato de origen.');
 
 -- Columnas que nunca se copian a la bitácora (huellas de llaves) o que se copian tapadas (valor de un campo sensible).
 create or replace function audit.scrub(p_table text, p_row jsonb) returns jsonb
@@ -1121,9 +1128,12 @@ begin
             where pol.schemaname = 'crm' and (coalesce(pol.qual, '') like '%app.is_admin()%' or coalesce(pol.with_check, '') like '%app.is_admin()%') loop
     v_area := case
       when p.tablename in ('memberships','users','teams') then 'access'
-      when p.tablename in ('api_clients','inbound_events','ingest_batches','outbox_events','import_runs','import_raw','external_refs') then 'integrations'
+      when p.tablename in ('api_clients','inbound_events','ingest_batches','outbox_events','import_runs','import_raw','external_refs',
+                           'event_subscribers','event_deliveries','intake_rejections','job_runs') then 'integrations'
       when p.tablename in ('markets','legal_entities','territories','pipelines','stages','loss_reasons','field_definitions','routing_rules','web_forms',
-                           'fx_rates','settings','products','account_types','market_hours','ops_catalog','user_territories') then 'config'
+                           'fx_rates','settings','products','account_types','market_hours','ops_catalog','user_territories',
+                           'automations','automation_state','automation_log','lead_escalation','message_templates','market_comms','help_lessons',
+                           'alias_systems','quality_rules','visit_reasons','metric_owners') then 'config'
       else null end;
     if v_area is null then continue; end if;
     execute format('alter policy %I on crm.%I %s %s', p.policyname, p.tablename,

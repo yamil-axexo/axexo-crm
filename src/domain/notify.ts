@@ -187,12 +187,21 @@ export async function notifyOutside(tx: Tx, actor: Actor, m: OutsideInput): Prom
   const none = { releaseAt: null, cost: null, currency: null, sentAt: false }
   if (isPendingText(subject) || isPendingText(body)) r = { status: 'blocked_template', ...none }
   else if (m.recipient === 'lead' && tpl.needs_consent && !m.consent) r = { status: 'skipped_consent', ...none }
+  // SEG-04: una baja manda siempre. Si esa dirección pidió no recibir correos, el mensaje queda registrado y no sale.
+  else if (m.recipient === 'lead' && (await optedOut(tx, m.address))) r = { status: 'skipped_consent', ...none }
   else r = await place(tx, { market: m.market, channel: 'email', address: m.address, subject, body, userId: null, digest: false, urgent: false })
   await tx`insert into crm.notifications (market_code, kind, channel, template_key, template_version, recipient_kind, recipient_address, lead_id, account_id, deal_id,
                                           subject, body, status, cost, cost_currency, release_at, sent_at, created_by)
            values (${m.market}, ${m.kind}, 'email', ${tpl.key}, ${tpl.version}, ${m.recipient}, ${m.address}, ${m.leadId ?? null}, ${m.accountId ?? null}, ${m.dealId ?? null},
                    ${subject || '(sin asunto)'}, ${body || '(sin texto)'}, ${r.status}, ${r.cost}, ${r.currency}, ${r.releaseAt}, ${r.sentAt ? tx`now()` : null}, ${actor.user.id})`
   return r.status
+}
+
+/** SEG-04: ¿esa dirección de alguien de fuera pidió la baja? Pregunta a la base (app.may_contact), la misma regla para todo envío. */
+async function optedOut(tx: Tx, address: string | null): Promise<boolean> {
+  if (!address) return false
+  const rows = await tx<{ why: string }[]>`select why from app.may_contact('email', ${address.trim().toLowerCase()}, 'service')`
+  return rows[0]?.why === 'opted_out'
 }
 
 /** Lo que estaba esperando al horario hábil y ya puede salir. Lo llama la tarea programada. */
@@ -204,6 +213,11 @@ export async function releaseHeld(tx: Tx): Promise<number> {
   for (const r of rows) {
     const open = await tx<{ open: boolean }[]>`select app.market_open(${r.market_code}, now()) as open`
     if (!open[0]?.open) continue
+    // La baja pudo llegar mientras el mensaje esperaba: a alguien de fuera no le sale.
+    if (!r.recipient_user_id && (await optedOut(tx, r.recipient_address))) {
+      await tx`update crm.notifications set status = 'skipped_consent', release_at = null where id = ${r.id}`
+      continue
+    }
     const p = await place(tx, { market: r.market_code, channel: r.channel, address: r.recipient_address, subject: r.subject, body: r.body, userId: r.recipient_user_id, digest: false, urgent: true, force: true })
     await tx`update crm.notifications set status = ${p.status}, cost = ${p.cost}, cost_currency = ${p.currency}, release_at = null, sent_at = ${p.sentAt ? tx`now()` : null} where id = ${r.id}`
     done++

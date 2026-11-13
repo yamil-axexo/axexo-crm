@@ -66,7 +66,7 @@ export const DELIVERY_STATUS: Record<string, Pair> = {
   held_digest: ['En espera: va en el resumen', 'On hold: goes in the summary'],
   held_limit: ['En espera: límite diario del canal', 'On hold: daily channel limit'],
   digested: ['Incluido en un resumen', 'Included in a summary'],
-  skipped_consent: ['No sale: el lead no dio su consentimiento', 'Not sent: the lead gave no consent'],
+  skipped_consent: ['No sale: la persona no dio su consentimiento o pidió la baja', 'Not sent: the person gave no consent or opted out'],
   skipped_no_address: ['No sale: falta la dirección de destino', 'Not sent: the destination address is missing'],
   blocked_template: ['No sale: falta el texto de la plantilla', 'Not sent: the template text is missing'],
 }

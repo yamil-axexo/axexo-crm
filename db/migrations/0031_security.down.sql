@@ -19,10 +19,7 @@ do $$
 declare p record;
 begin
   for p in select pol.tablename, pol.policyname, pol.qual, pol.with_check from pg_policies pol
-            where pol.schemaname = 'crm' and (coalesce(pol.qual, '') ~ 'app\.has_area\(''(access|config|integrations)''::text\)' or coalesce(pol.with_check, '') ~ 'app\.has_area\(''(access|config|integrations)''::text\)')
-              and pol.tablename in ('memberships','users','teams','user_territories','api_clients','inbound_events','ingest_batches','outbox_events','import_runs','import_raw','external_refs',
-                                    'markets','legal_entities','territories','pipelines','stages','loss_reasons','field_definitions','routing_rules','web_forms','fx_rates','settings','products',
-                                    'account_types','market_hours','ops_catalog') loop
+            where pol.schemaname = 'crm' and (coalesce(pol.qual, '') ~ 'app\.has_area\(''(access|config|integrations)''::text\)' or coalesce(pol.with_check, '') ~ 'app\.has_area\(''(access|config|integrations)''::text\)') loop
     execute format('alter policy %I on crm.%I %s %s', p.policyname, p.tablename,
       case when p.qual is not null then 'using (' || regexp_replace(p.qual, 'app\.has_area\(''(access|config|integrations)''::text\)', 'app.is_admin()', 'g') || ')' else '' end,
       case when p.with_check is not null then 'with check (' || regexp_replace(p.with_check, 'app\.has_area\(''(access|config|integrations)''::text\)', 'app.is_admin()', 'g') || ')' else '' end);

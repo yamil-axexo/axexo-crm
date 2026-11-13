@@ -9,6 +9,9 @@ import { antibotMode } from '@/server/adapters/antibot'
 import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
 import { adapterQueue } from '@/dal/reportes'
 import { routesAdapter } from '@/server/adapters/routes'
+import { auditArchiveMode, AUDIT_ARCHIVE_ENV } from '@/server/adapters/audit-archive'
+import { directoryMode, DIRECTORY_ENV } from '@/server/adapters/directory'
+import { fieldCryptoMode, FIELD_CRYPTO_ENV } from '@/server/adapters/field-crypto'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
@@ -138,6 +141,31 @@ export default async function StatusPage() {
       }
     }),
   ]
+  // Seguridad (0031): tres salidas construidas y apagadas. Cada una dice qué hace CONTIGO mientras tanto y qué falta para encenderla.
+  const offOr = (m: string): { tone: Tone; text: string } => (m === 'simulated' ? { tone: 'warn', text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral', text: t('Canal apagado', 'Channel off') })
+  rows.push(
+    {
+      key: 'audit_archive',
+      name: t('Copia de la bitácora fuera de la base', 'Audit log copy outside the database'),
+      what: t('Lote diario con su huella', 'Daily batch with its fingerprint'),
+      state: offOr(auditArchiveMode()),
+      last: t(`Mientras tanto la bitácora vive en la base, en un esquema aparte que nadie edita, y cada lote queda en cola. Para encenderlo: un destino aprobado en la revisión técnica y la variable ${AUDIT_ARCHIVE_ENV}`, `Meanwhile the log lives in the database, in a separate schema nobody can edit, and each batch stays queued. To turn it on: a destination approved in the technology review and the ${AUDIT_ARCHIVE_ENV} variable`),
+    },
+    {
+      key: 'directory',
+      name: t('Directorio de Google', 'Google directory'),
+      what: t('Quita el acceso cuando la cuenta deja de existir', 'Removes access when the account stops existing'),
+      state: offOr(directoryMode()),
+      last: t(`Mientras tanto: reporte de accesos sin uso y revisión periódica de accesos en Seguridad. Para encenderlo: una cuenta de servicio de solo lectura del directorio, su aprobación y la variable ${DIRECTORY_ENV}`, `Meanwhile: unused access report and periodic access review under Security. To turn it on: a read-only directory service account, its approval and the ${DIRECTORY_ENV} variable`),
+    },
+    {
+      key: 'field_crypto',
+      name: t('Cifrado de datos reservados con llaves gestionadas', 'Encryption of restricted data with managed keys'),
+      what: t('Cifra cada dato reservado antes de guardarlo', 'Encrypts each restricted value before storing it'),
+      state: offOr(fieldCryptoMode()),
+      last: t(`Mientras tanto los datos reservados están en una tabla sin lectura directa, se muestran tapados y cada revelado queda registrado. Para encenderlo: el servicio de llaves aprobado y la variable ${FIELD_CRYPTO_ENV}`, `Meanwhile restricted data sits in a table with no direct read, is shown masked and every reveal is logged. To turn it on: the approved key service and the ${FIELD_CRYPTO_ENV} variable`),
+    },
+  )
   // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
   rows.push({
     key: 'jobs',
