@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { ctxFor, owner, personaId } from './helpers'
-import { withSystem } from '@/server/db'
+import { withSystem, withUser } from '@/server/db'
 import { addContactLinked, createAccount, setParent } from '@/domain/accounts'
 import { fieldRegistry, nodeTotals } from '@/dal/datos'
 import { decideField, proposeField } from '@/domain/gobierno'
@@ -472,20 +472,23 @@ describe('E4.F2 · quien opera no administra; cambiar dueño, fusionar y editar 
     }
   })
 
-  it('existe el rol de Finanzas: edita y lee sus reportes en su mercado, sin administrar ni exportar', async () => {
+  // Integración ola 6 (cambiado a propósito): Finanzas es un solo rol con reportes2. Solo lectura comercial: no edita comercios;
+  // con la decisión encendida en su mercado cambia quién lleva, fusiona y edita en bloque (y la base le deja escribir ahí).
+  it('existe el rol de Finanzas: lee sus reportes; con la decisión encendida cambia quién lleva y fusiona en su mercado, sin editar comercios', async () => {
     const uid = await one(admin<{ id: string }[]>`insert into crm.users (email, full_name, locale) values (${`finanzas.${tag()}@contigo.test`}, 'Persona Finanzas', 'es') returning id`)
     await admin`insert into crm.memberships (user_id, market_code, role) values (${uid.id}, 'US', 'finance')`
     await setDecision(await ctxFor('nora.salas'), { key: 'ops.operator_rights', market: 'US', value: 'on', confirmed: false })
     const fin = (await loadCtx(uid.id, 'es'))!
     expect(fin.can('report.finance', 'US')).toBe(true)
-    expect(fin.can('account.edit', 'US')).toBe(true)
+    expect(fin.can('account.edit', 'US')).toBe(false)
     expect(fin.can('operator.reassign', 'US')).toBe(true)
+    expect(fin.can('operator.merge', 'US')).toBe(true)
     for (const c of ['config.manage', 'report.export', 'data.import', 'account.merge', 'deal.create'] as const) expect(fin.can(c, 'US')).toBe(false)
-    expect(fin.can('account.edit', 'MX')).toBe(false)
-    // ve y edita comercios de su mercado (RLS)
+    expect(fin.can('operator.reassign', 'MX')).toBe(false)
     const acc = await rawAccount('US', 'jade.kim')
-    await updateAccount(fin, acc, { name: 'Tienda Finanzas Reno', locality: 'Reno' })
-    expect((await one(admin<{ locality: string }[]>`select locality from crm.accounts where id = ${acc}`)).locality).toBe('Reno')
+    await expect(updateAccount(fin, acc, { name: 'Tienda Finanzas Reno', locality: 'Reno' })).rejects.toMatchObject({ code: 'forbidden' })
+    const w = await withUser(uid.id, (tx) => tx<{ w: string[] }[]>`select app.write_markets() as w`)
+    expect(w[0]!.w).toEqual(['US'])
   })
 })
 
