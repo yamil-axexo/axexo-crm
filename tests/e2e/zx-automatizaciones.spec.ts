@@ -317,9 +317,12 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
     await at(page, 'desktop')
     await runJob(page, 'automatizaciones.escalamiento')
 
-    // Fernando supervisa el equipo de Lucía: le llega la tarea a Hoy y la guardia dice que ya se le avisó.
+    // Fernando supervisa el equipo de Lucía: el aviso le llega a Hoy (por el servicio de avisos) y la guardia dice que ya se le avisó.
     await loginAs(page, 'fernando.ibarra')
-    await expect(page.getByTestId('queue')).toContainText(`Lead sin primer contacto: ${name}. Lo lleva Lucía Vega.`)
+    await page.goto('/hoy')
+    const notice = page.getByTestId('hoy-notice').filter({ hasText: `Lead sin primer contacto: ${name}` })
+    await expect(notice).toContainText('Lo lleva Lucía Vega.')
+    await expect(notice.getByTestId('hoy-notice-open')).toHaveAttribute('href', /^\/leads\//)
     await page.goto('/supervisor')
     const row = page.getByTestId('watch-row').filter({ hasText: name })
     await expect(row.getByTestId('watch-escalated')).toHaveText('Avisado a supervisión')

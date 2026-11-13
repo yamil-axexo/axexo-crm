@@ -18,6 +18,7 @@ import { helpLessons, myCenter, unreadNotices } from '@/dal/notices'
 import { myNotices } from '@/dal/ops'
 import { getQueue } from '@/dal/queue'
 import { addDays, isoDay } from '@/lib/format'
+import { fillEnrollment } from '../support/us-enrollment'
 
 const admin = owner()
 afterAll(() => admin.end())
@@ -42,6 +43,8 @@ async function ready() {
   await admin`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${contact.id}, 'US', 'decision_maker')`
   await updateDeal(jade, id, { decisionMakerId: contact.id, decisionMakerMet: true, amount: 1200 })
   await updateCustom(jade, 'deal', id, { account_funding: 'ACH' })
+  // El alta de dealers de US tiene nueve etapas con sus candados (paquete us-embudo): este negocio ya trae lo que piden.
+  await fillEnrollment(admin, id)
   await moveDeal(jade, id, await stage('p-us-dealer', 'application'))
   return { jade, id, accountId }
 }

@@ -4,10 +4,12 @@ import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
 import { invalid } from '@/lib/errors'
 import { peopleWithRole } from '@/domain/automation/people'
+import { notify } from '@/domain/notify'
 
 // LEAD-04: escalamiento del primer contacto. Al vencer la meta sin ningún intento, se le avisa a supervisión; si pasan
 // N horas hábiles más sin intento, a quien lidera el mercado. Cada mercado lo enciende y fija sus horas; nace apagado,
-// porque la meta se fija con la línea base del propio mercado. El aviso llega como tarea en Hoy, ligada al lead.
+// porque la meta se fija con la línea base del propio mercado. El aviso sale por el servicio único de avisos
+// (src/domain/notify.ts): campana, centro de avisos y Hoy hasta que se atiende el lead; correo o Slack según la preferencia.
 
 export const LEVEL_LABEL: Record<number, { es: string; en: string }> = {
   1: { es: 'Avisado a supervisión', en: 'Supervisor notified' },
@@ -16,24 +18,24 @@ export const LEVEL_LABEL: Record<number, { es: string; en: string }> = {
 
 type Due = { id: string; market_code: string; business_name: string; owner_id: string | null; owner_name: string | null; escalation_level: number; level2_hours: number }
 
-async function escalationTask(tx: Tx, sys: Ctx, l: Due, level: number, userId: string): Promise<void> {
-  const u = await tx<{ locale: 'es' | 'en' }[]>`select locale from crm.users where id = ${userId}`
-  const en = u[0]?.locale === 'en'
-  const who = l.owner_name ?? (en ? 'nobody' : 'nadie')
-  const subject = (level === 1
-    ? (en ? `Lead with no first contact: ${l.business_name}. Owner: ${who}.` : `Lead sin primer contacto: ${l.business_name}. Lo lleva ${who}.`)
-    : (en ? `Lead still with no first contact after ${l.level2_hours} more business hours: ${l.business_name}. Owner: ${who}.`
-          : `Lead sigue sin primer contacto después de ${l.level2_hours} horas hábiles más: ${l.business_name}. Lo lleva ${who}.`)).slice(0, 200)
-  await tx`insert into crm.activities (market_code, lead_id, kind, subject, due_at, owner_id, created_by, source, custom)
-           values (${l.market_code}, ${l.id}, 'task', ${subject}, now(), ${userId}, ${sys.user.id}, 'rule', ${tx.json({ lead_escalation: level })})`
+async function escalationNotice(tx: Tx, sys: Ctx, l: Due, level: number, userId: string): Promise<void> {
+  const who: [string, string] = [l.owner_name ?? 'nadie', l.owner_name ?? 'nobody']
+  await notify(tx, sys, {
+    to: userId, kind: 'lead_escalated', market: l.market_code, link: `/leads/${l.id}`, leadId: l.id, needsAction: true,
+    title: level === 1
+      ? [`Lead sin primer contacto: ${l.business_name}`, `Lead with no first contact: ${l.business_name}`]
+      : [`Lead sigue sin primer contacto: ${l.business_name}`, `Lead still with no first contact: ${l.business_name}`],
+    body: level === 1
+      ? [`Venció la meta de primer contacto y nadie lo ha intentado. Lo lleva ${who[0]}.`, `The first-contact goal ran out and nobody has tried. Owner: ${who[1]}.`]
+      : [`Pasaron ${l.level2_hours} horas hábiles más sin ningún intento. Lo lleva ${who[0]}.`, `${l.level2_hours} more business hours went by with no attempt. Owner: ${who[1]}.`],
+  })
 }
 
 /** Corre por horario, como sistema. Devuelve cuántos leads subieron de nivel. Correrla dos veces no avisa dos veces. */
 export async function escalateLeads(tx: Tx, sys: Ctx): Promise<number> {
   // Lo que ya se atendió (o se cerró) deja de estar escalado: sus avisos pendientes se cierran solos.
-  await tx`update crm.activities a set done_at = now(), outcome = 'done'
-            where a.done_at is null and a.custom ? 'lead_escalation' and a.lead_id is not null
-              and exists (select 1 from crm.leads l where l.id = a.lead_id and (l.first_touch_at is not null or l.status <> 'new'))`
+  // (función de la base: el aviso es de quien lo recibió, y solo el sistema puede retirarlo así)
+  await tx`select app.close_lead_escalation_notices()`
   const due = await tx<Due[]>`
     select l.id, l.market_code, l.business_name, l.owner_id, u.full_name as owner_name, l.escalation_level, e.level2_hours
       from crm.leads l
@@ -47,7 +49,7 @@ export async function escalateLeads(tx: Tx, sys: Ctx): Promise<number> {
     let people = await peopleWithRole(tx, l.market_code, level === 1 ? 'supervisor' : 'market_lead', l.owner_id)
     // Un mercado sin supervisión no deja el lead en el aire: el primer aviso sube directo a quien lidera.
     if (people.length === 0 && level === 1) people = await peopleWithRole(tx, l.market_code, 'market_lead', null)
-    for (const p of people.filter((x) => x !== l.owner_id)) await escalationTask(tx, sys, l, level, p)
+    for (const p of people.filter((x) => x !== l.owner_id)) await escalationNotice(tx, sys, l, level, p)
     await tx`update crm.leads set escalation_level = ${level}, escalated_at = now() where id = ${l.id}`
     await audit(tx, sys, 'lead.escalated', 'lead', l.id, l.market_code, { level: l.escalation_level }, { level, people: people.length })
   }

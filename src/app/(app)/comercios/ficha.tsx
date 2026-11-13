@@ -27,7 +27,6 @@ import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSectio
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
-import { StoreProviders } from './proveedores'
 import { storeRecord } from '@/dal/store-record'
 import { CarrierPortfolio, SalesFirst, StoreKeptFields, StoreProfileSection } from './tienda-us'
 import { resolveKept } from '@/lib/store-labels'
@@ -511,13 +510,13 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </section>
           )}
 
-          {store ? (
+          {store && (
             <>
               <StoreProfileSection ctx={ctx} accountId={a.id} record={store} typeName={typeName} territory={a.territory} tz={tz}
                 can={{ ops: canProducts, edit: canEdit, origin: !a.archived_at && ctx.can('account.origin', a.market_code), recruiter: !a.archived_at && ctx.can('account.recruiter', a.market_code) }} />
               {!isParent && <CarrierPortfolio ctx={ctx} accountId={a.id} record={store} canManage={canProducts} />}
             </>
-          ) : <StoreProviders ctx={ctx} accountId={a.id} />}
+          )}
           <AccountOrders ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
 
           <section className={section} data-testid="account-contacts">
