@@ -46,3 +46,6 @@ export async function attempt(tx: postgres.TransactionSql, run: (sp: postgres.Tr
 }
 
 export const owner = () => postgres(process.env.UNIT_MIGRATION_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:5433/contigo_unit', { max: 1, onnotice: () => {} })
+
+/** E4.F9 (datos2): la aprobación del asiento que todo acceso nuevo necesita en las pruebas. */
+export const SEAT = { seatApprover: 'Responsable del presupuesto (prueba)', seatApprovedOn: new Date().toISOString().slice(0, 10) }

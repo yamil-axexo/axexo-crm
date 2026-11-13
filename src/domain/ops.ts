@@ -295,7 +295,7 @@ export async function bulkCloseLost(ctx: Ctx, dealIds: string[], reasonCode: str
        where d.id = any(${ids}::uuid[]) and d.status = 'open' and d.paused_at is null order by d.id for update of d`
     let closed = 0
     for (const d of deals) {
-      if (!ctx.can('deal.bulk_close', d.market_code)) throw new DomainError('forbidden', 'No tienes permiso para cerrar negocios en bloque.', 'You do not have permission to close deals in bulk.', 403)
+      if (!ctx.can('deal.bulk_close', d.market_code) && !ctx.can('operator.bulk_edit', d.market_code)) throw new DomainError('forbidden', 'No tienes permiso para cerrar negocios en bloque.', 'You do not have permission to close deals in bulk.', 403)
       if ((reason[0].market_code && reason[0].market_code !== d.market_code) || (reason[0].motors && !reason[0].motors.includes(d.motor))) {
         throw invalid('Ese motivo no es de este embudo. Elige uno de la lista.', 'That reason does not belong to this pipeline. Pick one from the list.')
       }

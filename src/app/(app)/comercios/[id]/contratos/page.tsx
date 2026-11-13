@@ -128,6 +128,7 @@ export default async function ContractsPage({ params }: { params: Promise<{ id: 
                   </p>
                   <p className={small}>
                     {c.terms_version ? t(`Términos versión ${c.terms_version}`, `Terms version ${c.terms_version}`) : t('Términos reservados', 'Restricted terms')}
+                    {c.entity_name && <span data-testid="contract-entity">{' · '}{t(`Entidad: ${c.entity_name}`, `Entity: ${c.entity_name}`)}</span>}
                     {c.esign_state === 'channel_off' ? ` · ${t('Firma electrónica: canal apagado', 'Electronic signature: channel off')}` : ''}
                     {c.renewal_noticed_at ? ` · ${t('Aviso de renovación dado', 'Renewal notice given')}` : ''}
                   </p>

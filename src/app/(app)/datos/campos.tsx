@@ -8,7 +8,7 @@ import { NoticeForm } from '@/ui/admin'
 import { addDays, ago, day, isoDay, pct } from '@/lib/format'
 import { MOTOR, lab, qs } from '@/lib/labels'
 import { FIELD_OBJECT, FIELD_TYPE, PII_CLASS } from '@/lib/datos-labels'
-import { decideFieldAction, proposeFieldAction, updateFieldAction } from './actions'
+import { convertToListAction, decideOverlapAction, closePromotionAction, decideFieldAction, proposeFieldAction, requestPromotionAction, setFieldSchemaAction, updateFieldAction } from './actions'
 import { toggleFieldAction } from '@/app/(app)/b2b-actions'
 
 const VIEWS = ['vigentes', 'sin-decision', 'propuestos', 'archivados'] as const
@@ -54,7 +54,7 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
             <NoticeForm action={proposeFieldAction} className="grid grid-cols-2 gap-4 text-left" testId="propose-form">
               <Field label={t('Nombre en español', 'Name in Spanish')}><input name="label_es" className="input" required minLength={2} maxLength={60} data-testid="propose-label-es" /></Field>
               <Field label={t('Nombre en inglés', 'Name in English')}><input name="label_en" className="input" required minLength={2} maxLength={60} data-testid="propose-label-en" /></Field>
-              <Field label={t('Para', 'For')}><select name="object" className="input">{(['account', 'deal', 'lead'] as const).map((k) => <option key={k} value={k}>{t(...FIELD_OBJECT[k]!)}</option>)}</select></Field>
+              <Field label={t('Para', 'For')}><select name="object" className="input" data-testid="propose-object">{(['account', 'deal', 'lead', 'contact', 'activity'] as const).map((k) => <option key={k} value={k}>{t(...FIELD_OBJECT[k]!)}</option>)}</select></Field>
               <Field label={t('Tipo de dato', 'Data type')}><select name="data_type" className="input" data-testid="propose-type">{(['text', 'number', 'select', 'date', 'boolean'] as const).map((k) => <option key={k} value={k}>{t(...FIELD_TYPE[k]!)}</option>)}</select></Field>
               <Field label={t('Mercado', 'Market')}><select name="market" className="input" data-testid="propose-market">{proposeIn.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>
               <Field label={t('Tipo de venta', 'Sale type')}><select name="motor" className="input"><option value="">{t('Todos', 'All')}</option>{MOTORS.map((k) => <option key={k} value={k}>{lab(t, MOTOR[k])}</option>)}</select></Field>
@@ -66,6 +66,59 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
           </Dialog>
         )}
       </div>
+
+      <p className="text-[13.5px] text-muted-2" data-testid="field-sla-stats">
+        {d.slaStats.decided === 0
+          ? t(`Plazo para decidir una propuesta: ${d.sla} días. En los últimos 90 días no se decidió ninguna.`, `Deadline to decide a proposal: ${d.sla} days. None was decided in the last 90 days.`)
+          : t(`Plazo para decidir una propuesta: ${d.sla} días. En los últimos 90 días, ${d.slaStats.on_time} de ${d.slaStats.decided} se decidieron a tiempo; la mitad tardó ${d.slaStats.median_days ?? '0'} días o menos.`,
+              `Deadline to decide a proposal: ${d.sla} days. In the last 90 days, ${d.slaStats.on_time} of ${d.slaStats.decided} were decided on time; half took ${d.slaStats.median_days ?? '0'} days or less.`)}
+        {d.slaStats.open_late > 0 && <span className="ml-2"><Badge tone="warn">{t(`${d.slaStats.open_late} fuera de plazo`, `${d.slaStats.open_late} past deadline`)}</Badge></span>}
+      </p>
+
+      {d.overlaps.length > 0 && (
+        <Card data-testid="field-overlaps">
+          <CardTitle title={t('Campos de la tienda de Estados Unidos que se parecen a uno importado', 'US store fields that look like an imported one')} hint={t('Para no tener el mismo dato dos veces. Si es el mismo, se usa el de Pipedrive y los valores pasan a él; el otro se archiva.', 'So the same data does not live twice. If it is the same, the Pipedrive one is used and the values move to it; the other one is archived.')} />
+          <ul>
+            {d.overlaps.map((o) => (
+              <li key={`${o.kept_id}-${o.imported_id}`} className="flex flex-wrap items-center justify-between gap-3 border-t border-line py-3 first:border-t-0" data-testid="overlap-row">
+                <span className="min-w-0 text-[14px]"><span className="font-semibold text-strong">{o.kept_label}</span> <span className="text-muted-2">{t('y', 'and')}</span> <span className="font-semibold text-strong">{o.imported_label}</span> <Badge>Pipedrive</Badge></span>
+                {admin && (
+                  <span className="flex flex-wrap gap-2">
+                    <NoticeForm action={decideOverlapAction}><input type="hidden" name="kept_id" value={o.kept_id} /><input type="hidden" name="imported_id" value={o.imported_id} /><input type="hidden" name="decision" value="same" /><Submit size="sm" testId="overlap-same">{t('Es el mismo', 'Same field')}</Submit></NoticeForm>
+                    <NoticeForm action={decideOverlapAction}><input type="hidden" name="kept_id" value={o.kept_id} /><input type="hidden" name="imported_id" value={o.imported_id} /><input type="hidden" name="decision" value="different" /><Submit size="sm" variant="ghost" testId="overlap-different">{t('Son distintos', 'Different')}</Submit></NoticeForm>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {d.promotions.length > 0 && (
+        <Card data-testid="field-promotions">
+          <CardTitle title={t('Campos que pasan a columna', 'Fields moving to a column')} hint={t('Un campo que se filtra, entra a un permiso o a una métrica deja de vivir en campos adicionales. CONTIGO arma el cambio; lo aplica una migración con revisión técnica y aquí se marca hecho solo.', 'A field used in a filter, a permission or a metric stops living in additional fields. CONTIGO prepares the change; a migration with technical review applies it and it is marked done here automatically.')} />
+          <ul>
+            {d.promotions.map((p) => (
+              <li key={p.id} className="border-t border-line py-4 first:border-t-0" data-testid="promotion-row" data-status={p.status}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <span className="min-w-0 text-[14px]"><span className="font-semibold text-strong">{t(p.label_es, p.label_en)}</span> <span className="text-muted-2">({lab(t, FIELD_OBJECT[p.object], p.object)})</span>
+                    <span className="block text-[13px] text-muted-2 [overflow-wrap:anywhere]">{p.reason}</span>
+                    <span className="block text-[13px] text-muted">{[p.requested_by, day(p.requested_at, locale)].filter(Boolean).join(' · ')}{p.close_note && p.status === 'rejected' ? ` · ${p.close_note}` : ''}</span></span>
+                  <Badge tone={p.status === 'done' ? 'good' : p.status === 'rejected' ? 'neutral' : 'warn'}>{p.status === 'done' ? t('Hecho', 'Done') : p.status === 'rejected' ? t('Cerrado', 'Closed') : t('Esperando la migración', 'Waiting for the migration')}</Badge>
+                </div>
+                {p.status === 'requested' && (
+                  <details className="mt-2 text-[13px]"><summary className="cursor-pointer font-medium text-strong">{t('Ver el cambio preparado', 'See the prepared change')}</summary><pre className="mt-2 overflow-x-auto rounded-[10px] bg-surface-2 p-3 text-[12px]" data-testid="promotion-sql">{p.migration_sql}</pre></details>
+                )}
+                {p.status === 'requested' && admin && (
+                  <NoticeForm action={closePromotionAction} className="mt-2 flex flex-wrap items-end gap-2"><input type="hidden" name="id" value={p.id} />
+                    <Field label={t('Cerrar sin hacer: ¿por qué?', 'Close without doing it: why?')} className="min-w-56 flex-1"><input name="note" className="input" required minLength={5} maxLength={300} /></Field>
+                    <Submit size="sm" variant="quiet">{t('Cerrar', 'Close')}</Submit></NoticeForm>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card pad={false}>
         <div className="px-5 pt-6 md:px-7 md:pt-7">
@@ -128,8 +181,47 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
                             <div className="col-span-2 flex justify-end"><Submit testId="registry-save">{t('Guardar', 'Save')}</Submit></div>
                           </NoticeForm>
                         </Dialog>
+                        {(f.data_type === 'number' || f.data_type === 'text') && f.object !== 'product' && (
+                          <Dialog trigger={t('Reglas', 'Rules')} title={t(`Reglas del valor: ${f.label_es}`, `Value rules: ${f.label_en}`)} size="sm" testId="registry-rules">
+                            <NoticeForm action={setFieldSchemaAction} className="grid grid-cols-2 gap-4 text-left" testId="rules-form">
+                              <input type="hidden" name="id" value={f.id} />
+                              {f.data_type === 'number' ? (
+                                <>
+                                  <Field label={t('Mínimo', 'Minimum')}><input name="minimum" className="input" inputMode="decimal" defaultValue={String(f.value_schema.minimum ?? '')} data-testid="rules-min" /></Field>
+                                  <Field label={t('Máximo', 'Maximum')}><input name="maximum" className="input" inputMode="decimal" defaultValue={String(f.value_schema.maximum ?? '')} data-testid="rules-max" /></Field>
+                                </>
+                              ) : (
+                                <>
+                                  <Field label={t('Largo mínimo', 'Minimum length')}><input name="min_length" className="input" inputMode="numeric" defaultValue={String(f.value_schema.minLength ?? '')} /></Field>
+                                  <Field label={t('Largo máximo', 'Maximum length')}><input name="max_length" className="input" inputMode="numeric" defaultValue={String(f.value_schema.maxLength ?? '')} /></Field>
+                                  <Field label={t('Forma (expresión regular)', 'Format (regular expression)')} className="col-span-2" hint={t('Opcional. Por ejemplo, [0-9]{10} para diez números.', 'Optional. For example, [0-9]{10} for ten digits.')}><input name="pattern" className="input" maxLength={200} defaultValue={String(f.value_schema.pattern ?? '')} /></Field>
+                                </>
+                              )}
+                              <div className="col-span-2 flex justify-end"><Submit testId="rules-save">{t('Guardar reglas', 'Save rules')}</Submit></div>
+                            </NoticeForm>
+                          </Dialog>
+                        )}
+                        {f.data_type === 'text' && f.object === 'account' && (
+                          <Dialog trigger={t('Pasar a lista', 'Make it a list')} title={t(`Lista de opciones: ${f.label_es}`, `Option list: ${f.label_en}`)} size="sm" testId="registry-to-list">
+                            <NoticeForm action={convertToListAction} className="space-y-4 text-left">
+                              <input type="hidden" name="id" value={f.id} />
+                              <Field label={t('Opciones, una por renglón', 'Options, one per line')} hint={t('Si algún comercio tiene un valor fuera de la lista, no se cambia y se dice cuál.', 'If a merchant has a value outside the list, nothing changes and you are told which one.')}><textarea name="options" rows={4} required className="input !h-auto py-3" data-testid="to-list-options" /></Field>
+                              <div className="flex justify-end"><Submit testId="to-list-save">{t('Pasar a lista', 'Make it a list')}</Submit></div>
+                            </NoticeForm>
+                          </Dialog>
+                        )}
                         <NoticeForm action={toggleFieldAction}><input type="hidden" name="id" value={f.id} /><input type="hidden" name="active" value={f.is_active ? 'false' : 'true'} /><Submit variant="quiet" size="sm" testId="registry-archive">{f.is_active ? t('Archivar', 'Archive') : t('Activar', 'Activate')}</Submit></NoticeForm>
                       </>
+                    )}
+                    {f.status === 'approved' && f.is_active && !f.mapped_to && ['account', 'deal', 'lead', 'contact', 'activity'].includes(f.object) && (f.market_code ? ctx.can('field.propose', f.market_code) : admin) && (
+                      <Dialog trigger={t('Pasar a columna', 'Move to a column')} title={t('Pasar el campo a columna', 'Move the field to a column')} size="sm" testId="registry-promote">
+                        <NoticeForm action={requestPromotionAction} className="space-y-4 text-left">
+                          <input type="hidden" name="id" value={f.id} />
+                          <p className="text-[14px] text-muted-2">{t('Hace falta cuando el campo se usa para filtrar, para dar permisos o en una métrica. CONTIGO prepara el cambio y lo aplica una migración revisada.', 'It is needed when the field is used to filter, to grant access or in a metric. CONTIGO prepares the change and a reviewed migration applies it.')}</p>
+                          <Field label={t('¿Para qué hace falta?', 'What is it needed for?')}><input name="reason" className="input" required minLength={10} maxLength={400} data-testid="promote-reason" /></Field>
+                          <div className="flex justify-end"><Submit testId="promote-save">{t('Pedir el cambio', 'Request the change')}</Submit></div>
+                        </NoticeForm>
+                      </Dialog>
                     )}
                   </div>
                 </td>

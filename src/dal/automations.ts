@@ -130,8 +130,8 @@ export async function dealSteps(ctx: Ctx, dealId: string): Promise<DealSteps | n
   return withUser(ctx.user.id, async (tx) => {
     const d = await tx<{ market_code: string; pipeline_id: string; stage_id: string; status: string; waiting_on: string | null; stage_entered_at: Date; sla_hours: number | null; due_at: Date | null; late: boolean | null }[]>`
       select d.market_code, d.pipeline_id, d.stage_id, d.status, d.waiting_on, d.stage_entered_at, s.sla_hours,
-             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60) end as due_at,
-             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60) < now() end as late
+             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60, app.account_timezone(d.account_id)) end as due_at,
+             case when s.sla_hours is not null then app.business_due(d.market_code, d.stage_entered_at, s.sla_hours * 60, app.account_timezone(d.account_id)) < now() end as late
         from crm.deals d join crm.stages s on s.id = d.stage_id where d.id = ${dealId}`
     const deal = d[0]
     if (!deal) return null

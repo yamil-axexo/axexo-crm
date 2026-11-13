@@ -15,6 +15,7 @@ import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { ago, dayTime, marketTime, num, phoneText, zoneNote } from '@/lib/format'
 import { OwnTime } from '@/ui/own-time'
 import { ACTIVITY, CONTACT_ROLE, LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
+import { MATCH_KIND } from '@/lib/datos-labels'
 import { leadStepAction, takeLeadAction } from '../actions'
 import { CompleteButton } from '@/ui/complete'
 import { resultOptions, sheetConfig } from '@/server/sheet'
@@ -135,7 +136,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                       <li key={d.id} className="flex flex-wrap items-center gap-2">
                         <Link href={`/comercios/${d.id}`} className="font-semibold text-strong underline">{d.name}</Link>
                         <span className="text-muted-2">{[d.locality, d.owner_name, lab(t, LIFECYCLE[d.lifecycle]?.label)].filter(Boolean).join(' · ')}</span>
-                        <Badge tone="warn">{d.match === 'phone' ? t('mismo teléfono', 'same phone') : t('nombre parecido', 'similar name')}</Badge>
+                        <Badge tone="warn">{lab(t, MATCH_KIND[d.match], d.match).toLowerCase()}</Badge>
                       </li>
                     ))}
                   </ul>

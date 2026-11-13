@@ -73,7 +73,8 @@ export async function teamParentAction(_: R | null, fd: FormData): Promise<R> {
 
 export async function grantAgencyAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await grantAgencyAccess(ctx, { email: str(fd, 'email'), fullName: str(fd, 'full_name'), agencyId: str(fd, 'agency_id'), expires: str(fd, 'expires') }, env().AUTH_ALLOWED_DOMAINS)
+    await grantAgencyAccess(ctx, { email: str(fd, 'email'), fullName: str(fd, 'full_name'), agencyId: str(fd, 'agency_id'), expires: str(fd, 'expires'),
+      seatApprover: str(fd, 'seat_approver'), seatApprovedOn: str(fd, 'seat_approved_on'), seatReference: str(fd, 'seat_reference') }, env().AUTH_ALLOWED_DOMAINS)
     return { message: ['Acceso de agencia otorgado: solo verá lo que su agencia reclutó.', 'Agency access granted: they will only see what their agency recruited.'], revalidate: here }
   })
 }

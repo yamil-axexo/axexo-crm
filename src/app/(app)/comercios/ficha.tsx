@@ -8,6 +8,7 @@ import { UntrustedTag } from '@/ui/untrusted'
 import { getAccount } from '@/dal/accounts'
 import { sellers } from '@/dal/leads'
 import { fieldDefs, fieldApplies } from '@/dal/fields'
+import { isEditable } from '@/domain/custom'
 import { accountTypes, parentChoices } from '@/dal/b2b'
 import { setAccountTypeAction, setPrimaryContactAction } from '@/app/(app)/b2b-actions'
 import { sheetConfig, taskItem } from '@/server/sheet'
@@ -60,7 +61,7 @@ const LEVEL: Record<string, string> = {
  * Ficha del comercio (handoff, sección 5): encabezado, "Lo siguiente", cuatro acciones y las pestañas Hilo, Árbol y Datos.
  * La misma ficha se usa como panel sobre la lista (desktop), a un lado de la lista (tablet) y a pantalla completa (móvil y enlaces directos).
  */
-export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ctx; data: Data; tab: FichaTab; mode: 'panel' | 'page'; href: (id: string, tab?: FichaTab) => string; closeHref: string }) {
+export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null }: { ctx: Ctx; data: Data; tab: FichaTab; mode: 'panel' | 'page'; href: (id: string, tab?: FichaTab) => string; closeHref: string; /** DAT-01: día para ver lo que sumaba el árbol (AAAA-MM-DD). */ asOf?: string | null }) {
   const { t, m, locale } = ctx
   const { account: a, ancestors, rollup, children, contacts, aliases, attributions, deals, metrics, tasks, timeline, pipelines } = data
   const market = ctx.market(a.market_code)
@@ -71,6 +72,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const canWrite = !a.archived_at && ctx.can('activity.write', a.market_code)
   const canEdit = !a.archived_at && ctx.can('account.edit', a.market_code)
   const canReassign = !a.archived_at && ctx.can('account.reassign', a.market_code)
+  // E4.F2 (datos2): cambiar el dueño también lo hace quien opera, donde la decisión del mercado lo permite.
+  const canChangeOwner = canReassign || (!a.archived_at && ctx.can('operator.reassign', a.market_code))
   // Un comercio sin asignar: lo toma quien vende en ese mercado si la regla se lo permite (quien dirige, cualquiera de su
   // alcance; quien vende, los de sus territorios). Si no, la ficha dice a quién pedirlo.
   const sellsHere = ctx.memberships.some((x) => x.market === a.market_code && x.role !== 'ops')
@@ -173,7 +176,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
 
   // Armar el árbol: quien dirige mueve cualquier cuenta; quien vende, las suyas (y solo bajo una matriz suya).
   const canTree = !a.archived_at && ctx.can('account.tree', a.market_code) && (canReassign || a.owner_id === ctx.user.id)
-  const people = tab === 'datos' && canReassign ? await sellers(ctx, a.market_code) : []
+  const people = tab === 'datos' && canChangeOwner ? await sellers(ctx, a.market_code) : []
   const parents = tab === 'datos' && canTree ? await parentChoices(ctx, a.market_code, !canReassign) : []
   const types = tab === 'datos' && canEdit ? await accountTypes(ctx, a.market_code) : []
   // Los campos de un tipo de venta (los de B2B) solo salen en cuentas de ese tipo de venta, y los condicionados, cuando aplican.
@@ -182,7 +185,9 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   // Paquete datos: identidad del comercio (movimientos en el árbol, contactos, ID de otros sistemas, productos, procesos, fusiones)
   // y lo que suma el nodo con todo lo que cuelga de él.
   const identity = tab === 'datos' || tab === 'arbol' ? await accountIdentity(ctx, a.id, a.market_code) : null
-  const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id) : null
+  const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id, asOf) : null
+  // DAT-05 (datos2): si el mercado tiene campos de contacto aprobados, cada contacto lleva su enlace para llenarlos.
+  const contactFields = tab === 'datos' ? (await fieldDefs(ctx, 'contact', a.market_code)).filter(isEditable).length : 0
   const canAlias = !a.archived_at && ctx.can('alias.manage', a.market_code)
   const canProducts = !a.archived_at && ctx.can('account.products', a.market_code)
   // E9: en un mercado con ficha de dealer (US), la ficha abre con ventas e identificadores y lleva los datos de la tienda y sus carriers.
@@ -214,7 +219,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </span>
           <span aria-hidden className="text-muted">·</span>
           <span className={!a.owner_name && !ancestors.length ? 'text-amber-text' : undefined}>{m('record.owner', { name: owner })}</span>
-          {canReassign && tab !== 'datos' && (
+          {canChangeOwner && tab !== 'datos' && (
             <Link href={href(a.id, 'datos')} scroll={false} className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="ficha-reassign">
               {a.owner_id ? t('Reasignar', 'Reassign') : t('Asignar', 'Assign')}
             </Link>
@@ -409,7 +414,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </p>
             </div>
           )}
-          {identity && (totals || identity.moves.length > 0) && <TreeTotals ctx={ctx} totals={totals} moves={identity.moves} tz={tz} />}
+          {identity && (totals || identity.moves.length > 0) && <TreeTotals ctx={ctx} totals={totals} moves={identity.moves} tz={tz} accountId={a.id} asOf={asOf} />}
           {ancestors.length + children.length === 0 ? (
             <p className="text-[15px] text-muted">{m('record.tree.alone')}</p>
           ) : (
@@ -458,7 +463,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
       {tab === 'datos' && (
         <div className="space-y-6" data-testid="account-data">
           {/* Reasignar va arriba de Datos: quien supervisa llega aquí desde el encabezado de la ficha, sin recorrer la pantalla. */}
-          {canReassign && (
+          {canChangeOwner && (
             <section data-testid="account-reassign">
               <form data-testid="reassign-form">
                 <input type="hidden" name="account_id" value={a.id} />
@@ -484,7 +489,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </section>
           )}
 
-          <section className={canReassign ? section : undefined}>
+          <section className={canChangeOwner ? section : undefined}>
             <h3 className={h3}>{isParent ? t('Ventas de su red', 'Network sales') : t('Ventas', 'Sales')}</h3>
             <dl className="mt-2">
               <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde', 'since')} {day(a.lifecycle_at, locale, tz)}</KeyVal>
@@ -586,6 +591,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                     </ActionForm>
                   )}
                   {identity && <ContactTools ctx={ctx} accountId={a.id} segment={a.segment} contact={c} others={identity.otherAccounts.get(c.id) ?? []} canEdit={canEdit} />}
+                  {canEdit && contactFields > 0 && <Link href={`/comercios/${a.id}/contactos/${c.id}`} className="inline-flex min-h-11 items-center text-[13px] font-medium text-blue-text underline" data-testid="contact-fields">{t('Campos del contacto', 'Contact fields')}</Link>}
                 </li>
               ))}
               {contacts.length === 0 && <li className="text-[15px] text-muted">{t('Sin contactos todavía.', 'No contacts yet.')}</li>}

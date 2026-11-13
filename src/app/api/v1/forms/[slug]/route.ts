@@ -13,6 +13,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!key || key.length < 8 || key.length > 120) throw invalid('Falta el encabezado Idempotency-Key.', 'The Idempotency-Key header is required.')
     try {
       const out = await intakeFromForm(await systemCtx(), slug, body, `api:${key}`)
+      // E3.F10: sin dueño no se crea el lead; el envío queda retenido en CONTIGO hasta que haya a quién dárselo.
+      if (out.held) return { status: 'accepted', lead_id: null, retry: 'held_no_owner' }
       return { status: out.duplicate ? 'duplicate' : 'created', lead_id: out.leadId }
     } catch (e) {
       // E3.F8: datos inválidos se devuelven a quien llama; una falla nuestra retiene el envío y se reintenta sola.

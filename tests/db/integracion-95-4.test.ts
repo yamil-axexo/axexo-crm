@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { asPersona, ctxFor, owner, personaId, systemContext } from './helpers'
+import { SEAT, asPersona, ctxFor, owner, personaId, systemContext } from './helpers'
 import { withSystem, withUser } from '@/server/db'
 import { simulateFunding } from '@/domain/campo-canal/canal'
 import { computePriorityTx, evaluateFieldExceptionsTx } from '@/domain/campo-canal/campo'
@@ -81,7 +81,7 @@ describe('un solo modelo por concepto', () => {
     const pipeline = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' order by name limit 1`)
     const id = await createAgency(nora, { market: 'MX', kind: 'agency', name: `Agencia Integra ${tag()}`, pipelineId: pipeline.id })
     expect(await one(admin<{ pipeline_id: string; kind: string }[]>`select pipeline_id, kind from crm.agencies where id = ${id}`)).toEqual({ pipeline_id: pipeline.id, kind: 'agency' })
-    const user = await security.grantAgencyAccess(nora, { email: `integra.${tag()}@axexo.com`, fullName: 'Persona de Agencia Integra', agencyId: id }, ['axexo.com'])
+    const user = await security.grantAgencyAccess(nora, { ...SEAT, email: `integra.${tag()}@axexo.com`, fullName: 'Persona de Agencia Integra', agencyId: id }, ['axexo.com'])
     expect(await one(admin<{ agency_id: string }[]>`select agency_id from crm.memberships where user_id = ${user}`)).toEqual({ agency_id: id })
     const us = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'US' limit 1`)
     await expect(createAgency(nora, { market: 'MX', kind: 'agency', name: `Otra ${tag()}`, pipelineId: us.id })).rejects.toMatchObject({ code: 'invalid' })

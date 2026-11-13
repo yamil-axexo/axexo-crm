@@ -323,6 +323,7 @@ test.describe('E18 · arranque y reporte de México', () => {
         const dialog = page.locator('dialog[open]')
         await dialog.getByTestId('grant-email').fill(email)
         await dialog.getByTestId('grant-name').fill(name)
+        await dialog.getByTestId('grant-seat-approver').fill('Responsable del presupuesto')
         await dialog.getByTestId('grant-role').selectOption('rep')
         await dialog.getByTestId('grant-market').selectOption('MX')
         await dialog.getByTestId('grant-save').click()

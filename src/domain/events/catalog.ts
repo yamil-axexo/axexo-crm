@@ -120,6 +120,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   // Paquete conectores: probar una conexión es una lectura; la suscripción de push y la captura son preferencias de cada persona;
   // lo capturado entra como actividad (cada una ya es un registro del hilo).
   ['connector.', WHY.read], ['push.', WHY.internal], ['capture.', WHY.internal],
+  // Paquete datos2: las decisiones de negocio son configuración interna; un intento bloqueado de borrar un mercado en
+  // producción es un control.
+  ['decision.', WHY.internal], ['market.reset_blocked', WHY.security],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
@@ -142,7 +145,9 @@ const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exceptio
   'entity.', 'taxid.', 'whatsapp.',
   // Paquete partners-contratos: términos (el evento lleva qué campos cambiaron, nunca los porcentajes), contratos, planes de
   // integración y el registro de una cuenta como partner.
-  'terms.', 'contract.', 'plan.', 'partner.']
+  'terms.', 'contract.', 'plan.', 'partner.',
+  // Paquete datos2: un negocio de expansión abierto desde la base de expansión.
+  'expansion.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {

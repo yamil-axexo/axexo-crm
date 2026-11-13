@@ -39,6 +39,8 @@ import { externalQueueCounts } from '@/dal/partners'
 import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
 import { ConnectorsCard } from './conectores'
+import { decisionsBoard } from '@/dal/datos2'
+import { DECISIONS } from '@/domain/decisions'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +59,7 @@ export default async function StatusPage() {
   // Cómo se gana cada embudo y quién cambió esa regla por última vez (queda en la bitácora con cuántos negocios abiertos tocó).
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
+  const decisions = await decisionsBoard(ctx)
   const routes = routesAdapter()
   // GOB-07: objetivos de servicio medidos, de los últimos 30 días. El detalle y los registros viven en Administración, Gobierno.
   const board = ctx.can('gov.read') ? await serviceBoard(ctx, 30) : null
@@ -384,6 +387,19 @@ export default async function StatusPage() {
                 </li>
               ))}
             </ul>
+            {/* Paquete datos2: decisiones de negocio que siguen con valor propuesto, con su dueño. */}
+            <ul data-testid="status-decisions">
+              {decisions.filter((r) => r.proposed).map((r) => {
+                const d = DECISIONS.find((x) => x.key === r.key)!
+                return (
+                  <li key={`${r.key}-${r.market ?? ''}`} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3" data-testid="status-decision-row" data-key={r.key}>
+                    <span className="min-w-0 flex-1 basis-48"><span className="block text-[14px] font-medium text-strong">{t(...d.label)}{r.market ? ` · ${r.market}` : ''}</span><span className="text-[12.5px] text-muted-2">{t(...(d.options.find((o) => o.value === r.value)?.label ?? [r.value, r.value]))}</span></span>
+                    <span className="inline-block max-w-full rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text" data-testid="decision-pending">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${d.owner}`)}</span>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-3 text-[13px]"><Link href="/admin/decisiones" className="font-medium text-blue-text underline" data-testid="status-decisions-link">{t('Ver y cambiar las decisiones de negocio', 'See and change business decisions')}</Link></p>
           </Card>
         </div>
 

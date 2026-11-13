@@ -103,6 +103,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           { key: 'partners', href: '/partners', label: t('Partners', 'Partners') }] : [] },
         { key: 'control', label: t('Control', 'Oversight'), items: [tabItem('auditoria'),
           ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : []),
+          // Paquete datos2: decisiones de negocio con valor propuesto y dueño.
+          ...(admin || ctx.can('status.read') ? [{ key: 'decisiones', href: '/admin/decisiones', label: t('Decisiones de negocio', 'Business decisions') }] : []),
           // Seguridad y privacidad: alertas, accesos, datos reservados, llaves y la bitácora que escribe la base.
           ...(security ? [{ key: 'seguridad', href: '/admin/seguridad', label: t('Seguridad', 'Security') }] : []),
           // Gobierno: servicio, versiones, costos, datos de prueba y solicitudes. Lo leen administración y leadership.

@@ -8,6 +8,7 @@ import { NoticeForm } from '@/ui/admin'
 import { ago, day, num, phoneText } from '@/lib/format'
 import { LIFECYCLE, MOTOR, lab, qs } from '@/lib/labels'
 import { MATCH_KIND, SURVIVOR_LABEL, SURVIVOR_REASON } from '@/lib/datos-labels'
+import { ContactosDuplicados } from './contactos-duplicados'
 import { dismissPairAction, mergePairAction, reviewBypassAction, scanDuplicatesAction, undoMergeAction } from './actions'
 
 /**
@@ -20,7 +21,7 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
   const picked = pairId ? (await duplicateQueue(ctx, null, pairId)).pairs[0] : undefined
   const markets = ctx.markets.filter((m) => m.status === 'live')
   const canReview = (m: string) => ctx.can('duplicate.review', m)
-  const canMerge = (m: string) => ctx.can('account.merge', m)
+  const canMerge = (m: string) => ctx.can('account.merge', m) || ctx.can('operator.merge', m)
   const scanMarkets = markets.filter((m) => canReview(m.code))
   const totalOpen = d.counts.filter((c) => !market || c.market_code === market).reduce((a, c) => a + c.open, 0)
   // Las fechas se dicen en el día del mercado, no en el del servidor.
@@ -101,7 +102,7 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
 
       <Card pad={false} data-testid="pair-queue">
         <div className="px-5 pt-6 md:px-7 md:pt-7">
-          <CardTitle title={t('Pares por decidir', 'Pairs to decide')} hint={t('Primero los que comparten una llave fuerte: teléfono, correo, o nombre y dirección iguales. Después, los de nombre parecido en la misma ciudad.', 'First the ones that share a strong key: same phone, same email, or same name and address. Then the ones with a similar name in the same city.')} />
+          <CardTitle title={t('Pares por decidir', 'Pairs to decide')} hint={t('Primero los que comparten una llave fuerte: teléfono, correo, identificador fiscal, nombre y dirección, o el mismo lugar con nombre parecido. Después, los de nombre parecido en la misma ciudad.', 'First the ones that share a strong key: same phone, email, tax ID, name and address, or same spot with a similar name. Then the ones with a similar name in the same city.')} />
           {scanMarkets.length > 0 && (
               <NoticeForm action={scanDuplicatesAction} className="mb-5 flex flex-wrap items-end gap-2" testId="scan-form">
                 {scanMarkets.length > 1 ? <select name="market" className="input !w-auto" defaultValue={market ?? scanMarkets[0]!.code} aria-label={t('Mercado donde buscar', 'Market to search')}>{scanMarkets.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select> : <input type="hidden" name="market" value={scanMarkets[0]!.code} />}
@@ -127,6 +128,8 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
         )}
         {totalOpen > d.pairs.length && <p className="border-t border-line px-5 py-4 text-[13px] text-muted md:px-7">{t(`Se muestran ${d.pairs.length} de ${num(totalOpen, locale)}. Al decidir uno, entra el siguiente.`, `Showing ${d.pairs.length} of ${num(totalOpen, locale)}. As you decide one, the next comes in.`)}</p>}
       </Card>
+
+      <ContactosDuplicados ctx={ctx} market={market} />
 
       <Card data-testid="bypass-list">
         <CardTitle title={t('Avisos de duplicado que se saltaron', 'Skipped duplicate warnings')} hint={t('Alguien creó un comercio aunque se parecía a otro y escribió por qué. Aquí se revisa cada uno.', 'Someone created a merchant even though it looked like another one and said why. Each one is reviewed here.')} />
@@ -165,7 +168,7 @@ export async function DuplicadosTab({ ctx, market, pairId }: { ctx: Ctx; market:
                     {taken.length > 0 && <span className="mt-1 block text-[13px] text-muted-2" data-testid="merge-survivors">{t('Del archivado se tomó', 'Taken from the archived one')}: {taken.map(([f, v]) => `${lab(t, SURVIVOR_LABEL[f], f)} (${lab(t, SURVIVOR_REASON[v.reason])})`).join('; ')}</span>}
                     {e.undone_at && <span className="mt-1 block text-[13px] text-amber-text" data-testid="merge-undone">{t(`Se deshizo el ${day(e.undone_at, locale, tzOf(e.market_code))}: ${e.undo_reason ?? ''}`, `Undone on ${day(e.undone_at, locale, tzOf(e.market_code))}: ${e.undo_reason ?? ''}`)}</span>}
                   </span>
-                  {!e.undone_at && ctx.can('account.merge') && (
+                  {!e.undone_at && canMerge(e.market_code) && (
                     <Dialog trigger={t('Deshacer', 'Undo')} title={t('Deshacer la fusión', 'Undo the merge')} size="sm" testId="merge-undo">
                       <NoticeForm action={undoMergeAction} className="space-y-4 text-left">
                         <input type="hidden" name="event_id" value={e.id} />

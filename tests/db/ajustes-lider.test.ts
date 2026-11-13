@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ctxFor, owner, personaId, systemContext } from './helpers'
+import { SEAT, ctxFor, owner, personaId, systemContext } from './helpers'
 import { assignLead, convertLead, createLead, intakeFromForm, qualifyLead } from '@/domain/leads'
 import { createDeal } from '@/domain/deals'
 import { pauseDeal, resumeDeal } from '@/domain/b2b'
@@ -257,17 +257,17 @@ describe('leadership y administración', () => {
   it('dar Administración pide la confirmación, la deja en bitácora con su alcance, y un dominio no admitido dice a quién pedirlo', async () => {
     const nora = await ctxFor('nora.salas')
     const email = `admin.${tag()}@emida.com`
-    await expect(grantAccess(nora, { email, fullName: 'Persona Externa', role: 'admin', market: '' }, DOMAINS))
+    await expect(grantAccess(nora, { ...SEAT, email, fullName: 'Persona Externa', role: 'admin', market: '' }, DOMAINS))
       .rejects.toMatchObject({ code: 'invalid', es: expect.stringContaining('ve y cambia todo, en todos los mercados'), en: expect.stringContaining('sees and changes everything, in every market') })
-    const out = await grantAccess(nora, { email, fullName: 'Persona Externa', role: 'admin', market: '', expires: day(30), confirmAdmin: true }, DOMAINS)
+    const out = await grantAccess(nora, { ...SEAT, email, fullName: 'Persona Externa', role: 'admin', market: '', expires: day(30), confirmAdmin: true }, DOMAINS)
     const audit = await one(admin<{ after: Record<string, unknown> }[]>`select after from crm.audit_events where action = 'membership.granted' and object_id = ${out.userId} order by at desc limit 1`)
     expect(audit.after).toMatchObject({ role: 'admin', scope: 'all_markets', confirmed: true, external: !nora.user.email.endsWith('@emida.com'), expires: day(30) })
     // Un rol que no es Administración no lleva esas marcas.
-    const rep = await grantAccess(nora, { email: `rep.${tag()}@axexo.com`, fullName: 'Persona Ventas', role: 'rep', market: 'MX' }, DOMAINS)
+    const rep = await grantAccess(nora, { ...SEAT, email: `rep.${tag()}@axexo.com`, fullName: 'Persona Ventas', role: 'rep', market: 'MX' }, DOMAINS)
     const plain = await one(admin<{ after: Record<string, unknown> }[]>`select after from crm.audit_events where action = 'membership.granted' and object_id = ${rep.userId}`)
     expect(plain.after).not.toHaveProperty('scope')
 
-    await expect(grantAccess(nora, { email: `alguien.${tag()}@empowerretailers.com`, fullName: 'Otra Persona', role: 'rep', market: 'US' }, DOMAINS)).rejects.toMatchObject({
+    await expect(grantAccess(nora, { ...SEAT, email: `alguien.${tag()}@empowerretailers.com`, fullName: 'Otra Persona', role: 'rep', market: 'US' }, DOMAINS)).rejects.toMatchObject({
       code: 'invalid',
       es: expect.stringMatching(/necesita una cuenta de axexo\.com, emida\.com o emida\.net.*quien administra las cuentas de Google de la empresa/),
       en: expect.stringMatching(/axexo\.com, emida\.com or emida\.net account.*manages the company’s Google accounts/),

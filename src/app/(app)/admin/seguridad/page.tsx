@@ -368,6 +368,10 @@ async function Access({ ctx, tz }: P) {
                     <Field label={t('Correo', 'Email')}><input name="email" type="email" className="input" required data-testid="agency-grant-email" /></Field>
                     <Field label={t('Nombre completo', 'Full name')}><input name="full_name" className="input" required minLength={2} maxLength={120} data-testid="agency-grant-name" /></Field>
                     <Field label={t('Vence el (opcional)', 'Expires on (optional)')}><input name="expires" type="date" className="input" min={today} /></Field>
+                    {/* E4.F9 (datos2): sin asiento aprobado no hay acceso. */}
+                    <Field label={t('Aprobó el asiento (quien tiene el presupuesto)', 'Seat approved by (budget holder)')}><input name="seat_approver" className="input" required minLength={2} maxLength={120} data-testid="agency-grant-seat-approver" /></Field>
+                    <Field label={t('Fecha de aprobación', 'Approval date')}><input name="seat_approved_on" type="date" className="input" required max={today} defaultValue={today} data-testid="agency-grant-seat-date" /></Field>
+                    <Field label={t('Referencia (opcional)', 'Reference (optional)')} className="sm:col-span-2"><input name="seat_reference" className="input" maxLength={200} /></Field>
                   </div>
                   <div className="mt-4"><Submit variant="ghost" testId="agency-grant">{t('Dar acceso', 'Give access')}</Submit></div>
                 </ActionForm>

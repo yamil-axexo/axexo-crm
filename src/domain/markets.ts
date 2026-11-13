@@ -235,6 +235,8 @@ export async function captureTaxId(ctx: Ctx, accountId: string, input: z.input<t
         ${registry.status === 'queued_off' ? 'queued_off' : registry.status === 'match' ? 'pass' : 'fail'}, null, null),
       (${id}, ${accountId}, ${a.market_code}, 'risk_list', 'off', 'queued_off', null, null)`
     await tx`update crm.accounts set tax_id_last4 = ${last4}, tax_id_blind_ix = ${blind} where id = ${accountId}`
+    // DAT-04: el identificador fiscal es llave fuerte: si ya está en otro comercio, el par entra a la cola de duplicados.
+    if (blind && duplicates.length) await tx`select app.queue_account_matches(${[accountId]}::uuid[])`
     // La bitácora nunca lleva el identificador: solo tipo, últimos 4 y resultado.
     await audit(tx, ctx, 'taxid.captured', 'account', accountId, a.market_code, null, { type: v.type, last4, status, checksum_ok: check.checksumOk, registry: registryStatus, repeated_in: duplicates.length })
     if (status === 'needs_review') {

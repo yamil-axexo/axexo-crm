@@ -6,6 +6,7 @@ import { missingForStage } from '@/domain/deals'
 import { recordStageGaps } from '@/domain/embudo/stage-conditions'
 import * as M from './mapping'
 import { cutOverMarkets, guardEdits } from './edits'
+import { nameKey } from '@/domain/contacts-dedup'
 import { SRC, accountsByOrg, bump, ensureLossReason, loadRefs, markLoaded, newIds, refMap, saveRefs, sid, type Json, type Raw, type Refs } from './refs'
 
 /**
@@ -255,6 +256,9 @@ const loadOrganizations: Loader = async (tx, runId, sysId) => {
       )
       insert into crm.account_aliases (account_id, market_code, system, external_id, valid_from)
       select id, market, ${SRC}, ext, coalesce(created_at, now()) from d`
+    // DAT-04: lo que llega de Pipedrive pasa por las mismas llaves que el alta a mano; los pares entran a la cola al cargar.
+    const queued = await tx<{ n: number }[]>`select app.queue_account_matches(${fresh.map((f) => String(f.id))}::uuid[]) as n`
+    await bump(tx, runId, ['duplicate_pairs_queued'], queued[0]?.n ?? 0)
   }
   if (changed.length) {
     for (const c of changed) idByExt.set(String(c.ext), String(c.id))
@@ -345,23 +349,33 @@ const loadPersons: Loader = async (tx, runId, sysId) => {
     tally.ok(r.external_id, !id)
     links.push(rec)
   }
+  // DAT-02: la carga pasa por la misma detección por teléfono que las demás vías (ver phoneDedup).
+  const dedup = await phoneDedup(tx, fresh, changed)
   if (fresh.length) {
     const nid = await newIds(tx, fresh.length)
     fresh.forEach((f, i) => (f.id = nid[i]))
-    await tx`insert into crm.contacts (id, market_code, full_name, phone, email, owner_id, custom, created_by, created_at)
-             select id, market, full_name, phone, email, owner_id, custom, ${sysId}, coalesce(created_at, now())
-               from jsonb_to_recordset(${J(tx, fresh)}) as x(id uuid, market text, full_name text, phone text, email text, owner_id uuid, custom jsonb, created_at timestamptz)`
+    const insert = dedup.resolveFresh(fresh)
+    if (insert.length) {
+      await tx`insert into crm.contacts (id, market_code, full_name, phone, held_phone, email, owner_id, custom, created_by, created_at)
+               select id, market, full_name, phone, held_phone, email, owner_id, custom, ${sysId}, coalesce(created_at, now())
+                 from jsonb_to_recordset(${J(tx, insert)}) as x(id uuid, market text, full_name text, phone text, held_phone text, email text, owner_id uuid, custom jsonb, created_at timestamptz)`
+    }
     await saveRefs(tx, 'person', fresh.map((f) => ({ ext: String(f.ext), id: String(f.id) })))
-    await guardEdits(tx, runId, 'contact', [], fresh)
+    await guardEdits(tx, runId, 'contact', [], insert)
+    await bump(tx, runId, ['contacts_linked'], fresh.length - insert.length)
   }
   if (changed.length) {
     const g = await guardEdits(tx, runId, 'contact', changed, [])
     await bump(tx, runId, ['kept', 'person'], g.kept)
     await bump(tx, runId, ['conflicts', 'person'], g.conflicts)
-    await tx`update crm.contacts c set full_name = d.full_name, phone = d.phone, email = d.email, owner_id = d.owner_id, custom = c.custom || d.custom
-               from jsonb_to_recordset(${J(tx, changed)}) as d(id uuid, full_name text, phone text, email text, owner_id uuid, custom jsonb)
+    dedup.resolveChanged(changed)
+    await tx`update crm.contacts c set full_name = d.full_name, phone = case when d.hold then c.phone else d.phone end,
+               held_phone = case when d.hold then d.phone else c.held_phone end, email = d.email, owner_id = d.owner_id, custom = c.custom || d.custom
+               from jsonb_to_recordset(${J(tx, changed)}) as d(id uuid, full_name text, phone text, email text, owner_id uuid, custom jsonb, hold boolean)
               where c.id = d.id`
   }
+  for (const q of dedup.pairs) await tx`select app.contact_pair_queue(${q.market}, ${q.keep}, ${q.other}, 'pipedrive')`
+  await bump(tx, runId, ['contacts_held'], dedup.pairs.length)
   const withAccount = links.filter((l) => l.account_id)
   if (withAccount.length) {
     await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role, valid_from)
@@ -987,4 +1001,54 @@ export async function finish(tx: Tx, runId: string, sysId: string): Promise<void
            values (${sysId}, 'import.completed', 'import_run', ${runId}, ${tx.json({ source: SRC, mode: run[0]?.mode ?? null, stats: run[0]?.stats ?? {} } as Json)})`
   cache = null
   territories.clear()
+}
+
+/**
+ * DAT-02 en la carga de Pipedrive. Un teléfono que ya tiene un contacto del mercado (o que trae otra persona del mismo lote):
+ * con el mismo nombre es la misma persona y la persona de Pipedrive apunta a ese contacto; con otro nombre, el contacto entra
+ * con el teléfono en espera y el par va a la cola de Datos, Duplicados. La base no admite dos contactos con el mismo teléfono.
+ */
+async function phoneDedup(tx: Tx, fresh: Rec[], changed: Rec[]) {
+  const byPhone = new Map<string, { id: string | null; name: string; rec?: Rec }>()
+  const markets = new Set([...fresh, ...changed].filter((r) => r.phone).map((r) => String(r.market)))
+  for (const m of markets) {
+    const phones = [...fresh, ...changed].filter((r) => r.phone && r.market === m).map((r) => String(r.phone))
+    for (const c of await tx<{ id: string; phone: string; full_name: string }[]>`select id, phone, full_name from app.contacts_by_phones(${m}, ${phones}::text[])`) {
+      byPhone.set(`${m}|${c.phone}`, { id: c.id, name: c.full_name })
+    }
+  }
+  const pairs: { market: string; keep: string; other: string }[] = []
+  return {
+    pairs,
+    resolveFresh(rows: Rec[]): Rec[] {
+      const insert: Rec[] = []
+      for (const f of rows) {
+        f.held_phone = null
+        const k = f.phone ? `${f.market}|${f.phone}` : null
+        const hit = k ? byPhone.get(k) : undefined
+        if (k && hit && hit.id && nameKey(hit.name) === nameKey(String(f.full_name))) {
+          f.id = hit.id
+          continue
+        }
+        if (k && hit && hit.id) {
+          f.held_phone = f.phone
+          f.phone = null
+          pairs.push({ market: String(f.market), keep: hit.id, other: String(f.id) })
+        } else if (k) byPhone.set(k, { id: String(f.id), name: String(f.full_name) })
+        insert.push(f)
+      }
+      return insert
+    },
+    resolveChanged(rows: Rec[]): void {
+      for (const c of rows) {
+        c.hold = false
+        const k = c.phone ? `${c.market}|${c.phone}` : null
+        const hit = k ? byPhone.get(k) : undefined
+        if (k && hit && hit.id && hit.id !== c.id) {
+          c.hold = true
+          pairs.push({ market: String(c.market), keep: hit.id, other: String(c.id) })
+        } else if (k) byPhone.set(k, { id: String(c.id), name: String(c.full_name) })
+      }
+    },
+  }
 }

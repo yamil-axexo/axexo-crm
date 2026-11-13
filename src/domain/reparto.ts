@@ -39,7 +39,11 @@ function marketOf(ctx: Ctx, market: string | undefined): string {
 export async function assertTarget(tx: Tx, ctx: Ctx, market: string, toUserId: string): Promise<string> {
   if (!isUuid(toUserId)) throw invalid('Elige a quién se lo pasas.', 'Choose who receives it.')
   const rows = await tx<{ full_name: string; mine: boolean }[]>`
-    select u.full_name, u.id = any(app.supervised_user_ids()) as mine
+    select u.full_name, (u.id = any(app.supervised_user_ids())
+             -- E4.F2 (datos2): quien opera sin supervisar pasa registros dentro de su equipo.
+             or exists (select 1 from crm.memberships a join crm.memberships b on b.team_id = a.team_id and b.market_code = a.market_code
+                         where a.user_id = app.current_user_id() and b.user_id = u.id and a.market_code = ${market} and a.team_id is not null
+                           and a.valid_from <= now() and (a.valid_to is null or a.valid_to > now()))) as mine
       from crm.users u
      where u.id = ${toUserId} and u.is_active and not u.is_system
        and exists (select 1 from crm.memberships m
@@ -63,20 +67,31 @@ export async function moveAccounts(tx: Tx, ctx: Ctx, market: string, accs: Acc[]
   const moved = accs.filter((a) => a.owner_id !== toUserId).map((a) => a.id)
   if (moved.length === 0) return 0
   const from = [...new Set(accs.filter((a) => a.owner_id !== toUserId).map((a) => a.owner_id ?? 'none'))].slice(0, 20)
-  await tx`update crm.account_attributions set effective_to = now() where account_id = any(${moved}::uuid[]) and layer = 'owner' and effective_to is null`
-  await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
-           select a.id, a.market_code, 'owner', 'user', ${toUserId}, ${toName}, ${ctx.user.id} from crm.accounts a where a.id = any(${moved}::uuid[])`
-  const deals = await tx`update crm.deals set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and status = 'open'`
-  const tasks = await tx`update crm.activities set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and kind in ('task', 'visit') and done_at is null`
-  await tx`update crm.accounts set owner_id = ${toUserId} where id = any(${moved}::uuid[])`
-  // Los pendientes abiertos siguen al registro: Mi equipo cuenta por dueño y no debe seguir cargándolos a quien ya no lo lleva.
-  await tx`update crm.exceptions set owner_id = ${toUserId} where resolved_at is null and account_id = any(${moved}::uuid[]) and kind not in ('unowned_account', 'duplicate_suspect')`
+  // El nombre se lee antes de mover: quien opera deja de ver el comercio al pasarlo.
+  const oneName = moved.length === 1 ? (await tx<{ name: string }[]>`select name from crm.accounts where id = ${moved[0]!}`)[0]?.name ?? null : null
+  let deals: { count: number }
+  let tasks: { count: number }
+  if (!ctx.can('account.reassign', market) && ctx.can('operator.reassign', market)) {
+    // E4.F2 (datos2): quien opera pasa lo que ve; la base mueve lo mismo de abajo (app.operator_move_accounts) y revisa el mercado.
+    const r = (await tx<{ deals: number; tasks: number }[]>`select deals, tasks from app.operator_move_accounts(${moved}::uuid[], ${toUserId}, ${toName})`)[0]!
+    deals = { count: r.deals }
+    tasks = { count: r.tasks }
+  } else {
+    await tx`update crm.account_attributions set effective_to = now() where account_id = any(${moved}::uuid[]) and layer = 'owner' and effective_to is null`
+    await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
+             select a.id, a.market_code, 'owner', 'user', ${toUserId}, ${toName}, ${ctx.user.id} from crm.accounts a where a.id = any(${moved}::uuid[])`
+    deals = await tx`update crm.deals set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and status = 'open'`
+    tasks = await tx`update crm.activities set owner_id = ${toUserId} where account_id = any(${moved}::uuid[]) and kind in ('task', 'visit') and done_at is null`
+    await tx`update crm.accounts set owner_id = ${toUserId} where id = any(${moved}::uuid[])`
+    // Los pendientes abiertos siguen al registro: Mi equipo cuenta por dueño y no debe seguir cargándolos a quien ya no lo lleva.
+    await tx`update crm.exceptions set owner_id = ${toUserId} where resolved_at is null and account_id = any(${moved}::uuid[]) and kind not in ('unowned_account', 'duplicate_suspect')`
+  }
   await audit(tx, ctx, 'account.reassigned', 'account', null, market, { count: moved.length, from_user_ids: from },
     { to_user_id: toUserId, to_name: toName, deals: deals.count, tasks: tasks.count, account_ids: moved.slice(0, 50) })
   await emit(tx, 'account.reassigned', 'user', toUserId, market, { count: moved.length })
   // E13.F2 (cambio de quién lo lleva): un solo aviso por reparto, no uno por comercio.
   if (toUserId !== ctx.user.id) {
-    const one = moved.length === 1 ? (await tx<{ name: string }[]>`select name from crm.accounts where id = ${moved[0]!}`)[0]?.name ?? null : null
+    const one = oneName
     await notify(tx, ctx, {
       to: toUserId, kind: 'lifecycle', market, template: 'owner_changed', link: one ? `/comercios/${moved[0]}` : '/comercios', accountId: one ? moved[0] : null, needsAction: false,
       title: one ? [`Ahora llevas ${one}`, `You now own ${one}`] : [`Ahora llevas ${moved.length} comercios más`, `You now own ${moved.length} more merchants`],
@@ -126,7 +141,8 @@ export async function reassignAccounts(ctx: Ctx, accountIds: string[], toUserId:
     const markets = [...new Set(accs.map((a) => a.market_code))]
     if (markets.length > 1) throw invalid('Reasigna un mercado a la vez.', 'Reassign one market at a time.')
     const market = markets[0]!
-    ctx.assert('account.reassign', market)
+    // E4.F2 (datos2): Ventas, Operaciones y Finanzas también, donde la decisión del mercado lo permite.
+    if (!ctx.can('account.reassign', market)) ctx.assert('operator.reassign', market)
     const toName = await assertTarget(tx, ctx, market, toUserId)
     return moveAccounts(tx, ctx, market, accs, toUserId, toName)
   })
@@ -284,7 +300,7 @@ export async function reassignLeads(ctx: Ctx, s: Source, batch = REPARTO_BATCH):
  */
 export async function reassignDeals(ctx: Ctx, s: Source, batch = REPARTO_BATCH): Promise<Progress> {
   const market = marketOf(ctx, s.market)
-  ctx.assert('deal.reassign', market)
+  if (!ctx.can('deal.reassign', market)) ctx.assert('operator.reassign', market)
   if (s.from === s.to) throw invalid('Elige dos personas distintas.', 'Choose two different people.')
   const size = Math.min(Math.max(1, batch), REPARTO_BATCH)
   return withUser(ctx.user.id, async (tx) => {

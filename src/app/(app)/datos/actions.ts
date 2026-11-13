@@ -5,6 +5,9 @@ import { addAlias, closeAlias, createAliasSystem, dismissPair, endContact, endDe
 import { createMarket, createProcessList, createRoutingRule, createWebForm, decideField, proposeField, setAccountProduct, setProcessListActive, setProcessStatus, setProductProvider,
   saveQualitySnapshot, setProviderSla, setQualityRule, setRoutingRuleActive, setTypeDepth, setWebFormActive, updateField, updateMarket, type GovernanceInput } from '@/domain/gobierno'
 import { setParent } from '@/domain/accounts'
+import { dismissContactPair, mergeContacts, undoContactMerge } from '@/domain/contacts-dedup'
+import { closePromotion, convertToList, decideFieldOverlap, requestPromotion, setFieldSchema } from '@/domain/fields2'
+import { openExpansionDeals, setProductEntity } from '@/domain/products2'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -65,6 +68,7 @@ export async function reviewBypassAction(_: R | null, fd: FormData): Promise<R> 
 export async function moveInTreeAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const out = await setParent(ctx, str(fd, 'id'), str(fd, 'parent_id') || null, { reason: str(fd, 'reason'), effectiveOn: str(fd, 'effective_on') })
+    if (out.ownerFollowed) return { message: [`Jerarquía actualizada. ${out.ownerFollowed === 1 ? 'La cuenta pasó' : `${out.ownerFollowed} cuentas pasaron`} a quien lleva la matriz, como dice la regla del mercado.`, `Hierarchy updated. ${out.ownerFollowed === 1 ? 'The account moved' : `${out.ownerFollowed} accounts moved`} to the parent’s owner, as the market rule says.`] }
     return { message: out.ownerDiffers
       ? ['Jerarquía actualizada. La cuenta conserva a quien la lleva, que no es quien lleva la matriz: revisa si hay que reasignarla.', 'Hierarchy updated. The account keeps its owner, who is not the parent’s owner: check whether it needs reassigning.']
       : ['Jerarquía actualizada.', 'Hierarchy updated.'] }
@@ -265,5 +269,90 @@ export async function endDealContactAction(_: R | null, fd: FormData): Promise<R
   return runAction(async (ctx) => {
     await endDealContact(ctx, str(fd, 'deal_id'), str(fd, 'contact_id'))
     return { message: ['Ya no participa en este negocio. Sigue siendo contacto de la cuenta.', 'No longer on this deal. Still a contact of the account.'] }
+  })
+}
+
+// ---------------------------------------------------------------- DAT-02 contactos duplicados (paquete datos2)
+
+export async function mergeContactsAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const a = str(fd, 'a_id')
+    const b = str(fd, 'b_id')
+    const keep = str(fd, 'keep') === b ? b : a
+    await mergeContacts(ctx, keep === a ? b : a, keep)
+    return { message: ['Contactos fusionados. Se puede deshacer desde esta pantalla.', 'Contacts merged. It can be undone from this screen.'] }
+  })
+}
+
+export async function dismissContactPairAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await dismissContactPair(ctx, str(fd, 'pair_id'), str(fd, 'note'))
+    return { message: ['Listo: no son la misma persona. El teléfono en espera sigue guardado en su contacto.', 'Done: they are different people. The held phone stays saved on its contact.'] }
+  })
+}
+
+export async function undoContactMergeAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await undoContactMerge(ctx, str(fd, 'event_id'), str(fd, 'reason'))
+    return { message: ['Fusión deshecha: los dos contactos vuelven a existir por separado.', 'Merge undone: the two contacts exist separately again.'] }
+  })
+}
+
+// ---------------------------------------------------------------- DAT-05 reglas de valor y paso a columna (paquete datos2)
+
+export async function setFieldSchemaAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setFieldSchema(ctx, str(fd, 'id'), { minimum: str(fd, 'minimum'), maximum: str(fd, 'maximum'), minLength: str(fd, 'min_length'), maxLength: str(fd, 'max_length'), pattern: str(fd, 'pattern') })
+    return { message: ['Reglas guardadas. Desde ahora, un valor que no las cumple no se guarda.', 'Rules saved. From now on, a value that breaks them is not saved.'] }
+  })
+}
+
+export async function requestPromotionAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await requestPromotion(ctx, str(fd, 'id'), str(fd, 'reason'))
+    return { message: ['Pedido guardado con el cambio listo. Lo aplica una migración con revisión técnica; cuando la columna exista, se marca hecho solo.', 'Request saved with the change ready. A migration with technical review applies it; once the column exists, it is marked done automatically.'] }
+  })
+}
+
+export async function closePromotionAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await closePromotion(ctx, str(fd, 'id'), str(fd, 'note'))
+    return { message: ['Pedido cerrado.', 'Request closed.'] }
+  })
+}
+
+// ---------------------------------------------------------------- DAT-07 entidad del producto y negocios de expansión (paquete datos2)
+
+export async function setProductEntityAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setProductEntity(ctx, str(fd, 'id'), str(fd, 'legal_entity_id') || null)
+    return { message: ['Entidad legal del producto guardada.', 'Product legal entity saved.'] }
+  })
+}
+
+export async function openExpansionDealsAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const out = await openExpansionDeals(ctx, str(fd, 'product_id'), all(fd, 'account_id'))
+    return { message: out.opened === 0
+      ? ['No se abrió ningún negocio: los comercios elegidos ya tienen el producto o un trámite.', 'No deal was opened: the merchants picked already have the product or a request.']
+      : [`Listo: ${out.opened === 1 ? 'se abrió 1 negocio' : `se abrieron ${out.opened} negocios`} de expansión, a nombre de quien lleva cada comercio.`, `Done: ${out.opened === 1 ? '1 expansion deal was' : `${out.opened} expansion deals were`} opened, owned by whoever owns each merchant.`] }
+  })
+}
+
+// ---------------------------------------------------------------- E9.F11 campos de US contra los importados (paquete datos2)
+
+export async function decideOverlapAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const same = str(fd, 'decision') === 'same'
+    const n = await decideFieldOverlap(ctx, str(fd, 'kept_id'), str(fd, 'imported_id'), same ? 'same' : 'different')
+    return { message: same ? [`Listo: se usa el campo importado. ${n === 1 ? '1 comercio pasó' : `${n} comercios pasaron`} su dato.`, `Done: the imported field is used. ${n === 1 ? '1 merchant moved' : `${n} merchants moved`} its value.`] : ['Listo: son campos distintos.', 'Done: they are different fields.'] }
+  })
+}
+
+export async function convertToListAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const out = await convertToList(ctx, str(fd, 'id'), lines(str(fd, 'options')))
+    if (!out.converted) return { message: [`No se cambió: hay valores que no están en la lista (${out.outside.join(', ')}). Agrégalos o corrígelos primero.`, `Not changed: some values are not in the list (${out.outside.join(', ')}). Add them or fix them first.`] }
+    return { message: ['Listo: el campo ahora es una lista.', 'Done: the field is now a list.'] }
   })
 }
