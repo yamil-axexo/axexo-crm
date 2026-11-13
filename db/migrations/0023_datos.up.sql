@@ -290,6 +290,8 @@ create policy account_aliases_steward_upd on crm.account_aliases for update to c
   with check (market_code = any((select app.steward_markets())::text[]));
 
 -- ================================================================ DAT-05 / GOB-01 campos
+-- 0021 dejó `untrusted` como columna generada (texto libre). Aquí pasa a ser un dato que se decide por campo (arreglo mínimo de us-ficha para poder aplicar las migraciones desde cero; el integrador decide la forma final).
+alter table crm.field_definitions drop column if exists untrusted;
 alter table crm.field_definitions
   add column owner_id     uuid references crm.users(id),
   add column purpose      text check (purpose is null or char_length(purpose) <= 400),
