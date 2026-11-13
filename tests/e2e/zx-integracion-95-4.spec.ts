@@ -33,7 +33,7 @@ test.describe('integración 95-4', () => {
     for (const href of ['/admin/cuidado', '/campo', '/partners', '/admin/ia']) await expect(page.locator(`main a[href="${href}"]`).first(), href).toBeAttached()
     await clean(page, 'admin 390')
 
-    await page.goto('/admin/seguridad')
+    await page.goto('/admin/seguridad?s=accesos')
     await expect(page.getByTestId('agency-where')).toBeVisible()
     await expect(page.getByTestId('agency-add')).toHaveCount(0)
 
@@ -49,7 +49,7 @@ test.describe('integración 95-4', () => {
     await dialog.getByTestId('agency-save').click()
     await expect(card.getByTestId('agency-row').filter({ hasText: name })).toBeVisible()
     expect((await sql<{ pipeline_id: string }[]>`select pipeline_id from crm.agencies where name = ${name}`)[0]).toEqual({ pipeline_id: pipeline })
-    await page.goto('/admin/seguridad')
+    await page.goto('/admin/seguridad?s=accesos')
     await expect(page.getByTestId('agency-row').filter({ hasText: name })).toBeVisible()
     await clean(page, 'seguridad 390')
 
