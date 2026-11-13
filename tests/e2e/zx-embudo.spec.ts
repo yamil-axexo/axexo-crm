@@ -43,9 +43,10 @@ test.describe('paquete embudo', () => {
     const form = await uid('f-mx-d2d')
     const ruleName = `Tiendas web a Lucía ${tag()}`
     await loginAs(page, 'nora.salas', { stay: true })
+    // La pantalla está en Administración, en la sección de Ventas y Operaciones.
     await page.goto('/admin')
-    await page.getByRole('link', { name: 'Asignación y embudo' }).click()
-    await expect(page).toHaveURL(/\/admin\/embudo$/)
+    await expect(page.locator('a[href="/admin/embudo"]')).toHaveCount(1)
+    await page.goto('/admin/embudo')
     await expect(page.getByTestId('rules-empty')).toBeVisible()
     await page.getByTestId('rule-market').selectOption('MX')
     await page.getByTestId('rule-name').fill(ruleName)

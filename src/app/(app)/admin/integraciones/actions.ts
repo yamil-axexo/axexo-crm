@@ -3,13 +3,12 @@
 import { randomUUID } from 'node:crypto'
 import { runAction, str } from '@/server/action'
 import { systemCtx } from '@/server/context'
-import { withUser } from '@/server/db'
 import { env } from '@/env'
-import { audit } from '@/domain/common'
 import { createSubscriber, publishNow, resendDelivery, rotateSubscriberSecret, setSubscriberStatus } from '@/domain/publisher'
 import { createApiKey, rotateApiKey, ALL_SCOPES } from '@/domain/api-keys'
 import { ingestSalesAppEvent, replayInboundEvent } from '@/domain/integrations'
 import { recordSimulation } from '@/domain/admin'
+import { setFormLimits } from '@/domain/form-guard'
 import { DomainError, forbidden, invalid, type ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -111,22 +110,9 @@ export async function simulateContractAction(_: R | null, fd: FormData): Promise
 
 export async function setFormLimitsAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    ctx.assert('config.manage')
-    const num = (k: string, min: number, max: number) => {
-      const raw = str(fd, k).trim()
-      if (raw === '') return null
-      const n = Number(raw)
-      if (!Number.isInteger(n) || n < min || n > max) throw invalid('Revisa los límites: segundos entre 0 y 120, envíos por minuto entre 1 y 600. Vacío usa el valor general.', 'Check the limits: seconds between 0 and 120, submissions per minute between 1 and 600. Empty uses the general value.')
-      return n
-    }
-    const min = num('min_fill_seconds', 0, 120)
-    const rate = num('rate_per_minute', 1, 600)
-    await withUser(ctx.user.id, async (tx) => {
-      const before = await tx<{ market_code: string; min_fill_seconds: number | null; rate_per_minute: number | null }[]>`select market_code, min_fill_seconds, rate_per_minute from crm.web_forms where id = ${str(fd, 'id')} for update`
-      if (!before[0]) throw invalid('Ese formulario no existe.', 'That form does not exist.')
-      await tx`update crm.web_forms set min_fill_seconds = ${min}, rate_per_minute = ${rate} where id = ${str(fd, 'id')}`
-      await audit(tx, ctx, 'form.updated', 'form', str(fd, 'id'), before[0].market_code, { min_fill_seconds: before[0].min_fill_seconds, rate_per_minute: before[0].rate_per_minute }, { min_fill_seconds: min, rate_per_minute: rate })
-    })
+    // Vacío usa el valor general; lo que no es un número entero lo rechaza el dominio (NaN no pasa su validación).
+    const num = (k: string) => (str(fd, k).trim() === '' ? null : Number(str(fd, k).trim()))
+    await setFormLimits(ctx, str(fd, 'id'), { minFillSeconds: num('min_fill_seconds'), ratePerMinute: num('rate_per_minute') })
     return { message: ['Límites guardados.', 'Limits saved.'] }
   })
 }

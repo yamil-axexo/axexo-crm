@@ -2,6 +2,7 @@ import 'server-only'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
+import { notifyMany, peopleWithRole } from '@/domain/notify'
 import { assertNoProhibited } from '@/domain/guard'
 import { scrub } from '@/domain/pipedrive/mapping'
 import type { Role } from '@/domain/policy'
@@ -42,7 +43,21 @@ export async function governExport(tx: Tx, ctx: Ctx, e: { what: ExportWhat; reas
   const alert = totals.rows > EXPORT_DAILY.rows || totals.files > EXPORT_DAILY.files
   await tx`insert into crm.export_log (user_id, market_code, what, reason, rows, row_cap, truncated, filters, alert)
            values (${ctx.user.id}, ${e.market}, ${e.what}, ${e.reason}, ${e.rows}, ${e.cap}, ${e.truncated}, ${tx.json(e.filters as never)}, ${alert})`
-  if (alert) await audit(tx, ctx, 'export.alert', 'user', ctx.user.id, e.market, null, { what: e.what, rows_24h: totals.rows, files_24h: totals.files, limit_rows: EXPORT_DAILY.rows, limit_files: EXPORT_DAILY.files })
+  if (alert) {
+    await audit(tx, ctx, 'export.alert', 'user', ctx.user.id, e.market, null, { what: e.what, rows_24h: totals.rows, files_24h: totals.files, limit_rows: EXPORT_DAILY.rows, limit_files: EXPORT_DAILY.files })
+    // Administración se entera por el servicio único de avisos (campana y centro de avisos; correo por preferencia, canal apagado).
+    // Un aviso por persona y por día de umbral pasado: si ya hay uno sin ver de hoy sobre esta persona, no se repite.
+    const open = await tx`select 1 from crm.notices where kind = 'export_alert' and from_user_id = ${ctx.user.id} and created_at > now() - interval '24 hours' limit 1`
+    if (open.length === 0) {
+      const name = ctx.user.name
+      await notifyMany(tx, ctx, await peopleWithRole(tx, null, ['admin']), {
+        kind: 'export_alert', market: e.market, link: '/admin/integraciones?tab=datos',
+        title: [`${name} pasó el umbral diario de exportaciones`, `${name} went over the daily export threshold`],
+        body: [`En las últimas 24 horas: ${totals.files} archivos y ${totals.rows} filas. El umbral es ${EXPORT_DAILY.files} archivos o ${EXPORT_DAILY.rows} filas. El detalle, con el motivo de cada archivo, está en Eventos, API y datos.`,
+          `In the last 24 hours: ${totals.files} files and ${totals.rows} rows. The threshold is ${EXPORT_DAILY.files} files or ${EXPORT_DAILY.rows} rows. The detail, with the reason for each file, is in Events, API and data.`],
+      })
+    }
+  }
   return { alert }
 }
 

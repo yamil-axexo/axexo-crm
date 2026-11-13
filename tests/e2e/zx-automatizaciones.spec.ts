@@ -43,6 +43,8 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
     await sql`update crm.activities set done_at = now(), outcome = 'done' where done_at is null and (source = 'rule' or approval_id is not null) and created_at >= ${started}`
     await sql`update crm.leads set status = 'contacted', first_touch_at = now() where business_name like 'Zx escalado %'`
     await sql`update crm.leads set escalation_level = 0, escalated_at = null where escalation_level > 0`
+    // Los avisos de escalamiento y de automatizaciones salen por el servicio de avisos: se dan por vistos para no cambiar el Hoy de las pruebas que siguen.
+    await sql`update crm.notices set seen_at = now() where seen_at is null and kind in ('lead_escalated', 'automation') and created_at >= ${started}`
     await sql.end()
   })
 
@@ -317,9 +319,12 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
     await at(page, 'desktop')
     await runJob(page, 'automatizaciones.escalamiento')
 
-    // Fernando supervisa el equipo de Lucía: le llega la tarea a Hoy y la guardia dice que ya se le avisó.
+    // Fernando supervisa el equipo de Lucía: el aviso le llega a Hoy (por el servicio de avisos) y la guardia dice que ya se le avisó.
     await loginAs(page, 'fernando.ibarra')
-    await expect(page.getByTestId('queue')).toContainText(`Lead sin primer contacto: ${name}. Lo lleva Lucía Vega.`)
+    await page.goto('/hoy')
+    const notice = page.getByTestId('hoy-notice').filter({ hasText: `Lead sin primer contacto: ${name}` })
+    await expect(notice).toContainText('Lo lleva Lucía Vega.')
+    await expect(notice.getByTestId('hoy-notice-open')).toHaveAttribute('href', /^\/leads\//)
     await page.goto('/supervisor')
     const row = page.getByTestId('watch-row').filter({ hasText: name })
     await expect(row.getByTestId('watch-escalated')).toHaveText('Avisado a supervisión')

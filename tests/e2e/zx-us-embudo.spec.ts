@@ -153,10 +153,11 @@ test.describe('alta de dealers de US: nueve etapas, candados y campos destacados
     const d = await sql<{ next_step: string; frozen: boolean; ops: string | null }[]>`select next_step, sales_rep_frozen_at is not null as frozen, (select full_name from crm.users u where u.id = ops_owner_id) as ops from crm.deals where id = ${dealId}`
     expect(d[0]!.next_step).toContain('Documents expired')
     expect(d[0]).toMatchObject({ frozen: true, ops: 'Tom Reyes' })
-    // la tienda: la aprobación por proveedor no aparece sin movimiento y el negocio sí
+    // la tienda: el negocio aparece, y la aprobación por proveedor se lee en "Productos y proveedores" (un solo modelo con
+    // el portafolio de la tienda); sin movimiento, quien vende no ve la sección
     await page.goto(`/comercios/${accountId}?tab=datos`)
     await expect(page.getByTestId('account-deals')).toContainText(name)
-    await expect(page.getByTestId('store-providers')).toHaveCount(0)
+    await expect(page.getByTestId('account-products').getByTestId('product-item')).toHaveCount(0)
     expect(errors).toEqual([])
   })
 })

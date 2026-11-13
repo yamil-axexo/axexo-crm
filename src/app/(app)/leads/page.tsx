@@ -156,7 +156,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       </header>
       <DataTools t={t} canExport={ctx.can('report.export', sp.market)} canImport={ctx.can('data.import')} exportHref={qs('/leads/export', keep)} exportLabel={t('Exportar lo filtrado', 'Export what is filtered')} importHref="/importar?tipo=leads" />
 
-      <div className="mb-4 -mt-1"><ViewsSection object="lead" filters={{ market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, motor, equipo: team }} current={sp.cola} /></div>
+      <div className="mb-4 -mt-1"><ViewsSection object="lead" filters={{ market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, motor, equipo: team, tipo, embudo, tiendas_min: tiendasMin, tiendas_max: tiendasMax }} current={sp.cola} /></div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Pills
