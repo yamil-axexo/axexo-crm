@@ -150,3 +150,6 @@ export const FEEDBACK_STATUS: Record<string, { label: Pair; tone: Tone }> = {
 }
 /** Cuentas que llevan plan de cuenta y revisiones: cadenas, distribuidores, organizaciones y las de atención dedicada. */
 export const isCorporate = (kind: string, tier: string | null) => kind !== 'store' || tier === 'high'
+
+/** Una proporción guardada como 0.750 se enseña como 75%. */
+export const share = (v: string | number | null | undefined, none: string) => (v === null || v === undefined ? none : `${Math.round(Number(v) * 100)}%`)

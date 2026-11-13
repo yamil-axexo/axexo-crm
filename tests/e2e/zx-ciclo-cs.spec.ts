@@ -238,7 +238,7 @@ test.describe('CS-02 y CS-04 · salud explicada y modelo de atención', () => {
     await expect(page.getByTestId('admin-care-adapters')).toContainText('Conexión apagada')
     await page.goto('/estado')
     await expect(page.getByText('Conteo de solicitudes de soporte (Zendesk)')).toBeVisible()
-    await expect(page.getByText('Borrador de revisión de cuenta con AI')).toBeVisible()
+    await expect(page.getByText('Borrador de revisión de cuenta con IA')).toBeVisible()
 
     // la mesa de trabajo: modelo de atención y los comercios que más atención piden
     await page.goto('/cuidado?mercado=MX&vista=salud')
@@ -363,11 +363,11 @@ test.describe('CS-05 · cuentas corporativas', () => {
     await rel.getByTestId('rel-save').click()
     await expect(page.getByTestId('relationship').filter({ hasText: 'Recargas' })).toContainText('En riesgo')
     await expect(page.getByTestId('rel-rollup')).toContainText('En riesgo')
-    // la minuta empieza con el borrador de datos; el borrador con AI está apagado y lo dice
+    // la minuta empieza con el borrador de datos; el borrador con IA está apagado y lo dice
     await page.reload()
     await expect(page.getByTestId('review-minutes')).toHaveValue(/Alertas abiertas: \d+\./)
     await expect(page.getByTestId('review-minutes')).toHaveValue(/Relación por producto: Recargas \(en riesgo\)\./)
-    await expect(page.getByTestId('review-ai')).toContainText('Borrador con AI: apagado')
+    await expect(page.getByTestId('review-ai')).toContainText('Borrador con IA: apagado')
     await page.getByTestId('review-agreements').fill('Piloto en cinco tiendas')
     await page.getByTestId('review-save').click()
     await expect(page.getByTestId('review').first()).toContainText('a partir del borrador con datos')

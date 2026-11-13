@@ -12,7 +12,7 @@ import { addDays, ago, day, isoDay, num } from '@/lib/format'
 import { CONTACT_ROLE, lab } from '@/lib/labels'
 import {
   ALERT, ALERT_CLOSE, EXPANSION_STATUS, FEEDBACK_KIND, FEEDBACK_STATUS, HANDOFF_ROLE, HANDOFF_ROLES, HANDOFF_STATUS, HEALTH_BAND, HEALTH_GROUP, MESSAGE_STATUS, PRODUCT_LINE, PRODUCT_LINES,
-  REL_HEALTH, STAGE, STAGE_REASON, STAGE_SOURCE, TIER, TIER_BASIS, isCorporate, type AlertKind, type HandoffRole, type HealthGroup, type ProductLine, type Stage, type Tier,
+  REL_HEALTH, STAGE, STAGE_REASON, STAGE_SOURCE, TIER, TIER_BASIS, isCorporate, share, type AlertKind, type HandoffRole, type HealthGroup, type ProductLine, type Stage, type Tier,
 } from '@/lib/care'
 import {
   alertCloseAction, completionAction, feedbackAction, handoffAckAction, handoffAction, handoffCheckAction, managerChangeAction, opportunityAction, planAction, productLineAction,
@@ -281,7 +281,7 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
                 </li>
               ))}
             </ul>
-            {d.validation && <p className="mt-3 text-[13px] text-muted" data-testid="health-validation">{t(`Última validación: ${d.validation.sample} comercios, precisión ${d.validation.hit_precision ?? 's/d'}, recall ${d.validation.hit_recall ?? 's/d'} (${day(d.validation.run_at, locale, tz)}).`, `Last validation: ${d.validation.sample} merchants, precision ${d.validation.hit_precision ?? 'n/a'}, recall ${d.validation.hit_recall ?? 'n/a'} (${day(d.validation.run_at, locale, tz)}).`)}</p>}
+            {d.validation && <p className="mt-3 text-[13px] text-muted" data-testid="health-validation">{t(`Última validación (${day(d.validation.run_at, locale, tz)}, ${d.validation.sample} comercios): de los que el puntaje marcó en riesgo, ${share(d.validation.hit_precision, 's/d')} dejó de vender; de los que dejaron de vender, había marcado a ${share(d.validation.hit_recall, 's/d')}.`, `Last validation (${day(d.validation.run_at, locale, tz)}, ${d.validation.sample} merchants): of those the score flagged at risk, ${share(d.validation.hit_precision, 'n/a')} stopped selling; of those that stopped selling, it had flagged ${share(d.validation.hit_recall, 'n/a')}.`)}</p>}
           </>
         )}
         <section className="mt-5 border-t border-line pt-4" data-testid="care-tier">
@@ -448,7 +448,7 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
                 <Field label={t('Minuta', 'Minutes')} hint={t('Empieza con un borrador hecho con los datos que CONTIGO ya tiene. Cámbialo como haga falta.', 'It starts with a draft built from the data CONTIGO already has. Change it as needed.')}>
                   <textarea name="minutes" rows={6} required minLength={3} maxLength={4000} className="input" defaultValue={draft.ai ?? draft.text} data-testid="review-minutes" />
                 </Field>
-                <p className="text-[13px] text-muted" data-testid="review-ai">{careAdapterMode('ai_draft') === 'off' ? t('Borrador con AI: apagado. El de arriba son hechos puestos en orden, sin AI.', 'AI draft: off. The one above is facts put in order, with no AI.') : t('Borrador con AI: simulación de pruebas.', 'AI draft: test simulation.')}</p>
+                <p className="text-[13px] text-muted" data-testid="review-ai">{careAdapterMode('ai_draft') === 'off' ? t('Borrador con IA: apagado. El de arriba son hechos puestos en orden, sin IA.', 'AI draft: off. The one above is facts put in order, with no AI.') : t('Borrador con IA: simulación de pruebas.', 'AI draft: test simulation.')}</p>
                 <Field label={t('Acuerdos (opcional)', 'Agreements (optional)')}><textarea name="agreements" rows={2} maxLength={2000} className="input" data-testid="review-agreements" /></Field>
                 <div className="flex justify-end"><Submit variant="ghost" testId="review-save">{t('Guardar revisión', 'Save review')}</Submit></div>
               </ActionForm>

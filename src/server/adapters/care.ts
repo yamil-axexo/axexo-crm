@@ -26,8 +26,8 @@ export const CARE_ADAPTERS: Record<CareAdapterKey, { envVar: string; name: Pair;
   },
   ai_draft: {
     envVar: 'AI_DRAFT_ADAPTER',
-    name: ['Borrador de revisión de cuenta con AI', 'Account review draft with AI'],
-    needs: ['Falta: un modelo de AI aprobado en la revisión de tecnología y la regla de qué datos puede leer. Mientras tanto, el borrador se arma solo con los datos que CONTIGO ya tiene, sin AI.', 'Missing: an AI model approved in the technology review and the rule for which data it may read. Meanwhile, the draft is built only from the data CONTIGO already has, with no AI.'],
+    name: ['Borrador de revisión de cuenta con IA', 'Account review draft with AI'],
+    needs: ['Falta: un modelo de IA aprobado en la revisión de tecnología y la regla de qué datos puede leer. Mientras tanto, el borrador se arma solo con los datos que CONTIGO ya tiene, sin IA.', 'Missing: an AI model approved in the technology review and the rule for which data it may read. Meanwhile, the draft is built only from the data CONTIGO already has, with no AI.'],
   },
 }
 

@@ -2,7 +2,7 @@
 
 import { runAction, str } from '@/server/action'
 import type { ActionResult } from '@/lib/errors'
-import { HEALTH_GROUPS } from '@/lib/care'
+import { HEALTH_GROUPS, share } from '@/lib/care'
 import {
   ackHandoff, checkHandoffItem, closeAlert, createHandoff, lifecycleBacktest, publishHealth, runAlertsNow, runHealthNow, runLifecycleNow, runTiersNow,
   saveCareSettings, saveHealthWeights, savePlaybook, saveTierRules, setLifecycleWindow, setProductLine, setStageByHand, validateHealth,
@@ -24,7 +24,7 @@ export async function windowAction(_: R | null, fd: FormData): Promise<R> {
       if (!out.best) return { message: ['Todavía no hay datos propios suficientes para sugerir un umbral: hacen falta al menos 30 comercios con dos cortes de ventas separados por 25 días, y 5 que hayan dejado de vender.', 'There is not enough own data yet to suggest a threshold: at least 30 merchants with two sales cuts 25 days apart are needed, and 5 that stopped selling.'], revalidate: [] }
       const b = out.best
       await setLifecycleWindow(ctx, market, line, { riskBelow: b.threshold, recoverAt: Math.max(b.threshold + 3, Number(str(fd, 'recoverAt')) || 0), habitAt: str(fd, 'habitAt'), habitBelow: Math.max(Number(str(fd, 'habitBelow')) || 0, b.threshold + 3), churnAfterDays: str(fd, 'churnAfterDays'), minDaysInStage: str(fd, 'minDaysInStage') }, 'backtest', b.sample)
-      return { message: [`Ventana calibrada con datos propios: entra a riesgo con menos de ${b.threshold} días con venta (muestra de ${b.sample} comercios, precisión ${b.hit_precision ?? 's/d'}, recall ${b.hit_recall ?? 's/d'}).`, `Window calibrated with own data: at risk below ${b.threshold} selling days (sample of ${b.sample} merchants, precision ${b.hit_precision ?? 'n/a'}, recall ${b.hit_recall ?? 'n/a'}).`], revalidate: carePaths() }
+      return { message: [`Ventana calibrada con datos propios: entra a riesgo con menos de ${b.threshold} días con venta. En ${b.sample} comercios, ${share(b.hit_precision, 's/d')} de los que estaban bajo ese umbral dejó de vender, y el umbral alcanzó a ${share(b.hit_recall, 's/d')} de los que dejaron de vender.`, `Window calibrated with own data: at risk below ${b.threshold} selling days. Across ${b.sample} merchants, ${share(b.hit_precision, 'n/a')} of those under that threshold stopped selling, and the threshold caught ${share(b.hit_recall, 'n/a')} of those that stopped selling.`], revalidate: carePaths() }
     }
     await setLifecycleWindow(ctx, market, line, { riskBelow: str(fd, 'riskBelow'), recoverAt: str(fd, 'recoverAt'), habitAt: str(fd, 'habitAt'), habitBelow: str(fd, 'habitBelow'), churnAfterDays: str(fd, 'churnAfterDays'), minDaysInStage: str(fd, 'minDaysInStage') })
     return { message: ['Ventana guardada.', 'Window saved.'], revalidate: carePaths() }
@@ -49,7 +49,7 @@ export async function runNowAction(_: R | null, fd: FormData): Promise<R> {
     if (what === 'validate') {
       const rows = await validateHealth(ctx, market, Number(str(fd, 'horizon')) || 30)
       const all = rows.find((r) => r.tier === 'all')
-      return { message: all ? [`Validación guardada: ${all.sample} comercios, precisión ${all.hit_precision ?? 's/d'}, recall ${all.hit_recall ?? 's/d'}.`, `Validation saved: ${all.sample} merchants, precision ${all.hit_precision ?? 'n/a'}, recall ${all.hit_recall ?? 'n/a'}.`] : ['Todavía no hay puntajes con la antigüedad suficiente para validar.', 'There are no scores old enough to validate yet.'], revalidate: carePaths() }
+      return { message: all ? [`Validación guardada con ${all.sample} comercios: de los que el puntaje marcó en riesgo, ${share(all.hit_precision, 's/d')} dejó de vender; de los que dejaron de vender, había marcado a ${share(all.hit_recall, 's/d')}.`, `Validation saved with ${all.sample} merchants: of those the score flagged at risk, ${share(all.hit_precision, 'n/a')} stopped selling; of those that stopped selling, it had flagged ${share(all.hit_recall, 'n/a')}.`] : ['Todavía no hay puntajes con la antigüedad suficiente para validar.', 'There are no scores old enough to validate yet.'], revalidate: carePaths() }
     }
     if (what === 'tiers') {
       const n = await runTiersNow(ctx, market)

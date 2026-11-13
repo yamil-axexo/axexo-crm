@@ -9,7 +9,7 @@ import { ActionForm, Submit } from '@/ui/client'
 import { day } from '@/lib/format'
 import { lab, qs } from '@/lib/labels'
 import { flat } from '@/server/params'
-import { ALERT, ALERT_KINDS, HEALTH_GROUP, HEALTH_GROUPS, HEALTH_MIN_SAMPLE, PRODUCT_LINE, PRODUCT_LINES, TIER, type Tier } from '@/lib/care'
+import { ALERT, ALERT_KINDS, HEALTH_GROUP, HEALTH_GROUPS, HEALTH_MIN_SAMPLE, PRODUCT_LINE, PRODUCT_LINES, TIER, share, type Tier } from '@/lib/care'
 import { careSettingsAction, expansionRuleAction, healthPublishAction, healthWeightsAction, playbookAction, runNowAction, tierRulesAction, windowAction } from '../../cuidado/actions'
 
 const major = (minor: string | null) => (minor === null ? '' : String(Number(minor) / 100))
@@ -164,7 +164,7 @@ export default async function CareAdminPage({ searchParams }: { searchParams: Pr
               {c.validations.map((v) => (
                 <li key={v.id} className="border-t border-line py-2 text-[13.5px] first:border-t-0" data-testid="validation-row">
                   <span className="font-medium text-strong">{v.tier === 'all' ? t('Todos', 'All') : v.tier === 'none' ? t('Sin modelo de atención', 'No service model') : lab(t, TIER[v.tier as Tier]?.label, v.tier)}</span>
-                  <span className="text-muted"> · {t(`${v.sample} comercios, ${v.positives} dejaron de vender · precisión ${v.hit_precision ?? 's/d'} · recall ${v.hit_recall ?? 's/d'} · a ${v.horizon_days} días, umbral ${v.threshold} · ${day(v.run_at, locale, market.timezone)}`, `${v.sample} merchants, ${v.positives} stopped selling · precision ${v.hit_precision ?? 'n/a'} · recall ${v.hit_recall ?? 'n/a'} · at ${v.horizon_days} days, threshold ${v.threshold} · ${day(v.run_at, locale, market.timezone)}`)}</span>
+                  <span className="text-muted"> · {t(`${v.sample} comercios, ${v.positives} dejaron de vender · de los marcados en riesgo dejó de vender ${share(v.hit_precision, 's/d')} · de los que dejaron de vender había marcado a ${share(v.hit_recall, 's/d')} · a ${v.horizon_days} días, en riesgo por debajo de ${v.threshold} · ${day(v.run_at, locale, market.timezone)}`, `${v.sample} merchants, ${v.positives} stopped selling · of those flagged at risk, ${share(v.hit_precision, 'n/a')} stopped selling · of those that stopped selling, it had flagged ${share(v.hit_recall, 'n/a')} · at ${v.horizon_days} days, at risk below ${v.threshold} · ${day(v.run_at, locale, market.timezone)}`)}</span>
                 </li>
               ))}
             </ul>
