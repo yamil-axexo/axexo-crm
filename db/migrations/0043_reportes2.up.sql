@@ -412,3 +412,7 @@ AS $function$
          count(*)::int
     from crm.reconciliation_diffs r where r.kind is not null group by r.market_code, app.user_team(r.owner_id, r.market_code)
 $function$;
+
+-- ============================================================ 12) REP-01: el reporte programado también se deja en la cola del canal de Slack (apagado)
+alter table crm.report_outbox drop constraint report_outbox_channel_check;
+alter table crm.report_outbox add constraint report_outbox_channel_check check (channel in ('email','snapshot_file','scheduled_slack'));

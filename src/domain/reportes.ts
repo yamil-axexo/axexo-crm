@@ -303,6 +303,8 @@ export async function deliverScheduled(tx: Tx, now = new Date()): Promise<{ done
       to: r.user_id, kind: 'scheduled_report', market: owner.memberships.find((m) => m.market)?.market ?? null, link: href,
       title: [`Reporte programado: ${r.name}`, `Scheduled report: ${r.name}`], body: [body.slice(0, 600), body.slice(0, 600)],
     })
+    // reportes2 (REP-01): el mismo resumen queda en la cola del canal de Slack (apagado hasta su aprobación).
+    await queueOutbound(tx, 'scheduled_slack', { ref: `${r.id}:${now.getTime()}`, title: r.name, rows: 0, detail: { report: r.report, schedule: r.schedule } })
     await tx`update crm.saved_reports set last_run_at = ${now} where id = ${r.id}`
     await tx`insert into crm.audit_events (actor_id, action, object, object_id, after) values (app.system_user_id(), 'saved_report.delivered', 'saved_report', ${r.id}, ${tx.json({ report: r.report, schedule: r.schedule })})`
     done++

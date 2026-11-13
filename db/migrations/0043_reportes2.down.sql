@@ -1,3 +1,6 @@
+delete from crm.report_outbox where channel = 'scheduled_slack';
+alter table crm.report_outbox drop constraint report_outbox_channel_check;
+alter table crm.report_outbox add constraint report_outbox_channel_check check (channel in ('email','snapshot_file'));
 -- quality_measure vuelve a su versión anterior (sin la regla s5_diff).
 CREATE OR REPLACE FUNCTION app.quality_measure()
  RETURNS TABLE(market_code text, team_id uuid, rule_code text, total integer, failing integer)
