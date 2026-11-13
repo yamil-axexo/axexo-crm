@@ -540,11 +540,11 @@ test.describe('datos: productos por comercio (DAT-07)', () => {
   })
 })
 
-test.describe('datos: tres anchos y dos idiomas', () => {
-  test('las secciones de Datos y lo nuevo de la ficha caben a 1440, 1024 y 390, sin hallazgos serios de accesibilidad, también en inglés', async ({ page }) => {
+// El inglés de estas pantallas lo cubren las pruebas de arriba que entran como personas de US (árbol, calidad, productos y ficha).
+test.describe('datos: tres anchos', () => {
+  test('las secciones de Datos y lo nuevo de la ficha caben a 1440, 1024 y 390, sin hallazgos serios de accesibilidad', async ({ page }) => {
     // Nueve pantallas por tres anchos, cada una con su revisión de accesibilidad: no caben en el tiempo de una prueba normal.
     test.setTimeout(240_000)
-    const errors = pageErrors(page)
     const pdv = await idOf('Frontera Wireless Laredo')
     const suc = await idOf('Súper La Colmena Sucursal Irapuato')
     await sql`select app.scan_duplicates('MX')`
@@ -571,18 +571,5 @@ test.describe('datos: tres anchos y dos idiomas', () => {
         if (process.env.DATOS_SHOTS && w.width !== 1024) await page.screenshot({ path: `${process.env.DATOS_SHOTS}/${testId}-${w.width}.png`, fullPage: true })
       }
     }
-    // en inglés, las mismas pantallas hablan inglés
-    await page.context().addCookies([{ name: 'contigo_locale', value: 'en', url: page.url() }])
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/datos?tab=catalogos')
-    for (const text of ['Markets and catalogs', 'Web forms', 'Lead rotations', 'ID source systems', 'Tree levels by account type', 'Process lists by market']) await expect(page.locator('main')).toContainText(text)
-    await page.goto(`/datos?tab=duplicados&mercado=MX&par=${pair}`)
-    for (const text of ['Compare the two records', 'Pairs to decide', 'Skipped duplicate warnings', 'Recent merges']) await expect(page.locator('main')).toContainText(text)
-    await page.goto('/datos?tab=campos')
-    for (const text of ['Field registry', 'Decision it enables', 'Propose a field']) await expect(page.locator('main')).toContainText(text)
-    await page.goto(`/comercios/${suc}?tab=datos`)
-    for (const text of ['IDs in other systems', 'Processes', 'Merchant training', 'To schedule', 'Why is it moving?', 'Effective date']) await expect(page.getByTestId('account-data')).toContainText(text)
-    await clean(page, 'ficha en inglés a 390')
-    expect(errors).toEqual([])
   })
 })
