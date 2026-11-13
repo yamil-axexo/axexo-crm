@@ -89,7 +89,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
       <div className="space-y-8" data-testid="gov-service">
         <Card pad={false} data-testid="slo-board">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Objetivos de servicio, últimos 30 días', 'Service objectives, last 30 days')} hint={t('Lo medido sale de CONTIGO: cada pantalla que se abre, cada cambio que se guarda y cada llamada a la API suman. El objetivo lo fija una persona.', 'What is measured comes from CONTIGO: every screen opened, every change saved and every API call counts. A person sets the objective.')} /></div>
-          <Table label={t('Objetivos de servicio', 'Service objectives')} head={<><th>{t('Qué se mide', 'What is measured')}</th><th>{t('Medido', 'Measured')}</th><th>{t('Objetivo', 'Objective')}</th><th>{t('Estado', 'Status')}</th>{manage && <th><span className="sr-only">{t('Fijar', 'Set')}</span></th>}</>}>
+          <Table label={t('Objetivos de servicio', 'Service objectives')} head={<><th>{t('Qué se mide', 'What is measured')}</th><th>{t('Medido', 'Measured')}</th><th>{t('Objetivo', 'Objective')}</th><th>{t('Estado', 'Status')}</th>{manage && <th className="relative"><span className="sr-only">{t('Fijar', 'Set')}</span></th>}</>}>
             {board.objectives.filter((o) => o.kind === 'slo').map((o) => {
               const m = measured[o.key]!
               const unit = o.key === 'availability' ? '%' : ' ms'
@@ -210,12 +210,12 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
 
         <Card pad={false} data-testid="recovery">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Respaldo y recuperación', 'Backup and recovery')} hint={t('El respaldo y la restauración son de la plataforma donde corre CONTIGO. Aquí queda lo acordado y la evidencia de cada prueba. Sin acuerdo, dice "Por definir".', 'Backup and restore belong to the platform CONTIGO runs on. What was agreed and the evidence of each test are kept here. With no agreement, it says "To be defined".')} /></div>
-          <Table label={t('Objetivos de recuperación', 'Recovery objectives')} head={<><th>{t('Objetivo', 'Objective')}</th><th>{t('Acordado', 'Agreed')}</th><th>{t('Quién y cuándo', 'Who and when')}</th>{manage && <th><span className="sr-only">{t('Fijar', 'Set')}</span></th>}</>}>
+          <Table label={t('Objetivos de recuperación', 'Recovery objectives')} head={<><th>{t('Objetivo', 'Objective')}</th><th>{t('Acordado', 'Agreed')}</th><th>{t('Quién y cuándo', 'Who and when')}</th>{manage && <th className="relative"><span className="sr-only">{t('Fijar', 'Set')}</span></th>}</>}>
             {board.objectives.filter((o) => o.kind === 'recovery').map((o) => (
               <tr key={o.key} className="table-row" data-testid={`recovery-${o.key}`}>
                 <td><span className="block font-semibold text-strong">{t(...OBJECTIVE_LABEL[o.key]!.label)}</span><span className="text-[12.5px] text-muted-2">{t(...OBJECTIVE_LABEL[o.key]!.hint)}</span></td>
                 <td className="num" data-testid="recovery-target">{o.target === null ? pending : o.key === 'restore_test_days' ? t(`cada ${num(o.target, locale)} días`, `every ${num(o.target, locale)} days`) : t(`${num(o.target, locale)} minutos`, `${num(o.target, locale)} minutes`)}</td>
-                <td className="text-[13.5px] text-muted-2">{o.target === null ? t('Lo acuerda quien dirige tecnología', 'Agreed by whoever leads technology') : `${o.agreed_by ?? ''} · ${o.agreed_on ? day(o.agreed_on, locale) : ''}`}</td>
+                <td className="text-[13.5px] text-muted-2">{o.target === null ? t('Pendiente: Dan Mulligan (CPTO)', 'Pending: Dan Mulligan (CPTO)') : `${o.agreed_by ?? ''} · ${o.agreed_on ? day(o.agreed_on, locale) : ''}`}</td>
                 {manage && (
                   <td className="text-right">
                     <Dialog trigger={t('Fijar', 'Set')} title={t(`Fijar: ${OBJECTIVE_LABEL[o.key]!.label[0]}`, `Set: ${OBJECTIVE_LABEL[o.key]!.label[1]}`)} size="sm" testId={`recovery-set-${o.key}`}>
@@ -303,7 +303,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
         <Card pad={false} data-testid="components">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Quién responde por cada pieza', 'Who answers for each piece')} hint={t('Responsable técnico y suplente por componente: dos personas distintas. Antes de salir a producción, todas las piezas tienen las dos.', 'Technical owner and backup per component: two different people. Before going to production, every piece has both.')} /></div>
           {!twoPeople && <p role="status" className="mx-5 mb-4 rounded-[14px] bg-warn-bg px-5 py-3 text-[13.5px] font-medium text-amber-text md:mx-7" data-testid="two-people-warning">{t('Todavía no hay dos personas nombradas para desplegar y volver atrás.', 'There are not yet two people named to deploy and roll back.')}</p>}
-          <Table label={t('Componentes', 'Components')} head={<><th>{t('Componente', 'Component')}</th><th>{t('Responsable técnico', 'Technical owner')}</th><th>{t('Suplente', 'Backup')}</th>{manage && <th><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
+          <Table label={t('Componentes', 'Components')} head={<><th>{t('Componente', 'Component')}</th><th>{t('Responsable técnico', 'Technical owner')}</th><th>{t('Suplente', 'Backup')}</th>{manage && <th className="relative"><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
             {comp.map((c) => (
               <tr key={c.key} className="table-row" data-testid={`component-${c.key}`}>
                 <td className="font-semibold text-strong">{t(c.name_es, c.name_en)}</td>
@@ -639,7 +639,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
           {champs.length === 0 ? (
             <div className="px-5 pb-6 md:px-7"><Empty title={t('No hay equipos', 'There are no teams')} hint={t('Los equipos se crean en Personas y acceso.', 'Teams are created in People and access.')} /></div>
           ) : (
-            <Table label={t('Champion por equipo', 'Champion per team')} head={<><th>{t('Equipo', 'Team')}</th><th>{t('Champion', 'Champion')}</th><th>{t('Última revisión', 'Last review')}</th>{ctx.can('config.manage') && <th><span className="sr-only">{t('Acciones', 'Actions')}</span></th>}</>}>
+            <Table label={t('Champion por equipo', 'Champion per team')} head={<><th>{t('Equipo', 'Team')}</th><th>{t('Champion', 'Champion')}</th><th>{t('Última revisión', 'Last review')}</th>{ctx.can('config.manage') && <th className="relative"><span className="sr-only">{t('Acciones', 'Actions')}</span></th>}</>}>
               {champs.map((c) => (
                 <tr key={c.team_id} className="table-row" data-testid="champion-row">
                   <td><span className="font-semibold text-strong">{c.team}</span> <span className="text-muted-2">· {c.market_code}</span></td>

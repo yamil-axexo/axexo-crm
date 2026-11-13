@@ -137,7 +137,7 @@ test.describe('Gobierno: versiones, responsables y despliegues (GOB-04)', () => 
     await row.getByTestId('release-announce').click()
     await expect(row).toHaveAttribute('data-status', 'announced')
     await row.getByTestId('release-mark').click()
-    await expect(row.getByTestId('form-error')).toContainText('Revisión de tecnología')
+    await expect(row.getByTestId('form-error')).toContainText('lista de salida')
     await row.getByTestId('release-checklist-summary').click()
     await expect(row.getByTestId('check-tech_review')).toHaveAttribute('data-done', 'no')
     await expect(row.getByTestId('check-standard')).toBeVisible()
