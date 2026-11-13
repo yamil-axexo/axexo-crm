@@ -25,7 +25,8 @@ export async function ensureRulesFresh(sys: Ctx, maxAgeMinutes = 15): Promise<vo
     const rows = await tx<{ stale: boolean }[]>`
       select coalesce((value #>> '{}')::timestamptz < now() - make_interval(mins => ${maxAgeMinutes}), true) as stale
         from crm.settings where key = 'rules_last_run' for update`
-    if (rows[0]?.stale ?? true) await evaluateRules(tx, sys)
+    // Al abrir un tablero solo se refrescan los avisos de la cola (rápido). Las tareas y avisos de las demás automatizaciones los hace la tarea programada.
+    if (rows[0]?.stale ?? true) await evaluateRules(tx)
   })
 }
 
