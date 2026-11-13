@@ -68,7 +68,7 @@ export default async function EmbudoReport({ searchParams }: { searchParams: Pro
         </Card>
 
         <Card pad={false} data-testid="report-next-steps">
-          <div className="px-5 pt-5 md:px-7 md:pt-7"><CardTitle title={t('Sin próximo paso', 'No next step')} hint={t('Negocios abiertos, leads ya contactados y comercios en alta que no tienen una tarea siguiente con fecha y con dueño.', 'Open deals, leads already contacted and merchants being onboarded that have no next task with a date and an owner.')} /></div>
+          <div className="px-5 pt-5 md:px-7 md:pt-7"><CardTitle title={t('Sin próximo paso', 'No next step')} hint={t('Negocios abiertos, leads ya contactados y comercios en alta que no tienen una tarea siguiente con fecha y con alguien que la lleve.', 'Open deals, leads already contacted and merchants being onboarded that have no next task with a date and an owner.')} /></div>
           <DataTable testId="no-step-table" label={t('Sin próximo paso', 'No next step')} empty={empty(t('Todo lo abierto tiene próximo paso.', 'Everything open has a next step.'))}
             head={[{ label: t('Qué es', 'What') }, { label: t('Registro', 'Record') }, { label: t('Quién lo lleva', 'Owner') }, { label: t('Mercado', 'Market') }]}
             rows={[

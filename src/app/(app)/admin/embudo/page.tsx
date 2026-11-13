@@ -43,7 +43,7 @@ export default async function EmbudoAdminPage({ searchParams }: { searchParams: 
     return parts.length ? parts.join(' · ') : t('Cualquier lead del mercado', 'Any lead in the market')
   }
   const stepText = (o: string) => o === 'no_match' ? t('no coincide', 'no match') : o === 'capped' ? t('coincide, pero todos llegaron a su tope', 'matches, but everyone hit their cap') : o === 'nobody' ? t('coincide, pero no hay a quién darlo', 'matches, but there is nobody to give it to') : t('decide', 'decides')
-  const byText = (a: string) => a === 'form_rotation' ? t('Turno del formulario', 'Form rotation') : a === 'market_lead' ? t('Quien lidera el mercado (última red)', 'Market lead (last resort)') : a === 'none' ? t('Sin dueño', 'No owner') : ACTION_LABEL[a as keyof typeof ACTION_LABEL] ? t(ACTION_LABEL[a as keyof typeof ACTION_LABEL].es, ACTION_LABEL[a as keyof typeof ACTION_LABEL].en) : a
+  const byText = (a: string) => a === 'form_rotation' ? t('Turno del formulario', 'Form rotation') : a === 'market_lead' ? t('Quien lidera el mercado (última red)', 'Market lead (last resort)') : a === 'none' ? t('Sin asignar', 'No owner') : ACTION_LABEL[a as keyof typeof ACTION_LABEL] ? t(ACTION_LABEL[a as keyof typeof ACTION_LABEL].es, ACTION_LABEL[a as keyof typeof ACTION_LABEL].en) : a
 
   // Simulador: "a quién le caería". Es una lectura: no asigna nada ni gasta el turno.
   const simMarket = live.some((m) => m.code === sp.sim_mercado) ? sp.sim_mercado! : null
@@ -61,7 +61,7 @@ export default async function EmbudoAdminPage({ searchParams }: { searchParams: 
       <div className="space-y-8">
         <Card pad={false} data-testid="assignment-rules">
           <div className="px-5 pt-5 md:px-7 md:pt-7"><CardTitle title={t('Reglas de asignación de leads', 'Lead assignment rules')}
-            hint={t('Se revisan en orden: la primera que coincide y encuentra a alguien disponible decide. Si ninguna decide, vale el turno del formulario; y antes de dejar un lead sin dueño, le toca a quien lidera el mercado. Nunca se entrega a quien ya no vende en el mercado.', 'They are checked in order: the first one that matches and finds someone available decides. If none decides, the form rotation applies; and before leaving a lead with no owner, it goes to the market lead. Nothing is handed to someone who no longer sells in the market.')} /></div>
+            hint={t('Se revisan en orden: la primera que coincide y encuentra a alguien disponible decide. Si ninguna decide, vale el turno del formulario; y antes de dejar un lead sin asignar, le toca a quien lidera el mercado. Nunca se entrega a quien ya no vende en el mercado.', 'They are checked in order: the first one that matches and finds someone available decides. If none decides, the form rotation applies; and before leaving a lead with no owner, it goes to the market lead. Nothing is handed to someone who no longer sells in the market.')} /></div>
           <DataTable testId="rules-table" label={t('Reglas de asignación', 'Assignment rules')} empty={<p className="px-5 pb-5 text-[14px] text-muted md:px-7" data-testid="rules-empty">{t('Todavía no hay reglas: los leads web se reparten por el turno de su formulario. Crea la primera abajo.', 'There are no rules yet: web leads are shared out by their form rotation. Create the first one below.')}</p>}
             head={[{ label: t('Orden', 'Order') }, { label: t('Regla', 'Rule') }, { label: t('Cuándo aplica', 'When it applies') }, { label: t('Qué hace', 'What it does') }, { label: t('Tope', 'Cap'), num: true }, { label: t('Estado', 'Status') }, { label: t('Acciones', 'Actions') }]}
             rows={cfg.rules.map((r) => ({ key: r.id, testId: 'rule-row', cells: [
@@ -106,7 +106,7 @@ export default async function EmbudoAdminPage({ searchParams }: { searchParams: 
           </form>
           {sim && (
             <div className="mt-4 rounded-[14px] bg-surface-2 px-5 py-4" role="status" data-testid="sim-result">
-              <p className="text-[15px] font-semibold text-strong" data-testid="sim-owner">{sim.ownerName ? t(`Le caería a ${sim.ownerName}.`, `It would go to ${sim.ownerName}.`) : t('Quedaría sin dueño: no hay nadie disponible ni quien lidere el mercado.', 'It would have no owner: nobody is available and the market has no lead.')}</p>
+              <p className="text-[15px] font-semibold text-strong" data-testid="sim-owner">{sim.ownerName ? t(`Le caería a ${sim.ownerName}.`, `It would go to ${sim.ownerName}.`) : t('Quedaría sin asignar: no hay nadie disponible ni quien lidere el mercado.', 'It would have no owner: nobody is available and the market has no lead.')}</p>
               <p className="mt-1 text-[13.5px] text-muted-2" data-testid="sim-why">{sim.by === 'rule' ? t(`Decide la regla "${sim.ruleName}".`, `The rule "${sim.ruleName}" decides.`) : byText(sim.action)}</p>
               {sim.steps.length > 0 && <ul className="mt-2 text-[13px] text-muted-2">{sim.steps.map((s, i) => <li key={i}>{s.rule}: {stepText(s.outcome)}</li>)}</ul>}
             </div>
@@ -118,7 +118,7 @@ export default async function EmbudoAdminPage({ searchParams }: { searchParams: 
           <DataTable testId="log-table" label={t('Bitácora de asignación', 'Assignment log')} empty={<p className="px-5 pb-5 text-[14px] text-muted md:px-7">{t('Todavía no entra ningún lead por las reglas.', 'No lead has come in through the rules yet.')}</p>}
             head={[{ label: t('Cuándo', 'When') }, { label: t('Lead', 'Lead') }, { label: t('Decidió', 'Decided by') }, { label: t('Le tocó a', 'Went to') }, { label: t('Reglas que no pudieron', 'Rules that could not') }]}
             rows={cfg.log.map((g) => ({ key: g.id, cells: [dayTime(g.created_at, locale, ctx.market(g.market_code).timezone), g.lead_id ? <Link key="l" href={`/leads/${g.lead_id}`} className="underline">{g.lead ?? t('Lead', 'Lead')}</Link> : t('n/a', 'n/a'),
-              g.rule_name ?? byText(g.action), g.owner ?? t('Sin dueño', 'No owner'), (g.detail.steps ?? []).filter((s) => s.outcome === 'capped' || s.outcome === 'nobody').map((s) => `${s.rule}: ${stepText(s.outcome)}`).join(' · ') || t('ninguna', 'none')] }))} />
+              g.rule_name ?? byText(g.action), g.owner ?? t('Sin asignar', 'No owner'), (g.detail.steps ?? []).filter((s) => s.outcome === 'capped' || s.outcome === 'nobody').map((s) => `${s.rule}: ${stepText(s.outcome)}`).join(' · ') || t('ninguna', 'none')] }))} />
         </Card>
 
         <Card pad={false} data-testid="stage-conditions">

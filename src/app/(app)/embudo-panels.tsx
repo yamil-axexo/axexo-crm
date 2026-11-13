@@ -222,7 +222,7 @@ export async function LeadEmbudoPanel({ ctx, leadId, canWork, search }: { ctx: C
         {l.referred_by && <p className="mb-3 text-[14.5px] text-strong" data-testid="lead-referred-by">{t('Lo refirió: ', 'Referred by: ')}<Link href={`/comercios/${l.referred_by_id}`} className="text-blue-text underline">{l.referred_by}</Link></p>}
         <TouchList ctx={ctx} touches={l.touches} tz={mk.timezone} />
         {l.routed && <p className="mt-4 border-t border-line pt-3 text-[13.5px] text-muted-2" data-testid="lead-routed">{t('Asignación al entrar: ', 'Assignment on arrival: ')}
-          {l.routed.rule_name ? t(`regla "${l.routed.rule_name}"`, `rule "${l.routed.rule_name}"`) : l.routed.action === 'form_rotation' ? t('turno del formulario', 'form rotation') : l.routed.action === 'market_lead' ? t('quien lidera el mercado, porque no había nadie más disponible', 'the market lead, because nobody else was available') : t('sin dueño', 'no owner')}
+          {l.routed.rule_name ? t(`regla "${l.routed.rule_name}"`, `rule "${l.routed.rule_name}"`) : l.routed.action === 'form_rotation' ? t('turno del formulario', 'form rotation') : l.routed.action === 'market_lead' ? t('quien lidera el mercado, porque no había nadie más disponible', 'the market lead, because nobody else was available') : t('sin asignar', 'no owner')}
           {l.routed.owner ? ` · ${l.routed.owner}` : ''}</p>}
       </Card>
       <Card data-testid="lead-link">
