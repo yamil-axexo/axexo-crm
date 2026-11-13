@@ -42,7 +42,7 @@ test.describe('Gobierno: servicio y recuperación (GOB-07)', () => {
 
     // el registro de pruebas de restauración nace vacío y dice quién lo llena
     await expect(page.getByTestId('restore-row')).toHaveCount(0)
-    await expect(page.getByTestId('restore-last')).toContainText('Ninguna prueba ha salido bien todavía')
+    await expect(page.getByTestId('restore-tests')).toContainText('Todavía no se ha probado restaurar')
     await page.getByTestId('restore-new').click()
     const today = localNow().slice(0, 10)
     await dialog(page).getByTestId('restore-date').fill(today)
