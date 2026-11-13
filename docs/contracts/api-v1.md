@@ -34,6 +34,7 @@ Filters:
 | `lifecycle` | string | Lifecycle stage. |
 | `parent_id` | uuid or null | Parent account. |
 | `owner_id` | uuid or null | Owner. |
+| `owner_ref` | string or null | S5 ID of the owner (Administration sets it per person). |
 | `territory_id` | uuid or null | Territory. |
 | `locality` | string or null | City. |
 | `region` | string or null | State. |
@@ -60,6 +61,7 @@ Filters:
 | `pipeline_id` | uuid | Pipeline. |
 | `stage_id` | uuid | Stage. |
 | `owner_id` | uuid or null | Owner. |
+| `owner_ref` | string or null | S5 ID of the owner. |
 | `status` | string | open, won or lost. |
 | `amount_minor` | integer or null | Amount in the currency’s minor unit. |
 | `currency` | string | Currency (ISO 4217). |
