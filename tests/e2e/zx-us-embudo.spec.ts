@@ -233,7 +233,8 @@ test.describe('visitas de US con propósito', () => {
     const sheet = page.locator('[data-testid="log-sheet"][open]')
     const purpose = sheet.getByTestId('sheet-visit-reason')
     await expect(purpose.locator('option')).toHaveText(['Pick the purpose', 'Prospecting or first visit', 'Follow-up', 'Documents and contract', 'Training', 'Material or product drop-off', 'Support or store issue', 'Campaign or promotion', 'Relationship visit'])
-    expect((await purpose.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    // La hoja entra con una animación de escala: la altura se mide redondeada para no fallar por una milésima de pixel.
+    expect(Math.round((await purpose.boundingBox())!.height)).toBeGreaterThanOrEqual(44)
     await purpose.selectOption({ label: 'Campaign or promotion' })
     await sheet.getByText('Go back for the decision-maker', { exact: true }).click()
     await sheet.getByTestId('log-note').fill('Interest Level: High')
