@@ -1,3 +1,4 @@
+import { DealPeople } from './people'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
@@ -252,6 +253,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           {(ops.has_items || items.length > 0) && <DealItems ctx={ctx} dealId={deal.id} open={deal.status === 'open'} items={items} ops={ops} currency={deal.currency} />}
+
+          <DealPeople ctx={ctx} dealId={deal.id} accountId={deal.account_id} segment={deal.motor ?? null} canEdit={canEditFields} />
 
           {(ops.pipelineHasOps || ops.is_ops || ops.merchant_ref || ctx.can('deal.ops', deal.market_code)) && (
             <DealOpsCard ctx={ctx} dealId={deal.id} open={deal.status === 'open'} title={deal.title} ops={ops} today={today} />

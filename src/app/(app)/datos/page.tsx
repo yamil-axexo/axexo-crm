@@ -50,7 +50,7 @@ export default async function DatosPage({ searchParams }: { searchParams: Promis
         {tab === 'calidad' && <CalidadTab ctx={ctx} market={market} team={sp.equipo ?? null} rule={sp.regla ?? null} />}
         {tab === 'duplicados' && <DuplicadosTab ctx={ctx} market={market} pairId={/^[0-9a-f-]{36}$/.test(sp.par ?? '') ? sp.par! : null} />}
         {tab === 'campos' && <CamposTab ctx={ctx} view={fieldView(sp.vista)} />}
-        {tab === 'productos' && <ProductosTab ctx={ctx} market={market} provider={/^[0-9a-f-]{36}$/.test(sp.proveedor ?? '') ? sp.proveedor! : null} status={sp.estado ?? null} late={sp.plazo === 'vencido'} />}
+        {tab === 'productos' && <ProductosTab ctx={ctx} market={market} provider={/^[0-9a-f-]{36}$/.test(sp.proveedor ?? '') ? sp.proveedor! : null} status={sp.estado ?? null} late={sp.plazo === 'vencido'} without={/^[0-9a-f-]{36}$/.test(sp.sin ?? '') ? sp.sin! : null} />}
         {tab === 'catalogos' && <CatalogosTab ctx={ctx} />}
       </NoticeArea>
     </>

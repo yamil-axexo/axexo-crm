@@ -3,10 +3,10 @@ import { asPersona, attempt, ctxFor, owner, personaId } from './helpers'
 import { withSystem } from '@/server/db'
 import { addContact, addContactLinked, createAccount, setParent } from '@/domain/accounts'
 import { setPrimaryContact, createField } from '@/domain/b2b'
-import { addAlias, closeAlias, createAliasSystem, dismissPair, endContact, mergeAccounts, reviewBypass, scanDuplicates, survivors, undoMerge, updateContact } from '@/domain/datos'
-import { createMarket, createProcessList, createRoutingRule, createWebForm, decideField, proposeField, setAccountProduct, setProcessStatus, setProviderSla, setQualityRule, setTypeDepth,
+import { addAlias, closeAlias, createAliasSystem, dismissPair, endContact, endDealContact, mergeAccounts, reviewBypass, scanDuplicates, setDealContact, survivors, undoMerge, updateContact } from '@/domain/datos'
+import { createMarket, createProcessList, createRoutingRule, createWebForm, decideField, proposeField, saveQualitySnapshot, setAccountProduct, setProcessStatus, setProviderSla, setQualityRule, setTypeDepth,
   updateField, updateMarket } from '@/domain/gobierno'
-import { accountIdentity, dataCatalogs, duplicateQueue, fieldRegistry, nodeTotals, productMatrix, qualityBoard, qualityQueue } from '@/dal/datos'
+import { accountIdentity, dataCatalogs, dealPeople, duplicateQueue, expansionList, fieldRegistry, nodeTotals, productMatrix, qualityBoard, qualityQueue } from '@/dal/datos'
 import { getAccount, searchAll } from '@/dal/accounts'
 import { fieldDefs } from '@/dal/fields'
 import { JOBS } from '@/server/jobs/registry'
@@ -314,6 +314,31 @@ describe('DAT-02 · contacto y cuenta con rol y vigencia', () => {
   })
 })
 
+describe('DAT-02 · roles en un negocio, en la misma tabla', () => {
+  it('una persona participa en un negocio con su rol ahí, sin duplicarse en la cuenta', async () => {
+    const marco = await ctxFor('marco.pena')
+    const acc = await rawAccount('MX', 'marco.pena')
+    const c = await addContact(marco, acc, { fullName: 'Olga Trejo', role: 'owner', phone: phone() })
+    const deal = await rawDeal(acc, 'marco.pena')
+    await setDealContact(marco, deal, c, 'decision_maker')
+    expect((await dealPeople(marco, deal, acc)).people).toMatchObject([{ contact_id: c, role: 'decision_maker', full_name: 'Olga Trejo' }])
+    // en la cuenta sigue una sola vez, con su rol de cuenta
+    expect((await getAccount(marco, acc))!.contacts).toMatchObject([{ id: c, role: 'owner' }])
+    await setDealContact(marco, deal, c, 'billing')
+    expect(await one(admin<{ n: number; role: string }[]>`select count(*)::int as n, max(role) as role from crm.account_contacts where deal_id = ${deal} and valid_to is null`)).toMatchObject({ n: 1, role: 'billing' })
+    expect((await audits('deal.contact_role_set', deal))[0]?.after).toMatchObject({ contact_id: c, role: 'billing' })
+    // solo contactos de la cuenta del negocio, y solo roles del catálogo
+    const other = await rawAccount('MX', 'marco.pena')
+    const stranger = await addContact(marco, other, { fullName: 'Persona Ajena', role: 'staff', phone: phone() })
+    await expect(setDealContact(marco, deal, stranger, 'owner')).rejects.toMatchObject({ code: 'invalid' })
+    await expect(setDealContact(marco, deal, c, 'no_existe')).rejects.toMatchObject({ code: 'invalid' })
+    await expect(setDealContact(await ctxFor('luis.tovar'), deal, c, 'owner')).rejects.toMatchObject({ code: expect.stringMatching(/forbidden|not_found/) })
+    await endDealContact(marco, deal, c)
+    expect((await dealPeople(marco, deal, acc)).people).toHaveLength(0)
+    expect((await getAccount(marco, acc))!.contacts).toHaveLength(1)
+  })
+})
+
 describe('DAT-03 · alias de identificadores externos', () => {
   it('alta manual con bitácora, búsqueda por cualquier alias, choque detectado y cierre con vigencia', async () => {
     const valeria = await ctxFor('valeria.soto')
@@ -518,6 +543,35 @@ describe('GOB-02 · tablero de calidad de datos', () => {
     expect((await qualityQueue(fer, 'deal_no_step', 'MX')).find((q) => q.id === deal)).toMatchObject({ kind: 'deal' })
   })
 
+  it('también se miden los datos que pide la etapa, la atribución y las ventas sin comercio', async () => {
+    const nora = await ctxFor('nora.salas')
+    // un comercio con dueño y sin atribución de dueño vigente
+    const acc = await rawAccount('MX', 'marco.pena')
+    expect((await qualityQueue(nora, 'attribution_gap', 'MX')).map((q) => q.id)).toContain(acc)
+    // un negocio en una etapa que pide un campo adicional y no lo trae
+    const us = await rawAccount('US', 'sam.ortiz')
+    const stage = await one(admin<{ id: string; pipeline_id: string }[]>`select s.id, s.pipeline_id from crm.stages s where 'field:account_funding' = any(s.required_fields) limit 1`)
+    const deal = (await one(admin<{ id: string }[]>`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, title, currency, next_step, next_step_due)
+      values ('US', ${stage.pipeline_id}, ${stage.id}, ${us}, 'Alta sin campo de etapa', 'USD', 'Llamar', now()::date + 2) returning id`)).id
+    expect((await qualityQueue(nora, 'stage_fields', 'US')).map((q) => q.id)).toContain(deal)
+    await admin`update crm.deals set custom = '{"account_funding":"ACH"}'::jsonb where id = ${deal}`
+    expect((await qualityQueue(nora, 'stage_fields', 'US')).map((q) => q.id)).not.toContain(deal)
+    const cells = (await qualityBoard(nora)).cells
+    for (const rule of ['stage_fields', 'attribution_gap', 'sales_unmatched']) expect(cells.some((c) => c.rule_code === rule)).toBe(true)
+    // administración guarda el corte de hoy a mano; la identidad de quien llama no cambia por medir
+    expect(await saveQualitySnapshot(nora)).toBeGreaterThan(10)
+    await expect(saveQualitySnapshot(await ctxFor('ana.robles'))).rejects.toMatchObject({ code: 'forbidden' })
+    const who = await asPersona('nora.salas', async (tx) => {
+      await tx`select app.quality_snapshot()`
+      return (await tx<{ id: string }[]>`select app.current_user_id() as id`)[0]!.id
+    })
+    expect(who).toBe(nora.user.id)
+    // un campo que llega por la importación de Pipedrive entra marcado como dato de fuera sin validar
+    const f = await one(admin<{ untrusted: boolean; origin: string | null }[]>`
+      insert into crm.field_definitions (object, key, label_es, label_en, data_type, source, external_ref) values ('deal', ${`pd_${tag()}`}, 'Campo importado', 'Imported field', 'text', 'pipedrive', ${`ref-${tag()}`}) returning untrusted, origin`)
+    expect(f).toMatchObject({ untrusted: true, origin: 'Pipedrive' })
+  })
+
   it('el corte diario es una tarea registrada, segura de correr dos veces, y de ahí sale la tendencia', async () => {
     const keys = JOBS.map((j) => j.key)
     expect(keys).toEqual(expect.arrayContaining(['datos.duplicate_scan', 'datos.quality_snapshot']))
@@ -580,6 +634,21 @@ describe('DAT-07 · catálogo de productos y matriz por comercio', () => {
     expect(rows.every((r) => r.status === 'active')).toBe(true)
     // un producto de US no entra en un comercio de MX
     await expect(setAccountProduct(nora, await rawAccount('MX', 'marco.pena'), { productId: sim.id, providerId: '', status: 'requested' })).rejects.toMatchObject({ code: 'invalid' })
+  })
+
+  it('base de expansión: comercios activos que todavía no tienen un producto', async () => {
+    const tom = await ctxFor('tom.reyes')
+    const sim = (await one(admin<{ id: string }[]>`select id from crm.products where code = 'OPS-SIM'`)).id
+    const has = (await one(admin<{ id: string }[]>`select id from crm.accounts where name = 'Frontera Wireless Laredo'`)).id
+    const out = (await expansionList(tom, sim))!
+    expect(out.product.name).toBe('SIM kit')
+    expect(out.rows.length).toBeGreaterThan(0)
+    expect(out.rows.map((r) => r.id)).not.toContain(has)
+    const first = out.rows[0]!.id
+    await setAccountProduct(tom, first, { productId: sim, providerId: '', status: 'requested' })
+    expect((await expansionList(tom, sim))!.rows.map((r) => r.id)).not.toContain(first)
+    const row = (await productMatrix(tom, { market: 'US', provider: null, status: null, late: false })).products.find((p) => p.id === sim)!
+    expect(row.without).toBeGreaterThan(0)
   })
 
   it('un solo modelo: el estado por proveedor que Operaciones marca en un negocio escribe la matriz del comercio', async () => {

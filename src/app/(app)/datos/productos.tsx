@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Ctx } from '@/server/context'
-import { productMatrix } from '@/dal/datos'
+import { expansionList, productMatrix } from '@/dal/datos'
 import { PRODUCT_STATUSES } from '@/domain/gobierno'
 import { Badge, Card, CardTitle, Empty, Field, Table, buttonClass, NoData } from '@/ui/kit'
 import { Submit } from '@/ui/client'
@@ -14,13 +14,14 @@ import { setProductProviderAction, setProviderSlaAction } from './actions'
  * DAT-07: productos por comercio. Qué producto tiene cada comercio y en qué va con su proveedor, con el reloj del proveedor
  * aparte del de quien vende. Es el mismo registro que Operaciones marca en el negocio ("Aprobación por proveedor").
  */
-export async function ProductosTab({ ctx, market, provider, status, late }: { ctx: Ctx; market: string | null; provider: string | null; status: string | null; late: boolean }) {
+export async function ProductosTab({ ctx, market, provider, status, late, without }: { ctx: Ctx; market: string | null; provider: string | null; status: string | null; late: boolean; without: string | null }) {
   const { t, locale } = ctx
   const st = status && (PRODUCT_STATUSES as readonly string[]).includes(status) ? status : null
   const d = await productMatrix(ctx, { market, provider, status: st, late })
   const admin = ctx.can('config.manage')
   const markets = ctx.markets.filter((m) => m.status === 'live')
   const filtered = !!(market || provider || st || late)
+  const expansion = without ? await expansionList(ctx, without) : null
 
   return (
     <div className="space-y-8" data-testid="products-tab">
@@ -52,7 +53,7 @@ export async function ProductosTab({ ctx, market, provider, status, late }: { ct
       <Card pad={false} data-testid="catalog-card">
         <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Catálogo de productos', 'Product catalog')} hint={t('Cada producto es de un mercado y lo entrega un proveedor. Los productos se dan de alta en Administración, Operaciones.', 'Each product belongs to a market and is delivered by a provider. Products are added under Administration, Operations.')} /></div>
         {d.products.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Sin productos', 'No products')} hint={t('Agrega el primero en Administración, Operaciones.', 'Add the first one under Administration, Operations.')} /></div> : (
-          <Table label={t('Catálogo de productos', 'Product catalog')} head={<><th>{t('Producto', 'Product')}</th><th>{t('Mercado', 'Market')}</th><th>{t('Proveedor', 'Provider')}</th><th>{t('Comercios que lo tienen', 'Merchants that have it')}</th></>}>
+          <Table label={t('Catálogo de productos', 'Product catalog')} head={<><th>{t('Producto', 'Product')}</th><th>{t('Mercado', 'Market')}</th><th>{t('Proveedor', 'Provider')}</th><th>{t('Comercios que lo tienen', 'Merchants that have it')}</th><th>{t('Activos que no lo tienen', 'Active ones without it')}</th></>}>
             {d.products.map((p) => {
               const options = d.providers.filter((k) => !k.market_code || !p.market_code || k.market_code === p.market_code)
               const current = d.providers.find((k) => k.id === p.provider_id)
@@ -70,12 +71,32 @@ export async function ProductosTab({ ctx, market, provider, status, late }: { ct
                     ) : current ? t(current.label_es, current.label_en) : <NoData locale={locale} />}
                   </td>
                   <td className="num">{num(p.merchants, locale)}</td>
+                  <td className="num">{p.without > 0 ? <Link href={`${qs('/datos', { tab: 'productos', sin: p.id })}#expansion`} className="inline-flex min-h-11 items-center font-semibold text-blue-text underline" data-testid="product-without">{num(p.without, locale)}</Link> : 0}</td>
                 </tr>
               )
             })}
           </Table>
         )}
       </Card>
+
+      {expansion && (
+        <Card pad={false} id="expansion" data-testid="expansion-card">
+          <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t(`A quién ofrecerle ${expansion.product.name}`, `Who to offer ${expansion.product.name} to`)} hint={t('Comercios activos que todavía no lo tienen ni lo tienen en trámite, primero los que más venden.', 'Active merchants that do not have it yet and have no request in progress, best sellers first.')} /></div>
+          {expansion.rows.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Todos los comercios activos ya lo tienen', 'Every active merchant already has it')} hint={t('Cuando se active un comercio nuevo, aparece aquí.', 'When a new merchant becomes active, it shows here.')} /></div> : (
+            <Table label={t('Comercios para ofrecer el producto', 'Merchants to offer the product to')} head={<><th>{t('Comercio', 'Merchant')}</th><th>{t('Ciudad', 'City')}</th><th>{t('Quién lo lleva', 'Owner')}</th><th>{t('Ventas en 30 días', 'Sales in 30 days')}</th></>}>
+              {expansion.rows.map((r) => (
+                <tr key={r.id} className="table-row" data-testid="expansion-row">
+                  <td><Link href={`/comercios/${r.id}`} className="inline-flex min-h-11 items-center font-semibold text-blue-text underline">{r.name}</Link></td>
+                  <td className="text-[13.5px]">{r.locality ?? <NoData locale={locale} />}</td>
+                  <td className="text-[13.5px]">{r.owner_name ?? <span className="text-amber-text">{t('Sin asignar', 'Unassigned')}</span>}</td>
+                  <td className="num">{r.txn_30d === null ? <NoData locale={locale} /> : num(r.txn_30d, locale)}</td>
+                </tr>
+              ))}
+            </Table>
+          )}
+          {expansion.rows.length >= 100 && <p className="px-5 py-4 text-[13px] text-muted md:px-7">{t('Se muestran los primeros 100.', 'Showing the first 100.')}</p>}
+        </Card>
+      )}
 
       <Card pad={false} data-testid="matrix-card">
         <div className="px-5 pt-6 md:px-7 md:pt-7">

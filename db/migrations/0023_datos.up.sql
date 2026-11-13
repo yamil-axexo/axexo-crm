@@ -304,6 +304,18 @@ alter table crm.field_definitions
   add column decision_note text check (decision_note is null or char_length(decision_note) <= 400);
 -- Lo que llegó de Pipedrive entró sin revisión: se marca como dato de origen externo sin validar.
 update crm.field_definitions set untrusted = true, origin = 'Pipedrive' where source = 'pipedrive';
+-- Y lo que llegue después por la importación entra igual: marcado, sin decisión, a la vista de "sin decisión documentada".
+create or replace function crm.field_imported_flag() returns trigger
+language plpgsql set search_path = pg_catalog as $$
+begin
+  if new.source = 'pipedrive' then
+    new.untrusted := true;
+    new.origin := coalesce(new.origin, 'Pipedrive');
+  end if;
+  return new;
+end $$;
+create trigger field_definitions_imported before insert on crm.field_definitions
+  for each row execute function crm.field_imported_flag();
 -- Un campo propuesto no se muestra en las fichas hasta que administración lo aprueba.
 alter table crm.field_definitions add constraint field_definitions_proposed_inactive check (status = 'approved' or not is_active);
 create policy field_definitions_lead_propose on crm.field_definitions for insert to contigo_app
@@ -388,7 +400,10 @@ insert into crm.quality_rules (code, label_es, label_en, fix_es, fix_en, owner_r
   ('stale',        'Comercios sin movimiento reciente', 'Merchants with no recent activity', 'Confirma que los datos siguen vigentes con una visita o una llamada.', 'Confirm the details still hold with a visit or a call.', 'supervisor', 180, 90),
   ('deal_no_step', 'Negocios abiertos sin próximo paso', 'Open deals with no next step', 'Pon el próximo paso con su fecha.', 'Set the next step and its date.', 'supervisor', null, 100),
   ('provider_late','Solicitudes a proveedor fuera de plazo', 'Provider requests past their deadline', 'Da seguimiento con el proveedor.', 'Follow up with the provider.', 'ops', null, 110),
-  ('field_review', 'Campos con revisión vencida o sin decisión', 'Fields past review or with no decision', 'Documenta la decisión o retira el campo.', 'Document the decision or retire the field.', 'admin', null, 120);
+  ('field_review', 'Campos con revisión vencida o sin decisión', 'Fields past review or with no decision', 'Documenta la decisión o retira el campo.', 'Document the decision or retire the field.', 'admin', null, 120),
+  ('stage_fields', 'Negocios sin un dato que su etapa pide', 'Deals missing a detail their stage requires', 'Completa en el negocio los campos que pide su etapa.', 'Fill in on the deal the fields its stage requires.', 'supervisor', null, 105),
+  ('attribution_gap', 'Comercios cuya atribución no coincide con quien los lleva', 'Merchants whose attribution does not match their owner', 'Reasigna desde la ficha para que la atribución quede fechada.', 'Reassign from the record so the attribution is dated.', 'market_lead', null, 115),
+  ('sales_unmatched', 'Ventas que llegaron sin un comercio que las reciba', 'Sales that arrived with no merchant to receive them', 'Liga el ID del comercio en su ficha o atiende el aviso en Mi equipo.', 'Link the merchant ID on its record or handle the alert in My team.', 'ops', null, 118);
 
 -- Un corte por día, mercado, equipo y regla: de ahí sale la tendencia.
 create table crm.quality_snapshots (
@@ -628,6 +643,18 @@ language sql stable set search_path = crm, app, public, pg_catalog as $$
          (count(*) filter (where k.sla_days is not null and p.submitted_at < now() - make_interval(days => k.sla_days)))::int
     from crm.account_products p left join crm.ops_catalog k on k.id = p.provider_id where p.status = 'submitted' group by 1
   union all
+  select d.market_code, app.user_team(d.owner_id, d.market_code), 'stage_fields', count(*)::int,
+         (count(*) filter (where exists (select 1 from crm.stages st, unnest(st.required_fields) tk where st.id = d.stage_id and tk like 'field:%' and not (d.custom ? substr(tk, 7)))))::int
+    from crm.deals d where d.status = 'open' group by 1, 2
+  union all
+  select x.market_code, x.team_id, 'attribution_gap', count(*)::int,
+         (count(*) filter (where not exists (select 1 from crm.account_attributions t where t.account_id = x.id and t.layer = 'owner' and t.effective_to is null and t.party_ref = x.owner_id::text)))::int
+    from acct x where x.owner_id is not null group by 1, 2
+  union all
+  select mk.code, null::uuid, 'sales_unmatched', (select count(*)::int from crm.exceptions e where e.market_code = mk.code and e.kind = 'unmatched_event'),
+         (select count(*)::int from crm.exceptions e where e.market_code = mk.code and e.kind = 'unmatched_event' and e.resolved_at is null)
+    from crm.markets mk where mk.status = 'live' and mk.code = any(app.my_markets())
+  union all
   select mk.code, null::uuid, 'field_review', count(f.id)::int,
          (count(f.id) filter (where f.decision is null or f.owner_id is null or f.review_on is null or f.review_on < (now() at time zone mk.timezone)::date))::int
     from crm.markets mk join crm.field_definitions f on f.is_active and (f.market_code is null or f.market_code = mk.code)
@@ -652,6 +679,8 @@ language sql stable set search_path = crm, app, public, pg_catalog as $$
             when 'stale' then a.updated_at < now() - make_interval(days => cfg.stale_days)
                  and not exists (select 1 from crm.activities ac where ac.account_id = a.id and ac.created_at > now() - make_interval(days => cfg.stale_days))
                  and not exists (select 1 from crm.visits v where v.account_id = a.id and v.checked_in_at > now() - make_interval(days => cfg.stale_days))
+            when 'attribution_gap' then a.owner_id is not null and not exists (select 1 from crm.account_attributions t
+                   where t.account_id = a.id and t.layer = 'owner' and t.effective_to is null and t.party_ref = a.owner_id::text)
             when 'provider_late' then exists (select 1 from crm.account_products p join crm.ops_catalog k on k.id = p.provider_id
                    where p.account_id = a.id and p.status = 'submitted' and k.sla_days is not null and p.submitted_at < now() - make_interval(days => k.sla_days))
             else false end
@@ -659,7 +688,10 @@ language sql stable set search_path = crm, app, public, pg_catalog as $$
   union all
   (select 'deal', d.id, d.title, u.full_name, d.updated_at
      from crm.deals d left join crm.users u on u.id = d.owner_id
-    where p_rule = 'deal_no_step' and d.market_code = p_market and d.status = 'open' and (d.next_step is null or d.next_step_due is null)
+    where d.market_code = p_market and d.status = 'open' and case p_rule
+            when 'deal_no_step' then d.next_step is null or d.next_step_due is null
+            when 'stage_fields' then exists (select 1 from crm.stages st, unnest(st.required_fields) tk where st.id = d.stage_id and tk like 'field:%' and not (d.custom ? substr(tk, 7)))
+            else false end
     order by d.updated_at limit greatest(1, least(p_limit, 500)))
 $$;
 grant execute on function app.quality_failing(text, text, int) to contigo_app;
@@ -667,12 +699,13 @@ grant execute on function app.quality_failing(text, text, int) to contigo_app;
 -- Corte del día: guarda la medición de todo (mercado, equipo, regla). Segura de correr dos veces: el corte de hoy se reemplaza.
 create or replace function app.quality_snapshot() returns int
 language plpgsql security definer set search_path = crm, app, public, pg_catalog as $$
-declare n int;
+declare n int; v_prev text := coalesce(current_setting('app.user_id', true), '');
 begin
   if app.current_user_id() is not null and app.current_user_id() is distinct from app.system_user_id() and not app.is_admin() then
     raise exception 'not allowed' using errcode = '42501';
   end if;
-  -- Dentro de esta función la medición ve todos los mercados: se fija una identidad de sistema solo para app.my_markets().
+  -- Dentro de esta función la medición ve todos los mercados: se fija la identidad de sistema solo para app.my_markets(),
+  -- y al terminar se repone la de quien llamó.
   perform set_config('app.user_id', app.system_user_id()::text, true);
   with ins as (
     insert into crm.quality_snapshots (as_of, market_code, team_id, rule_code, total, failing)
@@ -683,6 +716,7 @@ begin
     returning 1
   )
   select count(*) into n from ins;
+  perform set_config('app.user_id', v_prev, true);
   return n;
 end $$;
 grant execute on function app.quality_snapshot() to contigo_app;

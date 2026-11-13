@@ -8,7 +8,7 @@ import { NoticeForm } from '@/ui/admin'
 import { ago, day, num } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { QUALITY_ROLE } from '@/lib/datos-labels'
-import { setQualityRuleAction } from './actions'
+import { saveQualitySnapshotAction, setQualityRuleAction } from './actions'
 
 const NO_TEAM = 'sin-equipo'
 
@@ -33,10 +33,10 @@ export async function CalidadTab({ ctx, market, team, rule }: { ctx: Ctx; market
   // Tendencia: el corte más antiguo de los últimos 30 días contra lo que se mide hoy. Solo a nivel de mercado.
   const first = (code: string) => d.trend.find((x) => x.market_code === current.code && x.rule_code === code)
   const picked = rule ? rules.find((r) => r.code === rule) : undefined
-  const queue = picked && !['duplicate', 'bypass', 'field_review'].includes(picked.code) ? await qualityQueue(ctx, picked.code, current.code) : []
+  const queue = picked && !['duplicate', 'bypass', 'field_review', 'sales_unmatched'].includes(picked.code) ? await qualityQueue(ctx, picked.code, current.code) : []
   const base = { tab: 'calidad', mercado: current.code, equipo: teamKey || undefined }
   const queueHref = (code: string) =>
-    code === 'duplicate' || code === 'bypass' ? qs('/datos', { tab: 'duplicados', mercado: current.code }) : code === 'field_review' ? qs('/datos', { tab: 'campos', vista: 'sin-decision' }) : `${qs('/datos', { ...base, regla: code })}#cola`
+    code === 'duplicate' || code === 'bypass' ? qs('/datos', { tab: 'duplicados', mercado: current.code }) : code === 'field_review' ? qs('/datos', { tab: 'campos', vista: 'sin-decision' }) : code === 'sales_unmatched' ? '/supervisor' : `${qs('/datos', { ...base, regla: code })}#cola`
   const worst = rules.map((r) => ({ r, ...sum(r.code) })).filter((x) => x.r.is_active && x.failing > 0).length
 
   return (
@@ -93,7 +93,10 @@ export async function CalidadTab({ ctx, market, team, rule }: { ctx: Ctx; market
             )
           })}
         </Table>
-        <p className="px-5 py-4 text-[13px] text-muted md:px-7">{t('La tendencia compara lo de hoy con el corte más antiguo de los últimos 30 días. El corte se guarda una vez al día.', 'The trend compares today with the oldest snapshot of the last 30 days. A snapshot is saved once a day.')}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-7">
+          <p className="max-w-2xl text-[13px] text-muted">{t('La tendencia compara lo de hoy con el corte más antiguo de los últimos 30 días. El corte se guarda una vez al día.', 'The trend compares today with the oldest snapshot of the last 30 days. A snapshot is saved once a day.')}</p>
+          {admin && <NoticeForm action={saveQualitySnapshotAction}><Submit variant="ghost" size="sm" testId="quality-snapshot">{t('Guardar el corte de hoy', 'Save today’s snapshot')}</Submit></NoticeForm>}
+        </div>
       </Card>
 
       {picked && (

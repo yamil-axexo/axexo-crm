@@ -1,9 +1,9 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
-import { addAlias, closeAlias, createAliasSystem, dismissPair, endContact, mergeAccounts, reviewBypass, scanDuplicates, undoMerge, updateContact, SURVIVOR_FIELDS, type Side, type SurvivorField } from '@/domain/datos'
+import { addAlias, closeAlias, createAliasSystem, dismissPair, endContact, endDealContact, mergeAccounts, setDealContact, reviewBypass, scanDuplicates, undoMerge, updateContact, SURVIVOR_FIELDS, type Side, type SurvivorField } from '@/domain/datos'
 import { createMarket, createProcessList, createRoutingRule, createWebForm, decideField, proposeField, setAccountProduct, setProcessListActive, setProcessStatus, setProductProvider,
-  setProviderSla, setQualityRule, setRoutingRuleActive, setTypeDepth, setWebFormActive, updateField, updateMarket, type GovernanceInput } from '@/domain/gobierno'
+  saveQualitySnapshot, setProviderSla, setQualityRule, setRoutingRuleActive, setTypeDepth, setWebFormActive, updateField, updateMarket, type GovernanceInput } from '@/domain/gobierno'
 import { setParent } from '@/domain/accounts'
 import type { ActionResult } from '@/lib/errors'
 
@@ -242,5 +242,28 @@ export async function setProductProviderAction(_: R | null, fd: FormData): Promi
   return runAction(async (ctx) => {
     await setProductProvider(ctx, str(fd, 'id'), str(fd, 'provider_id') || null)
     return { message: ['Proveedor del producto actualizado.', 'Product provider updated.'] }
+  })
+}
+
+export async function saveQualitySnapshotAction(_: R | null, _fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await saveQualitySnapshot(ctx)
+    return { message: ['Corte de hoy guardado. La tendencia se compara contra el corte más antiguo de los últimos 30 días.', 'Today’s snapshot saved. The trend compares against the oldest snapshot of the last 30 days.'] }
+  })
+}
+
+// ---------------------------------------------------------------- personas de un negocio
+
+export async function setDealContactAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setDealContact(ctx, str(fd, 'deal_id'), str(fd, 'contact_id'), str(fd, 'role'))
+    return { message: ['Rol en el negocio guardado.', 'Role on the deal saved.'] }
+  })
+}
+
+export async function endDealContactAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await endDealContact(ctx, str(fd, 'deal_id'), str(fd, 'contact_id'))
+    return { message: ['Ya no participa en este negocio. Sigue siendo contacto de la cuenta.', 'No longer on this deal. Still a contact of the account.'] }
   })
 }

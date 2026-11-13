@@ -304,6 +304,41 @@ export async function endContact(ctx: Ctx, accountId: string, contactId: string,
   })
 }
 
+/**
+ * El rol de una persona en un negocio (quién firma, quién decide lo técnico, quién paga) vive en la misma tabla que su rol
+ * en la cuenta: no hay dos lugares donde configurar roles. Solo entran contactos vigentes de la cuenta del negocio.
+ */
+export async function setDealContact(ctx: Ctx, dealId: string, contactId: string, role: string): Promise<void> {
+  await withUser(ctx.user.id, async (tx) => {
+    const deals = await tx<{ market_code: string; account_id: string }[]>`select market_code, account_id from crm.deals where id = ${dealId} for update`
+    const d = deals[0]
+    if (!d) throw notFound('No encontramos ese negocio.', 'We could not find that deal.')
+    ctx.assert('deal.edit', d.market_code)
+    if (!(await tx`select 1 from crm.account_contacts where account_id = ${d.account_id} and contact_id = ${contactId} and valid_to is null and deal_id is null`)[0])
+      throw invalid('Esa persona no es contacto de la cuenta de este negocio. Agrégala primero en la ficha del comercio.', 'That person is not a contact of this deal’s account. Add them on the merchant record first.')
+    const live = await tx<{ id: string; role: string }[]>`select id, role from crm.account_contacts where deal_id = ${dealId} and contact_id = ${contactId} and valid_to is null for update`
+    try {
+      if (live[0]) await tx.savepoint((sp) => sp`update crm.account_contacts set role = ${role} where id = ${live[0]!.id}`)
+      else await tx.savepoint((sp) => sp`insert into crm.account_contacts (account_id, contact_id, market_code, role, deal_id) values (${d.account_id}, ${contactId}, ${d.market_code}, ${role}, ${dealId})`)
+    } catch (e) {
+      if ((e as { code?: string }).code === '23514') throw invalid('Elige un rol de la lista.', 'Pick a role from the list.')
+      throw e
+    }
+    await audit(tx, ctx, 'deal.contact_role_set', 'deal', dealId, d.market_code, live[0] ? { contact_id: contactId, role: live[0].role } : null, { contact_id: contactId, role })
+  })
+}
+
+/** Quitar a una persona de un negocio: su rol ahí se cierra con fecha; sigue siendo contacto de la cuenta. */
+export async function endDealContact(ctx: Ctx, dealId: string, contactId: string): Promise<void> {
+  await withUser(ctx.user.id, async (tx) => {
+    const deals = await tx<{ market_code: string }[]>`select market_code from crm.deals where id = ${dealId} for update`
+    if (!deals[0]) throw notFound('No encontramos ese negocio.', 'We could not find that deal.')
+    ctx.assert('deal.edit', deals[0].market_code)
+    const rows = await tx<{ id: string }[]>`update crm.account_contacts set valid_to = now(), end_reason = 'removed' where deal_id = ${dealId} and contact_id = ${contactId} and valid_to is null returning id`
+    if (rows.length) await audit(tx, ctx, 'deal.contact_role_ended', 'deal', dealId, deals[0].market_code, { contact_id: contactId }, null)
+  })
+}
+
 // ================================================================ DAT-03: alias de identificadores externos
 
 /**

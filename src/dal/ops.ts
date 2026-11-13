@@ -207,7 +207,7 @@ export async function gateInfo(ctx: Ctx, dealId: string, toStageId: string): Pro
     const need = [...new Set(stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn' || s.id === to.id) && s.position > from.position && s.position <= to.position).flatMap((s) => s.required_fields))]
     const missing = missingForStage({ ...d, items_count: d.items }, { kind: to.kind, required_fields: need })
     const contacts = await tx<{ id: string; full_name: string }[]>`
-      select c.id, c.full_name from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id where ac.account_id = ${d.account_id} and ac.valid_to is null order by c.full_name`
+      select c.id, c.full_name from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id where ac.account_id = ${d.account_id} and ac.valid_to is null and ac.deal_id is null order by c.full_name`
     const fields = await gateFields(tx, d.market_code, missing)
     return { fields, missing, stageName: { es: to.name_es, en: to.name_en }, amount: d.amount_minor ? String(Number(d.amount_minor) / 100) : null, nextStep: d.next_step, nextStepDue: d.next_step_due,
       decisionMakerId: d.decision_maker_id, decisionMakerMet: d.decision_maker_met, contacts: [...contacts], accountId: d.account_id }

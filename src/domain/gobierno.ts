@@ -414,6 +414,16 @@ export async function setQualityRule(ctx: Ctx, code: string, input: { ownerRole:
   })
 }
 
+/** Guardar ahora el corte de calidad de hoy (lo mismo que hace la tarea diaria). De ahí sale la tendencia del tablero. */
+export async function saveQualitySnapshot(ctx: Ctx): Promise<number> {
+  ctx.assert('config.manage')
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ n: number }[]>`select app.quality_snapshot() as n`
+    await audit(tx, ctx, 'quality.snapshot_saved', 'quality_rule', null, null, null, { rows: rows[0]?.n ?? 0 })
+    return rows[0]?.n ?? 0
+  })
+}
+
 // ================================================================ DAT-07: productos por comercio
 
 export const PRODUCT_STATUSES = ['requested', 'submitted', 'approved', 'active', 'rejected', 'suspended'] as const

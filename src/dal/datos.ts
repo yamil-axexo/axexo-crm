@@ -213,10 +213,33 @@ export async function productMatrix(ctx: Ctx, f: { market: string | null; provid
              (select count(*)::int from crm.account_products p where p.provider_id = k.id and p.status = 'submitted') as waiting,
              (select count(*)::int from crm.account_products p where p.provider_id = k.id and p.status = 'submitted' and k.sla_days is not null and p.submitted_at < now() - make_interval(days => k.sla_days)) as late
         from crm.ops_catalog k where k.kind = 'provider' and k.is_active order by k.market_code nulls first, k.position, k.label_es`
-    const products = await tx<{ id: string; name: string; market_code: string | null; provider_id: string | null; merchants: number }[]>`
-      select pr.id, pr.name, pr.market_code, pr.provider_id, (select count(distinct p.account_id)::int from crm.account_products p where p.product_id = pr.id and p.status in ('approved','active')) as merchants
+    const products = await tx<{ id: string; name: string; market_code: string | null; provider_id: string | null; merchants: number; without: number }[]>`
+      select pr.id, pr.name, pr.market_code, pr.provider_id, (select count(distinct p.account_id)::int from crm.account_products p where p.product_id = pr.id and p.status in ('approved','active')) as merchants,
+             (select count(*)::int from crm.accounts a where a.archived_at is null and a.kind = 'store' and a.lifecycle = 'active' and (pr.market_code is null or a.market_code = pr.market_code)
+                 and not exists (select 1 from crm.account_products p where p.account_id = a.id and p.product_id = pr.id and p.status not in ('rejected'))) as without
         from crm.products pr where pr.is_active and (pr.market_code is null or pr.market_code = any(${ctx.markets.map((m) => m.code)}::text[])) order by pr.market_code nulls first, pr.name limit 200`
     return { rows: [...rows], providers: [...providers], products: [...products] }
+  })
+}
+
+export type ExpansionRow = { id: string; name: string; locality: string | null; owner_name: string | null; txn_30d: number | null }
+
+/**
+ * Base de expansión: comercios activos del mercado del producto que todavía no lo tienen (ni lo tienen en trámite),
+ * primero los que más venden. De aquí sale a quién ofrecérselo.
+ */
+export async function expansionList(ctx: Ctx, productId: string) {
+  return withUser(ctx.user.id, async (tx) => {
+    const product = (await tx<{ id: string; name: string; market_code: string | null }[]>`select id, name, market_code from crm.products where id = ${productId} and is_active`)[0]
+    if (!product) return null
+    const rows = await tx<ExpansionRow[]>`
+      select a.id, a.name, a.locality, u.full_name as owner_name,
+             (select m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = a.id order by m.as_of desc limit 1) as txn_30d
+        from crm.accounts a left join crm.users u on u.id = a.owner_id
+       where a.archived_at is null and a.kind = 'store' and a.lifecycle = 'active' and (${product.market_code}::text is null or a.market_code = ${product.market_code})
+         and not exists (select 1 from crm.account_products p where p.account_id = a.id and p.product_id = ${productId} and p.status not in ('rejected'))
+       order by txn_30d desc nulls last, a.name limit 100`
+    return { product, rows: [...rows] }
   })
 }
 
@@ -247,4 +270,21 @@ export type FailingRow = { kind: 'account' | 'deal'; id: string; name: string; w
 
 export async function qualityQueue(ctx: Ctx, rule: string, market: string): Promise<FailingRow[]> {
   return withUser(ctx.user.id, async (tx) => [...(await tx<FailingRow[]>`select kind, id, name, who, since from app.quality_failing(${rule}, ${market}, 100)`)])
+}
+
+// ---------------------------------------------------------------- personas de un negocio (DAT-02)
+
+export type DealPerson = { contact_id: string; full_name: string; role: string; phone: string | null; since: Date }
+
+/** Quién participa en un negocio y con qué rol, y los contactos de la cuenta que todavía no están en él. */
+export async function dealPeople(ctx: Ctx, dealId: string, accountId: string) {
+  return withUser(ctx.user.id, async (tx) => {
+    const people = await tx<DealPerson[]>`
+      select c.id as contact_id, c.full_name, ac.role, c.phone, ac.valid_from as since from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
+       where ac.deal_id = ${dealId} and ac.valid_to is null order by ac.valid_from`
+    const candidates = await tx<{ id: string; full_name: string; role: string }[]>`
+      select c.id, c.full_name, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
+       where ac.account_id = ${accountId} and ac.valid_to is null and ac.deal_id is null order by c.full_name`
+    return { people: [...people], candidates: [...candidates] }
+  })
 }

@@ -127,7 +127,7 @@ export async function getDeal(ctx: Ctx, id: string) {
       from crm.stages where pipeline_id = ${deal.pipeline_id} and (archived_at is null or id = ${deal.stage_id}) order by position`
     const contacts = await tx<{ id: string; full_name: string; role: string }[]>`
       select c.id, c.full_name, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
-       where ac.account_id = ${deal.account_id} and ac.valid_to is null order by ac.role, c.full_name`
+       where ac.account_id = ${deal.account_id} and ac.valid_to is null and ac.deal_id is null order by ac.role, c.full_name`
     const events = await tx<{ at: Date; from_es: string | null; from_en: string | null; to_es: string; to_en: string; actor: string | null; cause: string; to_kind: string }[]>`
       select e.at, f.name_es as from_es, f.name_en as from_en, t.name_es as to_es, t.name_en as to_en, u.full_name as actor, e.cause, t.kind as to_kind
         from crm.deal_stage_events e left join crm.stages f on f.id = e.from_stage_id join crm.stages t on t.id = e.to_stage_id

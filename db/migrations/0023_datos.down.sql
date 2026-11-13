@@ -19,6 +19,8 @@ drop table if exists crm.process_lists;
 drop function if exists app.field_usage();
 drop index if exists crm.accounts_custom_gin, crm.deals_custom_gin, crm.leads_custom_gin;
 delete from crm.settings where key = 'field_approval_sla_days';
+drop trigger if exists field_definitions_imported on crm.field_definitions;
+drop function if exists crm.field_imported_flag();
 drop policy if exists field_definitions_lead_propose on crm.field_definitions;
 delete from crm.field_definitions where status <> 'approved';
 alter table crm.field_definitions drop constraint if exists field_definitions_proposed_inactive;

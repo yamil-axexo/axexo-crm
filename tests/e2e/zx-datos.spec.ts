@@ -254,6 +254,34 @@ test.describe('datos: contactos y alias (DAT-02, DAT-03)', () => {
   })
 })
 
+test.describe('datos: personas en un negocio (DAT-02)', () => {
+  test('un contacto de la cuenta entra al negocio con su rol ahí y se puede quitar', async ({ page }) => {
+    const acc = await rawAccount('MX', 'marco.pena', `Vidriería Fresnos ${uniq()}`)
+    const marco = await personaId('marco.pena')
+    const contact = (await sql<{ id: string }[]>`insert into crm.contacts (market_code, full_name, phone, created_by) values ('MX', 'Nadia Peralta', ${`+5255${Math.floor(10000000 + Math.random() * 89999999)}`}, ${marco}) returning id`)[0]!.id
+    await sql`insert into crm.account_contacts (account_id, contact_id, market_code, role, is_primary) values (${acc}, ${contact}, 'MX', 'owner', true)`
+    const deal = (await sql<{ id: string }[]>`
+      insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, next_step, next_step_due)
+      select 'MX', p.id, (select s.id from crm.stages s where s.pipeline_id = p.id and s.kind = 'open' order by position limit 1), ${acc}, ${marco}, 'Alta Vidriería Fresnos', 'MXN', 'Llamar', now()::date + 3
+        from crm.pipelines p where p.market_code = 'MX' and p.motor = 'd2d' returning id`)[0]!.id
+    await loginAs(page, 'marco.pena')
+    await page.goto(`/deals/${deal}`)
+    const people = page.getByTestId('deal-people')
+    await people.getByTestId('deal-person-contact').selectOption({ label: 'Nadia Peralta' })
+    await people.getByTestId('deal-person-role').selectOption('billing')
+    await people.getByTestId('deal-person-add').click()
+    await expect(people.getByTestId('deal-person')).toContainText('Nadia Peralta')
+    await expect(people.getByTestId('deal-person')).toContainText('Facturación')
+    // en la cuenta sigue una sola vez, con su rol de cuenta
+    await page.goto(`/comercios/${acc}?tab=datos`)
+    await expect(page.getByTestId('contact-row')).toHaveCount(1)
+    await expect(page.getByTestId('contact-row')).toContainText('Dueño del comercio')
+    await page.goto(`/deals/${deal}`)
+    await page.getByTestId('deal-person-remove').click()
+    await expect(page.getByTestId('deal-person')).toHaveCount(0)
+  })
+})
+
 test.describe('datos: campos, mercados y catálogos desde la pantalla (DAT-05, GOB-01)', () => {
   test('quien lidera el mercado propone un campo con su decisión; administración lo aprueba y lo edita en el registro', async ({ page }) => {
     const field = `Horario de surtido ${uniq()}`
@@ -427,6 +455,9 @@ test.describe('datos: tablero de calidad (GOB-02)', () => {
     await page.locator('dialog[open]').getByTestId('quality-save').click()
     await expect(notice(page)).toContainText('Regla actualizada')
     await expect(page.locator('[data-testid="quality-row"][data-rule="no_coords"]').getByTestId('quality-owner')).toHaveText('Valeria Soto')
+    // el corte de hoy se puede guardar a mano
+    await page.getByTestId('quality-snapshot').click()
+    await expect(notice(page)).toContainText('Corte de hoy guardado')
     // duplicados lleva a su cola
     await sql`select app.scan_duplicates('MX')`
     await page.reload()
@@ -472,6 +503,13 @@ test.describe('datos: productos por comercio (DAT-07)', () => {
     await item.getByTestId('product-status-save').click()
     await expect(page.getByTestId('product-item').filter({ hasText: 'Top-up card pack' }).getByTestId('product-state')).toHaveText('Approved')
     await expect(page.getByTestId('product-item').filter({ hasText: 'Top-up card pack' }).getByTestId('product-late')).toHaveCount(0)
+    // base de expansión: a quién ofrecerle un producto que todavía no tiene
+    await page.goto('/datos?tab=productos')
+    await page.getByTestId('product-row').filter({ hasText: 'SIM kit' }).getByTestId('product-without').click()
+    await expect(page.getByTestId('expansion-card')).toContainText('Who to offer SIM kit to')
+    await expect(page.getByTestId('expansion-row').first()).toBeVisible()
+    await expect(page.getByTestId('expansion-row').filter({ hasText: 'Frontera Wireless Laredo' })).toHaveCount(0)
+    await page.goto(`/comercios/${pdv}?tab=datos`)
     // un producto nuevo para el comercio
     await page.getByTestId('product-add').click()
     await page.locator('dialog[open]').getByTestId('product-pick').selectOption({ label: 'Counter terminal' })
