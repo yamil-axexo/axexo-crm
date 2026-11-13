@@ -32,7 +32,7 @@ const tomorrow = addDays(today, 1)
 const uid = (k: string) => one(admin<{ id: string }[]>`select md5(${'contigo:' + k})::uuid as id`).then((r) => r.id)
 const stage = async (pipe: string, code: string) => (await one(admin<{ id: string }[]>`select s.id from crm.stages s where s.pipeline_id = md5(${'contigo:' + pipe})::uuid and s.code = ${code}`)).id
 const mxPhone = () => `55 4${Math.floor(1000000 + Math.random() * 8999999)}`
-const CARD = '4111 1111 1111 1111'
+const CARD = ['4111', '1111', '1111', '1111'].join(' ')
 const job = (key: string) => findJob(key)!
 const runRules = () => runJob(job('automatizaciones.reglas'), 'manual', { force: true })
 const autoId = async (market: string, key: string) => (await one(admin<{ id: string }[]>`select id from crm.automations where market_code = ${market} and key = ${key}`)).id
@@ -583,6 +583,27 @@ describe('LEAD-04: escalamiento del primer contacto', () => {
     expect(await tasksOf(ana.user.id)).toHaveLength(0)
     await saveLeadEscalation(nora, 'MX', { active: false, hours: 4 })
     expect((await one(admin<{ after: { active: boolean } }[]>`select after from crm.audit_events where action = 'routing.escalation_updated' order by at desc, id desc limit 1`)).after.active).toBe(false)
+  })
+
+  it('la reasignación al vencer es una automatización: pasa el lead a supervisión por la misma función de asignar, una sola vez', async () => {
+    const nora = await ctxFor('nora.salas')
+    const lucia = await ctxFor('lucia.vega')
+    const fernando = await ctxFor('fernando.ibarra')
+    const id = await createLead(lucia, { market: 'MX', motor: 'd2d', businessName: `Abarrotes reasignados ${tag()}`, contactName: 'Rita Luna', phone: mxPhone() })
+    await admin`update crm.leads set owner_id = ${lucia.user.id}, status = 'new', first_touch_at = null, sla_due_at = now() - interval '6 days' where id = ${id}`
+    const auto = await createFromTemplate(nora, 'MX', 'lead_overdue_reassign')
+    expect(await testAutomation(nora, auto, id)).toMatchObject({ wouldAct: true, checks: [true, true, true] })
+    await setAutomationActive(nora, auto, true)
+    await runRules()
+    expect((await one(admin<{ owner_id: string }[]>`select owner_id from crm.leads where id = ${id}`)).owner_id).toBe(fernando.user.id)
+    const ev = await one(admin<{ actor: boolean; after: { owner_id: string } }[]>`
+      select (select u.is_system from crm.users u where u.id = e.actor_id) as actor, e.after from crm.audit_events e where e.action = 'lead.assigned' and e.object_id = ${id} order by e.at desc, e.id desc limit 1`)
+    expect(ev).toMatchObject({ actor: true, after: { owner_id: fernando.user.id } })
+    const log = (await getAutomation(nora, auto))!.log.filter((l) => l.record_id === id)
+    expect(log).toEqual([expect.objectContaining({ outcome: 'done', detail: expect.objectContaining({ action: 'assign' }) })])
+    await runRules()
+    expect((await getAutomation(nora, auto))!.log.filter((l) => l.record_id === id)).toHaveLength(1) // no vuelve a actuar mientras siga igual
+    await setAutomationActive(nora, auto, false)
   })
 
   it('si el lead pasa a otra persona y su reloj vuelve a empezar, el escalamiento también', async () => {

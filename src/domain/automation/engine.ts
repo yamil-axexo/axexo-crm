@@ -54,7 +54,7 @@ function recordSet(tx: Tx, source: Source): Frag {
       select d.id, d.market_code, d.account_id, d.id as deal_id, null::uuid as lead_id, d.owner_id,
              case when s.is_ops then coalesce(d.ops_owner_id, d.owner_id) else d.owner_id end as ball_owner_id,
              p.motor, d.title as label, d.title, d.stage_entered_at, d.revisit_due, d.revisit_reason, lim.days as limit_days,
-             s.kind as stage_kind, s.is_ops as is_ops_stage, (d.paused_at is not null) as paused,
+             s.kind as stage_kind, s.code as stage_code, s.is_ops as is_ops_stage, (d.paused_at is not null) as paused,
              extract(epoch from (now() - d.stage_entered_at)) / 86400.0 as stage_age_days,
              (lim.days > 0 and d.stage_entered_at < now() - make_interval(days => lim.days)) as over_stage_limit,
              (s.sla_hours is not null and app.business_minutes(d.market_code, d.stage_entered_at, now()) > s.sla_hours * 60) as over_stage_sla,

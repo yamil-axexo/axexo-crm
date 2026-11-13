@@ -15,7 +15,7 @@ export const SOURCE_LABEL: Record<Source, Pair> = {
 }
 
 export type FieldType = 'number' | 'boolean' | 'choice'
-export type FieldDef = { key: string; type: FieldType; label: Pair; options?: { value: string; label: Pair }[] }
+export type FieldDef = { key: string; type: FieldType; label: Pair; options?: { value: string; label: Pair }[]; /** Las opciones salen de los embudos del mercado (códigos de etapa), no de una lista fija. */ dynamic?: 'stage' }
 
 const yes = (key: string, es: string, en: string): FieldDef => ({ key, type: 'boolean', label: { es, en } })
 const num = (key: string, es: string, en: string): FieldDef => ({ key, type: 'number', label: { es, en } })
@@ -27,6 +27,7 @@ const pick = (key: string, es: string, en: string, options: [string, string, str
 export const FIELDS: Record<Source, FieldDef[]> = {
   deal: [
     pick('stage_kind', 'Tipo de etapa', 'Stage type', [['open', 'abierta', 'open'], ['awaiting_txn', 'espera la primera venta', 'waiting for the first sale']]),
+    { key: 'stage_code', type: 'choice', label: { es: 'Etapa actual', en: 'Current stage' }, dynamic: 'stage' },
     yes('is_ops_stage', 'Está en una etapa de Operaciones', 'It is in an Operations stage'),
     yes('paused', 'Está en pausa', 'It is paused'),
     num('stage_age_days', 'Días en la etapa actual', 'Days in the current stage'),
@@ -185,6 +186,12 @@ export const TEMPLATES: Definition[] = [
   { key: 'new_deal_review', name: { es: 'Negocio nuevo de monto alto: avisar a supervisión', en: 'New high-value deal: notify the supervisor' }, source: 'deal', trigger: { kind: 'event', event: 'deal.created' },
     conditions: [cond('amount', 'gte', 100000)],
     actions: [{ type: 'notify', to: 'role:supervisor', text_es: 'Entró un negocio de monto alto', text_en: 'A high-value deal came in' }] },
+  { key: 'lead_overdue_reassign', name: { es: 'Lead sin primer contacto por 8 horas hábiles: pasa a supervisión', en: 'Lead with no first contact for 8 business hours: goes to the supervisor' }, source: 'lead', trigger: { kind: 'schedule' },
+    conditions: [cond('status', 'eq', 'new'), cond('touched', 'is_false'), cond('overdue_business_hours', 'gte', 8)],
+    actions: [{ type: 'assign', to: 'role:supervisor' }] },
+  { key: 'stage_entered_task', name: { es: 'Al llegar a una etapa: tarea para quien lleva el negocio', en: 'On reaching a stage: task for the deal owner' }, source: 'deal', trigger: { kind: 'event', event: 'deal.stage_changed' },
+    conditions: [cond('stage_kind', 'eq', 'awaiting_txn')],
+    actions: [{ type: 'create_task', to: 'owner', text_es: 'Ayudar al comercio a hacer su primera venta', text_en: 'Help the merchant make its first sale', due_days: 2 }] },
   { key: 'lead_no_owner', name: { es: 'Lead sin responsable: tarea para supervisión', en: 'Lead with no owner: task for the supervisor' }, source: 'lead', trigger: { kind: 'schedule' },
     conditions: [cond('status', 'eq', 'new'), cond('has_owner', 'is_false')],
     actions: [{ type: 'create_task', to: 'role:supervisor', text_es: 'Asignar este lead: nadie lo lleva', text_en: 'Assign this lead: nobody owns it', due_days: 0 }] },
@@ -205,6 +212,10 @@ export function problemIn(def: { source: string; trigger: Definition['trigger'];
     if (!f) return { es: 'Una condición usa un campo que no existe para este tipo de registro.', en: 'A condition uses a field that does not exist for this kind of record.' }
     if (!OPS_FOR[f.type].includes(c.op)) return { es: `La condición sobre "${f.label.es}" usa una comparación que no aplica.`, en: `The condition on "${f.label.en}" uses a comparison that does not apply.` }
     if (f.type === 'number' && !Number.isFinite(Number(c.value))) return { es: `La condición sobre "${f.label.es}" necesita un número.`, en: `The condition on "${f.label.en}" needs a number.` }
+    if (f.dynamic === 'stage') {
+      if ((c.op === 'eq' || c.op === 'ne') && (!/^[a-z0-9_]{2,40}$/.test(String(c.value ?? '')) || (stageCodes && !stageCodes.includes(String(c.value))))) return { es: 'Elige una etapa de un embudo de este mercado.', en: 'Pick a stage from a pipeline in this market.' }
+      continue
+    }
     if (f.type === 'choice' && (c.op === 'eq' || c.op === 'ne') && !f.options?.some((o) => o.value === c.value)) return { es: `Elige un valor de la lista para "${f.label.es}".`, en: `Pick a value from the list for "${f.label.en}".` }
   }
   if (def.actions.length < 1 || def.actions.length > 3) return { es: 'Una automatización hace entre una y tres cosas.', en: 'An automation does between one and three things.' }
@@ -244,7 +255,7 @@ const targetText = (to: string, people: Record<string, string>): Pair => {
 }
 
 /** "Cuando… si… entonces…": la definición dicha como la diría una persona del equipo. */
-export function describe(def: { source: Source; trigger: Definition['trigger']; conditions: Condition[]; actions: Action[] }, people: Record<string, string> = {}): { when: Pair; ifs: Pair[]; then: Pair[] } {
+export function describe(def: { source: Source; trigger: Definition['trigger']; conditions: Condition[]; actions: Action[] }, people: Record<string, string> = {}, stageNames: Record<string, Pair> = {}): { when: Pair; ifs: Pair[]; then: Pair[] } {
   const when: Pair = def.trigger.kind === 'event'
     ? { es: `Cuando ${(EVENTS[def.trigger.event]?.label.es ?? def.trigger.event).toLowerCase()}`, en: `When ${(EVENTS[def.trigger.event]?.label.en ?? def.trigger.event).toLowerCase()}` }
     : { es: `Cada vez que corre la revisión por horario, sobre ${SOURCE_LABEL[def.source].es.toLowerCase()}`, en: `Each time the scheduled check runs, over ${SOURCE_LABEL[def.source].en.toLowerCase()}` }
@@ -254,7 +265,7 @@ export function describe(def: { source: Source; trigger: Definition['trigger']; 
     if (c.op === 'is_true') return { es: label.es, en: label.en }
     if (c.op === 'is_false') return { es: `No: ${label.es.toLowerCase()}`, en: `Not: ${label.en.toLowerCase()}` }
     if (c.op === 'is_empty' || c.op === 'not_empty') return { es: `${label.es} ${OP_LABEL[c.op].es}`, en: `${label.en} ${OP_LABEL[c.op].en}` }
-    const opt = f?.options?.find((o) => o.value === c.value)?.label
+    const opt = f?.dynamic === 'stage' ? stageNames[String(c.value)] : f?.options?.find((o) => o.value === c.value)?.label
     return { es: `${label.es} ${OP_LABEL[c.op].es} ${opt?.es ?? c.value}`, en: `${label.en} ${OP_LABEL[c.op].en} ${opt?.en ?? c.value}` }
   })
   const then = def.actions.map((a): Pair => {
@@ -262,7 +273,7 @@ export function describe(def: { source: Source; trigger: Definition['trigger']; 
     if (a.type === 'create_task') return { es: `Crea una tarea para ${targetText(a.to, people).es}: "${a.text_es}", con fecha ${a.due_days === 0 ? 'de hoy' : `a ${a.due_days} ${a.due_days === 1 ? 'día' : 'días'}`}`, en: `Creates a task for ${targetText(a.to, people).en}: "${a.text_en}", due ${a.due_days === 0 ? 'today' : `in ${a.due_days} ${a.due_days === 1 ? 'day' : 'days'}`}` }
     if (a.type === 'notify') return { es: `Avisa a ${targetText(a.to, people).es}: "${a.text_es}"`, en: `Notifies ${targetText(a.to, people).en}: "${a.text_en}"` }
     if (a.type === 'assign') return { es: `Asigna el registro a ${targetText(a.to, people).es}`, en: `Assigns the record to ${targetText(a.to, people).en}` }
-    if (a.type === 'move_stage') return { es: `Cambia el negocio a la etapa "${a.stage_code}", si el paso lo permite`, en: `Moves the deal to the "${a.stage_code}" stage, if the step allows it` }
+    if (a.type === 'move_stage') return { es: `Cambia el negocio a la etapa "${stageNames[a.stage_code]?.es ?? a.stage_code}", si el paso lo permite`, en: `Moves the deal to the "${stageNames[a.stage_code]?.en ?? a.stage_code}" stage, if the step allows it` }
     const s = SETTABLE[a.field]
     const v = s?.values.find((x) => x.value === a.value)?.label
     return { es: `Marca "${s?.label.es ?? a.field}": ${v?.es ?? a.value}`, en: `Sets "${s?.label.en ?? a.field}": ${v?.en ?? a.value}` }

@@ -29,7 +29,8 @@ export default async function AutomationPage({ params, searchParams }: { params:
   const tz = await readerTimeZone(ctx)
   const names = Object.fromEntries(people.map((p) => [p.id, p.full_name]))
   const trigger = a.trigger_kind === 'event' ? ({ kind: 'event', event: a.trigger_event! } as const) : ({ kind: 'schedule' } as const)
-  const d = describe({ source: a.source, trigger, conditions: a.conditions, actions: a.actions }, names)
+  const stageNames = Object.fromEntries(stages.map((x) => [x.code, { es: x.name_es, en: x.name_en }]))
+  const d = describe({ source: a.source, trigger, conditions: a.conditions, actions: a.actions }, names, stageNames)
   const market = ctx.markets.find((m) => m.code === a.market_code)
 
   // Qué acciones caben según el tipo de registro y el disparador.
@@ -112,7 +113,7 @@ export default async function AutomationPage({ params, searchParams }: { params:
                   </Field>
                 </div>
                 <AutomationFields
-                  fields={FIELDS[a.source].map((f) => ({ key: f.key, label: t(f.label.es, f.label.en), type: f.type, ops: OPS_FOR[f.type].map((o) => ({ value: o, label: t(OP_LABEL[o].es, OP_LABEL[o].en) })), options: (f.options ?? []).map((o) => ({ value: o.value, label: t(o.label.es, o.label.en) })) }))}
+                  fields={FIELDS[a.source].map((f) => ({ key: f.key, label: t(f.label.es, f.label.en), type: f.type, ops: OPS_FOR[f.type].map((o) => ({ value: o, label: t(OP_LABEL[o].es, OP_LABEL[o].en) })), options: f.dynamic === 'stage' ? stages.map((x) => ({ value: x.code, label: t(x.name_es, x.name_en) })) : (f.options ?? []).map((o) => ({ value: o.value, label: t(o.label.es, o.label.en) })) }))}
                   actionTypes={ACTION_TYPES.filter(fits).map((x) => ({ value: x, label: t(ACTION_LABEL[x].es, ACTION_LABEL[x].en) }))}
                   targets={targets}
                   kinds={NOTICE_KINDS.filter((k) => NOTICE_SOURCE[k] === a.source).map((k) => ({ value: k, label: lab(t, EXCEPTION[k]?.label) }))}
