@@ -1,7 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
-import { missingForStage, type StageKind } from '@/domain/deals'
+import { missingForStage, pendingHighlights, type StageKind } from '@/domain/deals'
 import { isUuid } from '@/lib/ids'
 import { dealNextStep, stepSubject } from '@/dal/step-text'
 import { teamFilter } from '@/dal/reports'
@@ -31,6 +31,8 @@ export type Stage = {
   probability: number
   rot_days: number
   required_fields: string[]
+  /** Lo que la etapa destaca sin exigirlo (E10.F7). Solo viene en la lectura de un negocio. */
+  highlight_fields?: string[]
   exit_es: string
   exit_en: string
   /** Etapa de Operaciones: al entrar, el negocio pasa a su cola. */
@@ -112,22 +114,22 @@ export async function getDeal(ctx: Ctx, id: string) {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<
       (BoardDeal & { market_code: string; pipeline_id: string; pipeline_name: string; status: 'open' | 'won' | 'lost'; loss_reason_code: string | null;
-        loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string; custom: Record<string, unknown>; close_by_transaction: boolean;
+        loss_note: string | null; won_at: Date | null; lost_at: Date | null; closed_by: string | null; revisit_reason: string | null; created_at: Date; account_lifecycle: string; custom: Record<string, unknown>; close_by_transaction: boolean; txn_also_wins: boolean;
         motor: string; pause_reason: string | null })[]
     >`select d.id, d.stage_id, d.title, d.account_id, a.name as account_name, u.full_name as owner_name, d.amount_minor::text, d.currency,
              ${dealNextStep(tx, ctx.locale)} as next_step, d.next_step_due::text, d.revisit_needed, d.revisit_due::text, d.stage_entered_at, d.decision_maker_id, d.decision_maker_met,
              d.owner_id, (select o.full_name from crm.users o where o.id = d.ops_owner_id) as ops_owner_name, d.ops_next_step, d.ops_next_step_due::text,
              d.market_code, d.pipeline_id, p.name as pipeline_name, d.status, d.loss_reason_code, d.loss_note, d.won_at, d.lost_at, d.closed_by,
-             d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle, d.custom, p.close_by_transaction, p.motor, d.paused_at, d.pause_review_on::text, d.pause_reason
+             d.revisit_reason, d.created_at, a.lifecycle as account_lifecycle, d.custom, p.close_by_transaction, p.txn_also_wins, p.motor, d.paused_at, d.pause_review_on::text, d.pause_reason
         from crm.deals d join crm.accounts a on a.id = d.account_id join crm.pipelines p on p.id = d.pipeline_id left join crm.users u on u.id = d.owner_id
        where d.id = ${id}`
     const deal = rows[0]
     if (!deal) return null
-    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, exit_es, exit_en, is_ops
+    const stages = await tx<Stage[]>`select id, position, code, name_es, name_en, kind, probability, rot_days, required_fields, highlight_fields, exit_es, exit_en, is_ops
       from crm.stages where pipeline_id = ${deal.pipeline_id} and (archived_at is null or id = ${deal.stage_id}) order by position`
     const contacts = await tx<{ id: string; full_name: string; role: string }[]>`
       select c.id, c.full_name, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
-       where ac.account_id = ${deal.account_id} and ac.valid_to is null order by ac.role, c.full_name`
+       where ac.account_id = ${deal.account_id} and ac.valid_to is null and ac.deal_id is null order by ac.role, c.full_name`
     const events = await tx<{ at: Date; from_es: string | null; from_en: string | null; to_es: string; to_en: string; actor: string | null; cause: string; to_kind: string }[]>`
       select e.at, f.name_es as from_es, f.name_en as from_en, t.name_es as to_es, t.name_en as to_en, u.full_name as actor, e.cause, t.kind as to_kind
         from crm.deal_stage_events e left join crm.stages f on f.id = e.from_stage_id join crm.stages t on t.id = e.to_stage_id
@@ -136,8 +138,8 @@ export async function getDeal(ctx: Ctx, id: string) {
     const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; due_at: Date | null; done_at: Date | null; created_at: Date; author: string | null; outcome: string | null; visited_by: string | null }[]>`
       select a.id, a.kind, ${stepSubject(tx, ctx.locale)} as subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author, coalesce(a.ops_outcome, a.outcome) as outcome, a.visited_by
         from crm.activities a left join crm.users u on u.id = a.created_by where a.deal_id = ${id} order by coalesce(a.done_at, a.created_at) desc limit 40`
-    const items = await tx<{ id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }[]>`
-      select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments from crm.deal_items where deal_id = ${id} order by position, created_at`
+    const items = await tx<{ id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null; discount_pct: string }[]>`
+      select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments, discount_pct::text from crm.deal_items where deal_id = ${id} order by position, created_at`
     const current = stages.find((s) => s.id === deal.stage_id)
     const next = current ? stages.find((s) => s.position === current.position + 1 && s.kind !== 'lost') : undefined
     const missingNext = next && next.kind !== 'won' ? missingForStage({ ...deal, items_count: items.length }, next) : []
@@ -145,7 +147,11 @@ export async function getDeal(ctx: Ctx, id: string) {
     const ahead = current ? stages.filter((s) => (s.kind === 'open' || s.kind === 'awaiting_txn' || s.kind === 'won') && s.position > current.position) : []
     const missingWin = missingForStage({ ...deal, items_count: items.length }, { kind: 'won', required_fields: [...new Set(ahead.flatMap((s) => s.required_fields))] })
     // Campos adicionales que piden las etapas por delante ('field:<clave>'), con su nombre, para pedirlos en la misma hoja.
-    const gateDefs = await gateFields(tx, deal.market_code, [...missingNext, ...missingWin])
-    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext, missingWin, gateDefs }
+    // E10.F7: lo que la etapa actual destaca sin exigirlo, con lo que todavía falta de eso.
+    const highlighted = deal.status === 'open' && current ? [...new Set(current.highlight_fields ?? [])] : []
+    const pending = current ? pendingHighlights({ ...deal, items_count: items.length }, { highlight_fields: highlighted }) : []
+    const gateDefs = await gateFields(tx, deal.market_code, [...missingNext, ...missingWin, ...highlighted])
+    return { deal, stages: [...stages], contacts: [...contacts], events: [...events], activities: [...activities], items: [...items], current, next, missingNext, missingWin, gateDefs,
+      highlights: highlighted.map((token) => ({ token, pending: pending.includes(token) })) }
   })
 }

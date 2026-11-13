@@ -6,7 +6,7 @@ import { screenKey } from '@/lib/screen-key'
 import {
   addCost, annotateChange, announceRelease, checkReleaseItem, createConfigRequest, createRelease, decideConfigRequest, markReleased, missingItems, openIncident,
   recordChampionReview, recordDeployment, recordRestoreTest, saveMaterial, scheduleMaintenance, setChampion, setComponentOwners, setObjective, updateIncident, voidCost,
-} from '@/domain/gobierno'
+} from '@/domain/gobierno-ops'
 import {
   allConfigRequests, approvedFieldRequests, components, configChanges, costBoard, deployments, incidents, maintenance, materials, myChampions, myConfigRequests,
   p95, releases, restoreTests, serviceBoard, teamChampions, testData,
@@ -447,23 +447,23 @@ describe('E7: solicitudes con aprobación, motivo de cada cambio, champions y ma
     })
     await expect(decideConfigRequest(nora, { id: requestId, decision: 'rejected' })).rejects.toMatchObject({ code: 'invalid' })
     // un campo no se crea desde una solicitud sin aprobar
-    await expect(createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario de apertura gob', labelEn: 'Opening hours gov', dataType: 'text', purpose: 'Para planear la ruta de visitas', requestId })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario de apertura gob', labelEn: 'Opening hours gov', dataType: 'text', decision: 'Decide a qué hora se visita cada comercio', requestId })).rejects.toMatchObject({ code: 'invalid' })
     await decideConfigRequest(nora, { id: requestId, decision: 'approved', note: 'Va compartido para todos los mercados' })
     expect((await approvedFieldRequests(nora)).map((r) => r.id)).toContain(requestId)
     expect((await myConfigRequests(lucia)).find((r) => r.id === requestId)).toMatchObject({ status: 'approved', decision_note: 'Va compartido para todos los mercados', decided_by_name: 'Nora Salas' })
   })
 
-  it('F6 y F7: un campo se crea con su para qué, que queda como el motivo del cambio; la solicitud queda hecha', async () => {
+  it('F6 y F7: un campo se crea con la decisión que habilita, que queda como el motivo del cambio; la solicitud queda hecha', async () => {
     const nora = await ctxFor('nora.salas')
-    await expect(createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario de apertura gob', labelEn: 'Opening hours gov', dataType: 'text', purpose: '' })).rejects.toMatchObject({ code: 'invalid', es: expect.stringContaining('para qué') })
-    const fieldId = await createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario de apertura gob', labelEn: 'Opening hours gov', dataType: 'text', purpose: 'Para planear la ruta de visitas de la mañana', requestId })
-    const row = (await admin<{ purpose: string; request_id: string }[]>`select purpose, request_id from crm.field_definitions where id = ${fieldId}`)[0]!
-    expect(row).toMatchObject({ purpose: 'Para planear la ruta de visitas de la mañana', request_id: requestId })
+    await expect(createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario de apertura gob', labelEn: 'Opening hours gov', dataType: 'text', decision: '' })).rejects.toMatchObject({ code: 'invalid', es: expect.stringContaining('decisión') })
+    const fieldId = await createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario de apertura gob', labelEn: 'Opening hours gov', dataType: 'text', decision: 'Decide a qué hora se visita cada comercio en la ruta de la mañana', requestId })
+    const row = (await admin<{ decision: string; request_id: string }[]>`select decision, request_id from crm.field_definitions where id = ${fieldId}`)[0]!
+    expect(row).toMatchObject({ decision: 'Decide a qué hora se visita cada comercio en la ruta de la mañana', request_id: requestId })
     expect((await admin<{ status: string; field_id: string }[]>`select status, field_id from crm.config_requests where id = ${requestId}`)[0]).toMatchObject({ status: 'done', field_id: fieldId })
     // la misma solicitud no crea dos campos
-    await expect(createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario dos gob', labelEn: 'Hours two gov', dataType: 'text', purpose: 'Para planear la ruta de visitas', requestId })).rejects.toMatchObject({ code: 'invalid' })
+    await expect(createField(nora, { object: 'account', market: '', motor: '', labelEs: 'Horario dos gob', labelEn: 'Hours two gov', dataType: 'text', decision: 'Decide a qué hora se visita cada comercio', requestId })).rejects.toMatchObject({ code: 'invalid' })
     const changes = await configChanges(nora, false)
-    const created = changes.rows.find((c) => c.action === 'field.created' && c.reason === 'Para planear la ruta de visitas de la mañana')
+    const created = changes.rows.find((c) => c.action === 'field.created' && c.reason === 'Decide a qué hora se visita cada comercio en la ruta de la mañana')
     expect(created).toMatchObject({ object: 'field', actor_name: 'Nora Salas', reason_by: 'Nora Salas' })
     expect((created!.after as { shared: boolean; from_request: boolean })).toMatchObject({ shared: true, from_request: true })
   })

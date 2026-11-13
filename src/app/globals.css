@@ -314,3 +314,13 @@
   }
   .board-wide > .board-col { min-width: 156px; }
 }
+
+/* Impresión (avisos, 0020): en papel solo sale el contenido. La barra, el menú inferior, los avisos flotantes y lo marcado
+   con print:hidden no se imprimen; la hoja del pedido ocupa la página sin sombra ni borde redondeado. */
+@media print {
+  [data-testid='topbar'], [data-testid='dock'], [data-testid='screen-help'], [data-testid='announce-banner'], [role='status'][data-toast] { display: none !important; }
+  html, body { background: #fff !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  .order-sheet { box-shadow: none !important; border: 0 !important; border-radius: 0 !important; max-width: none !important; padding: 0 !important; }
+  @page { margin: 16mm; }
+}

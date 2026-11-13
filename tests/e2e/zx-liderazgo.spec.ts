@@ -87,11 +87,15 @@ test.describe('negocios cerrados', () => {
     const marcoTotal = int(await page.getByTestId('closed-won').innerText()) + int(await page.getByTestId('closed-lost').innerText())
 
     // exportar lo filtrado
-    const href = await page.getByTestId('export-csv').getAttribute('href')
+    // Exportar pide un motivo (AUT-07): sin él no hay archivo; con él, la descarga sale del mismo formulario.
+    const href = await page.getByTestId('export-csv').getAttribute('data-href')
     expect(href).toMatch(/^\/reportes\/cerrados\/export\?/)
-    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-csv').click()])
+    expect((await page.request.get(href!)).status()).toBe(422)
+    await page.getByTestId('export-csv').click()
+    await page.getByTestId('export-csv-reason').fill('Revisión de prueba del reporte')
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-csv-go').click()])
     expect(download.suggestedFilename()).toBe('contigo-negocios-cerrados-2026-01-01-a-2026-12-31.csv')
-    const res = await page.request.get(href!)
+    const res = await page.request.get(`${href}&motivo=Revisi%C3%B3n+de+prueba+del+reporte`)
     expect(res.status()).toBe(200)
     expect(res.headers()['content-type']).toContain('text/csv')
     const lines = (await res.text()).replace(/^﻿/, '').trimEnd().split('\r\n')
@@ -118,7 +122,7 @@ test.describe('negocios cerrados', () => {
     for (const row of await page.getByTestId('closed-person').all()) await expect(row).toContainText('D2D Centro')
     await expect(page.getByTestId('closed-list')).not.toContainText('Cadenas y distribuidores')
     const total = int(await page.getByTestId('closed-won').innerText()) + int(await page.getByTestId('closed-lost').innerText())
-    const res = await page.request.get('/reportes/cerrados/export?periodo=rango&desde=2026-01-01&hasta=2026-12-31')
+    const res = await page.request.get('/reportes/cerrados/export?periodo=rango&desde=2026-01-01&hasta=2026-12-31&motivo=Revisi%C3%B3n+de+prueba+del+reporte')
     expect(res.status()).toBe(200)
     expect((await res.text()).trimEnd().split('\r\n').length - 1).toBe(total)
     expect((await lastExport())!.actor).toBe('Fernando Ibarra')
@@ -250,23 +254,21 @@ test.describe('panel del LT', () => {
 })
 
 test.describe('adopción', () => {
-  test('leadership ve quién entró, cuándo fue la última vez y cuántas actividades registró; supervisión no', async ({ page }) => {
-    await loginAs(page, 'marco.pena')
+  // Cambiado a propósito por el paquete `reportes` (GOB-03): Adopción ya no cuenta ingresos (el catálogo lo marca como lo que
+  // no hay que medir). Mide uso real: actividades registradas, próximo paso al día y leads atendidos a tiempo. Supervisión ve a su equipo.
+  test('leadership ve el uso real por persona, sin ingresos; quien lidera ve su mercado y supervisión, su equipo', async ({ page }) => {
     await loginAs(page, 'luis.tovar', { stay: true })
     await page.getByTestId('lt-adoption-link').click()
     await expect(page.locator('h1')).toHaveText('Adopción')
     const people = int(await page.getByTestId('adoption-people').innerText())
     await expect(page.getByTestId('adoption-row')).toHaveCount(people)
     const marco = page.getByTestId('adoption-row').filter({ hasText: 'Marco Peña' })
-    await expect(marco).toContainText('Ventas · MX · D2D Centro')
-    expect(int(await marco.getByTestId('adoption-logins').innerText())).toBeGreaterThan(0)
-    await expect(marco.getByTestId('adoption-last')).not.toContainText('Nunca')
+    await expect(marco).toContainText('D2D Centro')
+    await expect(marco.getByTestId('adoption-week')).toBeVisible()
     await expect(page.getByTestId('adoption-list')).not.toContainText('CONTIGO (sistema)')
-    const never = int(await page.getByTestId('adoption-never').innerText())
-    await page.getByTestId('pill-nunca').click()
-    await expect(page).toHaveURL(/ver=nunca/)
-    await expect(page.getByTestId('adoption-row')).toHaveCount(never)
-    for (const row of await page.getByTestId('adoption-row').all()) await expect(row.getByTestId('adoption-last')).toContainText('Nunca ha entrado')
+    await expect(page.getByTestId('adoption-logins')).toHaveCount(0)
+    await expect(page.locator('main')).not.toContainText('Último ingreso')
+    await expect(page.getByTestId('adoption-note')).toContainText('no se cuentan ingresos')
 
     // quien lidera México ve solo a la gente de México
     await loginAs(page, 'ana.robles')
@@ -275,8 +277,11 @@ test.describe('adopción', () => {
     await expect(page.getByTestId('adoption-row').filter({ hasText: 'Sam Ortiz' })).toHaveCount(0)
     await expect(page.getByTestId('adoption-row').filter({ hasText: 'Nora Salas' })).toHaveCount(0)
 
+    // supervisión ve a su equipo, no al otro
     await loginAs(page, 'fernando.ibarra')
-    expect((await page.goto('/reportes/adopcion'))?.status()).toBe(404)
+    expect((await page.goto('/reportes/adopcion'))?.status()).toBe(200)
+    await expect(page.getByTestId('adoption-row').filter({ hasText: 'Marco Peña' })).toHaveCount(1)
+    await expect(page.getByTestId('adoption-row').filter({ hasText: 'Diana Cruz' })).toHaveCount(0)
   })
 })
 
@@ -448,14 +453,14 @@ test.describe('reporte semanal de campo', () => {
     await expect(page).toHaveURL(/por=plaza/)
     await expect(page.getByTestId('field-places')).toContainText('Por plaza')
 
-    const href = await page.getByTestId('export-visits').getAttribute('href')
-    const res = await page.request.get(href!)
+    const href = await page.getByTestId('export-visits').getAttribute('data-href')
+    const res = await page.request.get(`${href}&motivo=Revisi%C3%B3n+de+prueba+del+reporte`)
     expect(res.status()).toBe(200)
     const lines = (await res.text()).replace(/^﻿/, '').trimEnd().split('\r\n')
     expect(lines[0]).toBe('Semana (lunes),Mercado,Equipo,Persona,Quién visitó,Visitas,Visitas con venta')
     expect(lines.length).toBeGreaterThan(1)
     expect(await lastExport()).toMatchObject({ actor: 'Ana Robles', market_code: 'MX', after: { report: 'field_visits', rows: lines.length - 1, filters: { weeks: 8, by: 'plaza' } } })
-    const stores = await page.request.get((await page.getByTestId('export-stores').getAttribute('href'))!)
+    const stores = await page.request.get(`${await page.getByTestId('export-stores').getAttribute('data-href')}&motivo=Revisi%C3%B3n+de+prueba+del+reporte`)
     expect((await stores.text()).replace(/^﻿/, '').split('\r\n')[0]).toBe('Semana (lunes),Mercado,Plaza,Puntos de venta dados de alta,Negocios ganados')
     expect((await lastExport())!.after.report).toBe('field_stores')
   })

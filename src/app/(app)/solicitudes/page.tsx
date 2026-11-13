@@ -1,7 +1,7 @@
 import { requireCtx } from '@/server/context'
 import { readerTimeZone } from '@/server/timezone'
 import { maintenance, materials, myChampions, myConfigRequests, releases } from '@/dal/gobierno'
-import { REQUEST_KINDS } from '@/domain/gobierno'
+import { REQUEST_KINDS } from '@/domain/gobierno-ops'
 import { REQUEST_MUST_INCLUDE, WHO_DOES_WHAT } from '@/content/who-does-what'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'

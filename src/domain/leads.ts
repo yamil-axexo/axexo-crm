@@ -2,6 +2,7 @@ import 'server-only'
 import { saveFormAnswers } from '@/domain/b2b'
 import { CONTACT_ROLES } from '@/domain/accounts'
 import { z } from 'zod'
+import { markUntrusted, plainText } from '@/domain/untrusted'
 import { marketToday, marketWorkday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
@@ -10,6 +11,9 @@ import { toE164 } from '@/lib/format'
 import { assertNoProhibited } from '@/domain/guard'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { territoryFor, type Territory } from '@/lib/territory'
+import { notify, notifyOutside } from '@/domain/notify'
+import { isWebSource, type WebSource } from '@/lib/lead-source'
+import { applyTerritoryOwners } from '@/domain/mx-config'
 
 export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
 
@@ -106,11 +110,11 @@ async function insertLead(
   tx: Tx,
   ctx: Ctx,
   v: z.output<typeof leadInput>,
-  opts: { source: (typeof MANUAL_SOURCES)[number] | 'web_form'; formId: string | null; ownerId: string | null; slaMinutes: number; origin?: Origin; accountType?: string | null },
+  opts: { source: (typeof MANUAL_SOURCES)[number] | WebSource | 'import'; formId: string | null; ownerId: string | null; slaMinutes: number; origin?: Origin; accountType?: string | null },
 ): Promise<string> {
   // SEC-08: lo que captura una persona se rechaza con explicación; lo que llega del formulario público se guarda sin el dato
   // prohibido, para no perder el lead por un texto que escribió el comercio.
-  const byHand = opts.source !== 'web_form'
+  const byHand = !isWebSource(opts.source)
   if (byHand) assertNoProhibited(v.message, v.businessName, v.contactName)
   else v = { ...v, message: v.message ? scrub(v.message) : v.message }
   const market = ctx.market(v.market)
@@ -148,7 +152,7 @@ async function insertLead(
   await audit(tx, ctx, 'lead.created', 'lead', id, v.market, null, {
     source: opts.source, motor: v.motor, owner_id: opts.ownerId, ...(spoke ? { contacted: true } : {}),
     ...(o.utm_source ? { utm_source: o.utm_source } : {}), ...(o.utm_campaign ? { utm_campaign: o.utm_campaign } : {}),
-    ...(opts.source === 'web_form' ? { consent: Boolean(o.consentAt) } : {}),
+    ...(isWebSource(opts.source) ? { consent: Boolean(o.consentAt) } : {}),
   })
   if (spoke) {
     // Fue en persona, no una llamada: queda como reunión con la marca "en persona" (el hilo dice "En persona").
@@ -159,8 +163,42 @@ async function insertLead(
   }
   await emit(tx, 'lead.created', 'lead', id, v.market, { source: opts.source, motor: v.motor })
   // Aviso para otros sistemas: a quién se le asignó. Cuando se conecte un canal (correo, Slack), sale de aquí sin tocar el producto.
-  if (opts.ownerId) await emit(tx, 'lead.assigned', 'lead', id, v.market, { owner_id: opts.ownerId, by: opts.source === 'web_form' ? 'routing' : 'creation', motor: v.motor, sla_due: !spoke })
+  if (opts.ownerId) await emit(tx, 'lead.assigned', 'lead', id, v.market, { owner_id: opts.ownerId, by: isWebSource(opts.source) ? 'routing' : 'creation', motor: v.motor, sla_due: !spoke })
+  // E15.F9: a quien le toca el lead se le avisa al llegar (no a quien lo capturó para sí).
+  if (opts.ownerId && opts.ownerId !== ctx.user.id) await leadArrived(tx, ctx, { id, market: v.market, to: opts.ownerId, name: v.businessName })
+  // E15.F8 / E13.F3: bienvenida (si el mercado la tiene) o acuse al lead web. Con el correo apagado queda en la cola y no sale.
+  // Integración: un lead de campaña (web_campaign, paquete mx) es tan web como el del formulario de siempre: también recibe bienvenida o acuse.
+  if (isWebSource(opts.source)) {
+    const welcome = await tx`select 1 from crm.message_templates where key = 'lead_welcome' and is_current and is_active and market_code = ${v.market} limit 1`
+    await notifyOutside(tx, ctx, {
+      kind: 'lead_arrived', template: welcome[0] ? 'lead_welcome' : 'lead_web_ack', market: v.market, recipient: 'lead', address: clean(v.email), locale: market.locale === 'en' ? 'en' : 'es',
+      consent: Boolean(o.consentAt), leadId: id, vars: { comercio: v.businessName, contacto: v.contactName, mercado: market.name },
+    })
+  }
   return id
+}
+
+/** Aviso de que un lead le llegó a una persona. La meta de primer contacto ya corre: va por los canales que eligió. */
+export async function leadArrived(tx: Tx, actor: { user: { id: string; name?: string } }, p: { id: string; market: string; to: string; name: string }): Promise<void> {
+  await notify(tx, actor, {
+    to: p.to, kind: 'lead_arrived', market: p.market, link: `/leads/${p.id}`, leadId: p.id,
+    title: [`Te llegó un lead: ${p.name}`, `A lead arrived: ${p.name}`],
+    body: ['La meta de primer contacto ya está corriendo. Está en Leads y en Hoy.', 'The first-contact goal is already running. It is in Leads and in Today.'],
+  })
+}
+
+/**
+ * AUT-07: un lead que entra por archivo. Pasa por las mismas reglas que el alta a mano (requeridos, teléfono, tipo de venta,
+ * datos prohibidos), nace con fuente "import", sin dueño (lo ve todo el mercado y se reparte) y con su marca de texto de fuera.
+ */
+export async function createImportedLead(ctx: Ctx, input: LeadInput): Promise<string> {
+  const v = leadInput.parse(input)
+  ctx.assert('data.import', v.market)
+  return withUser(ctx.user.id, async (tx) => {
+    const id = await insertLead(tx, ctx, { ...v, alreadyContacted: false }, { source: 'import', formId: null, ownerId: null, slaMinutes: 60 })
+    await markUntrusted(tx, 'lead', id, v.market, 'csv_import', ['business_name', 'contact_name', ...(v.locality ? ['locality'] : []), ...(v.message ? ['message'] : [])])
+    return id
+  })
 }
 
 export async function createLead(ctx: Ctx, input: LeadInput): Promise<string> {
@@ -180,6 +218,8 @@ const formPayload = z.object({
   locality: z.string().trim().max(120).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
   website: z.string().max(0).optional().default(''), // trampa para bots: debe llegar vacío
+  // Tipo de empresa (E15.F3): solo cuenta si el formulario lo ofrece; un valor que no está en su lista se ignora.
+  company_type: z.preprocess((v) => (typeof v === 'string' ? v.trim().slice(0, 41) : ''), z.string()),
   // Origen (E3.F6). Son opcionales y nunca tumban el lead: un valor demasiado largo se recorta.
   ...(Object.fromEntries(ATTRIBUTION_KEYS.map((k) => [k, attributionValue])) as Record<AttributionKey, typeof attributionValue>),
   // Consentimiento para recibir correos (E3.F7). La página manda la casilla ("on"); la API manda true y, si lo tiene,
@@ -202,10 +242,10 @@ export const CONSENT_TEXT = {
 export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idempotencyKey: string): Promise<{ leadId: string; duplicate: boolean; merged?: boolean }> {
   const parsed = formPayload.safeParse(raw)
   if (!parsed.success) throw invalid('Revisa los datos del formulario.', 'Check the form fields.')
-  const p = parsed.data
+  const p = { ...parsed.data, business_name: plainText(parsed.data.business_name), contact_name: plainText(parsed.data.contact_name), locality: plainText(parsed.data.locality), message: plainText(parsed.data.message) }
   return withUser(sys.user.id, async (tx) => {
-    const forms = await tx<{ id: string; market_code: string; motor: string; routing_rule_id: string | null; locale: string; account_type: string | null }[]>`
-      select id, market_code, motor, routing_rule_id, locale, account_type from crm.web_forms where slug = ${slug} and is_active`
+    const forms = await tx<{ id: string; market_code: string; motor: string; routing_rule_id: string | null; locale: string; account_type: string | null; funnel: string | null; channel_id: string | null; is_campaign: boolean; offer_types: string[] }[]>`
+      select id, market_code, motor, routing_rule_id, locale, account_type, funnel, channel_id, is_campaign, offer_types from crm.web_forms where slug = ${slug} and is_active`
     const form = forms[0]
     if (!form) throw notFound('Ese formulario no existe o está apagado.', 'That form does not exist or is turned off.')
     const seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
@@ -244,10 +284,16 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       tx,
       sys,
       { market: form.market_code, motor: form.motor, businessName: p.business_name, contactName: p.contact_name, phone: p.phone, email: p.email, locality: p.locality, message: p.message, source: 'manual', alreadyContacted: false },
-      { source: 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin, accountType: form.account_type },
+      // Un formulario de campaña deja el origen "Campaña web" (E15.F2). El tipo de empresa que eligió la persona manda sobre el del formulario (E15.F3).
+      { source: form.is_campaign ? 'web_campaign' : 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin, accountType: form.offer_types.includes(p.company_type) ? p.company_type : form.account_type },
     )
+    // El lead lleva el embudo de campaña y el identificador de canal de su formulario (E15.F1): se filtran y se reportan.
+    if (form.funnel || form.channel_id) await tx`update crm.leads set funnel = ${form.funnel}, channel_id = ${form.channel_id} where id = ${leadId}`
     // Lo que este formulario pide además de lo básico (por ejemplo, lo mínimo para calificar una cuenta B2B) queda en el lead.
     await saveFormAnswers(tx, leadId, form.id, raw)
+    // IA-07: todo lo que escribió quien llenó el formulario queda marcado con su origen (página pública o API del sitio).
+    await markUntrusted(tx, 'lead', leadId, form.market_code, idempotencyKey.startsWith('api:') ? 'api_form' : 'web_form',
+      ['business_name', 'contact_name', ...(p.locality ? ['locality'] : []), ...(p.message ? ['message'] : []), 'answers'])
     await tx`update crm.inbound_events set status = 'processed', processed_at = now(), payload = ${tx.json({ form: slug, lead_id: leadId })}
              where id = ${seen[0].id}`
     return { leadId, duplicate: false }
@@ -303,6 +349,12 @@ async function repeatRequest(
                      ${en ? `Answer the second web request: ${lead.business_name}` : `Responder segunda solicitud web: ${lead.business_name}`}, ${body},
                      ((${marketToday(tx, form.market_code)} + time '15:00') at time zone 'UTC'), ${holder}, ${sys.user.id}, 'rule')`
   }
+  if (holder)
+    await notify(tx, sys, {
+      to: holder, kind: 'lead_repeat', market: form.market_code, link: lead.account_id ? `/comercios/${lead.account_id}` : `/leads/${lead.id}`, leadId: lead.id, accountId: lead.account_id,
+      title: [`Segunda solicitud web: ${lead.business_name}`, `Second web request: ${lead.business_name}`],
+      body: ['La misma empresa volvió a escribir. La tarea para responder está en Hoy.', 'The same business wrote again. The task to answer is in Today.'],
+    })
   await audit(tx, sys, 'lead.repeat_request', 'lead', lead.id, form.market_code, null, { form_id: form.id, person_added: !known, task_for: holder })
   return lead.id
 }
@@ -359,7 +411,12 @@ export async function takeLead(ctx: Ctx, leadId: string): Promise<void> {
 }
 
 export async function assignLead(ctx: Ctx, leadId: string, ownerId: string): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
+  await withUser(ctx.user.id, (tx) => assignLeadTx(tx, ctx, leadId, ownerId))
+}
+
+/** La misma asignación dentro de una transacción que ya existe: la usan la pantalla y las automatizaciones (AUT-01). */
+export async function assignLeadTx(tx: Tx, ctx: Ctx, leadId: string, ownerId: string): Promise<void> {
+  {
     const lead = await loadLead(tx, leadId)
     ctx.assert('lead.assign', lead.market_code)
     const ok = await tx`select 1 from crm.memberships m where m.user_id = ${ownerId} and m.market_code = ${lead.market_code}
@@ -368,7 +425,8 @@ export async function assignLead(ctx: Ctx, leadId: string, ownerId: string): Pro
     await tx`update crm.leads set owner_id = ${ownerId}, assigned_at = now() where id = ${leadId}`
     await audit(tx, ctx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: ownerId })
     await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ownerId, previous_owner_id: lead.owner_id, by: 'assignment', motor: lead.motor })
-  })
+    if (ownerId && ownerId !== ctx.user.id) await leadArrived(tx, ctx, { id: leadId, market: lead.market_code, to: ownerId, name: lead.business_name })
+  }
 }
 
 /** Antes de convertir se puede corregir el tipo de venta, el tipo de cuenta y el rol del contacto: un lead mal clasificado no se queda atascado. */
@@ -430,6 +488,7 @@ export async function passLead(ctx: Ctx, leadId: string, toUserId: string, note:
     await audit(tx, ctx, 'lead.passed', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: toUserId, note: text.slice(0, 200), clock_restarted: clock })
     await tx`select app.hand_lead(${leadId}, ${toUserId}::uuid)`
     await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: toUserId, previous_owner_id: lead.owner_id, by: 'passed', motor: lead.motor })
+    if (toUserId !== ctx.user.id) await leadArrived(tx, ctx, { id: leadId, market: lead.market_code, to: toUserId, name: lead.business_name })
   })
 }
 
@@ -576,8 +635,8 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
         await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${contactId}, ${lead.market_code}, ${person.role})`
       }
       await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
-        (${accountId}, ${lead.market_code}, 'origin', ${lead.source === 'web_form' ? 'form' : 'user'}, ${lead.form_id ?? ctx.user.id},
-         ${lead.source === 'web_form' ? 'Formulario web' : ctx.user.name}, ${ctx.user.id}),
+        (${accountId}, ${lead.market_code}, 'origin', ${isWebSource(lead.source) ? 'form' : 'user'}, ${lead.form_id ?? ctx.user.id},
+         ${lead.source === 'web_campaign' ? 'Campaña web' : lead.source === 'web_form' ? 'Formulario web' : ctx.user.name}, ${ctx.user.id}),
         (${accountId}, ${lead.market_code}, 'channel', 'team', ${pipe.motor}, ${pipe.motor.toUpperCase()}, ${ctx.user.id}),
         (${accountId}, ${lead.market_code}, 'owner', 'user', ${ownerId}, (select full_name from crm.users where id = ${ownerId}), ${ctx.user.id})`
     }
@@ -606,9 +665,11 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     if (lead.message && lead.message.trim()) {
       await tx`insert into crm.activities (market_code, lead_id, account_id, deal_id, kind, subject, body, done_at, owner_id, created_by, source)
                values (${lead.market_code}, ${leadId}, ${accountId}, ${dealId}, 'note',
-                       ${lead.source === 'web_form' ? ctx.t('Mensaje del formulario', 'Message from the form') : ctx.t('Mensaje del lead', 'Message on the lead')},
+                       ${isWebSource(lead.source) ? ctx.t('Mensaje del formulario', 'Message from the form') : ctx.t('Mensaje del lead', 'Message on the lead')},
                        ${lead.message.trim().slice(0, 1000)}, ${lead.created_at}, ${ownerId}, ${ctx.user.id}, 'rule')`
     }
+    // E16.F2: una tienda de venta puerta a puerta es del gerente de su territorio, también cuando nace de un lead.
+    if (!opts.linkAccountId) await applyTerritoryOwners(tx, [accountId])
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`
     await audit(tx, ctx, 'lead.converted', 'lead', leadId, lead.market_code, { status: 'qualified' },
       { status: 'converted', account_id: accountId, deal_id: dealId, pipeline_id: pipe.id, account_type: opts.linkAccountId ? null : accountType, contact_role: opts.linkAccountId ? null : role.data, history_moved: moved.count })

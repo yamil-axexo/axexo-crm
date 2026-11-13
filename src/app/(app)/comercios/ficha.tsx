@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { CalendarPlus, MapPinCheck, MessageCircle, MessageSquareText, Navigation, Phone, StickyNote, X } from 'lucide-react'
 import type { Ctx } from '@/server/context'
+import { untrustedMark } from '@/dal/untrusted'
+import { UntrustedTag } from '@/ui/untrusted'
 import { getAccount } from '@/dal/accounts'
 import { sellers } from '@/dal/leads'
 import { fieldDefs, fieldApplies } from '@/dal/fields'
@@ -12,14 +14,20 @@ import { Badge, Field, KeyVal, LinkButton, cx, NoData } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CompleteButton } from '@/ui/complete'
 import { CallLink, LogButton } from '@/ui/log'
-import { ConfirmButton, CopyButton } from '@/ui/confirm'
+import { ConfirmButton } from '@/ui/confirm'
 import { ago, day, isoDay, offsetMs, money, monthYear, num, phoneText, threadDate, weekday, zoneNote } from '@/lib/format'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
-import { ACTIVITY, ALIAS_SYSTEM, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
+import { ACTIVITY, ATTRIBUTION_LAYER, CONTACT_ROLE, KIND, LIFECYCLE, MOTOR, lab } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
-import { addContactAction, setParentAction, updateAccountAction } from './actions'
+import { addContactAction, updateAccountAction } from './actions'
+import { moveInTreeAction } from '@/app/(app)/datos/actions'
+import { accountIdentity, nodeTotals } from '@/dal/datos'
+import { contactRolesFor } from '@/lib/datos-labels'
+import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSection, ProductsSection, TreeTotals } from './datos-ficha'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
+import { AccountOrders, LastOrderLine } from './pedidos'
+import { StoreProviders } from './proveedores'
 import { createDealAction } from '@/app/(app)/pipelines/actions'
 import { StagePicker } from '@/ui/ops'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
@@ -46,6 +54,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const { t, m, locale } = ctx
   const { account: a, ancestors, rollup, children, contacts, aliases, attributions, deals, metrics, tasks, timeline, pipelines } = data
   const market = ctx.market(a.market_code)
+  // IA-07: si el nombre o la dirección llegaron de fuera (Sales App, archivo), se dice junto al nombre.
+  const untrusted = await untrustedMark(ctx, 'account', a.id)
   const tz = market.timezone
   const now = new Date()
   const canWrite = !a.archived_at && ctx.can('activity.write', a.market_code)
@@ -111,14 +121,14 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const h3 = 'text-[15px] leading-6 font-semibold'
 
   type Item = (typeof timeline)[number]
-  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null; type_label?: string | null }
+  type Meta = { origin?: string | null; outcome?: string | null; visited_by?: string | null; rejection?: string | null; rejection_es?: string | null; rejection_en?: string | null; revisit?: boolean; minutes?: number | null; cause?: string; from?: string | null; won_on?: string | null; type_label?: string | null; purpose_es?: string | null; purpose_en?: string | null }
   const meta = (it: Item) => it.meta as Meta
   // Una visita dice de dónde viene: la que alguien registró en CONTIGO o la que llegó de la Sales App.
   const manualVisit = (it: Item) => it.kind === 'visit' && meta(it).origin === 'manual'
   const outcomeText = (o: string | null | undefined) => (o && o !== 'done' ? m(`complete.result.${o}` as MessageKey) : null)
   const visitText = (it: Item) => {
     const v = meta(it)
-    if (manualVisit(it)) return [t('Visita', 'Visit'), outcomeText(v.outcome), v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null].filter(Boolean).join(' · ')
+    if (manualVisit(it)) return [t('Visita', 'Visit'), v.purpose_es ? t(v.purpose_es, v.purpose_en ?? v.purpose_es) : null, outcomeText(v.outcome), v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null].filter(Boolean).join(' · ')
     const base = it.title === 'sale' ? t('Visita con venta', 'Visit with a sale') : t('Visita sin venta', 'Visit with no sale')
     const why = v.rejection ? t(v.rejection_es ?? v.rejection, v.rejection_en ?? v.rejection) : null
     return `${base}${why ? ` · ${why}` : ''}${v.revisit ? ` · ${t('pide revisita', 'needs a revisit')}` : ''}${v.minutes ? ` · ${v.minutes} min` : ''}`
@@ -139,7 +149,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   }
   const threadWho = (it: Item) =>
     it.kind === 'stage' && meta(it).cause === 'transaction' ? t('Primera transacción', 'First transaction')
-      : manualVisit(it) ? [t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
+      // Una visita que llegó de la hoja del equipo de campo lo dice (paquete mx): no se confunde con una capturada en la pantalla.
+      : manualVisit(it) ? [(meta(it) as { source?: string }).source === 'import' ? t('Cargada de la hoja', 'Loaded from the sheet') : t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
         : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}`
           : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
   // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.
@@ -156,6 +167,13 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   // Los campos de un tipo de venta (los de B2B) solo salen en cuentas de ese tipo de venta, y los condicionados, cuando aplican.
   const defs = tab === 'datos' ? (await fieldDefs(ctx, 'account', a.market_code, a.segment)).filter((d) => fieldApplies(d, a.custom)) : []
   const typeName = a.type_es ? t(a.type_es, a.type_en ?? a.type_es) : lab(t, KIND[a.kind])
+  // Paquete datos: identidad del comercio (movimientos en el árbol, contactos, ID de otros sistemas, productos, procesos, fusiones)
+  // y lo que suma el nodo con todo lo que cuelga de él.
+  const identity = tab === 'datos' || tab === 'arbol' ? await accountIdentity(ctx, a.id, a.market_code) : null
+  const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id) : null
+  const canAlias = !a.archived_at && ctx.can('alias.manage', a.market_code)
+  const canProducts = !a.archived_at && ctx.can('account.products', a.market_code)
+  const contactRoles = contactRolesFor(a.segment, Object.keys(CONTACT_ROLE))
   const config = tab === 'hilo' && canWrite && tasks.length ? sheetConfig(ctx, now) : null
 
   return (
@@ -165,6 +183,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           <div className="min-w-0">
             <p className="eyebrow" data-testid="ficha-type">{[typeName, size, ctx.markets.length > 1 ? market.name : null].filter(Boolean).join(' · ')}</p>
             <Title id="ficha-title" className="mt-0.5 text-[22px] leading-[30px] font-semibold break-words">{a.name}</Title>
+            {untrusted && <UntrustedTag t={t} origin={untrusted.origin} />}
           </div>
           <Link href={closeHref} aria-label={m('record.close')} title={m('record.close')} className="press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-line bg-surface text-strong hover:bg-green-50" data-testid="ficha-close">
             <X size={20} strokeWidth={1.75} aria-hidden />
@@ -235,6 +254,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             )}
           </p>
         </div>
+        <LastOrderLine ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
       </div>
 
       {/* Arriba, contactar (llamar, WhatsApp, mensaje de texto); abajo, dejar registro (visita, nota, actividad). */}
@@ -365,6 +385,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </p>
             </div>
           )}
+          {identity && (totals || identity.moves.length > 0) && <TreeTotals ctx={ctx} totals={totals} moves={identity.moves} tz={tz} />}
           {ancestors.length + children.length === 0 ? (
             <p className="text-[15px] text-muted">{m('record.tree.alone')}</p>
           ) : (
@@ -479,6 +500,9 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             </section>
           )}
 
+          <StoreProviders ctx={ctx} accountId={a.id} />
+          <AccountOrders ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
+
           <section className={section} data-testid="account-contacts">
             <div className="flex items-center justify-between gap-3">
               <h3 className={h3}>{t('Contactos', 'Contacts')}</h3>
@@ -487,8 +511,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                   <ActionForm action={addContactAction} onOk="close" className="grid grid-cols-2 gap-4">
                     <input type="hidden" name="account_id" value={a.id} />
                     <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="full_name" className="input" required minLength={2} data-testid="contact-name" /></Field>
-                    <Field label={t('Rol', 'Role')}><select name="role" className="input" data-testid="contact-role">{Object.entries(CONTACT_ROLE).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
-                    <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="contact-phone" /></Field>
+                    <Field label={t('Rol', 'Role')}><select name="role" className="input" data-testid="contact-role">{contactRoles.map((k) => <option key={k} value={k}>{lab(t, CONTACT_ROLE[k])}</option>)}</select></Field>
+                    <Field label={t('Teléfono', 'Phone')} hint={t('Si esa persona ya es contacto de otra cuenta con este teléfono, se liga a esta: no se captura dos veces.', 'If that person is already a contact of another account with this phone, they are linked to this one: no second entry.')}><input name="phone" className="input" inputMode="tel" data-testid="contact-phone" /></Field>
                     <Field label={t('Correo', 'Email')} className="col-span-2"><input name="email" type="email" className="input" /></Field>
                     <Field label={t('Idioma preferido', 'Preferred language')} className="col-span-2 sm:col-span-1">
                       <select name="locale" className="input" defaultValue="" data-testid="contact-locale"><option value="">{t('Sin dato', 'Not set')}</option><option value="es">{t('Español', 'Spanish')}</option><option value="en">{t('Inglés', 'English')}</option></select>
@@ -521,10 +545,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                       <Submit variant="quiet" size="sm" testId="contact-make-primary">{t('Hacer principal', 'Make primary')}</Submit>
                     </ActionForm>
                   )}
+                  {identity && <ContactTools ctx={ctx} accountId={a.id} segment={a.segment} contact={c} others={identity.otherAccounts.get(c.id) ?? []} canEdit={canEdit} />}
                 </li>
               ))}
               {contacts.length === 0 && <li className="text-[15px] text-muted">{t('Sin contactos todavía.', 'No contacts yet.')}</li>}
             </ul>
+            {identity && <ContactHistory ctx={ctx} identity={identity} tz={tz} />}
           </section>
 
           <section className={section} data-testid="account-attribution">
@@ -542,19 +568,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
           </section>
 
           <section className={section} data-testid="account-aliases">
-            <h3 className={h3}>{t('IDs en otros sistemas', 'IDs in other systems')}</h3>
-            <p className="text-[13px] text-muted">{t('Este comercio tiene un solo ID en CONTIGO; los demás sistemas se ligan como alias.', 'This merchant has one ID in CONTIGO; other systems link to it as aliases.')}</p>
-            <dl className="mt-2">
-              <KeyVal k="CONTIGO"><code className="text-[13px]">{a.id.slice(0, 13)}…</code></KeyVal>
-              {aliases.map((al, i) => (
-                <KeyVal key={i} k={ALIAS_SYSTEM[al.system] ?? al.system}>
-                  <code className="text-[13px]" data-testid="alias-value">{al.external_id}</code>
-                  <CopyButton value={al.external_id} label={t(`Copiar el ID de ${ALIAS_SYSTEM[al.system] ?? al.system}`, `Copy the ${ALIAS_SYSTEM[al.system] ?? al.system} ID`)} done={t('ID copiado.', 'ID copied.')} />
-                </KeyVal>
-              ))}
-            </dl>
-            {aliases.length === 0 && <p className="mt-2 text-[13px] text-muted">{t('Todavía no existe en la Sales App ni en los datos de ventas.', 'It is not in the Sales App or the sales data yet.')}</p>}
+            {identity && <AliasSection ctx={ctx} accountId={a.id} identity={identity} canManage={canAlias} canInternal={ctx.can('integration.operate', a.market_code)} tz={tz} />}
           </section>
+
+          {identity && <ProductsSection ctx={ctx} accountId={a.id} identity={identity} canManage={canProducts} />}
+          {identity && <ProcessSection ctx={ctx} accountId={a.id} identity={identity} canEdit={canEdit} />}
+          {identity && <MergeSection ctx={ctx} accountId={a.id} identity={identity} tz={tz} />}
 
           {defs.length > 0 && (
             <section className={section} data-testid="account-custom">
@@ -592,7 +611,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <div className="mt-3 flex justify-end"><Submit variant="ghost" size="sm" testId="type-save">{t('Guardar tipo', 'Save type')}</Submit></div>
               </ActionForm>
               {canTree && (
-                <ActionForm action={setParentAction} className="mt-6 border-t border-line pt-5">
+                <ActionForm action={moveInTreeAction} className="mt-6 border-t border-line pt-5" testId="parent-form">
                   <input type="hidden" name="id" value={a.id} />
                   <Field label={t('Pertenece a', 'Belongs to')} hint={canReassign ? undefined : t('Puedes armar el árbol con cuentas que son tuyas.', 'You can build the tree with accounts that are yours.')}>
                     <select name="parent_id" className="input" defaultValue={a.parent_id ?? ''} data-testid="parent-select">
@@ -601,6 +620,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                       {parents.filter((p) => p.id !== a.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </Field>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-[1fr_auto]">
+                    <Field label={a.parent_id ? t('¿Por qué se mueve?', 'Why is it moving?') : t('Motivo (opcional la primera vez)', 'Reason (optional the first time)')} hint={t('Queda en la historia del árbol. La cuenta conserva su historia, su atribución y a quien la lleva.', 'It stays in the tree history. The account keeps its history, its attribution and its owner.')}>
+                      <input name="reason" className="input" required={!!a.parent_id} minLength={5} maxLength={300} data-testid="parent-reason" />
+                    </Field>
+                    <Field label={t('Fecha efectiva', 'Effective date')}><input name="effective_on" type="date" className="input" defaultValue={today} max={today} data-testid="parent-date" /></Field>
+                  </div>
                   <div className="mt-3 flex justify-end"><Submit variant="ghost" size="sm" testId="parent-save">{t('Mover en el árbol', 'Move in the tree')}</Submit></div>
                 </ActionForm>
               )}

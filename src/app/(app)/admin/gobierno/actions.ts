@@ -7,7 +7,7 @@ import {
   addCost, annotateChange, announceRelease, checkReleaseItem, createRelease, decideConfigRequest, markReleased, openIncident, recordChampionReview,
   recordDeployment, recordRestoreTest, removeMaterial, saveMaterial, scheduleMaintenance, setChampion, setComponentOwners, setMaintenanceStatus,
   setObjective, updateIncident, voidCost,
-} from '@/domain/gobierno'
+} from '@/domain/gobierno-ops'
 import { invalid, type ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>

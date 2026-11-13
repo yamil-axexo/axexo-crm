@@ -416,8 +416,8 @@ create policy config_requests_decide on crm.config_requests for update to contig
   using ((select app.is_admin())) with check ((select app.is_admin()) and decided_by = (select app.current_user_id()));
 
 -- Un campo nuevo lleva escrito para qué sirve y, si nació de una solicitud, cuál.
+-- El para qué y la decisión del campo ya viven en crm.field_definitions (0023_datos); aquí solo se enlaza la solicitud que lo pidió.
 alter table crm.field_definitions
-  add column purpose text check (purpose is null or char_length(purpose) between 10 and 1000),
   add column request_id uuid references crm.config_requests(id);
 
 -- ------------------------------------------------------------------ E7.F7: el motivo de cada cambio de configuración

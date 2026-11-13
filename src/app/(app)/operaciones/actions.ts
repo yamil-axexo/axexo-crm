@@ -1,9 +1,10 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
+import { moveMessage } from '@/lib/steps'
 import { moveDeal, updateDeal } from '@/domain/deals'
 import { updateCustom } from '@/domain/custom'
-import { addDealItem, bulkCloseLost, markNoticeSeen, removeDealItem, saveOpsCatalog, saveProduct, setMerchantRef, setOpsCheck, setOpsStep, setPipelineFlags, setTraining, takeDeal } from '@/domain/ops'
+import { addDealItem, bulkCloseLost, markNoticeSeen, removeDealItem, saveOpsCatalog, saveProduct, setMerchantRef, setOpsCheck, setOpsStep, setPipelineFlags, setTraining, takeDeal, saveOrderDetails, saveVisitReason } from '@/domain/ops'
 import type { ActionResult } from '@/lib/errors'
 import { day } from '@/lib/format'
 
@@ -50,8 +51,25 @@ export async function merchantRefAction(_: R | null, fd: FormData): Promise<R> {
 export async function addItemAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const price = str(fd, 'unit_price').trim()
-    await addDealItem(ctx, str(fd, 'deal_id'), { productId: str(fd, 'product_id'), quantity: number(str(fd, 'quantity') || '0'), unitPrice: price === '' ? null : number(price) })
+    const discount = str(fd, 'discount').trim()
+    await addDealItem(ctx, str(fd, 'deal_id'), { productId: str(fd, 'product_id'), quantity: number(str(fd, 'quantity') || '0'), unitPrice: price === '' ? null : number(price), discountPct: discount === '' ? 0 : number(discount) })
     return { message: ['Línea agregada. El monto del negocio es la suma de sus líneas.', 'Line added. The deal amount is the sum of its lines.'] }
+  })
+}
+
+/** Datos de envío del pedido (E11.F1). */
+export async function saveOrderAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await saveOrderDetails(ctx, str(fd, 'deal_id'), { carrier: str(fd, 'carrier'), customerNumber: str(fd, 'customer_number'), dueOn: str(fd, 'due_on'), poNumber: str(fd, 'po_number'),
+      shipTo: str(fd, 'ship_to'), terms: str(fd, 'terms'), description: str(fd, 'description') })
+    return { message: ['Datos del pedido guardados.', 'Order details saved.'] }
+  })
+}
+
+export async function saveVisitReasonAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await saveVisitReason(ctx, { id: str(fd, 'id'), market: str(fd, 'market'), labelEs: str(fd, 'label_es'), labelEn: str(fd, 'label_en'), campaign: fd.get('campaign') === 'on', active: str(fd, 'id') ? fd.get('active') === 'on' : true })
+    return { message: ['Propósito de visita guardado.', 'Visit purpose saved.'] }
   })
 }
 
@@ -65,8 +83,8 @@ export async function removeItemAction(_: R | null, fd: FormData): Promise<R> {
 /** Devolver a Ventas: motivo obligatorio (catálogo y texto) y regreso a la etapa de Ventas anterior. */
 export async function returnDealAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, undefined, { ret: { reasonCode: str(fd, 'reason'), note: str(fd, 'note') } })
-    return { message: ['Devuelto a Ventas. A quien lo vendió le aparece hoy con el motivo.', 'Sent back to Sales. The seller sees it today with the reason.'] }
+    const out = await moveDeal(ctx, str(fd, 'deal_id'), str(fd, 'stage_id'), undefined, undefined, { ret: { reasonCode: str(fd, 'reason'), note: str(fd, 'note') } })
+    return { message: moveMessage(out, ['Devuelto a Ventas. A quien lo vendió le aparece hoy con el motivo.', 'Sent back to Sales. The seller sees it today with the reason.']) }
   })
 }
 
@@ -86,7 +104,11 @@ const gatePatch = (fd: FormData) => {
 async function applyGate(ctx: Parameters<typeof updateDeal>[0], id: string, fd: FormData): Promise<void> {
   const patch = gatePatch(fd)
   if (Object.values(patch).some((v) => v !== undefined)) await updateDeal(ctx, id, patch)
-  const custom = Object.fromEntries([...fd.keys()].filter((k) => k.startsWith('custom:')).map((k) => [k.slice(7), str(fd, k)]))
+  // Una lista de opción múltiple manda varias casillas con el mismo nombre: viajan todas las marcadas.
+  const custom = Object.fromEntries([...new Set(fd.keys())].filter((k) => k.startsWith('custom:')).map((k) => {
+    const all = fd.getAll(k).map(String).filter(Boolean)
+    return [k.slice(7), all.length > 1 ? all : all[0] ?? '']
+  }))
   if (Object.keys(custom).length > 0) await updateCustom(ctx, 'deal', id, custom)
 }
 
@@ -99,9 +121,9 @@ export async function winDealAction(_: R | null, fd: FormData): Promise<R> {
     const id = str(fd, 'deal_id')
     await applyGate(ctx, id, fd)
     const on = str(fd, 'won_on')
-    await moveDeal(ctx, id, str(fd, 'stage_id'), undefined, undefined, { wonOn: on })
+    const out = await moveDeal(ctx, id, str(fd, 'stage_id'), undefined, undefined, { wonOn: on })
     const when = (locale: 'es' | 'en') => (/^\d{4}-\d{2}-\d{2}$/.test(on) ? day(on, locale) : locale === 'en' ? 'today' : 'hoy')
-    return { message: [`Negocio ganado, con cierre el ${when('es')}.`, `Deal won, with close date ${when('en')}.`] }
+    return { message: moveMessage(out, [`Negocio ganado, con cierre el ${when('es')}.`, `Deal won, with close date ${when('en')}.`]) }
   })
 }
 
@@ -110,8 +132,8 @@ export async function gateMoveAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const id = str(fd, 'deal_id')
     await applyGate(ctx, id, fd)
-    await moveDeal(ctx, id, str(fd, 'stage_id'))
-    return { message: ['Etapa actualizada.', 'Stage updated.'] }
+    const out = await moveDeal(ctx, id, str(fd, 'stage_id'))
+    return { message: moveMessage(out, ['Etapa actualizada.', 'Stage updated.']) }
   })
 }
 
@@ -144,7 +166,8 @@ export async function saveProductAction(_: R | null, fd: FormData): Promise<R> {
 
 export async function pipelineFlagsAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await setPipelineFlags(ctx, str(fd, 'pipeline_id'), { multiOpen: fd.get('multi_open') === 'on', hasItems: fd.get('has_items') === 'on', opsStageIds: fd.getAll('ops_stage').map(String) })
+    await setPipelineFlags(ctx, str(fd, 'pipeline_id'), { multiOpen: fd.get('multi_open') === 'on', hasItems: fd.get('has_items') === 'on', opsStageIds: fd.getAll('ops_stage').map(String),
+      ...(fd.has('ops_lead') ? { opsLeadId: str(fd, 'ops_lead') } : {}) })
     return { message: ['Embudo actualizado.', 'Pipeline updated.'] }
   })
 }

@@ -1,4 +1,5 @@
 import 'server-only'
+import { assertRolloutAllows } from '@/domain/rollout'
 import { z } from 'zod'
 import { createHash, randomBytes } from 'node:crypto'
 import { marketToday, withUser, type Tx } from '@/server/db'
@@ -109,6 +110,8 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
     if (dup[0]) throw invalid('Esa persona ya tiene ese rol.', 'That person already has that role.')
     const expires = v.expires || null
     if (expires) await assertFutureDay(tx, expires, market)
+    // E18.F2: con "primero quienes lideran" activo en el mercado, Ventas entra solo si la persona es clave.
+    await assertRolloutAllows(tx, market, v.role, v.email)
     await tx`insert into crm.memberships (user_id, market_code, role, team_id, valid_to)
              values (${userId}, ${market}, ${v.role}, ${teamId}, ${expires ? endOfDay(tx, expires, market) : null})`
     // Dar Administración deja escrito el alcance que se confirmó, si el correo es de otro dominio que el de quien la da y si tiene fecha de fin.
@@ -284,6 +287,10 @@ const stageInput = z.object({
   nameEn: z.string().trim().min(2).max(60),
   rotDays: z.number().int().min(0).max(365),
   requiredFields: z.array(z.enum(STAGE_REQUIREMENTS)).max(STAGE_REQUIREMENTS.length),
+  /** Campos definidos del negocio que la etapa pide para entrar (claves). Sin mandarlo, los que ya pedía se conservan. */
+  requiredCustom: z.array(z.string().regex(/^[a-z][a-z0-9_]{1,40}$/)).max(60).optional(),
+  /** Lo que la etapa destaca sin exigirlo: 'amount', 'decision_maker', 'next_step' o 'field:<clave>'. Sin mandarlo, no cambia. */
+  highlight: z.array(z.string().regex(/^(amount|decision_maker|next_step|field:[a-z][a-z0-9_]{1,40})$/)).max(60).optional(),
 })
 
 /**
@@ -298,8 +305,8 @@ export async function updateStage(ctx: Ctx, stageId: string, input: z.input<type
   const v = parsed.data
   assertNoProhibited(v.nameEs, v.nameEn)
   await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ pipeline_id: string; market_code: string; kind: string; name_es: string; name_en: string; rot_days: number; required_fields: string[] }[]>`
-      select s.pipeline_id, p.market_code, s.kind, s.name_es, s.name_en, s.rot_days, s.required_fields
+    const rows = await tx<{ pipeline_id: string; market_code: string; motor: string; kind: string; name_es: string; name_en: string; rot_days: number; required_fields: string[]; highlight_fields: string[] }[]>`
+      select s.pipeline_id, p.market_code, p.motor, s.kind, s.name_es, s.name_en, s.rot_days, s.required_fields, s.highlight_fields
         from crm.stages s join crm.pipelines p on p.id = s.pipeline_id where s.id = ${stageId} for update of s`
     const s = rows[0]
     if (!s) throw notFound()
@@ -308,16 +315,26 @@ export async function updateStage(ctx: Ctx, stageId: string, input: z.input<type
     const rotDays = closing ? 0 : v.rotDays
     // En una etapa abierta el próximo paso se pide siempre (ACT-02): no depende de esta lista y aquí no se cambia.
     // Lo que esta pantalla no ofrece (líneas de producto, un campo adicional del negocio) se conserva: editar el nombre no lo borra.
-    const kept = s.required_fields.filter((f) => !(STAGE_REQUIREMENTS as readonly string[]).includes(f))
-    const required = closing ? [] : [...STAGE_REQUIREMENTS.filter((f) => (f === 'next_step' && s.kind === 'open' ? s.required_fields.includes(f) : v.requiredFields.includes(f))), ...kept]
-    const before = { name_es: s.name_es, name_en: s.name_en, rot_days: s.rot_days, required_fields: [...s.required_fields].sort() }
-    const after = { name_es: v.nameEs, name_en: v.nameEn, rot_days: rotDays, required_fields: [...required].sort() }
+    // La etapa puede pedir o destacar cualquier campo definido del negocio (de su mercado y su tipo de venta). Un campo que ya
+    // pedía y que la pantalla no ofrece (está retirado, o es 'items') se conserva: editar la etapa no lo borra.
+    const offered = new Set((await tx<{ key: string }[]>`
+      select key from crm.field_definitions where object = 'deal' and is_active and data_class <> 'confidential'
+         and (market_code is null or market_code = ${s.market_code}) and (motor is null or motor = ${s.motor})`).map((r) => r.key))
+    const unknown = [...(v.requiredCustom ?? []), ...(v.highlight ?? []).filter((x) => x.startsWith('field:')).map((x) => x.slice(6))].find((k) => !offered.has(k))
+    if (unknown) throw invalid('Ese campo no está definido para los negocios de este embudo.', 'That field is not defined for deals in this pipeline.')
+    const kept = s.required_fields.filter((f) => !(STAGE_REQUIREMENTS as readonly string[]).includes(f) && (v.requiredCustom === undefined || !f.startsWith('field:') || !offered.has(f.slice(6))))
+    const custom = (v.requiredCustom ?? []).map((k) => `field:${k}`)
+    const required = closing ? [] : [...new Set([...STAGE_REQUIREMENTS.filter((f) => (f === 'next_step' && s.kind === 'open' ? s.required_fields.includes(f) : v.requiredFields.includes(f))), ...kept, ...custom])]
+    // Lo que ya es requisito no hace falta destacarlo: se quita de los destacados para no decir dos veces lo mismo.
+    const highlight = closing ? [] : v.highlight === undefined ? s.highlight_fields : [...new Set(v.highlight)].filter((x) => !required.includes(x))
+    const before = { name_es: s.name_es, name_en: s.name_en, rot_days: s.rot_days, required_fields: [...s.required_fields].sort(), ...(v.highlight === undefined ? {} : { highlight_fields: [...s.highlight_fields].sort() }) }
+    const after = { name_es: v.nameEs, name_en: v.nameEn, rot_days: rotDays, required_fields: [...required].sort(), ...(v.highlight === undefined ? {} : { highlight_fields: [...highlight].sort() }) }
     if (JSON.stringify(before) === JSON.stringify(after)) return
     const clash = await tx`select 1 from crm.stages where pipeline_id = ${s.pipeline_id} and id <> ${stageId}
       and (lower(name_es) = lower(${v.nameEs}) or lower(name_en) = lower(${v.nameEn}))`
     if (clash[0]) throw invalid('Ya hay otra etapa con ese nombre en este embudo.', 'There is already another stage with that name in this pipeline.')
     await tx`update crm.stages set name_es = ${v.nameEs}, name_en = ${v.nameEn}, rot_days = ${rotDays}, required_fields = ${required}::text[],
-              edited_at = now(), edited_by = ${ctx.user.id} where id = ${stageId}`
+              highlight_fields = ${highlight}::text[], edited_at = now(), edited_by = ${ctx.user.id} where id = ${stageId}`
     await audit(tx, ctx, 'stage.updated', 'stage', stageId, s.market_code, before, after)
   })
 }

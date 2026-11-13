@@ -216,7 +216,9 @@ export async function B2bConfig({ ctx, pipelines, stages }: { ctx: Ctx; pipeline
                 <Field label={t('Mercado', 'Market')}>{marketSelect('field-new-market')}</Field>
                 <Field label={t('Tipo de venta', 'Sale type')}>{motorSelect('field-new-motor')}</Field>
                 <Field label={t('Opciones (solo para listas), una por renglón', 'Options (lists only), one per line')} className="col-span-2"><textarea name="options" rows={3} className="input !h-auto py-3" data-testid="field-new-options" /></Field>
-                <Field label={t('¿Para qué sirve?', 'What is it for?')} hint={t('Qué decisión o qué trabajo cambia con este campo. Queda como el motivo del cambio. Si sirve a todos los mercados, créalo sin mercado: lo compartido va primero.', 'Which decision or which work changes with this field. It is kept as the reason for the change. If it serves every market, create it with no market: shared comes first.')} className="col-span-2"><textarea name="purpose" rows={2} required minLength={10} maxLength={1000} className="input !h-auto py-3" data-testid="field-new-purpose" /></Field>
+                <Field label={t('¿Qué decisión habilita este campo?', 'Which decision does this field enable?')} className="col-span-2" hint={t('Sin una decisión escrita no se crea. Quien lo crea queda como responsable; el resto de su gobierno se completa en Datos, Campos.', 'It is not created without a written decision. Whoever creates it becomes its owner; the rest of its governance is completed under Data, Fields.')}>
+                  <textarea name="decision" rows={2} required minLength={10} maxLength={400} className="input !h-auto py-3" data-testid="field-new-decision" />
+                </Field>
                 {fieldRequests.length > 0 && (
                   <Field label={t('Solicitud que lo pidió (opcional)', 'Request that asked for it (optional)')} className="col-span-2">
                     <select name="request_id" className="input" defaultValue="" data-testid="field-new-request">

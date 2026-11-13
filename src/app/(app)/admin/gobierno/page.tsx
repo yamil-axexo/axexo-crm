@@ -8,7 +8,7 @@ import {
   allConfigRequests, components, configChanges, costBoard, dataRegions, deployments, incidents, maintenance, materials, releases, restoreTests,
   serviceBoard, teamChampions, testData, type Measured,
 } from '@/dal/gobierno'
-import { COST_COMPONENTS, MATERIAL_KINDS, missingItems, SEVERITIES } from '@/domain/gobierno'
+import { COST_COMPONENTS, MATERIAL_KINDS, missingItems, SEVERITIES } from '@/domain/gobierno-ops'
 import { RELEASE_CHECKLIST } from '@/content/release-checklist'
 import { gobiernoAdapterStatus } from '@/server/adapters/gobierno'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Stat, Table, buttonClass } from '@/ui/kit'

@@ -224,14 +224,17 @@ test('en teléfono el candado de etapa se resuelve en una hoja, sin salir del ta
   const jade = await uid('jade.kim')
   const c = await sql<{ id: string }[]>`insert into crm.contacts (market_code, full_name) values ('US', 'Dueña De Prueba') returning id`
   await sql`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${c[0]!.id}, 'US', 'decision_maker')`
-  const d = await sql<{ id: string }[]>`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, created_by)
-    values ('US', ${await uid('p-us-dealer')}, ${await uid('s-us-dealer-qualified')}, ${accountId}, ${jade}, ${`Alta ${name}`}, 'USD', ${jade}) returning id`
+  // El alta de dealers de US tiene nueve etapas con sus candados (paquete us-embudo): este negocio ya trae los campos que
+  // piden Documentos y contrato y Aprobaciones, para que la hoja pida lo de siempre (próximo paso y quien decide).
+  const d = await sql<{ id: string }[]>`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, custom, created_by)
+    values ('US', ${await uid('p-us-dealer')}, ${await uid('s-us-dealer-qualified')}, ${accountId}, ${jade}, ${`Alta ${name}`}, 'USD',
+            ${sql.json({ products_requested: ['Domestic top-up'], account_funding: 'ACH', contract_signed_on: '2026-11-01' })}, ${jade}) returning id`
   await loginAs(page, 'jade.kim')
   await spanish(page)
   await page.goto(`/pipelines/${await uid('p-us-dealer')}?owner=me`)
   await page.getByTestId('stage-tab-qualified').click()
   const card = page.locator(`[data-card="${d[0]!.id}"]`)
-  await card.getByTestId('deal-stage-select').selectOption({ label: 'Solicitud' })
+  await card.getByTestId('deal-stage-select').selectOption({ label: 'Documentos y contrato' })
   await expect(page.getByTestId('gate-dialog')).toBeVisible()
   await page.getByTestId('gate-step').fill('Reunir la solicitud firmada')
   await page.getByTestId('gate-decision-maker').selectOption({ label: 'Dueña De Prueba' })
@@ -247,8 +250,8 @@ test('en teléfono el candado de etapa se resuelve en una hoja, sin salir del ta
   await page.getByTestId('gate-open').click()
   await page.getByTestId('gate-amount').fill('1200')
   await page.getByTestId('gate-save').click()
-  await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Envío a carriers')
-  await sql`update crm.stages set required_fields = '{next_step,amount,field:account_funding}' where id = ${await uid('s-us-dealer-carrier')}`
+  await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Aprobaciones')
+  await sql`update crm.stages set required_fields = '{next_step,amount,field:contract_signed_on,field:products_requested,field:account_funding}' where id = ${await uid('s-us-dealer-carrier')}`
 })
 
 test('la hoja de completar le habla a Operaciones de documentos y proveedores, no de llamadas y propuestas', async ({ page }) => {

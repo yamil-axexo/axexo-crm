@@ -1,7 +1,7 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
-import { createConfigRequest } from '@/domain/gobierno'
+import { createConfigRequest } from '@/domain/gobierno-ops'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>

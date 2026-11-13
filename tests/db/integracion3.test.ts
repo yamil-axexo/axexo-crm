@@ -19,7 +19,7 @@ const openSteps = async (accountId: string) => (await admin<{ subject: string }[
 describe('próximo paso: el dominio valida la lista de quien lo deja y del tipo de venta', () => {
   it('quien vende a tiendas no deja un paso de Operaciones ni uno de cadenas; sí una visita', async () => {
     const marco = await ctxFor('marco.pena')
-    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Lista tiendas ${tag()}`, segment: 'd2d', force: true })
+    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Lista tiendas ${tag()}`, segment: 'd2d', force: true, reason: 'Prueba: es otro comercio' })
     const call = (next: string) => recordActivity(marco, { accountId: acc.id!, kind: 'call', outcome: 'reached', askNext: true, next, nextWhen: tomorrow })
     for (const next of ['docs', 'provider', 'training', 'contract', 'kickoff', 'testing', 'certification']) {
       expect(NEXT_SETS.default).not.toContain(next)
@@ -35,7 +35,7 @@ describe('próximo paso: el dominio valida la lista de quien lo deja y del tipo 
 
   it('quien vende a cadenas no deja una visita de campo ni un paso de Operaciones; sí el envío de contrato', async () => {
     const diana = await ctxFor('diana.cruz')
-    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Lista cadenas ${tag()}`, segment: 'b2b', force: true })
+    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Lista cadenas ${tag()}`, segment: 'b2b', force: true, reason: 'Prueba: es otro comercio' })
     const call = (next: string) => recordActivity(diana, { accountId: acc.id!, kind: 'call', outcome: 'reached', askNext: true, next, nextWhen: tomorrow })
     for (const next of ['visit', 'docs', 'provider', 'training']) await expect(call(next), next).rejects.toMatchObject({ code: 'invalid' })
     await call('contract')
@@ -45,7 +45,7 @@ describe('próximo paso: el dominio valida la lista de quien lo deja y del tipo 
   it('Operaciones deja documentos, proveedor o capacitación, no una llamada de ventas, aunque el negocio sea de cadenas', async () => {
     const diana = await ctxFor('diana.cruz')
     const valeria = await ctxFor('valeria.soto')
-    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Lista operaciones ${tag()}`, segment: 'b2b', force: true })
+    const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Lista operaciones ${tag()}`, segment: 'b2b', force: true, reason: 'Prueba: es otro comercio' })
     const note = (next: string) => recordActivity(valeria, { accountId: acc.id!, kind: 'call', outcome: 'reached', askNext: true, next, nextWhen: tomorrow })
     for (const next of ['call', 'visit', 'proposal', 'meeting', 'contract']) await expect(note(next), next).rejects.toMatchObject({ code: 'invalid' })
     await note('docs')
@@ -54,7 +54,7 @@ describe('próximo paso: el dominio valida la lista de quien lo deja y del tipo 
 
   it('al completar una tarea vale la misma lista, y un paso fuera de ella no completa nada', async () => {
     const marco = await ctxFor('marco.pena')
-    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Lista completar ${tag()}`, segment: 'd2d', force: true })
+    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Lista completar ${tag()}`, segment: 'd2d', force: true, reason: 'Prueba: es otro comercio' })
     const pipe = (await admin<{ id: string }[]>`select md5('contigo:p-mx-d2d')::uuid as id`)[0]!.id
     const deal = await createDeal(marco, { accountId: acc.id!, pipelineId: pipe, title: `Lista completar ${tag()}`, nextStep: 'Llamar para confirmar', nextStepDue: tomorrow })
     const task = (await admin<{ id: string }[]>`select id from crm.activities where deal_id = ${deal} and done_at is null and kind = 'task'`)[0]!

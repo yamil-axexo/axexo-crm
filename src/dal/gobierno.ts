@@ -1,7 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
-import { CONFIG_OBJECTS } from '@/domain/gobierno'
+import { CONFIG_OBJECTS } from '@/domain/gobierno-ops'
 
 /** Lecturas del paquete gobierno. Todo lo de operación lo leen administración y leadership ('gov.read'); RLS lo repite. */
 

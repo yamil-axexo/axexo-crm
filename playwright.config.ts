@@ -24,6 +24,9 @@ export default defineConfig({
       DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://contigo_app@127.0.0.1:5433/contigo_test',
       PIPEDRIVE_API_BASE: `http://127.0.0.1:${process.env.E2E_PIPEDRIVE_PORT ?? 45992}`,
       PIPEDRIVE_API_TOKEN: 'test-token',
+      // SEG-10: las pruebas llenan un formulario público en milisegundos; el tiempo mínimo de llenado se prueba en un formulario
+      // con su propio valor (zx-eventos-api.spec.ts) y en tests/db. Fuera de las pruebas rige el valor de la app (3 s).
+      PUBLIC_FORM_MIN_SECONDS: '0',
     },
   },
 })

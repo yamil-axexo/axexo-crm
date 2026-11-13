@@ -1,521 +1,502 @@
 import 'server-only'
 import { z } from 'zod'
-import { withUser } from '@/server/db'
+import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
-import { audit, clean, newId } from '@/domain/common'
+import { audit, newId, clean } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
+import { MOTORS } from '@/domain/b2b'
 import { invalid, notFound } from '@/lib/errors'
-import { RELEASE_CHECKLIST } from '@/content/release-checklist'
 
-/**
- * Paquete gobierno (0033_gobierno): GOB-07 (objetivos de servicio, incidentes, pruebas de restauración), GOB-04 (dueños por
- * componente, mantenimiento, versiones con lista de salida, despliegues), GOB-09 (costos cargados a mano) y E7 (solicitudes
- * de configuración, motivo de cada cambio, champions, material por mercado).
- * Escribe administración ('gov.manage'); leen administración y leadership ('gov.read'). La base repite el límite con RLS.
- * Aquí no se inventa ningún valor: lo que nadie ha fijado queda vacío.
- */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const DAY = /^\d{4}-\d{2}-\d{2}$/
-const isDay = (v: string) => DAY.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
-const name = z.string().trim().min(2).max(120)
+const label = z.string().trim().min(2).max(60)
+const slugOf = (s: string, max = 36) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+|_+$/g, '').slice(0, max)
 
-// ------------------------------------------------------------------ GOB-07: objetivos
+// ================================================================ GOB-01 / DAT-05: gobierno de campos
 
-export const SLO_KEYS = ['availability', 'latency_page', 'latency_action', 'latency_api'] as const
-export const RECOVERY_KEYS = ['rpo_minutes', 'rto_minutes', 'restore_test_days'] as const
-export type ObjectiveKey = (typeof SLO_KEYS)[number] | (typeof RECOVERY_KEYS)[number]
+export const PII_CLASSES = ['none', 'personal', 'sensitive'] as const
+const governance = z.object({
+  ownerId: z.guid(),
+  purpose: z.string().trim().min(5).max(400),
+  /** La decisión que el campo habilita: sin decisión documentada no hay campo. */
+  decision: z.string().trim().min(10).max(400),
+  reviewOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  piiClass: z.enum(PII_CLASSES),
+  dataClass: z.enum(['public', 'internal', 'confidential']).optional().default('internal'),
+  untrusted: z.boolean().optional().default(false),
+  origin: z.string().trim().max(200).optional().default(''),
+  usedBy: z.string().trim().max(200).optional().default(''),
+})
+export type GovernanceInput = z.input<typeof governance>
 
-/**
- * Fija el valor de un objetivo. Uno de servicio lo fija administración; uno de recuperación (cuánta información se puede
- * perder, en cuánto vuelve el servicio, cada cuánto se prueba restaurar) solo vale con quién lo acordó y en qué fecha.
- */
-export async function setObjective(ctx: Ctx, raw: { key: string; target: string; agreedBy?: string; agreedOn?: string }): Promise<void> {
-  ctx.assert('gov.manage')
-  const key = raw.key as ObjectiveKey
-  const recovery = (RECOVERY_KEYS as readonly string[]).includes(key)
-  if (!recovery && !(SLO_KEYS as readonly string[]).includes(key)) throw notFound('No encontramos ese objetivo.', 'We could not find that objective.')
-  const target = Number(raw.target.replace(',', '.'))
-  if (!raw.target.trim() || !Number.isFinite(target) || target < 0) throw invalid('Escribe el valor del objetivo con números.', 'Enter the objective value as a number.')
-  if (key === 'availability' && (target < 50 || target > 100)) throw invalid('La disponibilidad es un porcentaje entre 50 y 100.', 'Availability is a percentage between 50 and 100.')
-  if (key !== 'availability' && target > 10_000_000) throw invalid('Ese valor es demasiado grande.', 'That value is too large.')
-  const agreedBy = clean(raw.agreedBy)
-  const agreedOn = clean(raw.agreedOn)
-  if (recovery && (!agreedBy || agreedBy.length < 2 || !agreedOn || !isDay(agreedOn))) {
-    throw invalid('Un objetivo de recuperación lleva quién lo acordó y en qué fecha. Sin eso no se guarda.', 'A recovery objective needs who agreed to it and on which date. Without that it is not saved.')
+function parseGovernance(input: GovernanceInput) {
+  const parsed = governance.safeParse(input)
+  if (!parsed.success) {
+    const f = String(parsed.error.issues[0]?.path[0] ?? '')
+    if (f === 'decision') throw invalid('Escribe qué decisión habilita este campo (al menos 10 letras). Sin decisión no hay campo.', 'Say which decision this field enables (at least 10 characters). No decision, no field.')
+    if (f === 'ownerId') throw invalid('Elige a la persona que responde por este campo.', 'Pick the person who owns this field.')
+    if (f === 'purpose') throw invalid('Escribe para qué sirve el campo (al menos 5 letras).', 'Say what the field is for (at least 5 characters).')
+    if (f === 'reviewOn') throw invalid('Pon la fecha en que se revisa si el campo sigue haciendo falta.', 'Set the date to review whether the field is still needed.')
+    throw invalid('Revisa los datos de gobierno del campo.', 'Check the field’s governance details.')
   }
-  if (agreedOn && !isDay(agreedOn)) throw invalid('Revisa la fecha.', 'Check the date.')
-  assertNoProhibited(agreedBy)
+  assertNoProhibited(parsed.data.purpose, parsed.data.decision, parsed.data.origin, parsed.data.usedBy)
+  return parsed.data
+}
+
+async function assertOwner(tx: Tx, ownerId: string) {
+  if (!(await tx`select 1 from crm.users where id = ${ownerId} and is_active and not is_system`)[0]) throw invalid('Esa persona no está activa en CONTIGO.', 'That person is not active in CONTIGO.')
+}
+
+const fieldEdit = z.object({ labelEs: label, labelEn: label, options: z.array(z.string().trim().min(1).max(60)).max(30).optional() })
+
+/** Editor del registro: cambia la etiqueta (la llave no cambia, así lo capturado no se pierde), las opciones y el gobierno del campo. */
+export async function updateField(ctx: Ctx, id: string, input: z.input<typeof fieldEdit> & GovernanceInput): Promise<void> {
+  ctx.assert('config.manage')
+  const base = fieldEdit.safeParse(input)
+  if (!base.success) throw invalid('El campo lleva nombre en español y en inglés (de 2 a 60 letras).', 'A field needs a name in Spanish and in English (2 to 60 characters).')
+  const g = parseGovernance(input)
+  assertNoProhibited(base.data.labelEs, base.data.labelEn, ...(base.data.options ?? []))
   await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ target: string | null; agreed_by: string | null }[]>`select target, agreed_by from crm.service_objectives where key = ${key} for update`)[0]
-    if (!before) throw notFound('No encontramos ese objetivo.', 'We could not find that objective.')
-    await tx`update crm.service_objectives set target = ${target}, agreed_by = ${agreedBy}, agreed_on = ${agreedOn}, updated_by = ${ctx.user.id}, updated_at = now() where key = ${key}`
-    await audit(tx, ctx, 'objective.set', 'service_objective', null, null, { key, target: before.target === null ? null : Number(before.target) }, { key, target, agreed_by: agreedBy, agreed_on: agreedOn })
-  })
-}
-
-// ------------------------------------------------------------------ GOB-07: incidentes
-
-export const SEVERITIES = ['high', 'medium', 'low'] as const
-export const INCIDENT_STATUS = ['open', 'mitigated', 'closed'] as const
-
-const incidentInput = z.object({
-  title: z.string().trim().min(5).max(160),
-  severity: z.enum(SEVERITIES),
-  startedAt: z.date(),
-  market: z.string().regex(/^[A-Z]{2}$/).or(z.literal('')),
-  impact: z.string().trim().min(5).max(2000),
-  requestId: z.string().trim().max(80).optional().default(''),
-})
-
-export async function openIncident(ctx: Ctx, raw: z.input<typeof incidentInput>): Promise<string> {
-  ctx.assert('gov.manage')
-  const parsed = incidentInput.safeParse(raw)
-  if (!parsed.success) throw invalid('Un incidente lleva título, gravedad, cuándo empezó y a quién afectó.', 'An incident needs a title, a severity, when it started and who it affected.')
-  const v = parsed.data
-  if (v.startedAt.getTime() > Date.now() + 5 * 60_000) throw invalid('Un incidente no puede empezar en el futuro.', 'An incident cannot start in the future.')
-  assertNoProhibited(v.title, v.impact)
-  return withUser(ctx.user.id, async (tx) => {
-    const id = await newId(tx)
-    await tx`insert into crm.incidents (id, title, severity, started_at, market_code, impact, request_id, created_by)
-             values (${id}, ${v.title}, ${v.severity}, ${v.startedAt}, ${v.market || null}, ${v.impact}, ${clean(v.requestId)}, ${ctx.user.id})`
-    await audit(tx, ctx, 'incident.opened', 'incident', id, v.market || null, null, { title: v.title, severity: v.severity })
-    return id
-  })
-}
-
-/** Mitigar o cerrar. Cerrar pide la causa, lo que se hizo y cuándo se resolvió: un incidente no se cierra en blanco. */
-export async function updateIncident(ctx: Ctx, raw: { id: string; status: string; cause?: string; actions?: string; resolvedAt?: Date | null }): Promise<void> {
-  ctx.assert('gov.manage')
-  if (!UUID.test(raw.id)) throw notFound('No encontramos ese incidente.', 'We could not find that incident.')
-  const status = z.enum(INCIDENT_STATUS).safeParse(raw.status)
-  if (!status.success) throw invalid('Elige el estado del incidente.', 'Choose the incident status.')
-  const cause = clean(raw.cause)
-  const actions = clean(raw.actions)
-  assertNoProhibited(cause, actions)
-  if (status.data === 'closed' && (!cause || !actions || !raw.resolvedAt)) {
-    throw invalid('Para cerrar un incidente hace falta la causa, lo que se hizo y cuándo se resolvió.', 'Closing an incident needs the cause, what was done and when it was resolved.')
-  }
-  await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ status: string; started_at: Date; market_code: string | null }[]>`select status, started_at, market_code from crm.incidents where id = ${raw.id} for update`)[0]
-    if (!before) throw notFound('No encontramos ese incidente.', 'We could not find that incident.')
-    if (before.status === 'closed') throw invalid('Ese incidente ya está cerrado.', 'That incident is already closed.')
-    if (raw.resolvedAt && raw.resolvedAt < before.started_at) throw invalid('No se pudo resolver antes de empezar: revisa la fecha.', 'It cannot be resolved before it started: check the date.')
-    await tx`update crm.incidents set status = ${status.data}, cause = coalesce(${cause}, cause), actions = coalesce(${actions}, actions),
-             resolved_at = coalesce(${raw.resolvedAt ?? null}, resolved_at), updated_by = ${ctx.user.id}, updated_at = now() where id = ${raw.id}`
-    await audit(tx, ctx, 'incident.updated', 'incident', raw.id, before.market_code, { status: before.status }, { status: status.data })
-  })
-}
-
-// ------------------------------------------------------------------ GOB-07: pruebas de restauración
-
-const restoreInput = z.object({
-  testedOn: z.string().refine(isDay),
-  testedBy: name,
-  environment: z.enum(['staging', 'production']),
-  minutes: z.number().int().min(0).max(100000).nullable(),
-  dataLossMinutes: z.number().int().min(0).max(100000).nullable(),
-  result: z.enum(['ok', 'failed']),
-  evidence: z.string().trim().min(5).max(500),
-  notes: z.string().trim().max(2000).optional().default(''),
-})
-
-/** Anota una prueba de restauración ya hecha. La prueba la hace quien opera la plataforma; aquí queda la evidencia. */
-export async function recordRestoreTest(ctx: Ctx, raw: z.input<typeof restoreInput>): Promise<string> {
-  ctx.assert('gov.manage')
-  const parsed = restoreInput.safeParse(raw)
-  if (!parsed.success) throw invalid('Una prueba de restauración lleva fecha, quién la hizo, en qué ambiente, el resultado y dónde está la evidencia.', 'A restore test needs a date, who ran it, the environment, the result and where the evidence is.')
-  const v = parsed.data
-  if (Date.parse(`${v.testedOn}T00:00:00Z`) > Date.now() + 86_400_000) throw invalid('Una prueba hecha no puede tener fecha futura.', 'A test already run cannot have a future date.')
-  assertNoProhibited(v.testedBy, v.evidence, v.notes)
-  return withUser(ctx.user.id, async (tx) => {
-    const id = await newId(tx)
-    await tx`insert into crm.restore_tests (id, tested_on, tested_by, environment, minutes, data_loss_minutes, result, evidence, notes, recorded_by)
-             values (${id}, ${v.testedOn}, ${v.testedBy}, ${v.environment}, ${v.minutes}, ${v.dataLossMinutes}, ${v.result}, ${v.evidence}, ${clean(v.notes)}, ${ctx.user.id})`
-    await audit(tx, ctx, 'restore_test.recorded', 'restore_test', id, null, null, { tested_on: v.testedOn, environment: v.environment, result: v.result, minutes: v.minutes })
-    return id
-  })
-}
-
-// ------------------------------------------------------------------ GOB-04: componentes
-
-/** Dueño técnico y suplente de un componente. Son dos personas distintas; dejar un nombre vacío lo regresa a "Por definir". */
-export async function setComponentOwners(ctx: Ctx, raw: { key: string; owner: string; backup: string }): Promise<void> {
-  ctx.assert('gov.manage')
-  const owner = clean(raw.owner)
-  const backup = clean(raw.backup)
-  for (const v of [owner, backup]) if (v && (v.length < 2 || v.length > 120)) throw invalid('Escribe el nombre completo de la persona.', 'Enter the person’s full name.')
-  if (owner && backup && owner.toLowerCase() === backup.toLowerCase()) throw invalid('El suplente cubre al dueño cuando no está: tiene que ser otra persona.', 'The backup covers the owner when they are away: it has to be a different person.')
-  assertNoProhibited(owner, backup)
-  await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ owner_name: string | null; backup_name: string | null }[]>`select owner_name, backup_name from crm.components where key = ${raw.key} for update`)[0]
-    if (!before) throw notFound('No encontramos ese componente.', 'We could not find that component.')
-    await tx`update crm.components set owner_name = ${owner}, backup_name = ${backup}, updated_by = ${ctx.user.id}, updated_at = now() where key = ${raw.key}`
-    await audit(tx, ctx, 'component.owners_set', 'component', null, null, { key: raw.key, owner: before.owner_name, backup: before.backup_name }, { key: raw.key, owner, backup })
-  })
-}
-
-// ------------------------------------------------------------------ GOB-04: mantenimiento
-
-const windowInput = z.object({
-  title: z.string().trim().min(5).max(160),
-  startsAt: z.date(),
-  endsAt: z.date(),
-  market: z.string().regex(/^[A-Z]{2}$/).or(z.literal('')),
-  impact: z.string().trim().min(5).max(1000),
-})
-
-export async function scheduleMaintenance(ctx: Ctx, raw: z.input<typeof windowInput>): Promise<string> {
-  ctx.assert('gov.manage')
-  const parsed = windowInput.safeParse(raw)
-  if (!parsed.success) throw invalid('Una ventana de mantenimiento lleva título, inicio, fin y qué va a notar el equipo.', 'A maintenance window needs a title, a start, an end and what the team will notice.')
-  const v = parsed.data
-  if (v.endsAt <= v.startsAt) throw invalid('El fin tiene que ser después del inicio.', 'The end has to be after the start.')
-  if (v.startsAt.getTime() < Date.now() - 60_000) throw invalid('Una ventana se agenda hacia adelante: el inicio ya pasó.', 'A window is scheduled ahead: the start has already passed.')
-  assertNoProhibited(v.title, v.impact)
-  return withUser(ctx.user.id, async (tx) => {
-    const id = await newId(tx)
-    await tx`insert into crm.maintenance_windows (id, title, starts_at, ends_at, market_code, impact, created_by)
-             values (${id}, ${v.title}, ${v.startsAt}, ${v.endsAt}, ${v.market || null}, ${v.impact}, ${ctx.user.id})`
-    await audit(tx, ctx, 'maintenance.scheduled', 'maintenance_window', id, v.market || null, null, { title: v.title, starts_at: v.startsAt.toISOString(), ends_at: v.endsAt.toISOString() })
-    return id
-  })
-}
-
-export async function setMaintenanceStatus(ctx: Ctx, id: string, status: string): Promise<void> {
-  ctx.assert('gov.manage')
-  if (!UUID.test(id) || (status !== 'done' && status !== 'cancelled')) throw notFound('No encontramos esa ventana.', 'We could not find that window.')
-  await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ status: string; market_code: string | null }[]>`select status, market_code from crm.maintenance_windows where id = ${id} for update`)[0]
-    if (!before) throw notFound('No encontramos esa ventana.', 'We could not find that window.')
-    if (before.status !== 'planned') throw invalid('Esa ventana ya se cerró.', 'That window is already closed.')
-    await tx`update crm.maintenance_windows set status = ${status}, updated_by = ${ctx.user.id}, updated_at = now() where id = ${id}`
-    await audit(tx, ctx, 'maintenance.closed', 'maintenance_window', id, before.market_code, { status: before.status }, { status })
-  })
-}
-
-// ------------------------------------------------------------------ GOB-04: versiones
-
-const releaseInput = z.object({
-  version: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/),
-  titleEs: z.string().trim().min(3).max(140),
-  titleEn: z.string().trim().min(3).max(140),
-  notesEs: z.string().trim().min(5).max(3000),
-  notesEn: z.string().trim().min(5).max(3000),
-  plannedFor: z.string().refine((v) => v === '' || isDay(v)),
-  touchesMoney: z.boolean(),
-})
-
-export async function createRelease(ctx: Ctx, raw: z.input<typeof releaseInput>): Promise<string> {
-  ctx.assert('gov.manage')
-  const parsed = releaseInput.safeParse(raw)
-  if (!parsed.success) throw invalid('Una versión lleva número (letras, números y puntos), título y notas en español y en inglés.', 'A release needs a number (letters, digits and dots), a title and notes in Spanish and in English.')
-  const v = parsed.data
-  if (v.touchesMoney && !v.plannedFor) throw invalid('Si toca comisiones o el alta, la versión lleva la fecha desde la que vale.', 'If it touches commissions or enrollment, the release needs the date it takes effect.')
-  assertNoProhibited(v.titleEs, v.titleEn, v.notesEs, v.notesEn)
-  return withUser(ctx.user.id, async (tx) => {
-    if ((await tx`select 1 from crm.releases where lower(version) = lower(${v.version})`)[0]) throw invalid('Ya hay una versión con ese número.', 'There is already a release with that number.')
-    const id = await newId(tx)
-    await tx`insert into crm.releases (id, version, title_es, title_en, notes_es, notes_en, planned_for, touches_money, created_by)
-             values (${id}, ${v.version}, ${v.titleEs}, ${v.titleEn}, ${v.notesEs}, ${v.notesEn}, ${v.plannedFor || null}, ${v.touchesMoney}, ${ctx.user.id})`
-    await audit(tx, ctx, 'release.created', 'release', id, null, null, { version: v.version, touches_money: v.touchesMoney, planned_for: v.plannedFor || null })
-    return id
-  })
-}
-
-type Check = { by: string; at: string; evidence: string }
-
-/** Da por cumplido un punto de la lista de salida, con su evidencia (quién firmó, qué corrida, qué documento). */
-export async function checkReleaseItem(ctx: Ctx, raw: { id: string; item: string; evidence: string }): Promise<void> {
-  ctx.assert('gov.manage')
-  if (!UUID.test(raw.id)) throw notFound('No encontramos esa versión.', 'We could not find that release.')
-  const item = RELEASE_CHECKLIST.find((i) => i.key === raw.item)
-  if (!item) throw notFound('Ese punto no está en la lista de salida.', 'That item is not on the go-live checklist.')
-  const evidence = clean(raw.evidence)
-  if (!evidence || evidence.length < 5 || evidence.length > 300) throw invalid('Escribe la evidencia: quién dio el visto bueno, qué corrida o qué documento.', 'Write the evidence: who signed off, which run or which document.')
-  assertNoProhibited(evidence)
-  await withUser(ctx.user.id, async (tx) => {
-    const r = (await tx<{ status: string; checklist: Record<string, Check> }[]>`select status, checklist from crm.releases where id = ${raw.id} for update`)[0]
-    if (!r) throw notFound('No encontramos esa versión.', 'We could not find that release.')
-    if (r.status === 'released') throw invalid('Esa versión ya salió: su lista no cambia.', 'That release is already out: its checklist does not change.')
-    const checklist = { ...r.checklist, [item.key]: { by: ctx.user.name, at: new Date().toISOString(), evidence } }
-    await tx`update crm.releases set checklist = ${tx.json(checklist)} where id = ${raw.id}`
-    await audit(tx, ctx, 'release.item_checked', 'release', raw.id, null, null, { item: item.key, evidence })
-  })
-}
-
-/** Lo que falta de la lista de salida de una versión. Vacío: puede salir. */
-export const missingItems = (checklist: Record<string, unknown>) => RELEASE_CHECKLIST.filter((i) => !checklist[i.key]).map((i) => i.key)
-
-/**
- * Anuncia la versión: sus notas quedan visibles para todo el equipo. Comunicar antes de liberar es la regla: una versión no
- * se marca como liberada sin anuncio previo. Devuelve el identificador para que quien llama publique el anuncio a la red.
- */
-export async function announceRelease(ctx: Ctx, id: string): Promise<{ version: string; titleEs: string; titleEn: string; notesEs: string; notesEn: string; plannedFor: string | null; touchesMoney: boolean }> {
-  ctx.assert('gov.manage')
-  if (!UUID.test(id)) throw notFound('No encontramos esa versión.', 'We could not find that release.')
-  return withUser(ctx.user.id, async (tx) => {
-    const r = (await tx<{ status: string; version: string; title_es: string; title_en: string; notes_es: string; notes_en: string; planned_for: string | null; touches_money: boolean }[]>`
-      select status, version, title_es, title_en, notes_es, notes_en, planned_for::text, touches_money from crm.releases where id = ${id} for update`)[0]
-    if (!r) throw notFound('No encontramos esa versión.', 'We could not find that release.')
-    if (r.status !== 'draft') throw invalid('Esa versión ya se anunció.', 'That release has already been announced.')
-    await tx`update crm.releases set status = 'announced', announced_at = now(), announced_by = ${ctx.user.id} where id = ${id}`
-    await audit(tx, ctx, 'release.announced', 'release', id, null, { status: 'draft' }, { status: 'announced', version: r.version, touches_money: r.touches_money })
-    return { version: r.version, titleEs: r.title_es, titleEn: r.title_en, notesEs: r.notes_es, notesEn: r.notes_en, plannedFor: r.planned_for, touchesMoney: r.touches_money }
-  })
-}
-
-/**
- * Marca la versión como liberada. Solo si ya se anunció y la lista de salida está completa (revisión de tecnología y
- * estándar de ingeniería incluidos). Si toca comisiones o alta, no sale antes de la fecha que se anunció.
- */
-export async function markReleased(ctx: Ctx, id: string, today: string): Promise<void> {
-  ctx.assert('gov.manage')
-  if (!UUID.test(id)) throw notFound('No encontramos esa versión.', 'We could not find that release.')
-  await withUser(ctx.user.id, async (tx) => {
-    const r = (await tx<{ status: string; version: string; checklist: Record<string, Check>; touches_money: boolean; planned_for: string | null }[]>`
-      select status, version, checklist, touches_money, planned_for::text from crm.releases where id = ${id} for update`)[0]
-    if (!r) throw notFound('No encontramos esa versión.', 'We could not find that release.')
-    if (r.status === 'released') throw invalid('Esa versión ya está marcada como liberada.', 'That release is already marked as released.')
-    if (r.status === 'draft') throw invalid('Primero anuncia la versión: el equipo se entera antes de que salga.', 'Announce the release first: the team hears about it before it goes out.')
-    const missing = missingItems(r.checklist)
-    if (missing.length > 0) {
-      throw invalid(`Faltan ${missing.length} ${missing.length === 1 ? 'punto' : 'puntos'} de la lista de salida. Sin la lista completa, la versión no sale.`, `${missing.length} go-live checklist ${missing.length === 1 ? 'item is' : 'items are'} missing. Without the full checklist, the release does not go out.`)
+    const rows = await tx<{ object: string; key: string; market_code: string | null; label_es: string; label_en: string; data_type: string; options: string[]; decision: string | null; owner_id: string | null }[]>`
+      select object, key, market_code, label_es, label_en, data_type, options, decision, owner_id from crm.field_definitions where id = ${id} for update`
+    const f = rows[0]
+    if (!f) throw notFound()
+    await assertOwner(tx, g.ownerId)
+    const today = (await tx<{ d: string }[]>`select ${marketToday(tx, f.market_code ?? 'MX')}::text as d`)[0]!.d
+    if (g.reviewOn <= today) throw invalid('La fecha de revisión tiene que ser futura.', 'The review date must be in the future.')
+    // En una lista se pueden agregar opciones; las que ya existen no se quitan desde aquí (hay registros que las usan).
+    let options = f.options
+    if (f.data_type === 'select' && base.data.options) {
+      const next = [...new Set(base.data.options)]
+      const lost = f.options.filter((o) => !next.includes(o))
+      if (lost.length) throw invalid(`No se quitan opciones que ya existen (${lost.join(', ')}): hay registros que las usan. Puedes agregar nuevas.`, `Existing options cannot be removed (${lost.join(', ')}): records use them. You can add new ones.`)
+      options = next
     }
-    if (r.touches_money && r.planned_for && today < r.planned_for) {
-      throw invalid('Esta versión toca comisiones o el alta y se anunció para una fecha que todavía no llega.', 'This release touches commissions or enrollment and was announced for a date that has not arrived yet.')
-    }
-    await tx`update crm.releases set status = 'released', released_at = now(), released_by = ${ctx.user.id} where id = ${id}`
-    await audit(tx, ctx, 'release.released', 'release', id, null, { status: r.status }, { status: 'released', version: r.version })
+    await tx`update crm.field_definitions set label_es = ${base.data.labelEs}, label_en = ${base.data.labelEn}, options = ${tx.json(options)},
+              owner_id = ${g.ownerId}, purpose = ${g.purpose}, decision = ${g.decision}, review_on = ${g.reviewOn}, pii_class = ${g.piiClass}, data_class = ${g.dataClass},
+              untrusted = ${g.untrusted}, origin = ${clean(g.origin)}, used_by = ${clean(g.usedBy)} where id = ${id}`
+    await audit(tx, ctx, 'field.updated', 'field', id, f.market_code, { label_es: f.label_es, decision: f.decision, owner_id: f.owner_id },
+      { label_es: base.data.labelEs, decision: g.decision, owner_id: g.ownerId, review_on: g.reviewOn, pii_class: g.piiClass, object: f.object, key: f.key })
   })
 }
 
-// ------------------------------------------------------------------ GOB-04: despliegues
-
-const deployInput = z.object({
-  environment: z.enum(['staging', 'production']),
-  commit: z.string().trim().toLowerCase().regex(/^[0-9a-f]{7,64}$/),
-  deployedAt: z.date(),
-  deployedBy: name,
-  result: z.enum(['ok', 'rolled_back', 'failed']),
-  releaseId: z.string().regex(UUID).or(z.literal('')),
-  notes: z.string().trim().max(1000).optional().default(''),
-})
-
-/** Anota un despliegue a mano (quién lo hizo, cómo terminó). El commit que corre lo anota la app sola (deployWatch). */
-export async function recordDeployment(ctx: Ctx, raw: z.input<typeof deployInput>): Promise<string> {
-  ctx.assert('gov.manage')
-  const parsed = deployInput.safeParse(raw)
-  if (!parsed.success) throw invalid('Un despliegue lleva ambiente, commit (de 7 a 64 letras y números), cuándo, quién y cómo terminó.', 'A deployment needs an environment, a commit (7 to 64 letters and digits), when, who and how it ended.')
-  const v = parsed.data
-  if (v.deployedAt.getTime() > Date.now() + 5 * 60_000) throw invalid('Un despliegue anotado ya pasó: revisa la fecha.', 'A recorded deployment already happened: check the date.')
-  assertNoProhibited(v.deployedBy, v.notes)
-  return withUser(ctx.user.id, async (tx) => {
-    const id = await newId(tx)
-    await tx`insert into crm.deployments (id, environment, commit_sha, release_id, deployed_at, deployed_by, result, source, notes, recorded_by)
-             values (${id}, ${v.environment}, ${v.commit}, ${v.releaseId || null}, ${v.deployedAt}, ${v.deployedBy}, ${v.result}, 'manual', ${clean(v.notes)}, ${ctx.user.id})`
-    await audit(tx, ctx, 'deployment.recorded', 'deployment', id, null, null, { environment: v.environment, commit: v.commit.slice(0, 12), result: v.result })
-    return id
-  })
-}
-
-// ------------------------------------------------------------------ GOB-09: costos
-
-export const COST_COMPONENTS = ['platform', 'database', 'third_party', 'ai', 'support', 'other'] as const
-const costInput = z.object({
-  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
-  kind: z.enum(['cost', 'reference']),
-  component: z.enum(COST_COMPONENTS),
-  label: z.string().trim().min(2).max(120),
-  amount: z.string().trim(),
-  note: z.string().trim().max(500).optional().default(''),
-})
-
-/** Carga un costo del mes (o una referencia contra la que se compara), en USD. Nada se estima: se carga lo que dice la factura. */
-export async function addCost(ctx: Ctx, raw: z.input<typeof costInput>, currentMonth: string): Promise<string> {
-  ctx.assert('gov.manage')
-  const parsed = costInput.safeParse(raw)
-  if (!parsed.success) throw invalid('Un costo lleva mes, componente, de qué es y el monto en USD.', 'A cost needs a month, a component, what it is for and the amount in USD.')
-  const v = parsed.data
-  const amount = Number(v.amount.replace(/,/g, ''))
-  if (!/^\d{1,9}(,\d{3})*(\.\d{1,2})?$/.test(v.amount) || !Number.isFinite(amount) || amount > 9_999_999) throw invalid('Escribe el monto en USD, con punto para los centavos.', 'Enter the amount in USD, with a dot for cents.')
-  if (v.month > currentMonth) throw invalid('No se cargan costos de un mes que todavía no empieza.', 'Costs of a month that has not started cannot be loaded.')
-  assertNoProhibited(v.label, v.note)
-  return withUser(ctx.user.id, async (tx) => {
-    const id = await newId(tx)
-    await tx`insert into crm.cost_entries (id, month, kind, component, label, amount_usd, note, created_by)
-             values (${id}, ${`${v.month}-01`}, ${v.kind}, ${v.component}, ${v.label}, ${amount}, ${clean(v.note)}, ${ctx.user.id})`
-    await audit(tx, ctx, 'cost.added', 'cost_entry', id, null, null, { month: v.month, kind: v.kind, component: v.component, label: v.label, amount_usd: amount })
-    return id
-  })
-}
-
-/** Un costo mal cargado se anula (queda a la vista, tachado) y se carga de nuevo. */
-export async function voidCost(ctx: Ctx, id: string): Promise<void> {
-  ctx.assert('gov.manage')
-  if (!UUID.test(id)) throw notFound('No encontramos ese costo.', 'We could not find that cost.')
-  await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ voided_at: Date | null; label: string; amount_usd: string; month: string }[]>`select voided_at, label, amount_usd, to_char(month, 'YYYY-MM') as month from crm.cost_entries where id = ${id}`)[0]
-    if (!before) throw notFound('No encontramos ese costo.', 'We could not find that cost.')
-    // Sin `for update`: la base solo deja bloquear un costo vigente, y uno anulado tiene que poder leerse para decirlo.
-    const done = before.voided_at ? [] : await tx`update crm.cost_entries set voided_by = ${ctx.user.id}, voided_at = now() where id = ${id} and voided_at is null returning id`
-    if (!done.length) throw invalid('Ese costo ya estaba anulado.', 'That cost was already voided.')
-    await audit(tx, ctx, 'cost.voided', 'cost_entry', id, null, { month: before.month, label: before.label, amount_usd: Number(before.amount_usd) }, { voided: true })
-  })
-}
-
-// ------------------------------------------------------------------ E7.F6: solicitudes de configuración
-
-export const REQUEST_KINDS = ['field', 'option', 'pipeline', 'report', 'other'] as const
-const requestInput = z.object({
-  kind: z.enum(REQUEST_KINDS),
-  title: z.string().trim().min(3).max(120),
-  purpose: z.string().trim().min(10).max(1000),
-  market: z.string().regex(/^[A-Z]{2}$/).or(z.literal('')),
-  options: z.string().trim().max(1000).optional().default(''),
+const proposal = z.object({
+  object: z.enum(['account', 'deal', 'lead']),
+  market: z.string().length(2),
+  motor: z.enum(MOTORS).or(z.literal('')).optional().default(''),
+  labelEs: label,
+  labelEn: label,
+  dataType: z.enum(['text', 'number', 'select', 'date', 'boolean']),
+  options: z.array(z.string().trim().min(1).max(60)).max(30).optional().default([]),
 })
 
 /**
- * Pedir un cambio de configuración. La solicitud dice qué se pide, para qué sirve, para qué mercado (vacío: compartido,
- * que va primero) y, si es una lista, sus opciones. La puede mandar cualquier persona con acceso; decide administración.
+ * Quien lidera un mercado propone un campo para SU mercado, con dueño y la decisión que habilita. No aparece en ninguna ficha
+ * hasta que administración lo aprueba. El plazo publicado para responder está en `field_approval_sla_days`.
  */
-export async function createConfigRequest(ctx: Ctx, raw: z.input<typeof requestInput>): Promise<string> {
-  ctx.assert('config.request')
-  const parsed = requestInput.safeParse(raw)
-  if (!parsed.success) throw invalid('Dinos qué necesitas y para qué sirve (al menos una frase). Sin el para qué, la solicitud no se puede aprobar.', 'Tell us what you need and what it is for (at least a sentence). Without the purpose, the request cannot be approved.')
+export async function proposeField(ctx: Ctx, input: z.input<typeof proposal> & GovernanceInput): Promise<string> {
+  const parsed = proposal.safeParse(input)
+  if (!parsed.success) throw invalid('El campo lleva mercado, nombre en español y en inglés (de 2 a 60 letras) y su tipo.', 'A field needs a market, a name in Spanish and in English (2 to 60 characters) and its type.')
   const v = parsed.data
-  if (v.market && !ctx.markets.some((m) => m.code === v.market)) throw invalid('Ese mercado no es uno de los tuyos.', 'That market is not one of yours.')
-  if (v.kind === 'option' && !v.options) throw invalid('Escribe las opciones que pides, una por renglón.', 'Write the options you are asking for, one per line.')
-  assertNoProhibited(v.title, v.purpose, v.options)
+  ctx.assert('field.propose', v.market)
+  const g = parseGovernance(input)
+  assertNoProhibited(v.labelEs, v.labelEn, ...v.options)
+  const options = v.dataType === 'select' ? [...new Set(v.options)] : []
+  if (v.dataType === 'select' && options.length < 2) throw invalid('Una lista lleva al menos dos opciones, una por renglón.', 'A list needs at least two options, one per line.')
   return withUser(ctx.user.id, async (tx) => {
+    await assertOwner(tx, g.ownerId)
+    const clash = await tx`select 1 from crm.field_definitions where object = ${v.object} and (is_active or status = 'proposed') and (market_code is null or market_code = ${v.market})
+      and (lower(label_es) = lower(${v.labelEs}) or lower(label_en) = lower(${v.labelEn}))`
+    if (clash[0]) throw invalid('Ya hay un campo o una propuesta con ese nombre.', 'There is already a field or a proposal with that name.')
+    const base = slugOf(v.labelEn, 50) || 'field'
+    let key = base.length >= 2 ? base : `${base}_x`
+    for (let i = 2; (await tx`select 1 from crm.field_definitions where object = ${v.object} and key = ${key}`)[0]; i++) key = `${base}_${i}`
     const id = await newId(tx)
-    await tx`insert into crm.config_requests (id, kind, title, purpose, market_code, options, requested_by)
-             values (${id}, ${v.kind}, ${v.title}, ${v.purpose}, ${v.market || null}, ${clean(v.options)}, ${ctx.user.id})`
-    await audit(tx, ctx, 'config_request.created', 'config_request', id, v.market || null, null, { kind: v.kind, title: v.title, shared: !v.market })
+    await tx`insert into crm.field_definitions (id, object, key, label_es, label_en, data_type, options, market_code, motor, is_active, status, proposed_by, proposed_at,
+               owner_id, purpose, decision, review_on, pii_class, data_class, untrusted, origin, used_by, position)
+             values (${id}, ${v.object}, ${key}, ${v.labelEs}, ${v.labelEn}, ${v.dataType}, ${tx.json(options)}, ${v.market}, ${v.motor || null}, false, 'proposed', ${ctx.user.id}, now(),
+               ${g.ownerId}, ${g.purpose}, ${g.decision}, ${g.reviewOn}, ${g.piiClass}, ${g.dataClass}, ${g.untrusted}, ${clean(g.origin)}, ${clean(g.usedBy)},
+               (select coalesce(max(position), 0) + 1 from crm.field_definitions where object = ${v.object}))`
+    await audit(tx, ctx, 'field.proposed', 'field', id, v.market, null, { object: v.object, key, label_es: v.labelEs, decision: g.decision })
     return id
   })
 }
 
-/** Aprobar, rechazar (con el porqué) o dar por hecha una solicitud. Solo administración. */
-export async function decideConfigRequest(ctx: Ctx, raw: { id: string; decision: string; note?: string }): Promise<void> {
+/** Administración decide una propuesta: aprobada, el campo aparece en las fichas de su mercado; rechazada, queda con su motivo. */
+export async function decideField(ctx: Ctx, id: string, approve: boolean, note: string): Promise<void> {
   ctx.assert('config.manage')
-  if (!UUID.test(raw.id)) throw notFound('No encontramos esa solicitud.', 'We could not find that request.')
-  const decision = z.enum(['approved', 'rejected', 'done']).safeParse(raw.decision)
-  if (!decision.success) throw invalid('Elige qué se decide.', 'Choose the decision.')
-  const note = clean(raw.note)
-  if (decision.data === 'rejected' && (!note || note.length < 2)) throw invalid('Al rechazar, dile a la persona por qué.', 'When you reject, tell the person why.')
-  assertNoProhibited(note)
+  const why = note.trim()
+  if (!approve && why.length < 5) throw invalid('Escribe por qué se rechaza (al menos 5 letras): quien lo propuso lo va a leer.', 'Say why it is rejected (at least 5 characters): the person who proposed it will read it.')
+  assertNoProhibited(why)
   await withUser(ctx.user.id, async (tx) => {
-    const before = (await tx<{ status: string; market_code: string | null; requested_by: string }[]>`select status, market_code, requested_by from crm.config_requests where id = ${raw.id} for update`)[0]
-    if (!before) throw notFound('No encontramos esa solicitud.', 'We could not find that request.')
-    const allowed = before.status === 'open' ? ['approved', 'rejected'] : before.status === 'approved' ? ['done', 'rejected'] : []
-    if (!allowed.includes(decision.data)) throw invalid('Esa solicitud ya se decidió.', 'That request has already been decided.')
-    await tx`update crm.config_requests set status = ${decision.data}, decided_by = ${ctx.user.id}, decided_at = now(), decision_note = coalesce(${note}, decision_note) where id = ${raw.id}`
-    await audit(tx, ctx, 'config_request.decided', 'config_request', raw.id, before.market_code, { status: before.status }, { status: decision.data, requester: before.requested_by })
+    const rows = await tx<{ status: string; market_code: string | null; key: string; object: string }[]>`select status, market_code, key, object from crm.field_definitions where id = ${id} for update`
+    const f = rows[0]
+    if (!f) throw notFound()
+    if (f.status !== 'proposed') throw invalid('Esa propuesta ya se decidió.', 'That proposal was already decided.')
+    await tx`update crm.field_definitions set status = ${approve ? 'approved' : 'rejected'}, is_active = ${approve}, decided_by = ${ctx.user.id}, decided_at = now(), decision_note = ${clean(why.slice(0, 400))} where id = ${id}`
+    await audit(tx, ctx, approve ? 'field.approved' : 'field.rejected', 'field', id, f.market_code, { status: 'proposed' }, { object: f.object, key: f.key, note: clean(why) })
   })
 }
 
-// ------------------------------------------------------------------ E7.F7: el motivo de un cambio de configuración
+// ================================================================ DAT-05: formularios, turnos y mercados desde la pantalla
 
-/** Objetos de la bitácora que son configuración: para ellos se pide el porqué. */
-export const CONFIG_OBJECTS = ['pipeline', 'stage', 'field', 'account_type', 'loss_reason', 'web_form', 'routing_rule', 'territory', 'market', 'market_hours', 'ops_catalog', 'product', 'fx_rate', 'api_client', 'service_objective', 'component'] as const
-
-/** Anota por qué se hizo un cambio de configuración. Una vez por cambio; no se edita (igual que la bitácora). */
-export async function annotateChange(ctx: Ctx, eventId: string, rawReason: string): Promise<void> {
-  ctx.assert('config.manage')
-  if (!UUID.test(eventId)) throw notFound('No encontramos ese cambio.', 'We could not find that change.')
-  const reason = clean(rawReason)
-  if (!reason || reason.length < 5 || reason.length > 1000) throw invalid('Escribe por qué se hizo el cambio, en una frase.', 'Write why the change was made, in a sentence.')
-  assertNoProhibited(reason)
-  await withUser(ctx.user.id, async (tx) => {
-    const ev = (await tx<{ object: string; market_code: string | null }[]>`select object, market_code from crm.audit_events where id = ${eventId}`)[0]
-    if (!ev || !(CONFIG_OBJECTS as readonly string[]).includes(ev.object)) throw notFound('Ese evento no es un cambio de configuración.', 'That event is not a configuration change.')
-    if ((await tx`select 1 from crm.change_reasons where event_id = ${eventId}`)[0]) throw invalid('Ese cambio ya tiene su motivo.', 'That change already has its reason.')
-    await tx`insert into crm.change_reasons (event_id, reason, created_by) values (${eventId}, ${reason}, ${ctx.user.id})`
-    await audit(tx, ctx, 'change.reason_added', 'change_reason', eventId, ev.market_code, null, { object: ev.object })
-  })
-}
-
-// ------------------------------------------------------------------ E7.F3: champions
-
-/** Nombra (o quita, con `userId` vacío) al champion de un equipo: una persona que trabaja en ese equipo. */
-export async function setChampion(ctx: Ctx, teamId: string, userId: string): Promise<void> {
-  ctx.assert('config.manage')
-  if (!UUID.test(teamId) || (userId !== '' && !UUID.test(userId))) throw notFound('No encontramos ese equipo.', 'We could not find that team.')
-  await withUser(ctx.user.id, async (tx) => {
-    const team = (await tx<{ market_code: string; name: string }[]>`select market_code, name from crm.teams where id = ${teamId}`)[0]
-    if (!team) throw notFound('No encontramos ese equipo.', 'We could not find that team.')
-    const before = (await tx<{ user_id: string }[]>`select user_id from crm.team_champions where team_id = ${teamId} for update`)[0]
-    if (userId === '') {
-      if (!before) return
-      await tx`delete from crm.team_champions where team_id = ${teamId}`
-      await audit(tx, ctx, 'champion.set', 'team', teamId, team.market_code, { champion: before.user_id }, { champion: null })
-      return
-    }
-    const member = await tx`select 1 from crm.memberships m where m.user_id = ${userId} and m.team_id = ${teamId} and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())`
-    if (!member[0]) throw invalid('El champion tiene que ser una persona que hoy trabaja en ese equipo.', 'The champion has to be a person who works on that team today.')
-    await tx`insert into crm.team_champions (team_id, user_id, named_by) values (${teamId}, ${userId}, ${ctx.user.id})
-             on conflict (team_id) do update set user_id = excluded.user_id, named_by = excluded.named_by, named_at = now()`
-    await audit(tx, ctx, 'champion.set', 'team', teamId, team.market_code, { champion: before?.user_id ?? null }, { champion: userId })
-  })
-}
-
-/** La revisión mensual de administración con el champion de un equipo: una por equipo y mes. */
-export async function recordChampionReview(ctx: Ctx, raw: { teamId: string; month: string; notes: string }, currentMonth: string): Promise<void> {
-  ctx.assert('config.manage')
-  if (!UUID.test(raw.teamId)) throw notFound('No encontramos ese equipo.', 'We could not find that team.')
-  const notes = clean(raw.notes)
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month) || raw.month > currentMonth) throw invalid('Elige el mes de la revisión; no puede ser un mes futuro.', 'Choose the month of the review; it cannot be a future month.')
-  if (!notes || notes.length < 5 || notes.length > 2000) throw invalid('Escribe qué se revisó y qué quedó acordado.', 'Write what was reviewed and what was agreed.')
-  assertNoProhibited(notes)
-  await withUser(ctx.user.id, async (tx) => {
-    const team = (await tx<{ market_code: string }[]>`select market_code from crm.teams where id = ${raw.teamId}`)[0]
-    if (!team) throw notFound('No encontramos ese equipo.', 'We could not find that team.')
-    if (!(await tx`select 1 from crm.team_champions where team_id = ${raw.teamId}`)[0]) throw invalid('Ese equipo todavía no tiene champion: nómbralo primero.', 'That team has no champion yet: name one first.')
-    if ((await tx`select 1 from crm.champion_reviews where team_id = ${raw.teamId} and month = ${`${raw.month}-01`}`)[0]) throw invalid('La revisión de ese mes ya está anotada.', 'That month’s review is already recorded.')
-    const id = await newId(tx)
-    await tx`insert into crm.champion_reviews (id, team_id, month, notes, reviewed_by) values (${id}, ${raw.teamId}, ${`${raw.month}-01`}, ${notes}, ${ctx.user.id})`
-    await audit(tx, ctx, 'champion.reviewed', 'team', raw.teamId, team.market_code, null, { month: raw.month })
-  })
-}
-
-// ------------------------------------------------------------------ E7.F9: material por mercado
-
-export const MATERIAL_KINDS = ['deck', 'lead_guide', 'faq'] as const
-const materialInput = z.object({
-  market: z.string().regex(/^[A-Z]{2}$/),
-  kind: z.enum(MATERIAL_KINDS),
+const formInput = z.object({
+  market: z.string().length(2),
+  name: z.string().trim().min(2).max(80),
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,60}$/),
+  motor: z.enum(MOTORS),
   locale: z.enum(['es', 'en']),
-  title: z.string().trim().min(3).max(140),
-  url: z.string().trim().regex(/^https:\/\/\S{4,490}$/),
-  inPortal: z.boolean(),
-  pinned: z.boolean(),
+  routingRuleId: z.guid().or(z.literal('')).optional().default(''),
 })
 
-/** Guarda dónde está un material de capacitación de un mercado (el enlace, nunca el archivo) y si ya está publicado y fijado. */
-export async function saveMaterial(ctx: Ctx, raw: z.input<typeof materialInput>): Promise<void> {
+/** Un formulario web nuevo, sin migración: mercado, tipo de venta, idioma y a qué turno entrega sus leads. */
+export async function createWebForm(ctx: Ctx, input: z.input<typeof formInput>): Promise<string> {
   ctx.assert('config.manage')
-  const parsed = materialInput.safeParse(raw)
-  if (!parsed.success) throw invalid('El material lleva mercado, tipo, idioma, título y un enlace que empiece con https://.', 'The material needs a market, a type, a language, a title and a link that starts with https://.')
+  const parsed = formInput.safeParse(input)
+  if (!parsed.success) {
+    if (String(parsed.error.issues[0]?.path[0]) === 'slug') throw invalid('La dirección del formulario lleva de 3 a 60 letras minúsculas, números o guiones.', 'The form address takes 3 to 60 lowercase letters, numbers or hyphens.')
+    throw invalid('El formulario lleva mercado, nombre, dirección, tipo de venta e idioma.', 'A form needs a market, name, address, sales type and language.')
+  }
   const v = parsed.data
-  assertNoProhibited(v.title, v.url)
-  await withUser(ctx.user.id, async (tx) => {
+  assertNoProhibited(v.name)
+  return withUser(ctx.user.id, async (tx) => {
     if (!(await tx`select 1 from crm.markets where code = ${v.market}`)[0]) throw invalid('Ese mercado no existe.', 'That market does not exist.')
-    const rows = await tx<{ id: string }[]>`
-      insert into crm.training_materials (market_code, kind, locale, title, url, in_portal, pinned, updated_by)
-      values (${v.market}, ${v.kind}, ${v.locale}, ${v.title}, ${v.url}, ${v.inPortal}, ${v.pinned}, ${ctx.user.id})
-      on conflict (market_code, kind, locale) do update
-        set title = excluded.title, url = excluded.url, in_portal = excluded.in_portal, pinned = excluded.pinned, updated_by = excluded.updated_by, updated_at = now()
-      returning id`
-    await audit(tx, ctx, 'material.saved', 'training_material', rows[0]!.id, v.market, null, { kind: v.kind, locale: v.locale, in_portal: v.inPortal, pinned: v.pinned })
+    if ((await tx`select 1 from crm.web_forms where slug = ${v.slug}`)[0]) throw invalid('Ya hay un formulario con esa dirección.', 'There is already a form with that address.')
+    if (v.routingRuleId && !(await tx`select 1 from crm.routing_rules where id = ${v.routingRuleId} and market_code = ${v.market}`)[0]) throw invalid('Ese turno no es de este mercado.', 'That rotation does not belong to this market.')
+    const id = await newId(tx)
+    await tx`insert into crm.web_forms (id, market_code, slug, name, motor, locale, routing_rule_id) values (${id}, ${v.market}, ${v.slug}, ${v.name}, ${v.motor}, ${v.locale}, ${v.routingRuleId || null})`
+    await audit(tx, ctx, 'form.created', 'form', id, v.market, null, { slug: v.slug, name: v.name, motor: v.motor })
+    return id
   })
 }
 
-export async function removeMaterial(ctx: Ctx, id: string): Promise<void> {
+export async function setWebFormActive(ctx: Ctx, id: string, active: boolean): Promise<void> {
   ctx.assert('config.manage')
-  if (!UUID.test(id)) throw notFound('No encontramos ese material.', 'We could not find that material.')
   await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ market_code: string; kind: string; locale: string }[]>`delete from crm.training_materials where id = ${id} returning market_code, kind, locale`
-    if (!rows[0]) throw notFound('No encontramos ese material.', 'We could not find that material.')
-    await audit(tx, ctx, 'material.removed', 'training_material', id, rows[0].market_code, { kind: rows[0].kind, locale: rows[0].locale }, null)
+    const rows = await tx<{ market_code: string; is_active: boolean }[]>`select market_code, is_active from crm.web_forms where id = ${id} for update`
+    if (!rows[0]) throw notFound()
+    if (rows[0].is_active === active) return
+    await tx`update crm.web_forms set is_active = ${active} where id = ${id}`
+    await audit(tx, ctx, 'form.toggled', 'form', id, rows[0].market_code, { is_active: rows[0].is_active }, { is_active: active })
+  })
+}
+
+const ruleInput = z.object({
+  market: z.string().length(2),
+  name: z.string().trim().min(2).max(80),
+  strategy: z.enum(['round_robin', 'territory', 'fixed']),
+  memberIds: z.array(z.guid()).max(60),
+  fallbackId: z.guid().or(z.literal('')).optional().default(''),
+  slaMinutes: z.number().int().min(5).max(7 * 24 * 60),
+})
+
+/** Un turno de leads nuevo, sin migración. Solo entran personas que hoy venden en ese mercado. */
+export async function createRoutingRule(ctx: Ctx, input: z.input<typeof ruleInput>): Promise<string> {
+  ctx.assert('config.manage')
+  const parsed = ruleInput.safeParse(input)
+  if (!parsed.success) throw invalid('El turno lleva mercado, nombre, forma de reparto y minutos para el primer contacto (de 5 minutos a 7 días).', 'A rotation needs a market, a name, how it hands out leads and minutes to first contact (5 minutes to 7 days).')
+  const v = parsed.data
+  assertNoProhibited(v.name)
+  return withUser(ctx.user.id, async (tx) => {
+    if (!(await tx`select 1 from crm.markets where code = ${v.market}`)[0]) throw invalid('Ese mercado no existe.', 'That market does not exist.')
+    if ((await tx`select 1 from crm.routing_rules where market_code = ${v.market} and lower(name) = lower(${v.name})`)[0]) throw invalid('Ya hay un turno con ese nombre en ese mercado.', 'There is already a rotation with that name in that market.')
+    const people = [...new Set([...v.memberIds, ...(v.fallbackId ? [v.fallbackId] : [])])]
+    for (const p of people) {
+      const ok = await tx<{ ok: boolean }[]>`select app.can_sell_in(${p}, ${v.market}) as ok`
+      if (!ok[0]?.ok) throw invalid('En el turno solo entran personas que hoy venden en ese mercado.', 'Only people who sell in that market today can be in the rotation.')
+    }
+    if (v.strategy !== 'fixed' && v.memberIds.length === 0) throw invalid('Elige al menos a una persona para el turno.', 'Pick at least one person for the rotation.')
+    if (v.strategy === 'fixed' && !v.fallbackId) throw invalid('Un turno fijo lleva a la persona que recibe todo.', 'A fixed rotation needs the person who gets everything.')
+    const id = await newId(tx)
+    await tx`insert into crm.routing_rules (id, market_code, name, strategy, member_ids, fallback_id, sla_minutes) values (${id}, ${v.market}, ${v.name}, ${v.strategy}, ${v.memberIds}::uuid[], ${v.fallbackId || null}, ${v.slaMinutes})`
+    await audit(tx, ctx, 'routing.rule_created', 'routing_rule', id, v.market, null, { name: v.name, strategy: v.strategy, member_ids: v.memberIds, sla_minutes: v.slaMinutes })
+    return id
+  })
+}
+
+export async function setRoutingRuleActive(ctx: Ctx, id: string, active: boolean): Promise<void> {
+  ctx.assert('config.manage')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string; is_active: boolean }[]>`select market_code, is_active from crm.routing_rules where id = ${id} for update`
+    if (!rows[0]) throw notFound()
+    if (rows[0].is_active === active) return
+    if (!active && (await tx`select 1 from crm.web_forms where routing_rule_id = ${id} and is_active`)[0]) throw invalid('Hay un formulario activo que entrega a este turno. Pausa antes el formulario o cámbiale el turno.', 'An active form hands its leads to this rotation. Pause the form first or point it to another rotation.')
+    await tx`update crm.routing_rules set is_active = ${active} where id = ${id}`
+    await audit(tx, ctx, 'routing.rule_toggled', 'routing_rule', id, rows[0].market_code, { is_active: rows[0].is_active }, { is_active: active })
+  })
+}
+
+const marketInput = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
+  name: z.string().trim().min(2).max(60),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/),
+  locale: z.enum(['es', 'en']),
+  timezone: z.string().trim().min(3).max(60),
+  phoneCc: z.string().trim().regex(/^\+[1-9][0-9]{0,3}$/),
+})
+
+/**
+ * Un mercado nuevo, sin migración. Nace "en preparación": no recibe registros hasta que administración lo abre, ya con su
+ * embudo, su equipo y su horario. Así un mercado a medio configurar no aparece en los selectores de quien vende.
+ */
+export async function createMarket(ctx: Ctx, input: z.input<typeof marketInput>): Promise<string> {
+  ctx.assert('config.manage')
+  const parsed = marketInput.safeParse(input)
+  if (!parsed.success) {
+    const f = String(parsed.error.issues[0]?.path[0] ?? '')
+    if (f === 'code') throw invalid('El código del mercado son dos letras (el del país).', 'The market code is two letters (the country’s).')
+    if (f === 'currency') throw invalid('La moneda son tres letras (por ejemplo MXN o USD).', 'The currency is three letters (for example MXN or USD).')
+    if (f === 'phoneCc') throw invalid('La clave telefónica empieza con + y lleva de 1 a 4 números.', 'The dialing code starts with + and has 1 to 4 digits.')
+    throw invalid('El mercado lleva código, nombre, moneda, idioma, zona horaria y clave telefónica.', 'A market needs a code, name, currency, language, time zone and dialing code.')
+  }
+  const v = parsed.data
+  return withUser(ctx.user.id, async (tx) => {
+    if (!(await tx`select 1 from pg_timezone_names where name = ${v.timezone}`)[0]) throw invalid('Esa zona horaria no existe. Usa el nombre completo, por ejemplo America/Bogota.', 'That time zone does not exist. Use the full name, for example America/Bogota.')
+    if ((await tx`select 1 from crm.markets where code = ${v.code}`)[0]) throw invalid('Ya existe un mercado con ese código.', 'There is already a market with that code.')
+    await tx`insert into crm.markets (code, name, currency, default_locale, locales, timezone, phone_cc, status) values (${v.code}, ${v.name}, ${v.currency}, ${v.locale}, ${[v.locale]}::text[], ${v.timezone}, ${v.phoneCc}, 'planned')`
+    await tx`insert into crm.market_hours (market_code, updated_by) values (${v.code}, ${ctx.user.id}) on conflict do nothing`
+    await audit(tx, ctx, 'market.created', 'market', null, v.code, null, { code: v.code, name: v.name, currency: v.currency, timezone: v.timezone, status: 'planned' })
+    return v.code
+  })
+}
+
+/** Abrir un mercado (o volverlo a "en preparación") y corregir su nombre. Para abrirlo hace falta al menos un embudo con etapas. */
+export async function updateMarket(ctx: Ctx, code: string, input: { name: string; status: 'live' | 'planned' }): Promise<void> {
+  ctx.assert('config.manage')
+  const name = input.name.trim()
+  if (name.length < 2 || name.length > 60) throw invalid('El mercado lleva un nombre de 2 a 60 letras.', 'A market needs a name of 2 to 60 characters.')
+  if (input.status !== 'live' && input.status !== 'planned') throw invalid('Elige si el mercado está abierto o en preparación.', 'Choose whether the market is open or being set up.')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ name: string; status: string }[]>`select name, status from crm.markets where code = ${code} for update`
+    const m = rows[0]
+    if (!m) throw notFound()
+    if (input.status === 'live' && m.status !== 'live') {
+      const ready = await tx`select 1 from crm.pipelines p where p.market_code = ${code} and exists (select 1 from crm.stages s where s.pipeline_id = p.id) limit 1`
+      if (!ready[0]) throw invalid('Antes de abrir el mercado créale un embudo con sus etapas, en Administración, Embudos y campos.', 'Before opening the market, create a pipeline with its stages for it, under Administration, Pipelines and fields.')
+    }
+    if (input.status === 'planned' && m.status === 'live' && (await tx`select 1 from crm.accounts where market_code = ${code} limit 1`)[0])
+      throw invalid('Ese mercado ya tiene comercios: no vuelve a "en preparación".', 'That market already has merchants: it cannot go back to being set up.')
+    if (m.name === name && m.status === input.status) return
+    await tx`update crm.markets set name = ${name}, status = ${input.status} where code = ${code}`
+    await audit(tx, ctx, 'market.updated', 'market', null, code, { name: m.name, status: m.status }, { name, status: input.status })
+  })
+}
+
+/** DAT-01: cuántos niveles admite un árbol cuya raíz es de este tipo (contando la raíz). Vacío: sin límite. */
+export async function setTypeDepth(ctx: Ctx, typeId: string, maxDepth: number | null): Promise<void> {
+  ctx.assert('config.manage')
+  if (maxDepth !== null && (!Number.isInteger(maxDepth) || maxDepth < 1 || maxDepth > 12)) throw invalid('Los niveles van de 1 a 12, o vacío para no poner límite.', 'Levels go from 1 to 12, or empty for no limit.')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ code: string; market_code: string | null; max_depth: number | null }[]>`select code, market_code, max_depth from crm.account_types where id = ${typeId} for update`
+    const ty = rows[0]
+    if (!ty) throw notFound()
+    if (ty.max_depth === maxDepth) return
+    if (maxDepth !== null) {
+      // No se baja el límite por debajo de un árbol que ya existe: primero se acomoda el árbol.
+      const deepest = await tx<{ d: number | null }[]>`
+        select max((select coalesce(max(cardinality(d.ancestor_ids)), 0) + 1 from crm.accounts d where d.id = r.id or d.ancestor_ids @> array[r.id])) as d
+          from crm.accounts r where r.parent_id is null and r.account_type = ${ty.code} and r.archived_at is null and (${ty.market_code}::text is null or r.market_code = ${ty.market_code})`
+      if ((deepest[0]?.d ?? 0) > maxDepth) throw invalid(`Ya hay un árbol de este tipo con ${deepest[0]!.d} niveles. Acomoda ese árbol antes de bajar el límite.`, `There is already a tree of this type with ${deepest[0]!.d} levels. Rearrange that tree before lowering the limit.`)
+    }
+    await tx`update crm.account_types set max_depth = ${maxDepth} where id = ${typeId}`
+    await audit(tx, ctx, 'account_type.depth_set', 'account_type', typeId, ty.market_code, { max_depth: ty.max_depth }, { code: ty.code, max_depth: maxDepth })
+  })
+}
+
+// ================================================================ DAT-05: procesos paralelos por mercado
+
+export type ProcessStatus = { code: string; es: string; en: string }
+export type ProcessAttr = { key: string; es: string; en: string }
+/** Un renglón por elemento: "Texto en español | Text in English". Sin la barra, el mismo texto vale para los dos idiomas. */
+const pairs = (lines: string[]) =>
+  lines.map((l) => {
+    const [es, en] = l.split('|').map((x) => x.trim())
+    return { es: es ?? '', en: en || es || '' }
+  }).filter((p) => p.es.length >= 2 && p.es.length <= 60 && p.en.length <= 60)
+
+/**
+ * Una lista de proceso del mercado (capacitación, una campaña con un proveedor): sus propios estados y sus propios datos,
+ * al lado del embudo y sin tocarlo. La define quien lidera el mercado o administración, desde la pantalla.
+ */
+export async function createProcessList(ctx: Ctx, input: { market: string; nameEs: string; nameEn: string; statuses: string[]; attributes: string[] }): Promise<string> {
+  ctx.assert('process.define', input.market)
+  const names = z.object({ nameEs: z.string().trim().min(2).max(80), nameEn: z.string().trim().min(2).max(80) }).safeParse(input)
+  if (!names.success) throw invalid('La lista lleva nombre en español y en inglés (de 2 a 80 letras).', 'A list needs a name in Spanish and in English (2 to 80 characters).')
+  const st = pairs(input.statuses)
+  const at = pairs(input.attributes)
+  if (st.length < 2 || st.length > 12) throw invalid('La lista lleva de 2 a 12 estados, uno por renglón. El último es el que la cierra.', 'A list takes 2 to 12 statuses, one per line. The last one closes it.')
+  if (at.length > 10) throw invalid('Una lista lleva hasta 10 datos propios.', 'A list takes up to 10 details of its own.')
+  assertNoProhibited(names.data.nameEs, names.data.nameEn, ...st.flatMap((s) => [s.es, s.en]), ...at.flatMap((s) => [s.es, s.en]))
+  const uniq = <T extends { es: string; en: string }>(xs: T[], field: 'code' | 'key') => {
+    const seen = new Set<string>()
+    return xs.map((x, i) => {
+      let k = slugOf(x.en, 30) || `${field}_${i + 1}`
+      if (k.length < 2) k = `${field}_${i + 1}`
+      while (seen.has(k)) k = `${k}_${i + 1}`
+      seen.add(k)
+      return { [field]: k, es: x.es, en: x.en }
+    })
+  }
+  const statuses = uniq(st, 'code')
+  const attributes = uniq(at, 'key')
+  return withUser(ctx.user.id, async (tx) => {
+    ctx.market(input.market)
+    const base = slugOf(names.data.nameEn) || 'list'
+    let code = base.length >= 2 ? base : `${base}_x`
+    for (let i = 2; (await tx`select 1 from crm.process_lists where market_code = ${input.market} and code = ${code}`)[0]; i++) code = `${base}_${i}`
+    if ((await tx`select 1 from crm.process_lists where market_code = ${input.market} and is_active and (lower(name_es) = lower(${names.data.nameEs}) or lower(name_en) = lower(${names.data.nameEn}))`)[0])
+      throw invalid('Ya hay una lista con ese nombre en ese mercado.', 'There is already a list with that name in that market.')
+    const id = await newId(tx)
+    await tx`insert into crm.process_lists (id, market_code, code, name_es, name_en, statuses, attributes, created_by)
+             values (${id}, ${input.market}, ${code}, ${names.data.nameEs}, ${names.data.nameEn}, ${tx.json(statuses)}, ${tx.json(attributes)}, ${ctx.user.id})`
+    await audit(tx, ctx, 'process.list_created', 'process_list', id, input.market, null, { code, name_es: names.data.nameEs, statuses: statuses.length, attributes: attributes.length })
+    return id
+  })
+}
+
+export async function setProcessListActive(ctx: Ctx, id: string, active: boolean): Promise<void> {
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string; is_active: boolean }[]>`select market_code, is_active from crm.process_lists where id = ${id} for update`
+    if (!rows[0]) throw notFound()
+    ctx.assert('process.define', rows[0].market_code)
+    if (rows[0].is_active === active) return
+    await tx`update crm.process_lists set is_active = ${active} where id = ${id}`
+    await audit(tx, ctx, 'process.list_toggled', 'process_list', id, rows[0].market_code, { is_active: rows[0].is_active }, { is_active: active })
+  })
+}
+
+/** Poner un comercio en una lista de proceso o cambiar su estado y sus datos. El último estado de la lista cierra el proceso. */
+export async function setProcessStatus(ctx: Ctx, accountId: string, listId: string, status: string, attrs: Record<string, string> = {}): Promise<void> {
+  await withUser(ctx.user.id, async (tx) => {
+    const acc = await tx<{ market_code: string }[]>`select market_code from crm.accounts where id = ${accountId} and archived_at is null`
+    if (!acc[0]) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
+    ctx.assert('account.edit', acc[0].market_code)
+    const lists = await tx<{ market_code: string; statuses: ProcessStatus[]; attributes: ProcessAttr[]; is_active: boolean }[]>`select market_code, statuses, attributes, is_active from crm.process_lists where id = ${listId}`
+    const list = lists[0]
+    if (!list || list.market_code !== acc[0].market_code) throw invalid('Esa lista no es del mercado de este comercio.', 'That list does not belong to this merchant’s market.')
+    if (!list.statuses.some((s) => s.code === status)) throw invalid('Elige un estado de la lista.', 'Pick a status from the list.')
+    const clean_: Record<string, string> = {}
+    for (const a of list.attributes) {
+      const val = (attrs[a.key] ?? '').trim().slice(0, 200)
+      if (val) clean_[a.key] = val
+    }
+    assertNoProhibited(...Object.values(clean_))
+    const closes = list.statuses[list.statuses.length - 1]!.code === status
+    const live = await tx<{ id: string; status: string }[]>`select id, status from crm.process_memberships where list_id = ${listId} and account_id = ${accountId} and ended_at is null for update`
+    if (live[0]) {
+      await tx`update crm.process_memberships set status = ${status}, attrs = ${tx.json(clean_)}, status_at = case when status = ${status} then status_at else now() end,
+                ended_at = ${closes ? tx`now()` : tx`null`}, updated_by = ${ctx.user.id} where id = ${live[0].id}`
+      await audit(tx, ctx, 'process.status_changed', 'account', accountId, acc[0].market_code, { list_id: listId, status: live[0].status }, { status, closed: closes })
+    } else {
+      if (!list.is_active) throw invalid('Esa lista ya no se usa.', 'That list is no longer in use.')
+      await tx`insert into crm.process_memberships (list_id, account_id, market_code, status, attrs, ended_at, updated_by)
+               values (${listId}, ${accountId}, ${acc[0].market_code}, ${status}, ${tx.json(clean_)}, ${closes ? tx`now()` : tx`null`}, ${ctx.user.id})`
+      await audit(tx, ctx, 'process.enrolled', 'account', accountId, acc[0].market_code, null, { list_id: listId, status })
+    }
+  })
+}
+
+// ================================================================ GOB-02: reglas de calidad con responsable
+
+export const QUALITY_OWNER_ROLES = ['admin', 'market_lead', 'supervisor', 'ops'] as const
+
+/** Cada regla de calidad tiene quién responde por ella (un rol y, si se quiere, una persona) y, las de vencimiento, sus días. */
+export async function setQualityRule(ctx: Ctx, code: string, input: { ownerRole: string; ownerId: string; threshold: number | null; active: boolean }): Promise<void> {
+  ctx.assert('config.manage')
+  if (!(QUALITY_OWNER_ROLES as readonly string[]).includes(input.ownerRole)) throw invalid('Elige quién responde por la regla.', 'Pick who owns the rule.')
+  if (input.threshold !== null && (!Number.isInteger(input.threshold) || input.threshold < 7 || input.threshold > 730)) throw invalid('Los días van de 7 a 730.', 'Days go from 7 to 730.')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ owner_role: string; owner_id: string | null; threshold: number | null; is_active: boolean }[]>`select owner_role, owner_id, threshold, is_active from crm.quality_rules where code = ${code} for update`
+    const r = rows[0]
+    if (!r) throw notFound()
+    if (input.ownerId) await assertOwner(tx, input.ownerId)
+    const threshold = r.threshold === null ? null : (input.threshold ?? r.threshold)
+    await tx`update crm.quality_rules set owner_role = ${input.ownerRole}, owner_id = ${input.ownerId || null}, threshold = ${threshold}, is_active = ${input.active} where code = ${code}`
+    await audit(tx, ctx, 'quality.rule_updated', 'quality_rule', null, null, { code, ...r }, { code, owner_role: input.ownerRole, owner_id: input.ownerId || null, threshold, is_active: input.active })
+  })
+}
+
+/** Guardar ahora el corte de calidad de hoy (lo mismo que hace la tarea diaria). De ahí sale la tendencia del tablero. */
+export async function saveQualitySnapshot(ctx: Ctx): Promise<number> {
+  ctx.assert('config.manage')
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ n: number }[]>`select app.quality_snapshot() as n`
+    await audit(tx, ctx, 'quality.snapshot_saved', 'quality_rule', null, null, null, { rows: rows[0]?.n ?? 0 })
+    return rows[0]?.n ?? 0
+  })
+}
+
+// ================================================================ DAT-07: productos por comercio
+
+export const PRODUCT_STATUSES = ['requested', 'submitted', 'approved', 'active', 'rejected', 'suspended'] as const
+export type ProductStatus = (typeof PRODUCT_STATUSES)[number]
+
+/**
+ * Un producto de un comercio y su estado con el proveedor: solicitado, enviado al proveedor, aprobado, activo, rechazado o
+ * suspendido, cada paso con su fecha. Es el mismo registro que alimenta el estado por proveedor que Operaciones marca en un negocio.
+ */
+export async function setAccountProduct(ctx: Ctx, accountId: string, input: { productId: string; providerId: string; status: string; note?: string }): Promise<string> {
+  if (!(PRODUCT_STATUSES as readonly string[]).includes(input.status)) throw invalid('Elige un estado de la lista.', 'Pick a status from the list.')
+  const status = input.status as ProductStatus
+  const note = (input.note ?? '').trim().slice(0, 300)
+  assertNoProhibited(note)
+  if (!input.productId && !input.providerId) throw invalid('Elige el producto o el proveedor.', 'Pick the product or the provider.')
+  return withUser(ctx.user.id, async (tx) => {
+    const acc = await tx<{ market_code: string }[]>`select market_code from crm.accounts where id = ${accountId} and archived_at is null`
+    if (!acc[0]) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
+    const market = acc[0].market_code
+    ctx.assert('account.products', market)
+    let providerId = input.providerId || null
+    if (input.productId) {
+      const p = await tx<{ provider_id: string | null }[]>`select provider_id from crm.products where id = ${input.productId} and is_active and (market_code is null or market_code = ${market})`
+      if (!p[0]) throw invalid('Ese producto no es del catálogo de este mercado.', 'That product is not in this market’s catalog.')
+      providerId = providerId ?? p[0].provider_id
+    }
+    if (providerId && !(await tx`select 1 from crm.ops_catalog where id = ${providerId} and kind = 'provider' and (market_code is null or market_code = ${market})`)[0])
+      throw invalid('Ese proveedor no es de este mercado.', 'That provider does not belong to this market.')
+    const live = await tx<{ id: string; status: string }[]>`
+      select id, status from crm.account_products where account_id = ${accountId} and product_id is not distinct from ${input.productId || null}::uuid and provider_id is not distinct from ${providerId}::uuid for update`
+    let id = live[0]?.id
+    if (id) {
+      if (live[0]!.status === status && !note) return id
+      await tx`update crm.account_products set status = ${status}, note = ${clean(note)}, updated_by = ${ctx.user.id}, updated_at = now(),
+                status_at = case when status = ${status} then status_at else now() end,
+                submitted_at = case when ${status} = 'submitted' then now() else submitted_at end,
+                decided_at = case when ${status} in ('approved','rejected') then now() else decided_at end,
+                activated_at = case when ${status} = 'active' then now() else activated_at end where id = ${id}`
+    } else {
+      id = await newId(tx)
+      await tx`insert into crm.account_products (id, account_id, market_code, product_id, provider_id, status, note, updated_by, submitted_at, decided_at, activated_at)
+               values (${id}, ${accountId}, ${market}, ${input.productId || null}, ${providerId}, ${status}, ${clean(note)}, ${ctx.user.id},
+                       ${status === 'submitted' ? tx`now()` : tx`null`}, ${status === 'approved' || status === 'rejected' ? tx`now()` : tx`null`}, ${status === 'active' ? tx`now()` : tx`null`})`
+    }
+    await audit(tx, ctx, 'account.product_set', 'account', accountId, market, live[0] ? { status: live[0].status } : null, { product_id: input.productId || null, provider_id: providerId, status })
+    return id
+  })
+}
+
+/** Reloj por proveedor: cuántos días puede tardar en responder una solicitud antes de marcarse fuera de plazo. */
+export async function setProviderSla(ctx: Ctx, providerId: string, days: number | null): Promise<void> {
+  ctx.assert('config.manage')
+  if (days !== null && (!Number.isInteger(days) || days < 1 || days > 120)) throw invalid('El plazo va de 1 a 120 días, o vacío para no medirlo.', 'The deadline goes from 1 to 120 days, or empty to not track it.')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string | null; sla_days: number | null; code: string }[]>`select market_code, sla_days, code from crm.ops_catalog where id = ${providerId} and kind = 'provider' for update`
+    if (!rows[0]) throw notFound()
+    if (rows[0].sla_days === days) return
+    await tx`update crm.ops_catalog set sla_days = ${days} where id = ${providerId}`
+    await audit(tx, ctx, 'provider.sla_set', 'ops_catalog', providerId, rows[0].market_code, { sla_days: rows[0].sla_days }, { code: rows[0].code, sla_days: days })
+  })
+}
+
+/** A qué proveedor o carrier pertenece un producto del catálogo. */
+export async function setProductProvider(ctx: Ctx, productId: string, providerId: string | null): Promise<void> {
+  ctx.assert('config.manage')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string | null; provider_id: string | null }[]>`select market_code, provider_id from crm.products where id = ${productId} for update`
+    const p = rows[0]
+    if (!p) throw notFound()
+    if (providerId && !(await tx`select 1 from crm.ops_catalog where id = ${providerId} and kind = 'provider' and (market_code is null or ${p.market_code}::text is null or market_code = ${p.market_code})`)[0])
+      throw invalid('Ese proveedor no es del mercado del producto.', 'That provider does not belong to the product’s market.')
+    if (p.provider_id === providerId) return
+    await tx`update crm.products set provider_id = ${providerId} where id = ${productId}`
+    await audit(tx, ctx, 'product.provider_set', 'product', productId, p.market_code, { provider_id: p.provider_id }, { provider_id: providerId })
   })
 }

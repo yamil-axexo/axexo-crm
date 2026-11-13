@@ -210,7 +210,7 @@ describe('leadership y administración', () => {
     const period = marketPeriods(ana, 'mes')
     const row = (await getClosedDeals(ana, period, { market: 'MX', result: 'won' })).rows.find((r) => r.id === deal)!
     expect(row).toMatchObject({ closed_by: 'manual', closed_by_name: diana.user.name })
-    const file = await exportClosedDeals(ana, period, { market: 'MX', result: 'won' })
+    const file = await exportClosedDeals(ana, period, { market: 'MX', result: 'won' }, 'Revisión de prueba del reporte')
     const [head, ...lines] = file.csv.replace(/^﻿/, '').split(/\r?\n/)
     expect(head).toContain('Cómo se ganó')
     expect(head).toContain('Quién lo marcó')

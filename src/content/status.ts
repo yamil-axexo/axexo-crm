@@ -22,10 +22,10 @@ export const NOT_YET: { group: Pair; items: Pair[] }[] = [
     items: [
       // docs/scope.md: CAMPO-01 "contract and intake built; no live connection"
       ['Conexión real con la Sales App y con los datos de ventas. El contrato existe y se prueba desde Administración, pero ningún sistema manda datos todavía.', 'A live connection to the Sales App and to the sales data. The contract exists and is tested from Administration, but no system sends data yet.'],
-      // docs/scope.md: AUT-02 "outbox written; no publisher"
-      ['Envío de avisos a otros sistemas. CONTIGO los guarda, pero nadie los recoge.', 'Sending notices to other systems. CONTIGO stores them, but nobody picks them up.'],
-      // docs/scope.md: AUT-04 "three inbound endpoints with keys; no read API"
-      ['API para leer datos de CONTIGO desde otro sistema. Hoy la API solo recibe.', 'An API to read CONTIGO data from another system. Today the API only receives.'],
+      // AUT-02: publicador construido; la entrega HTTP es un adaptador apagado hasta que P&T apruebe el transporte
+      ['Entrega real de eventos a otros sistemas. CONTIGO los guarda y sabe repartirlos, reintentar y reenviar; el canal está apagado hasta que se apruebe el transporte.', 'Live delivery of events to other systems. CONTIGO stores them and knows how to hand them out, retry and resend; the channel is off until the transport is approved.'],
+      // AUT-04: API de lectura v1 construida; falta la API de escritura general y los tokens de partner por subárbol
+      ['API para escribir datos de CONTIGO desde otro sistema y llaves de socios acotadas a una parte del árbol. Hoy la API lee (comercios, negocios, leads, actividades y catálogos) y recibe formularios, eventos y el archivo de ventas.', 'An API to write CONTIGO data from another system and partner keys limited to part of the tree. Today the API reads (merchants, deals, leads, activities and catalogs) and receives forms, events and the sales file.'],
       // docs/pipedrive-migration.md: la corrida es manual; "Not migrated in this PR"
       ['Importación de Pipedrive programada. Hoy la corre a mano una persona de administración. No se migran automatizaciones, archivos adjuntos, hilos de correo, relaciones entre organizaciones ni filtros guardados.', 'A scheduled Pipedrive import. Today an administrator runs it by hand. Automations, attachments, email threads, organization relationships and saved filters are not migrated.'],
       // docs/scope.md: MULTI-01 "synthetic rates"
@@ -65,8 +65,8 @@ export const NOT_YET: { group: Pair; items: Pair[] }[] = [
     items: [
       // docs/standard-compliance.md: REL-03, REL-04 "Open"; comité: "sin pentest, sin restauración probada"
       ['Respaldo con restauración probada, prueba de penetración y plataforma de producción.', 'Backups with a tested restore, a penetration test and a production platform.'],
-      // docs/standard-compliance.md: SEC-06 "Not yet"
-      ['Límite de frecuencia en formularios públicos, API y búsquedas.', 'Rate limiting on public forms, the API and searches.'],
+      // SEC-06: límite de frecuencia en formularios públicos y API (en la base); falta en búsquedas y el desafío anti-bot real
+      ['Límite de frecuencia en las búsquedas y verificación anti-bot real en los formularios. Formularios públicos y API ya tienen límite.', 'Rate limiting on searches and a live anti-bot check on forms. Public forms and the API already have a limit.'],
       // docs/standard-compliance.md: OBS-03 "Reads of PII are not logged; no export to object storage"
       ['Registro de quién consulta datos personales y copia de la bitácora fuera de la base.', 'A record of who reads personal data and a copy of the audit log outside the database.'],
       // docs/standard-compliance.md: DATA-11 "Retention and purge [pending: Legal]"

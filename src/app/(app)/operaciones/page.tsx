@@ -8,6 +8,9 @@ import { ActionForm, Submit } from '@/ui/client'
 import { daysSince, day } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { takeDealAction } from './actions'
+import { pendingOrders } from '@/dal/orders'
+import { receiveOrderAction } from '@/app/(app)/deals/[id]/pedido/actions'
+import { dayTime, money } from '@/lib/format'
 
 /** Cola de Operaciones: la pantalla de inicio de quien es de Operaciones. */
 export default async function OpsQueuePage({ searchParams }: { searchParams: Promise<{ ver?: string; mercado?: string; foco?: string }> }) {
@@ -19,6 +22,8 @@ export default async function OpsQueuePage({ searchParams }: { searchParams: Pro
   const focus: OpsFocus | undefined = sp.foco === 'aprobacion' ? 'approval' : sp.foco === 'capacitacion' ? 'training' : undefined
   const q = await getOpsQueue(ctx, { view, market: sp.mercado, focus })
   const many = q.markets.length > 1
+  // Pedidos que Ventas envió y que nadie de Operaciones ha recibido todavía (E11.F4).
+  const orders = await pendingOrders(ctx)
   const here = (patch: Record<string, string | undefined>) => qs('/operaciones', { ver: sp.ver, mercado: sp.mercado, ...patch })
   const now = new Date()
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
@@ -36,6 +41,25 @@ export default async function OpsQueuePage({ searchParams }: { searchParams: Pro
         <Stat label={t('Pendientes de aprobación', 'Awaiting approval')} value={q.counts.approval} hint={t('Con algún proveedor sin respuesta', 'With a provider still to answer')} href={here({ foco: 'aprobacion' })} testId="ops-n-approval" />
         <Stat label={t('Pendientes de capacitación', 'Awaiting training')} value={q.counts.training} hint={t('Capacitación sin hacer', 'Training not done yet')} href={here({ foco: 'capacitacion' })} testId="ops-n-training" />
       </div>
+
+      {orders.length > 0 && (
+        <section aria-label={t('Pedidos por recibir', 'Orders to receive')} className="card mb-6 divide-y divide-line overflow-hidden" data-testid="ops-orders">
+          <h2 className="px-4 py-3 text-[15px] font-semibold text-strong md:px-5">{t(`Pedidos por recibir (${orders.length})`, `Orders to receive (${orders.length})`)}</h2>
+          {orders.map((o) => (
+            <div key={o.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 md:px-5" data-testid="ops-order">
+              <p className="min-w-[220px] flex-1 text-[14.5px] text-strong">
+                <span className="font-semibold">{o.account_name}</span><span className="text-muted-2"> · {o.title}{many ? ` · ${o.market_code}` : ''}</span>
+                <span className="block text-[13.5px] text-muted-2">{t(`Lo envió ${o.sent_by_name} el ${dayTime(o.sent_at, locale, ctx.market(o.market_code).timezone)}`, `Sent by ${o.sent_by_name} on ${dayTime(o.sent_at, locale, ctx.market(o.market_code).timezone)}`)} · {t(`${o.lines} ${o.lines === 1 ? 'línea' : 'líneas'}`, `${o.lines} ${o.lines === 1 ? 'line' : 'lines'}`)} · {money(Number(o.total_minor), o.currency, locale)}</span>
+              </p>
+              <Link href={`/deals/${o.deal_id}/pedido`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="ops-order-open">{t('Abrir el pedido', 'Open the order')}</Link>
+              <ActionForm action={receiveOrderAction}>
+                <input type="hidden" name="dispatch_id" value={o.id} />
+                <Submit variant="ghost" size="sm" testId="ops-order-receive">{t('Marcar como recibido', 'Mark as received')}</Submit>
+              </ActionForm>
+            </div>
+          ))}
+        </section>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Pills label={t('Qué ver', 'What to show')} current={focus ? '' : view}

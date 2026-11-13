@@ -2,7 +2,7 @@ drop table crm.training_materials;
 drop table crm.champion_reviews;
 drop table crm.team_champions;
 drop table crm.change_reasons;
-alter table crm.field_definitions drop column request_id, drop column purpose;
+alter table crm.field_definitions drop column request_id;
 drop table crm.config_requests;
 drop function app.data_origin();
 drop table crm.synthetic_accounts;
