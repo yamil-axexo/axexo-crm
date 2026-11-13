@@ -64,6 +64,19 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'ia.lead_weights_changed': ['Cambió los pesos de la calificación de leads', 'Changed the lead scoring weights'],
   'ia.lead_classified': ['Confirmó la clasificación de un lead', 'Confirmed a lead’s classification'],
   'ia.eval_run': ['Corrió la evaluación de una función', 'Ran a feature’s evaluation'],
+  // reportes2 (0043)
+  'ia.eval_auto_run': ['Corrió sola la evaluación porque cambió la versión de la instrucción o del modelo', 'Ran the evaluation on its own because the prompt or model version changed'],
+  'deal.forecast_set': ['Puso la categoría de pronóstico de un negocio', 'Set a deal’s forecast category'],
+  'deal.forecast_adjusted': ['Ajustó la categoría de pronóstico de un negocio, con nota', 'Adjusted a deal’s forecast category, with a note'],
+  'forecast.submitted': ['Envió su pronóstico del periodo', 'Submitted the period’s forecast'],
+  'metric.board_updated': ['Cambió los indicadores del tablero de un rol', 'Changed the indicators on a role’s board'],
+  'metric.board_confirmed': ['Confirmó los indicadores del tablero de un rol', 'Confirmed the indicators on a role’s board'],
+  'threshold.proposed_value_set': ['Fijó un valor que estaba propuesto', 'Set a value that was proposed'],
+  'usage.one_on_one_recorded': ['Anotó una 1:1 hecha con el tablero', 'Logged a 1:1 held with the board'],
+  'user.alias_set': ['Puso el ID de una persona en otro sistema', 'Set a person’s ID in another system'],
+  'quality.exceptions_opened': ['Las reglas de calidad abrieron avisos en la cola del equipo', 'Data quality rules opened notices in the team queue'],
+  'snapshot.pruned': ['Se borraron fotos diarias ya entregadas y fuera de la ventana', 'Daily snapshots already delivered and outside the window were removed'],
+  'document.order_pdf': ['Descargó el PDF de un pedido', 'Downloaded an order PDF'],
   'ia.eval_case_added': ['Agregó un caso a la evaluación', 'Added a case to the evaluation'],
   'ia.mcp_read': ['Un agente leyó datos por el servidor MCP', 'An agent read data through the MCP server'],
   // Paquete embudo (0029)
@@ -492,7 +505,7 @@ export const AUDIT_GROUPS = {
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%', 'care.%', 'terms.%', 'contract.%', 'plan.created', 'plan.milestone_%', 'plan.shared', 'partner.%', 'partner_token.%', 'partner_tier.%', 'network_load.%', 'expansion.deal_opened', 'feedback.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
-  saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'goal.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },
+  saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'goal.%', 'snapshot.%', 'reconciliation.%', 'agency.%', 'forecast.%', 'usage.%'], not: null },
   security: { label: ['Seguridad y privacidad', 'Security and privacy'] as Pair, like: ['sensitive.%', 'sensitive_field.%', 'consent.%', 'retention.%', 'subject_request.%', 'view_as.%', 'access_review.%', 'security.%', 'secret.%', 'seat.%'], not: null },
   // Paquete gobierno: servicio, versiones, costos, solicitudes y motivos de cambio.
   governance: { label: ['Gobierno', 'Governance'] as Pair, like: ['objective.%', 'incident.%', 'restore_test.%', 'component.%', 'maintenance.%', 'release.%', 'deployment.%', 'cost.%', 'config_request.%', 'change.%', 'champion.%', 'material.%'], not: null },

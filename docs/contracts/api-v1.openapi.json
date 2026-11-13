@@ -576,6 +576,13 @@
             "format": "uuid",
             "description": "Owner."
           },
+          "owner_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "S5 ID of the owner (Administration sets it per person)."
+          },
           "territory_id": {
             "type": [
               "string",
@@ -651,6 +658,13 @@
             ],
             "format": "uuid",
             "description": "Owner."
+          },
+          "owner_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "S5 ID of the owner."
           },
           "status": {
             "type": "string",

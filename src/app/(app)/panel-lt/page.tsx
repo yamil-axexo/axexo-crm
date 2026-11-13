@@ -1,4 +1,6 @@
 import { metricOwners } from '@/dal/reportes'
+import { motorSlices } from '@/dal/reportes2'
+import { MOTOR } from '@/lib/labels'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx, systemCtx } from '@/server/context'
@@ -79,6 +81,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
     </>
   )
 
+  const motors = await motorSlices(ctx)
   return (
     <>
       <PageHeader
@@ -191,6 +194,23 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
       <Card className="mt-6 @container" pad={false} data-testid="lt-by-pipeline">
         <div className="px-5 pt-5 @2xl:px-7 @2xl:pt-6"><CardTitle title={t('Por embudo', 'By pipeline')} hint={t(`Cada tipo de venta en su línea. Leads, ganados y perdidos: ${when}. Abiertos y esperando venta: hoy.`, `Each sale type on its own line. Leads, won and lost: ${when}. Open and awaiting sale: today.`)} /></div>
         {slices(data.pipelines, 'embudo')}
+      </Card>
+      {/* reportes2 (REP-01): el panel también corta por los tipos de venta (motores), sumando los mercados. */}
+      <Card className="mt-6" data-testid="lt-by-motor">
+        <CardTitle title={t('Por tipo de venta', 'By sale type')} hint={t('Todos los mercados juntos. Leads, ganados y perdidos: últimos 30 días. Abiertos y esperando venta: hoy.', 'All markets together. Leads, won and lost: last 30 days. Open and awaiting sale: today.')} />
+        {motors.length === 0 ? <Empty title={t('Sin tipos de venta', 'No sale types')} /> : (
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t('Por tipo de venta', 'By sale type')}>
+            <table className="w-full min-w-[520px] text-[14px]">
+              <thead><tr className="text-left text-[13px] text-muted"><th className="py-2 pr-3 font-medium">{t('Tipo de venta', 'Sale type')}</th><th className="py-2 pr-3 text-right font-medium">{t('Leads', 'Leads')}</th><th className="py-2 pr-3 text-right font-medium">{t('Abiertos', 'Open')}</th><th className="py-2 pr-3 text-right font-medium">{t('Esperando venta', 'Awaiting sale')}</th><th className="py-2 pr-3 text-right font-medium">{t('Ganados', 'Won')}</th><th className="py-2 text-right font-medium">{t('Perdidos', 'Lost')}</th></tr></thead>
+              <tbody>{motors.map((x) => (
+                <tr key={x.motor} className="border-t border-line" data-testid="lt-motor-row">
+                  <td className="py-2.5 pr-3 font-semibold text-strong">{MOTOR[x.motor] ? t(MOTOR[x.motor]![0], MOTOR[x.motor]![1]) : x.motor}</td>
+                  <td className="num py-2.5 pr-3 text-right">{num(x.leads, locale)}</td><td className="num py-2.5 pr-3 text-right">{num(x.open, locale)}</td>
+                  <td className="num py-2.5 pr-3 text-right">{num(x.awaiting, locale)}</td><td className="num py-2.5 pr-3 text-right">{num(x.won, locale)}</td><td className="num py-2.5 text-right">{num(x.lost, locale)}</td>
+                </tr>))}</tbody>
+            </table>
+          </div>
+        )}
       </Card>
       <Card className="mt-6 @container" pad={false} data-testid="lt-by-team">
         <div className="px-5 pt-5 @2xl:px-7 @2xl:pt-6"><CardTitle title={t('Por equipo', 'By team')} hint={t('El equipo de quien lleva el lead o el negocio hoy. Lo que no está asignado, o lo lleva alguien sin equipo, va en "Sin equipo".', 'The team of whoever owns the lead or the deal today. Anything with no owner, or whose owner has no team, goes under "No team".')} /></div>

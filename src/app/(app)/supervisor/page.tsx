@@ -1,3 +1,5 @@
+import { withUser } from '@/server/db'
+import { emitUsage } from '@/domain/reportes2'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
@@ -52,6 +54,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const board = await getSupervisorBoard(ctx, { ...sp, team })
   // Uso real (Adopción): cuenta que quien supervisa abrió el tablero de su equipo, no que entró a CONTIGO.
   if (teamView) await track(ctx, 'view.supervisor')
+  // reportes2 (GOB-03): abrir el tablero del equipo es uso de quien supervisa; sale por el outbox (una vez por hora como máximo).
+  if (teamView && !ctx.viewAs) await withUser(ctx.user.id, (tx) => emitUsage(tx, ctx, 'usage.board_opened', null, { board: 'team' }))
   const canReport = teamView && ctx.can('report.view')
   const weeks = canReport ? await getWeeklyResults(ctx, { market: sp.market, team }) : []
   const live = ctx.markets.filter((m) => m.status === 'live')

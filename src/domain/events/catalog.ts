@@ -51,6 +51,13 @@ export const EXPLICIT_EVENTS: EventDef[] = [
     data: { owner_id: f('uuid', 'Quién lo lleva ahora.', 'Who owns it now.') }, example: { owner_id: ID2 } },
   { type: 'deal.won', version: 1, aggregate: 'deal', source: 'explicit', about: ['Un negocio se ganó con la primera transacción del comercio.', 'A deal was won by the merchant’s first transaction.'],
     data: { account_id: f('uuid', 'El comercio.', 'The merchant.'), closed_by: f('string', 'Cómo se cerró: transaction.', 'How it closed: transaction.') }, example: { account_id: ID, closed_by: 'transaction' } },
+  // reportes2 (GOB-03): uso de CONTIGO que cuenta para la adopción. Nunca cuenta entradas (logins).
+  { type: 'usage.board_opened', version: 1, aggregate: 'user', source: 'explicit', about: ['Quien supervisa o lidera abrió el tablero de su equipo (una vez por hora como máximo).', 'A supervisor or lead opened their team board (at most once an hour).'],
+    data: { board: f('string', 'Qué tablero: team, kam u ops.', 'Which board: team, kam or ops.') }, example: { board: 'team' } },
+  { type: 'usage.queue_item_done', version: 1, aggregate: 'user', source: 'explicit', about: ['Alguien atendió un aviso de su cola.', 'Someone handled a notice from their queue.'],
+    data: { exception_id: f('uuid', 'El aviso atendido.', 'The notice handled.'), kind: f('string', 'Tipo de aviso.', 'Notice type.') }, example: { exception_id: ID, kind: 'no_next_step' } },
+  { type: 'usage.one_on_one', version: 1, aggregate: 'user', source: 'explicit', about: ['Quien supervisa hizo una 1:1 con el tablero. El registro es quien supervisa.', 'A supervisor held a 1:1 with the board. The record is the supervisor.'],
+    data: { person_id: f('uuid', 'Con quién fue la 1:1.', 'Who the 1:1 was with.'), held_on: f('string', 'Fecha de la 1:1.', 'Date of the 1:1.') }, example: { person_id: ID2, held_on: '2026-11-13' } },
 ]
 
 /** Lo que llevan los eventos que salen junto con la bitácora: qué registro, qué campos cambiaron y quién. Nunca valores ni datos personales. */
@@ -71,6 +78,8 @@ const EXPLICIT_FOR: Record<string, string> = {
   'lead.reassigned': 'lead.reassigned', 'lead.converted': 'lead.converted', 'deal.created': 'deal.created',
   'deal.stage_changed': 'deal.stage_changed', 'deal.reassigned': 'deal.reassigned', 'deal.won_by_transaction': 'deal.won',
   'integration.store_received': 'account.alias_issued',
+  // reportes2: la 1:1 hecha con el tablero sale como evento de uso (GOB-03: los eventos de uso van por el outbox).
+  'usage.one_on_one_recorded': 'usage.one_on_one',
 }
 
 const WHY = {
@@ -125,6 +134,8 @@ const SILENT: [prefix: string, why: Pair][] = [
   // embudo2: valores del embudo, dueño de una automatización y pasos propuestos son configuración interna; la sugerencia de
   // tienda saturada es una decisión de supervisión (la tarea que deja emite activity.added).
   ['funnel.', WHY.internal], ['automation.owner_set', WHY.internal], ['transition.', WHY.internal], ['routing.suggestion_', WHY.internal],
+  // reportes2: el envío del pronóstico es un reporte interno del equipo (cada categoría puesta en un negocio ya emite deal.forecast_set).
+  ['forecast.', WHY.read],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.

@@ -772,3 +772,25 @@ insert into crm.saved_views (user_id, object, name, filters, is_shared, official
   (pg_temp.uid('nora.salas'), 'deal', 'Revisitas vencidas', '{"paso":"revisita-vencida","vista":"lista"}', true, 'rep'),
   (pg_temp.uid('nora.salas'), 'account', 'Altas sin fondeo', '{"lifecycle":"onboarding","fondeo":"sin"}', true, 'ops');
 update crm.saved_views set official_role = 'supervisor' where name = 'En riesgo' and is_shared and object = 'account';
+-- reportes2
+-- Una persona de Finanzas (solo lectura de sus reportes) y una persona KAM con una cadena inventada, sus tiendas y un negocio
+-- abierto en propuesta con categoría de pronóstico. Nombres y cifras inventados.
+insert into crm.users (id, email, full_name, locale, is_synthetic) values
+  (pg_temp.uid('marta.ibanez'), 'marta.ibanez@contigo.test', 'Marta Ibáñez', 'es', true),
+  (pg_temp.uid('elena.duarte'), 'elena.duarte@contigo.test', 'Elena Duarte', 'es', true);
+insert into crm.memberships (user_id, market_code, role, team_id, valid_from) values
+  (pg_temp.uid('marta.ibanez'), 'MX', 'finance', null, now() - interval '60 days'),
+  (pg_temp.uid('elena.duarte'), 'MX', 'kam', pg_temp.uid('t-b2b'), now() - interval '60 days');
+insert into crm.accounts (id, market_code, legal_entity_id, kind, name, segment, lifecycle, lifecycle_at, owner_id, territory_id, locality, region, country, custom, created_at)
+values (pg_temp.uid('kam-mx-ch'), 'MX', pg_temp.uid('le-mx'), 'chain', 'Cadena Ejemplo Sol (sintética)', 'b2b', 'active', now() - interval '40 days',
+        pg_temp.uid('elena.duarte'), pg_temp.uid('ter-cdmx-n'), 'Ciudad de México', 'CDMX', 'MX', '{"store_count": 3}', now() - interval '90 days');
+insert into crm.accounts (id, market_code, legal_entity_id, parent_id, kind, name, segment, lifecycle, lifecycle_at, owner_id, territory_id, locality, region, country, created_at)
+select pg_temp.uid('kam-mx-s-' || n), 'MX', pg_temp.uid('le-mx'), pg_temp.uid('kam-mx-ch'), 'store', 'Cadena Ejemplo Sol, tienda ' || n, 'b2b',
+       case when n < 3 then 'active' else 'onboarding' end, now() - interval '30 days', pg_temp.uid('elena.duarte'), pg_temp.uid('ter-cdmx-n'),
+       'Ciudad de México', 'CDMX', 'MX', now() - interval '80 days'
+  from generate_series(1, 3) n;
+insert into crm.deals (id, market_code, pipeline_id, stage_id, account_id, owner_id, title, amount_minor, currency, status, next_step, next_step_due, stage_entered_at, created_at)
+values (pg_temp.uid('kam-mx-deal'), 'MX', pg_temp.uid('p-mx-b2b'), pg_temp.uid('s-mx-b2b-propuesta'), pg_temp.uid('kam-mx-ch'), pg_temp.uid('elena.duarte'),
+        'Ampliación: Cadena Ejemplo Sol (sintética)', 18000000, 'MXN', 'open', 'Revisar propuesta con quien decide', current_date + 5, now() - interval '6 days', now() - interval '20 days');
+insert into crm.deal_forecast (deal_id, market_code, category, set_by, set_at)
+values (pg_temp.uid('kam-mx-deal'), 'MX', 'best_case', pg_temp.uid('elena.duarte'), now() - interval '2 days');

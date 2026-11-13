@@ -22,6 +22,8 @@ export const API_RESOURCES: ApiResource[] = [
       fld('account_type', 'string', 'Tipo de cuenta del catálogo.', 'Account type from the catalog.', true), fld('name', 'string', 'Nombre comercial.', 'Trade name.'),
       fld('segment', 'string', 'Canal.', 'Channel.', true), fld('lifecycle', 'string', 'Etapa de vida.', 'Lifecycle stage.'),
       fld('parent_id', 'uuid', 'Cuenta padre.', 'Parent account.', true), fld('owner_id', 'uuid', 'Quién lo lleva.', 'Owner.', true),
+      // E8.F7 (reportes2): quién lo lleva con su ID en el archivo de ventas (S5), para que los reportes diarios no dependan del ID de CONTIGO.
+      fld('owner_ref', 'string', 'ID en S5 de quien lo lleva (Administración lo carga por persona).', 'S5 ID of the owner (Administration sets it per person).', true),
       fld('territory_id', 'uuid', 'Territorio.', 'Territory.', true), fld('locality', 'string', 'Ciudad.', 'City.', true), fld('region', 'string', 'Estado.', 'State.', true),
       fld('merchant_ref', 'string', 'Merchant ID.', 'Merchant ID.', true), fld('created_at', 'date-time', 'Alta.', 'Created.'), fld('updated_at', 'date-time', 'Último cambio.', 'Last change.'),
     ],
@@ -33,6 +35,7 @@ export const API_RESOURCES: ApiResource[] = [
     fields: [
       fld('id', 'uuid', 'ID del negocio.', 'Deal ID.'), fld('market', 'string', 'Mercado.', 'Market.'), fld('account_id', 'uuid', 'Comercio.', 'Merchant.'),
       fld('pipeline_id', 'uuid', 'Embudo.', 'Pipeline.'), fld('stage_id', 'uuid', 'Etapa.', 'Stage.'), fld('owner_id', 'uuid', 'Quién lo lleva.', 'Owner.', true),
+      fld('owner_ref', 'string', 'ID en S5 de quien lo lleva.', 'S5 ID of the owner.', true),
       fld('status', 'string', 'open, won o lost.', 'open, won or lost.'), fld('amount_minor', 'integer', 'Monto en la unidad mínima de la moneda.', 'Amount in the currency’s minor unit.', true),
       fld('currency', 'string', 'Moneda (ISO 4217).', 'Currency (ISO 4217).'), fld('loss_reason_code', 'string', 'Motivo de pérdida.', 'Loss reason.', true),
       fld('next_step_due', 'date', 'Fecha del próximo paso.', 'Next step date.', true), fld('won_at', 'date-time', 'Cuándo se ganó.', 'When it was won.', true),

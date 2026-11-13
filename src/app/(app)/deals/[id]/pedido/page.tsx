@@ -1,7 +1,10 @@
+import { ProposedTag } from '@/ui/role-board'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { orderPrint } from '@/dal/orders'
+import { orderBrand } from '@/domain/order-pdf'
+import { Badge, buttonClass } from '@/ui/kit'
 import { documentTaxId } from '@/dal/store-record'
 import { ActionForm, Submit } from '@/ui/client'
 import { PrintButton } from '@/ui/orders'
@@ -28,11 +31,15 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
   const waiting = o.dispatches.find((d) => !d.received_at)
   const canSend = ctx.can('deal.edit', o.market_code) && o.status !== 'lost'
   const where = [o.account.address_line, o.account.locality, o.account.region, o.account.postal_code].filter(Boolean).join(', ')
+  // reportes2 (E11.F3): el encabezado sale de la plantilla de marca del mercado (Administración); sin plantilla, el de los avisos del mercado.
+  const brand = await orderBrand(ctx, o.market_code)
   return (
     <div data-testid="order-print">
       <div className="mb-6 flex flex-wrap items-center gap-3 print:hidden">
         <Link href={`/deals/${o.id}`} className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="order-back">{t('Volver al pedido', 'Back to the order')}</Link>
         <span className="ml-auto flex flex-wrap items-center gap-3">
+          {brand.proposed && <span data-testid="order-brand-proposed"><ProposedTag>{t(`Plantilla de marca: valor propuesto, [pendiente: ${brand.pending}]`, `Brand template: proposed value, [pending: ${brand.pending}]`)}</ProposedTag></span>}
+          <a href={`/deals/${o.id}/pedido/pdf`} className={buttonClass('primary')} data-testid="order-pdf">{t('Descargar PDF', 'Download PDF')}</a>
           <PrintButton label={t('Imprimir o guardar como PDF', 'Print or save as PDF')} />
           {canSend && !waiting && o.items.length > 0 && (
             <ActionForm action={sendOrderAction}>
@@ -47,7 +54,8 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-5">
           <div>
             <p className="text-[13px] font-semibold tracking-wide text-muted-2 uppercase">{t('Pedido', 'Order')}</p>
-            <h1 className="text-[24px] leading-8 font-semibold text-strong" data-testid="order-header">{o.header ?? 'axexo'}</h1>
+            <h1 className="text-[24px] leading-8 font-semibold text-strong" data-testid="order-header">{brand.company ?? o.header ?? 'axexo'}</h1>
+            {brand.tagline && <p className="text-[13px] text-muted-2" data-testid="order-tagline">{brand.tagline}</p>}
           </div>
           <dl className="text-right text-[13.5px] text-strong">
             <dt className="sr-only">{t('Fecha del pedido', 'Order date')}</dt><dd data-testid="order-date">{day(o.created_at, locale)}</dd>

@@ -138,6 +138,13 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
             <Link href={here({ vista: undefined })} aria-current={!listView ? 'page' : undefined} className={seg(!listView)} data-testid="view-board">{m('deals.view.board')}</Link>
             <Link href={here({ vista: 'lista' })} aria-current={listView ? 'page' : undefined} className={seg(listView)} data-testid="view-list">{m('deals.view.list')}</Link>
           </nav>
+          {/* reportes2 (E8.F4): en el tablero las vistas del equipo van plegadas, para no empujar las columnas al arrastrar. */}
+          {!listView && (
+            <details className="relative" data-testid="board-views">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-full border border-line bg-surface px-4 text-[14px] font-medium text-strong [&::-webkit-details-marker]:hidden" data-testid="board-views-toggle">{t('Vistas del equipo', 'Team views')}</summary>
+              <div className="card z-30 mt-2 p-3 shadow-lg md:absolute md:left-0 md:w-[36rem]"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team }} current={sp.cola} /></div>
+            </details>
+          )}
           <FilterFold label={t('Filtros', 'Filters')} active={activeFilters}>
             {options && teams.length > 0 && (
               <NavSelect label={t('Equipo', 'Team')} value={here({})} testId="board-team"

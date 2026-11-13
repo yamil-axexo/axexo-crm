@@ -16,7 +16,8 @@ import { LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
 // AUT-07: toda exportación pide motivo, tiene tope de filas según el rol, queda anotada con filtros y conteo, y avisa a
 // administración cuando una persona pasa el umbral diario. Vale para las exportaciones que ya existían y para las nuevas.
 /** Tope de filas por archivo, por rol. Quien tiene varios roles usa el más alto de los que le dejan exportar ahí. */
-export const EXPORT_CAPS: Partial<Record<Role, number>> = { admin: 10000, lt: 10000, market_lead: 5000, supervisor: 2000 }
+// reportes2: Finanzas descarga el detalle de visitas para reembolsos (E12.F6) y su reporte, con el tope de quien lidera.
+export const EXPORT_CAPS: Partial<Record<Role, number>> = { admin: 10000, lt: 10000, market_lead: 5000, supervisor: 2000, finance: 5000 }
 /** Umbral diario por persona (últimas 24 horas): pasado cualquiera de los dos, la exportación se marca y avisa. */
 export const EXPORT_DAILY = { rows: 20000, files: 20 } as const
 /** Qué se exportó: una lista, un reporte fijo o un reporte de la galería (`report_<clave>`). La base solo exige el formato. */

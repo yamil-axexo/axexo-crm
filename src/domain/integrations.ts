@@ -469,6 +469,9 @@ const metricRow = z.object({
   // REP-04: el estado del comercio lo define quien es dueño de la métrica (Data y Reportería) y viaja en el archivo.
   // Es opcional mientras el contrato no lo traiga: sin él, CONTIGO usa su regla de respaldo y lo dice en la pantalla.
   status: z.enum(['active', 'at_risk', 'inactive']).nullable().optional(),
+  // reportes2 (REP-04): TPV por producto y comisión, opcionales en el contrato. Si llegan se guardan tal cual; CONTIGO no los calcula.
+  tpv_by_product: z.array(z.object({ product: z.string().min(1).max(60), volume_minor_30d: z.number().int().nonnegative() })).max(30).nullable().optional(),
+  commission_minor_30d: z.number().int().nonnegative().nullable().optional(),
   // PIPE-06: primer fondeo con su método y hábito, cada uno por separado (opcionales mientras el contrato no los traiga).
   ...closingRowFields,
 })
@@ -501,6 +504,10 @@ export async function ingestMetricsFile(sys: Ctx, raw: unknown): Promise<Metrics
   if (!parsed.success) throw invalid('El archivo no cumple el formato merchant_metrics_daily v1.', 'The file does not match merchant_metrics_daily v1.')
   const file = parsed.data
   const checksum = createHash('sha256').update(JSON.stringify(file)).digest('hex')
+  // AUT-06 (reportes2): un archivo con fecha de corte anterior a la última aplicada a sus comercios llegó tarde: no se aplica nada
+  // (cambiaría el estado de los comercios hacia atrás). El mismo corte sí entra: es una corrección y deja su antes y después. Y si Administración
+  // fijó que el manifiesto es obligatorio, un archivo sin manifiesto tampoco entra.
+  await rejectLateOrBare(sys, file, checksum)
   // PIPE-06: si el manifiesto dice traer otro número de filas, el archivo llegó incompleto: no se aplica nada.
   if (manifestProblem(file)) {
     await withUser(sys.user.id, async (tx) => {
@@ -528,6 +535,33 @@ export async function ingestMetricsFile(sys: Ctx, raw: unknown): Promise<Metrics
   return result
 }
 
+async function rejectLateOrBare(sys: Ctx, file: MetricsFile, checksum: string): Promise<void> {
+  const check = await withUser(sys.user.id, async (tx) => {
+    // El corte se compara contra el último aplicado a los mismos comercios: si alguno ya tiene un corte posterior, el archivo llegó tarde.
+    const last = await tx<{ as_of: string | null; n: number }[]>`
+      select max(mm.as_of)::text as as_of, count(distinct mm.account_id)::int as n
+        from crm.account_aliases al join crm.merchant_metrics_daily mm on mm.account_id = al.account_id and mm.as_of > ${file.as_of}::date
+       where al.system in ('s5','sales_core') and al.valid_to is null and al.external_id = any(${file.rows.map((r) => r.merchant_ref)}::text[])`
+    const req = await tx<{ value: { value?: boolean } }[]>`select value from crm.settings where key = 'ingest.require_manifest'`
+    return { last: last[0]?.as_of ?? null, merchants: last[0]?.n ?? 0, requireManifest: req[0]?.value?.value === true }
+  })
+  const reason = check.last ? 'stale_as_of' : check.requireManifest && !file.manifest ? 'manifest_missing' : null
+  if (!reason) return
+  await withUser(sys.user.id, async (tx) => {
+    await tx`insert into crm.ingest_batches (source, as_of, file_name, checksum, row_count, mode, status, reject_reason)
+             values ('s5', ${file.as_of}, ${file.file_name}, ${checksum}, ${file.rows.length}, ${file.mode}, 'rejected', ${reason})
+             on conflict (source, checksum) do nothing`
+    await audit(tx, sys, 'integration.metrics_quarantined', 'ingest_batch', null, null, null, { as_of: file.as_of, rows: file.rows.length, reason, last_applied: check.last, merchants_ahead: check.merchants })
+  })
+  if (reason === 'stale_as_of')
+    throw new DomainError('stale_cutoff',
+      `El archivo trae corte al ${file.as_of} y ${check.merchants} de sus comercios ya tienen un corte posterior (al ${check.last}). Un corte anterior no cambia el estado de los comercios: no se aplicó nada.`,
+      `The file has a cutoff of ${file.as_of} and ${check.merchants} of its merchants already have a later one (${check.last}). An earlier cutoff does not change merchant status: nothing was applied.`, 409)
+  throw new DomainError('manifest_missing',
+    'El archivo llegó sin manifiesto y Administración lo pide obligatorio. No se aplicó nada.',
+    'The file arrived with no manifest and Administration requires one. Nothing was applied.', 409)
+}
+
 async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promise<MetricsResult> {
   return withUser(sys.user.id, async (tx) => {
     const seen = await tx`select 1 from crm.ingest_batches where source = 's5' and checksum = ${checksum}`
@@ -553,17 +587,18 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
     const loaded = await tx<{ account_id: string }[]>`
       with r as (
         select * from jsonb_to_recordset(${rows}) as x(merchant_ref text, first_txn_at timestamptz, last_txn_at timestamptz,
-               txn_count_30d int, volume_minor_30d bigint, currency text, active_days_30d int, status text)
+               txn_count_30d int, volume_minor_30d bigint, currency text, active_days_30d int, status text, tpv_by_product jsonb, commission_minor_30d bigint)
       ), m as (
         select distinct on (al.account_id) r.*, al.account_id, a.market_code
           from r join crm.account_aliases al on al.external_id = r.merchant_ref and al.system in ('s5','sales_core') and al.valid_to is null
                  join crm.accounts a on a.id = al.account_id and a.archived_at is null
       )
-      insert into crm.merchant_metrics_daily (account_id, as_of, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, batch_id)
-      select account_id, ${file.as_of}, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, ${batchId} from m
+      insert into crm.merchant_metrics_daily (account_id, as_of, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, batch_id, tpv_by_product, commission_minor_30d)
+      select account_id, ${file.as_of}, market_code, first_txn_at, last_txn_at, txn_count_30d, volume_minor_30d, currency, active_days_30d, status, ${batchId}, tpv_by_product, commission_minor_30d from m
       on conflict (account_id, as_of) do update set first_txn_at = coalesce(crm.merchant_metrics_daily.first_txn_at, excluded.first_txn_at),
         last_txn_at = excluded.last_txn_at, txn_count_30d = excluded.txn_count_30d, volume_minor_30d = excluded.volume_minor_30d,
-        active_days_30d = excluded.active_days_30d, status = excluded.status, batch_id = excluded.batch_id
+        active_days_30d = excluded.active_days_30d, status = excluded.status, batch_id = excluded.batch_id,
+        tpv_by_product = excluded.tpv_by_product, commission_minor_30d = excluded.commission_minor_30d
       returning account_id`
     const ids = loaded.map((r) => r.account_id)
     const unmatched = file.rows.length - ids.length

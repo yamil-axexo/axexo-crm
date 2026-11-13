@@ -44,6 +44,7 @@ import { ProposedFunnelValues } from '@/app/(app)/admin/embudo/embudo2'
 import { campo2AdapterStatus } from '@/server/adapters/campo2'
 import { proposedValues } from '@/dal/campo-canal'
 import { THRESHOLDS, type ThresholdKey } from '@/domain/campo-canal/thresholds'
+import { ProposedCard } from './propuestos'
 
 export const dynamic = 'force-dynamic'
 
@@ -435,6 +436,7 @@ export default async function StatusPage() {
           </Card>
         </div>
 
+        <ProposedCard ctx={ctx} />
         <Card data-testid="status-close-rules">
           <CardTitle title={t('Cómo se gana cada embudo', 'How each pipeline is won')} hint={t('La regla de cierre vigente y los últimos cambios. Cambiarla aplica desde ese momento a los negocios abiertos.', 'The current closing rule and the latest changes. Changing it applies from that moment to open deals.')} />
           <ul>

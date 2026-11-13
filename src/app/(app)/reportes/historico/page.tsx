@@ -1,4 +1,7 @@
 import { getHistory } from '@/dal/reportes'
+import { getCohorts, teamSnapshots, type CohortCut } from '@/dal/reportes2'
+import { NavSelect } from '@/ui/board'
+import { SOURCE, qs } from '@/lib/labels'
 import { REPORT_ADAPTERS } from '@/server/adapters/report-channels'
 import { Badge, Card, CardTitle, Empty } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
@@ -24,6 +27,12 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   const portfolioLast = d.portfolio.filter((x) => x.day === d.portfolio[d.portfolio.length - 1]?.day)
   const part = (age: number, n: number) => (age < n ? t(' (parcial)', ' (partial)') : '')
   const fileAdapter = REPORT_ADAPTERS.find((a) => a.key === 'snapshot_file')!
+  // reportes2 (REP-02): cohortes por semana de alta, canal o persona, y la foto diaria por equipo.
+  const cut: CohortCut = r.sp.por === 'canal' || r.sp.por === 'persona' ? r.sp.por : 'semana'
+  const [cohorts, teams] = await Promise.all([getCohorts(ctx, cut, f.market), teamSnapshots(ctx, f.market)])
+  const cutHref = (c: CohortCut) => qs('/reportes/historico', { ...params, por: c })
+  const cutLabel = (x: { key: string; label: string }) => cut === 'semana' ? t(`Semana del ${day(x.key, locale)}`, `Week of ${day(x.key, locale)}`)
+    : cut === 'canal' ? (SOURCE[x.key] ? t(SOURCE[x.key]![0], SOURCE[x.key]![1]) : x.key) : x.label || t('Sin persona asignada', 'No one assigned')
   return (
     <>
       <ReportHeader r={r} />
@@ -43,6 +52,27 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
             </>
           )}
         <Def t={t} k="snapshot" owners={owners} />
+      </Card>
+
+      <Card className="mt-6" pad={false} data-testid="team-snapshot">
+        <div className="px-5 pt-5 md:px-7 md:pt-6"><CardTitle title={t('Foto diaria por equipo', 'Daily snapshot by team')} hint={t('Quien supervisa ve la de su equipo; quien lidera el mercado, la de todos sus equipos.', 'Supervisors see their team’s; market leads see all their teams.')} /></div>
+        <DataTable testId="team-snapshot-table" label={t('Foto diaria por equipo', 'Daily snapshot by team')}
+          empty={<div className="p-7 pt-0"><Empty title={t('Todavía no hay foto por equipo', 'No team snapshot yet')} hint={t('Se toma una vez al día, sola, junto con la foto del mercado.', 'It is taken once a day, on its own, with the market snapshot.')} /></div>}
+          head={[{ label: t('Día', 'Day') }, { label: t('Equipo', 'Team') }, { label: t('Negocios abiertos', 'Open deals'), num: true }, { label: t('Sin próximo paso', 'No next step'), num: true }, { label: t('Comercios activos', 'Active merchants'), num: true }, { label: t('En riesgo', 'At risk'), num: true }]}
+          rows={teams.map((x) => ({ key: `${x.day}${x.team}`, testId: 'team-snapshot-row', cells: [day(x.day, locale), x.team, num(x.open_deals, locale), num(x.no_next_step, locale), num(x.active_accounts, locale), num(x.at_risk_accounts, locale)] }))} />
+      </Card>
+
+      <Card className="mt-6" pad={false} data-testid="cohort-cut">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 md:px-7 md:pt-6">
+          <CardTitle title={t('Leads convertidos a 30, 60 y 90 días, por corte', 'Leads converted within 30, 60 and 90 days, by cut')} hint={t('Últimos 120 días. Un corte reciente todavía no llega a 90 días: se marca como parcial.', 'Last 120 days. A recent cut has not reached 90 days yet: it is marked partial.')} />
+          <NavSelect label={t('Cortar por', 'Cut by')} value={cutHref(cut)} testId="cohort-cut-select"
+            options={[{ href: cutHref('semana'), label: t('Semana de alta', 'Week created') }, { href: cutHref('canal'), label: t('Canal', 'Channel') }, { href: cutHref('persona'), label: t('Persona', 'Person') }]} />
+        </div>
+        <DataTable testId="cohort-cut-table" label={t('Cohortes por corte', 'Cohorts by cut')}
+          empty={<div className="p-7 pt-0"><Empty title={t('Sin leads en los últimos 120 días', 'No leads in the last 120 days')} /></div>}
+          head={[{ label: cut === 'semana' ? t('Semana', 'Week') : cut === 'canal' ? t('Canal', 'Channel') : t('Persona', 'Person') }, ...(multi ? [{ label: t('Mercado', 'Market') }] : []), { label: t('Leads', 'Leads'), num: true }, { label: t('A 30 días', 'Within 30 days'), num: true }, { label: t('A 60 días', 'Within 60 days'), num: true }, { label: t('A 90 días', 'Within 90 days'), num: true }]}
+          rows={cohorts.map((x) => ({ key: `${x.key}${x.market_code}`, testId: 'cohort-cut-row', cells: [cutLabel(x), ...(multi ? [x.market_code] : []), num(x.leads, locale),
+            pct(x.c30, x.leads, locale) + part(x.age_days, 30), pct(x.c60, x.leads, locale) + part(x.age_days, 60), pct(x.c90, x.leads, locale) + part(x.age_days, 90)] }))} />
       </Card>
 
       <Card className="mt-6" pad={false} data-testid="cohort-leads">

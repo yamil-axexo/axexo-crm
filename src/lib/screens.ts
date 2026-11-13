@@ -32,6 +32,11 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/finanzas', 'Reporte de Finanzas', 'Finance report'],
   ['/reportes/cuentas', 'Cadenas, ISO y cuentas clave', 'Chains, ISOs and key accounts'],
   ['/reportes/historico', 'Reporte histórico', 'History report'],
+  // reportes2
+  ['/reportes/kam', 'Tablero de cuentas clave', 'Key accounts board'],
+  ['/reportes/operaciones', 'Tablero de Operaciones', 'Operations board'],
+  ['/personas', 'Personas de los comercios', 'Merchant contacts'],
+  ['/admin/tableros', 'Administración, tableros y valores propuestos', 'Administration, boards and proposed values'],
   ['/reportes/conciliacion', 'Conciliación con el archivo de ventas', 'Reconciliation with the sales file'],
   ['/reportes/lo-que-llevo', 'Lo que llevo', 'My running numbers'],
   ['/reportes/indicadores-campo', 'Indicadores de campo', 'Field indicators'],

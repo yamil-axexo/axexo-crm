@@ -23,8 +23,9 @@ type Frag = postgres.Fragment
 export function wideScope(ctx: Ctx): ReportScope {
   const live = ctx.markets.filter((m) => m.status === 'live').map((m) => m.code)
   const has = (code: string, roles: Role[]) => ctx.memberships.some((m) => roles.includes(m.role) && (m.market === null || m.market === code))
-  const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead', 'ops']))
-  const team = live.filter((c) => !full.includes(c) && has(c, ['supervisor', 'rep']))
+  // reportes2: Finanzas lee su mercado completo; KAM, como quien vende, lo suyo.
+  const full = live.filter((c) => has(c, ['admin', 'lt', 'market_lead', 'ops', 'finance']))
+  const team = live.filter((c) => !full.includes(c) && has(c, ['supervisor', 'rep', 'kam']))
   return { full, team }
 }
 const all = (s: ReportScope) => [...s.full, ...s.team]
@@ -517,7 +518,7 @@ export async function adapterQueue(ctx: Ctx): Promise<{ channel: string; n: numb
 }
 
 // ------------------------------------------------------------------ UX-03 vistas guardadas como colas
-export type ViewObject = 'account' | 'lead' | 'deal' | 'activity'
+export type ViewObject = import('@/lib/report-catalog').ViewObject
 export type SavedView = { id: string; object: ViewObject; name: string; filters: Record<string, string>; is_shared: boolean; team_id: string | null; mine: boolean; pinned: boolean }
 export async function listViews(ctx: Ctx, object?: ViewObject): Promise<SavedView[]> {
   return withUser(ctx.user.id, async (tx) => {

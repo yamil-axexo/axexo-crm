@@ -17,6 +17,9 @@ export const REPORTS: ReportDef[] = [
   { key: 'embudo', path: '/reportes/embudo', title: ['Embudo: motivos, revisitas, próximos pasos y origen', 'Pipeline: reasons, revisits, next steps and origin'], desc: ['Por qué se pierde, qué quedó sin próximo paso, de dónde vienen los leads y qué comercios refieren a otros.', 'Why deals are lost, what has no next step, where leads come from and which merchants refer others.'], cap: 'report.gallery', group: 'sales', exportable: false },
   { key: 'agencias', path: '/reportes/agencias', title: ['Agencia y equipo interno', 'Agency and in-house team'], desc: ['Los negocios que trajo una agencia junto a los del equipo interno.', 'Deals brought in by an agency next to the in-house team’s.'], cap: 'report.view', group: 'sales', exportable: true },
   { key: 'cuentas', path: '/reportes/cuentas', title: ['Cadenas, ISO y cuentas clave', 'Chains, ISOs and key accounts'], desc: ['Cada cadena o distribuidor con la suma de sus tiendas, las etapas largas y los próximos hitos.', 'Each chain or distributor with the sum of its stores, long stages and upcoming milestones.'], cap: 'report.gallery', group: 'sales', exportable: true },
+  // reportes2 (REP-01, REP-03): tablero de cuentas clave con el pronóstico por categoría, y el tablero de Operaciones.
+  { key: 'kam', path: '/reportes/kam', title: ['Cuentas clave (KAM)', 'Key accounts (KAM)'], desc: ['Las cuentas clave, sus tiendas y las oportunidades con su categoría de pronóstico. El pronóstico se envía por periodo y queda guardado por versión.', 'Key accounts, their stores and the opportunities with their forecast category. The forecast is submitted per period and kept by version.'], cap: 'board.kam', group: 'sales', exportable: false },
+  { key: 'operaciones', path: '/reportes/operaciones', title: ['Tablero de Operaciones', 'Operations board'], desc: ['La cola de Operaciones en cifras: expedientes, devueltos, aprobados en mesa de control y entregas sin acuse.', 'The Operations queue in figures: files, returned, approved at the control desk and handoffs not acknowledged.'], cap: 'board.ops', group: 'sales', exportable: false },
   { key: 'pronostico', path: '/reportes/pronostico', title: ['Pronóstico', 'Forecast'], desc: ['Cuántos negocios abiertos se esperan ganar por tipo de venta, con su rango.', 'How many open deals are expected to be won per sales type, with a range.'], cap: 'report.view', group: 'sales', exportable: true },
   // Reporte del mercado (paquete mx, E18.F10): se enlaza desde la galería como los demás; sus descargas están en la propia pantalla.
   { key: 'mercado', path: '/reportes/mercado', title: ['Reporte del mercado', 'Market report'], desc: ['Leads capturados y convertidos, negocios por etapa y conteos por mes, con los leads por tipo de empresa y número de tiendas.', 'Leads captured and converted, deals by stage and monthly counts, with leads by company type and number of stores.'], cap: 'report.view', group: 'sales', exportable: false },
@@ -45,7 +48,8 @@ export const reportByKey = (key: string) => REPORTS.find((r) => r.key === key)
 export const REPORT_PARAMS = ['periodo', 'desde', 'hasta', 'mercado', 'embudo', 'equipo', 'persona', 'fuente', 'ver', 'nivel', 'tipo', 'resultado', 'por'] as const
 
 // ------------------------------------------------------------------ vistas guardadas (UX-03)
-export type ViewObject = 'account' | 'lead' | 'deal' | 'activity'
+// reportes2 (E8.F4): también las personas de los comercios (contactos).
+export type ViewObject = 'account' | 'lead' | 'deal' | 'activity' | 'contact'
 /** Lista blanca de filtros por lista. Una vista es un conjunto de estos valores con nombre, nunca una consulta. */
 export const VIEW_FILTERS: Record<ViewObject, readonly string[]> = {
   account: ['q', 'market', 'lifecycle', 'owner', 'kind', 'ver', 'region', 'city', 'territory', 'team', 'pipeline', 'visito', 'fondeo'],
@@ -53,9 +57,10 @@ export const VIEW_FILTERS: Record<ViewObject, readonly string[]> = {
   lead: ['market', 'status', 'owner', 'q', 'clock', 'source', 'sort', 'motor', 'equipo', 'tipo', 'embudo', 'tiendas_min', 'tiendas_max'],
   deal: ['pipeline', 'owner', 'paso', 'quietos', 'equipo', 'vista', 'orden'],
   activity: ['view'],
+  contact: ['q', 'market', 'role', 'owner'],
 }
 export const VIEW_OBJECT_LABEL: Record<ViewObject, Pair> = {
-  account: ['Comercios', 'Merchants'], lead: ['Leads', 'Leads'], deal: ['Negocios', 'Deals'], activity: ['Actividades', 'Activities'],
+  account: ['Comercios', 'Merchants'], lead: ['Leads', 'Leads'], deal: ['Negocios', 'Deals'], activity: ['Actividades', 'Activities'], contact: ['Personas de los comercios', 'Merchant contacts'],
 }
 const UUID = /^[0-9a-f-]{36}$/
 /** La dirección de una vista: la lista con sus filtros. En Negocios, el embudo va en la ruta. */
@@ -63,7 +68,7 @@ export function viewHref(v: { id: string; object: ViewObject; filters: Record<st
   const sp = new URLSearchParams()
   for (const k of VIEW_FILTERS[v.object]) if (v.filters[k] && !(v.object === 'deal' && k === 'pipeline')) sp.set(k, v.filters[k]!)
   sp.set('cola', v.id)
-  const base = v.object === 'account' ? '/comercios' : v.object === 'lead' ? '/leads' : v.object === 'activity' ? '/actividades'
+  const base = v.object === 'account' ? '/comercios' : v.object === 'lead' ? '/leads' : v.object === 'activity' ? '/actividades' : v.object === 'contact' ? '/personas'
     : v.filters.pipeline && UUID.test(v.filters.pipeline) ? `/pipelines/${v.filters.pipeline}` : '/pipelines'
   return `${base}?${sp.toString()}`
 }
