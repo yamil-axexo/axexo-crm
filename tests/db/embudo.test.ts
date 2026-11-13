@@ -208,8 +208,8 @@ describe('PIPE-05 y PIPE-04: revisita y motivos', () => {
     const sys = await systemContext()
     const r = await one(admin<{ id: string; account_id: string; external_id: string; owner_id: string }[]>`
       select d.id, d.account_id, al.external_id, d.owner_id from crm.deals d join crm.account_aliases al on al.account_id = d.account_id and al.system = 'sales_core'
-       where d.status = 'open' and not d.revisit_needed and d.owner_id is not null
-         and not exists (select 1 from crm.activities x where x.account_id = d.account_id and x.kind = 'visit' and x.done_at is null) limit 1`)
+       where d.status = 'open' and not d.revisit_needed and d.owner_id is not null and d.market_code = 'MX' -- el teléfono de la prueba es de MX (plataforma: 0045 reescribe la tabla y el orden físico cambió)
+         and not exists (select 1 from crm.activities x where x.account_id = d.account_id and x.kind = 'visit' and x.done_at is null) order by d.id limit 1`)
     const ev = visit(r.external_id, { revisit_due: '2026-11-14', decision_maker_contact: { name: 'Julia Paredes', role: 'owner', phone: '55 6123 4567', best_time: 'Martes y jueves por la tarde' } })
     expect(await ingestSalesAppEvent(sys, ev)).toMatchObject({ status: 'processed' })
     const c = await one(admin`select c.full_name, c.phone, c.best_time, ac.role from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id where ac.account_id = ${r.account_id} and c.full_name = 'Julia Paredes'`)
