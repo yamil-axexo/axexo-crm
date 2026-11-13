@@ -242,7 +242,7 @@ export type ConsolidatedRow = {
 export async function getConsolidated(ctx: Ctx, f: { status: 'open' | 'won'; cut: ConsolidatedCut; market?: string; from?: string; to?: string }): Promise<{ rows: ConsolidatedRow[]; total_usd_minor: string | null; unconverted: number; deals: number }> {
   return withUser(ctx.user.id, async (tx) => {
     const key = f.cut === 'entity' ? tx`d.legal_entity_id::text` : f.cut === 'unit' ? tx`coalesce(d.business_unit, '')` : tx`d.market_code`
-    const label = f.cut === 'entity' ? tx`e.name` : f.cut === 'unit' ? tx`coalesce(b.label_es, '')` : tx`m.name`
+    const label = f.cut === 'entity' ? tx`e.name` : f.cut === 'unit' ? (ctx.locale === 'en' ? tx`coalesce(b.label_en, '')` : tx`coalesce(b.label_es, '')`) : tx`m.name`
     const rows = await tx<ConsolidatedRow[]>`
       select ${key} as key, ${label} as label, trim(d.currency) as currency, count(*)::int as deals,
              sum(d.amount_minor)::text as amount_minor, sum(d.amount_usd_minor)::text as usd_minor,

@@ -398,3 +398,26 @@ test.describe('UX-04: supervisión y quien cuida cuentas, desde el teléfono', (
     expect(errors).toEqual([])
   })
 })
+
+test.describe('las pantallas del paquete en inglés y en el teléfono', () => {
+  test('consolidado, mercados y entidades, cerca de mí, buscar y la pestaña Datos: en inglés, sin restos de español, sin desbordes a 390 px', async ({ page }) => {
+    test.setTimeout(90_000)
+    const store = await storeOf('marco.pena', 25)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await loginAs(page, 'nora.salas', { stay: true })
+    await page.context().addCookies([{ name: 'contigo_locale', value: 'en', url: page.url() }])
+    for (const path of ['/reportes/consolidado', '/reportes/consolidado?por=unit&ver=ganados', '/admin?tab=mercados', '/comercios/cerca', '/buscar', `/comercios/${store.id}?tab=datos`]) {
+      const res = await page.goto(path)
+      expect(res?.status(), path).toBeLessThan(400)
+      await expect(page.locator('html'), path).toHaveAttribute('lang', 'en')
+      await expect(page.locator('h1').first(), path).toBeVisible()
+      await noOverflow(page, `en 390 ${path}`)
+      await axeClean(page, `en ${path}`)
+      const text = await page.locator('main').innerText()
+      expect(text, `${path}: guion largo`).not.toMatch(/[—–]/)
+      // nombres propios sembrados en español (comercios, entidades, festivos) no cuentan: se revisan las palabras del producto
+      expect(text, `${path}: restos de español`).not.toMatch(/\bnegocios?\b|\bembudos?\b|\bsin dato\b|\bpróximo\b|\bidentificador\b|\bentidad legal\b|\bubicación\b|\bapagado\b|\btasa\b/i)
+    }
+  })
+})
+
