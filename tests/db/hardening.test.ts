@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
-import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
+import { SEAT, asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
 import { addActivity } from '@/domain/activities'
 import { completeItem } from '@/domain/queue'
 import { getQueue } from '@/dal/queue'
@@ -239,9 +239,9 @@ describe('hallazgos de QA', () => {
     const nora = await ctxFor('nora.salas')
     const org = ['axexo.com', 'emida.com', 'emida.net']
     const who = `persona.${tag()}`
-    await expect(grantMembership(nora, { email: `${who}@emida.net`, fullName: 'Persona Emida', role: 'rep', market: 'US' }, org)).resolves.toBeUndefined()
+    await expect(grantMembership(nora, { ...SEAT, email: `${who}@emida.net`, fullName: 'Persona Emida', role: 'rep', market: 'US' }, org)).resolves.toBeUndefined()
     for (const email of [`${who}@gmail.com`, `${who}@empowerretailers.com`, `${who}@axexo.com.otro.com`]) {
-      await expect(grantMembership(nora, { email, fullName: 'Persona Fuera', role: 'rep', market: 'US' }, org)).rejects.toMatchObject({ code: 'invalid' })
+      await expect(grantMembership(nora, { ...SEAT, email, fullName: 'Persona Fuera', role: 'rep', market: 'US' }, org)).rejects.toMatchObject({ code: 'invalid' })
     }
   })
 
@@ -277,8 +277,8 @@ describe('hallazgos de QA', () => {
     await expect(createTeam(nora, { market: 'US', name: name.toUpperCase(), motor: 'dealer' })).rejects.toMatchObject({ code: 'invalid' })
     await expect(createTeam(await ctxFor('robert.hale'), { market: 'US', name: `Otro ${tag()}`, motor: 'dealer' })).rejects.toMatchObject({ code: 'forbidden' })
     const org = ['axexo.com']
-    await expect(grantMembership(nora, { email: `eq.${tag()}@axexo.com`, fullName: 'Persona MX', role: 'rep', market: 'MX', teamId: id }, org)).rejects.toMatchObject({ code: 'invalid' })
-    await expect(grantMembership(nora, { email: `eq.${tag()}@axexo.com`, fullName: 'Persona US', role: 'rep', market: 'US', teamId: id }, org)).resolves.toBeUndefined()
+    await expect(grantMembership(nora, { ...SEAT, email: `eq.${tag()}@axexo.com`, fullName: 'Persona MX', role: 'rep', market: 'MX', teamId: id }, org)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(grantMembership(nora, { ...SEAT, email: `eq.${tag()}@axexo.com`, fullName: 'Persona US', role: 'rep', market: 'US', teamId: id }, org)).resolves.toBeUndefined()
   })
 
   it('QA-12: atender una sugerencia cierra los demás avisos abiertos del mismo negocio', async () => {

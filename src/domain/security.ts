@@ -1,4 +1,5 @@
 import 'server-only'
+import { recordSeatAtGrant, SEAT_MISSING, seatFields } from '@/domain/seats'
 import { z } from 'zod'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
@@ -94,12 +95,16 @@ const externalInput = z.object({
   fullName: z.string().trim().min(2).max(120),
   agencyId: uuid,
   expires: isoDate.or(z.literal('')).optional(),
+  ...seatFields,
 })
 /** Da acceso a una persona de una agencia: entra con el rol Agencia, confinada a lo que su agencia reclutó. */
 export async function grantAgencyAccess(ctx: Ctx, input: z.input<typeof externalInput>, allowedDomains: readonly string[]): Promise<string> {
   ctx.assert('access.manage')
   const p = externalInput.safeParse(input)
-  if (!p.success) throw invalid('Revisa correo, nombre y agencia.', 'Check the email, name and agency.')
+  if (!p.success) {
+    if (p.error.issues.some((i) => String(i.path[0]).startsWith('seat'))) throw invalid(...SEAT_MISSING)
+    throw invalid('Revisa correo, nombre y agencia.', 'Check the email, name and agency.')
+  }
   const v = p.data
   if (!emailInDomains(v.email, allowedDomains) && !v.email.endsWith('@contigo.test')) {
     throw invalid(
@@ -115,9 +120,10 @@ export async function grantAgencyAccess(ctx: Ctx, input: z.input<typeof external
     const userId = users[0]!.id
     const other = await tx`select 1 from crm.memberships where user_id = ${userId} and (valid_to is null or valid_to > now())`
     if (other[0]) throw invalid('Esa persona ya tiene un acceso. Una persona de agencia no combina su rol con otro.', 'That person already has access. An agency user does not combine that role with another.')
-    await tx`insert into crm.memberships (user_id, market_code, role, agency_id, valid_to)
+    const mem = await tx<{ id: string }[]>`insert into crm.memberships (user_id, market_code, role, agency_id, valid_to)
              values (${userId}, ${ag[0].market_code}, 'agency', ${v.agencyId},
-                     ${v.expires ? tx`((${v.expires}::date + 1)::timestamp at time zone (select timezone from crm.markets where code = ${ag[0].market_code}))` : null})`
+                     ${v.expires ? tx`((${v.expires}::date + 1)::timestamp at time zone (select timezone from crm.markets where code = ${ag[0].market_code}))` : null}) returning id`
+    await recordSeatAtGrant(tx, ctx, mem[0]!.id, userId, ag[0].market_code, 'agency', v)
     await audit(tx, ctx, 'membership.granted', 'user', userId, ag[0].market_code, null, { role: 'agency', market: ag[0].market_code, agency: ag[0].name, expires: v.expires || null })
     await accessGranted(tx, ctx, userId, ag[0].market_code, ['Agencia', 'Agency'])
     return userId

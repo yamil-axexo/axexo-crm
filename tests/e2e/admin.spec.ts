@@ -25,6 +25,7 @@ async function grant(page: Page, o: { email: string; name: string; role: string;
   const dialog = page.locator('dialog[open]')
   await dialog.getByTestId('grant-email').fill(o.email)
   await dialog.getByTestId('grant-name').fill(o.name)
+  await dialog.getByTestId('grant-seat-approver').fill('Responsable del presupuesto')
   await dialog.getByTestId('grant-role').selectOption(o.role)
   if (o.market) await dialog.getByTestId('grant-market').selectOption(o.market)
   if (o.expires) await dialog.getByTestId('grant-expires').fill(o.expires)

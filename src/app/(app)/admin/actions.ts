@@ -30,7 +30,8 @@ export async function grantMembershipAction(_: R | null, fd: FormData): Promise<
   return runAction(async (ctx) => {
     const out = await grantAccess(
       ctx,
-      { email: str(fd, 'email'), fullName: str(fd, 'full_name'), role: str(fd, 'role') as 'rep', market: str(fd, 'market'), teamId: str(fd, 'team_id'), expires: str(fd, 'expires'), confirmAdmin: fd.get('confirm_admin') === 'on' },
+      { email: str(fd, 'email'), fullName: str(fd, 'full_name'), role: str(fd, 'role') as 'rep', market: str(fd, 'market'), teamId: str(fd, 'team_id'), expires: str(fd, 'expires'), confirmAdmin: fd.get('confirm_admin') === 'on',
+        seatApprover: str(fd, 'seat_approver'), seatApprovedOn: str(fd, 'seat_approved_on'), seatReference: str(fd, 'seat_reference') },
       env().AUTH_ALLOWED_DOMAINS,
     )
     const es = ['Acceso otorgado.']

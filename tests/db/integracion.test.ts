@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { asPersona, ctxFor, owner, personaId } from './helpers'
+import { SEAT, asPersona, ctxFor, owner, personaId } from './helpers'
 import { endMembership, grantAccess } from '@/domain/admin'
 import { recordActivity } from '@/domain/activities'
 import { previewAccounts, reassignAccounts } from '@/domain/reparto'
@@ -113,9 +113,9 @@ describe('Operaciones es dueño vigente en su mercado', () => {
   it('quien conserva otro rol con el que lleva cartera no deja nada sin dueño vigente; un rol global tampoco', async () => {
     const nora = await ctxFor('nora.salas')
     const email = 'integra.dos@contigo.test'
-    const rep = await grantAccess(nora, { email, fullName: 'Dos Roles Integra (sintética)', role: 'rep', market: 'MX' }, DOMAINS)
-    await grantAccess(nora, { email, fullName: 'Dos Roles Integra (sintética)', role: 'ops', market: 'MX' }, DOMAINS)
-    await grantAccess(nora, { email, fullName: 'Dos Roles Integra (sintética)', role: 'lt', market: '' }, DOMAINS)
+    const rep = await grantAccess(nora, { ...SEAT, email, fullName: 'Dos Roles Integra (sintética)', role: 'rep', market: 'MX' }, DOMAINS)
+    await grantAccess(nora, { ...SEAT, email, fullName: 'Dos Roles Integra (sintética)', role: 'ops', market: 'MX' }, DOMAINS)
+    await grantAccess(nora, { ...SEAT, email, fullName: 'Dos Roles Integra (sintética)', role: 'lt', market: '' }, DOMAINS)
     await admin`insert into crm.accounts (market_code, kind, name, segment, lifecycle, owner_id, country) values ('MX', 'store', 'Integra Dos 01', 'd2d', 'prospect', ${rep.userId}, 'MX')`
     const rows = (await getUsers(nora)).memberships.filter((m) => m.user_id === rep.userId)
     expect(rows.map((m) => [m.role, m.vacates]).sort()).toEqual([['lt', false], ['ops', false], ['rep', false]])
