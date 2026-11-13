@@ -99,7 +99,7 @@ describe('un solo modelo por concepto', () => {
     const luis = await ctxFor('luis.tovar')
     const mx = (await getLtPanel(luis)).markets.find((m) => m.code === 'MX')!
     const expected = await one(admin<{ r: string | null }[]>`
-      select (select usd_rate::text from app.fx_at('MXN', coalesce((select max(as_of) from crm.merchant_metrics_daily where market_code = 'MX'), current_date))) as r`)
+      select (select usd_rate::text from app.fx_at('MXN', coalesce((select max(as_of) from crm.merchant_metrics_daily where market_code = 'MX'), (now() at time zone 'America/Mexico_City')::date))) as r`)
     expect(mx.usd_rate).toBe(expected.r)
   })
 })
