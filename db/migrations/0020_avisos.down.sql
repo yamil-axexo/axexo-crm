@@ -27,6 +27,14 @@ delete from crm.notices where kind not in ('mention','returned') or market_code 
 drop policy notices_ins on crm.notices;
 create policy notices_ins on crm.notices for insert to contigo_app
   with check (from_user_id = (select app.current_user_id()) and market_code = any((select app.write_markets())::text[]));
+alter table crm.notices
+  drop constraint notices_user_id_fkey, drop constraint notices_from_user_id_fkey, drop constraint notices_account_id_fkey,
+  drop constraint notices_deal_id_fkey, drop constraint notices_activity_id_fkey,
+  add constraint notices_user_id_fkey foreign key (user_id) references crm.users(id),
+  add constraint notices_from_user_id_fkey foreign key (from_user_id) references crm.users(id),
+  add constraint notices_account_id_fkey foreign key (account_id) references crm.accounts(id),
+  add constraint notices_deal_id_fkey foreign key (deal_id) references crm.deals(id),
+  add constraint notices_activity_id_fkey foreign key (activity_id) references crm.activities(id);
 drop index crm.notices_lead_idx;
 drop index crm.notices_user_all_idx;
 alter table crm.notices

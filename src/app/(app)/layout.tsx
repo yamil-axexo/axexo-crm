@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { Activity, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, Bell, CircleHelp, Eye, Megaphone, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -12,6 +12,8 @@ import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
+import { unreadNotices } from '@/dal/notices'
+import { ScreenHelpFooter } from '@/ui/notices'
 
 const initials = (name: string) =>
   name
@@ -29,6 +31,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
   const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
+  // La campana: cuántos avisos sin leer tiene la persona (AUT-05).
+  const unread = ctx.user.isSystem ? 0 : await unreadNotices(ctx)
+  const bellLabel = unread > 0 ? t(`Avisos: ${unread} sin leer`, `Notices: ${unread} unread`) : t('Avisos', 'Notices')
   // Quien trabaja o reparte leads: con la app abierta, el contador se actualiza solo y la pestaña avisa cuando llega uno.
   const watchLeads = !ctx.user.isSystem && (ctx.can('lead.work') || ctx.can('lead.assign'))
 
@@ -70,6 +75,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/buscar" aria-label={m('top.searchLabel')} className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-strong md:hidden" data-testid="search-link">
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
+          <Link href="/avisos" aria-label={bellLabel} title={bellLabel} className={`press relative h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-strong hover:bg-green-50 ${readOnly ? 'hidden md:inline-flex' : 'inline-flex'}`} data-testid="bell">
+            <Bell size={20} strokeWidth={1.75} aria-hidden />
+            {unread > 0 && <span className="num absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="bell-count">{unread > 99 ? '99+' : unread}</span>}
+          </Link>
           <form action={setLocale}>
             <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />
             <button aria-label={`${ctx.locale.toUpperCase()}: ${m('top.language')}`} className="press hidden h-10 min-w-11 items-center justify-center rounded-full border border-line px-3 text-[13px] font-semibold text-strong hover:bg-green-50 md:inline-flex" data-testid="locale-toggle">
@@ -83,6 +92,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {readOnly && <p className="mt-1 text-[12.5px] text-muted-2" data-testid="me-read-only">{t('Solo lectura: ves todo y no cambias nada.', 'Read-only: you see everything and change nothing.')}</p>}
             </div>
             <div className="py-1">
+              <Link href="/avisos" role="menuitem" className={menuLink} data-testid="nav-notices"><Bell size={20} strokeWidth={1.75} aria-hidden />{t('Avisos', 'Notices')}{unread > 0 ? ` (${unread})` : ''}</Link>
+              <Link href="/anuncios" role="menuitem" className={menuLink} data-testid="nav-announcements"><Megaphone size={20} strokeWidth={1.75} aria-hidden />{t('Anuncios', 'Announcements')}</Link>
               {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
               {ctx.can('board.supervisor') ? <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>
                 : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}
@@ -116,7 +127,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
-      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
+      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}<ScreenHelpFooter label={t('¿Cómo se usa esto?', 'How do I use this?')} /></main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} logLabel={canLog ? t('Registrar actividad', 'Log activity') : undefined} />
       {watchLeads && (
         <LeadWatch

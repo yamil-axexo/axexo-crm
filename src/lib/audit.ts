@@ -108,6 +108,24 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'report.answered': ['Respondió un reporte del equipo', 'Answered a team report'],
   'report.exported': ['Exportó un reporte', 'Exported a report'],
   'fx.rate_set': ['Cargó una tasa de cambio', 'Loaded an exchange rate'],
+  // avisos (0020): servicio de avisos, plantillas, anuncios, pedido a Operaciones, capacitación y reportes
+  'notice.all_seen': ['Marcó todos sus avisos como leídos', 'Marked all notices as read'],
+  'notice.prefs_saved': ['Cambió sus preferencias de avisos', 'Changed notice preferences'],
+  'template.saved': ['Guardó una versión nueva de una plantilla', 'Saved a new version of a template'],
+  'comms.saved': ['Cambió la configuración de avisos de un mercado', 'Changed a market’s notice settings'],
+  'help.lesson_saved': ['Cambió la lección de una pantalla', 'Changed a screen’s lesson'],
+  'announcement.published': ['Publicó un anuncio', 'Published an announcement'],
+  'announcement.updated': ['Publicó una versión nueva de un anuncio', 'Published a new version of an announcement'],
+  'announcement.withdrawn': ['Retiró un anuncio', 'Withdrew an announcement'],
+  'announcement.read': ['Leyó un anuncio', 'Read an announcement'],
+  'announcement.acknowledged': ['Dio acuse de un anuncio', 'Acknowledged an announcement'],
+  'order.sent_to_ops': ['Envió un pedido a Operaciones', 'Sent an order to Operations'],
+  'order.received': ['Recibió un pedido en Operaciones', 'Received an order in Operations'],
+  'training.scheduled': ['Agendó una capacitación', 'Scheduled a training'],
+  'training.done': ['Marcó una capacitación como hecha', 'Marked a training as done'],
+  'training.no_show': ['Anotó que el dealer no se presentó a la capacitación', 'Recorded that the dealer missed the training'],
+  'training.cancelled': ['Canceló una capacitación', 'Cancelled a training'],
+  'report.taken': ['Empezó a revisar un reporte del equipo', 'Started reviewing a team report'],
   'session.started': ['Inició sesión', 'Signed in'],
   'session.ended': ['Cerró sesión', 'Signed out'],
 }
@@ -116,12 +134,13 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%'], not: null },
+  notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
-  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
-  reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered'], not: null },
+  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%'], not: null },
+  reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
 } as const
@@ -158,6 +177,10 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   session: ['Sesión', 'Session'],
   notice: ['Aviso de una nota', 'Notice from a note'],
   ops_catalog: ['Catálogo de Operaciones', 'Operations catalog'],
+  template: ['Plantilla de mensaje', 'Message template'],
+  announcement: ['Anuncio', 'Announcement'],
+  screen: ['Pantalla', 'Screen'],
+  training: ['Capacitación', 'Training'],
   product: ['Producto', 'Product'],
 }
 

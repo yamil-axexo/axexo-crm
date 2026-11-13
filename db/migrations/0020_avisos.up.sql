@@ -9,9 +9,19 @@ alter table crm.notices
   add column title           text check (title is null or length(title) between 1 and 160),
   add column link            text check (link is null or (link ~ '^/[A-Za-z0-9/_?=&#.-]*$' and length(link) <= 300)),
   add column needs_action    boolean not null default true,
-  add column lead_id         uuid references crm.leads(id),
+  add column lead_id         uuid references crm.leads(id) on delete cascade,
   add column announcement_id uuid,
   add constraint notices_kind_check check (kind ~ '^[a-z_]{3,40}$');
+-- Un aviso no sobrevive al registro del que habla. CONTIGO no borra personas, comercios ni negocios (el rol de la app no puede);
+-- esto solo cuenta para las limpiezas de datos de prueba, que antes no encontraban avisos y ahora sí.
+alter table crm.notices
+  drop constraint notices_user_id_fkey, drop constraint notices_from_user_id_fkey, drop constraint notices_account_id_fkey,
+  drop constraint notices_deal_id_fkey, drop constraint notices_activity_id_fkey,
+  add constraint notices_user_id_fkey foreign key (user_id) references crm.users(id) on delete cascade,
+  add constraint notices_from_user_id_fkey foreign key (from_user_id) references crm.users(id) on delete cascade,
+  add constraint notices_account_id_fkey foreign key (account_id) references crm.accounts(id) on delete cascade,
+  add constraint notices_deal_id_fkey foreign key (deal_id) references crm.deals(id) on delete cascade,
+  add constraint notices_activity_id_fkey foreign key (activity_id) references crm.activities(id) on delete set null;
 create index notices_user_all_idx on crm.notices (user_id, created_at desc);
 create index notices_lead_idx on crm.notices (lead_id) where lead_id is not null;
 
@@ -21,7 +31,7 @@ create policy notices_ins on crm.notices for insert to contigo_app
 
 -- 2) Preferencias de cada persona: qué tipos recibe, por qué canal, y si quiere un resumen diario.
 create table crm.notification_prefs (
-  user_id       uuid primary key references crm.users(id),
+  user_id       uuid primary key references crm.users(id) on delete cascade,
   prefs         jsonb not null default '{}'::jsonb check (jsonb_typeof(prefs) = 'object'),
   daily_digest  boolean not null default false,
   updated_at    timestamptz not null default now()
@@ -67,20 +77,21 @@ create unique index message_templates_version_uq on crm.message_templates (key, 
 create unique index message_templates_current_uq on crm.message_templates (key, coalesce(market_code, '')) where is_current;
 
 -- 5) El registro central: una fila por aviso y por canal, con plantilla, destinatario, costo y estado.
+--    CONTIGO no borra leads, negocios ni comercios; si una limpieza de datos de prueba lo hace, el registro del envío se conserva sin el enlace.
 create table crm.notifications (
   id                uuid primary key default app.uuid_v7(),
   market_code       text references crm.markets(code),
-  notice_id         uuid references crm.notices(id),
+  notice_id         uuid references crm.notices(id) on delete set null,
   kind              text not null check (kind ~ '^[a-z_]{3,40}$'),
   channel           text not null check (channel in ('in_app','email','slack','whatsapp')),
   template_key      text,
   template_version  int,
   recipient_kind    text not null check (recipient_kind in ('person','lead','mailbox')),
-  recipient_user_id uuid references crm.users(id),
+  recipient_user_id uuid references crm.users(id) on delete cascade,
   recipient_address text check (recipient_address is null or length(recipient_address) <= 200),
-  lead_id           uuid references crm.leads(id),
-  account_id        uuid references crm.accounts(id),
-  deal_id           uuid references crm.deals(id),
+  lead_id           uuid references crm.leads(id) on delete set null,
+  account_id        uuid references crm.accounts(id) on delete set null,
+  deal_id           uuid references crm.deals(id) on delete set null,
   subject           text not null check (length(subject) between 1 and 300),
   body              text not null check (length(body) between 1 and 6000),
   status            text not null check (status in ('delivered','queued_off','simulated','held_hours','held_digest','held_limit','digested','skipped_consent','skipped_no_address','blocked_template')),
@@ -88,7 +99,7 @@ create table crm.notifications (
   cost_currency     text check (cost_currency is null or length(cost_currency) = 3),
   release_at        timestamptz,
   sent_at           timestamptz,
-  created_by        uuid not null references crm.users(id),
+  created_by        uuid not null references crm.users(id) on delete cascade,
   created_at        timestamptz not null default now()
 );
 create index notifications_queue_idx on crm.notifications (channel, status, created_at desc);
@@ -127,7 +138,7 @@ alter table crm.notices add constraint notices_announcement_fk foreign key (anno
 
 create table crm.announcement_receipts (
   announcement_id uuid not null references crm.announcements(id),
-  user_id         uuid not null references crm.users(id),
+  user_id         uuid not null references crm.users(id) on delete cascade,
   read_at         timestamptz not null default now(),
   ack_at          timestamptz,
   primary key (announcement_id, user_id)
@@ -136,7 +147,7 @@ create table crm.announcement_receipts (
 -- 7) Pedido enviado a Operaciones: quién, cuándo, a qué buzón, y quién lo recibió en Operaciones.
 create table crm.order_dispatches (
   id           uuid primary key default app.uuid_v7(),
-  deal_id      uuid not null references crm.deals(id),
+  deal_id      uuid not null references crm.deals(id) on delete cascade,
   market_code  text not null references crm.markets(code),
   sent_by      uuid not null references crm.users(id),
   sent_at      timestamptz not null default now(),
@@ -153,7 +164,7 @@ create index order_dispatches_open_idx on crm.order_dispatches (market_code, sen
 -- 8) Agenda de capacitación del dealer nuevo: fecha, quién la da y cómo terminó.
 create table crm.training_sessions (
   id            uuid primary key default app.uuid_v7(),
-  deal_id       uuid not null references crm.deals(id),
+  deal_id       uuid not null references crm.deals(id) on delete cascade,
   market_code   text not null references crm.markets(code),
   on_date       date not null,
   at_time       time,
