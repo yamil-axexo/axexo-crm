@@ -180,7 +180,8 @@ export async function getLtPanel(ctx: Ctx) {
 }
 
 export async function track(ctx: Ctx, event: string): Promise<void> {
-  if (ctx.user.isSystem) return
+  // Quien ve como otra persona no deja uso a nombre de esa persona.
+  if (ctx.user.isSystem || ctx.viewAs) return
   await withUser(ctx.user.id, async (tx) => {
     await tx`insert into crm.usage_events (user_id, event)
              select ${ctx.user.id}, ${event} where not exists (

@@ -55,7 +55,7 @@ try {
   else if (cmd === 'reset') {
     // Solo desarrollo y pruebas: tira los dos esquemas y vuelve a aplicar todo.
     if (process.env.APP_ENV === 'production') throw new Error('reset is not allowed in production')
-    await sql.unsafe('drop schema if exists crm cascade; drop schema if exists app cascade')
+    await sql.unsafe('drop schema if exists crm cascade; drop schema if exists app cascade; drop schema if exists audit cascade')
     await ensure()
     await up()
   } else if (cmd === 'status') console.log((await applied()).join('\n') || '(none)')

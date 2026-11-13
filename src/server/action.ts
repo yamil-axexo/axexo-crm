@@ -2,6 +2,7 @@ import 'server-only'
 import { revalidatePath } from 'next/cache'
 import { ZodError } from 'zod'
 import { requireCtx, type Ctx } from '@/server/context'
+import { runVia } from '@/server/db'
 import { DomainError, type ActionResult } from '@/lib/errors'
 
 type Outcome<T> = { data?: T; message?: [es: string, en: string]; revalidate?: string[] } | void
@@ -12,8 +13,12 @@ type Outcome<T> = { data?: T; message?: [es: string, en: string]; revalidate?: s
  */
 export async function runAction<T = undefined>(fn: (ctx: Ctx) => Promise<Outcome<T>>): Promise<ActionResult<T>> {
   const ctx = await requireCtx()
+  // SEG-07: quien está viendo como otra persona mira, no cambia. Toda acción pasa por aquí, así que aquí se corta.
+  if (ctx.viewAs) {
+    return { ok: false, code: 'forbidden', error: ctx.t('Estás viendo CONTIGO como otra persona: desde aquí no se cambia nada. Termina "Ver como" para volver a tu cuenta.', 'You are viewing CONTIGO as someone else: nothing can be changed from here. End "View as" to go back to your account.') }
+  }
   try {
-    const out = (await fn(ctx)) ?? {}
+    const out = (await runVia('screen', () => fn(ctx))) ?? {}
     for (const p of out.revalidate ?? ['/', 'layout']) {
       if (p === 'layout') revalidatePath('/', 'layout')
       else revalidatePath(p)

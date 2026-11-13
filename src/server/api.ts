@@ -1,7 +1,7 @@
 import 'server-only'
 import { NextResponse, type NextRequest } from 'next/server'
 import { ZodError } from 'zod'
-import { withoutUser } from '@/server/db'
+import { runVia, withoutUser } from '@/server/db'
 import { hashKey } from '@/domain/admin'
 import { DomainError } from '@/lib/errors'
 
@@ -23,8 +23,10 @@ export async function apiHandler(request: NextRequest, scope: string, fn: (body:
   } catch {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
   }
+  // SEG-08: cada llamada deja el último uso de la llave y una fila por llave en el registro de lecturas.
+  await withoutUser((tx) => tx`select app.api_client_used(${client.id}, ${scope})`)
   try {
-    return NextResponse.json(await fn(body, request.headers.get('idempotency-key')))
+    return NextResponse.json(await runVia('api', () => fn(body, request.headers.get('idempotency-key'))))
   } catch (e) {
     if (e instanceof DomainError) return NextResponse.json({ error: e.code, message: e.en }, { status: e.status })
     if (e instanceof ZodError) return NextResponse.json({ error: 'invalid' }, { status: 422 })

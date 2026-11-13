@@ -29,7 +29,11 @@ export default async function BuscarPage({ searchParams }: { searchParams: Promi
         <Search size={18} strokeWidth={1.75} aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
         <input name="q" type="search" defaultValue={q} className="input !pl-11" placeholder={m('top.search')} aria-label={m('top.searchLabel')} data-testid="search-input" />
       </form>
-      {q.length < 2 ? (
+      {r.limited ? (
+        <p role="status" className="rounded-[14px] bg-warn-bg px-5 py-4 text-[14px] font-medium text-amber-text" data-testid="search-limited">
+          {t('Hiciste muchas búsquedas seguidas. Espera un minuto y vuelve a intentar.', 'You ran many searches in a row. Wait a minute and try again.')}
+        </p>
+      ) : q.length < 2 ? (
         <p className="text-[15px] text-muted">{m('search.start')}</p>
       ) : none ? (
         <Empty title={m('search.empty.title')} hint={m('search.empty.body')} />
