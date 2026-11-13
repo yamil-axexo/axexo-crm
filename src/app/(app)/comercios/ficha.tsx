@@ -493,7 +493,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <p className="-mt-1 mb-2 text-[13px] text-muted" data-testid="ficha-status-source">
                   {metrics?.status
                     ? t(`Estado según el archivo de ventas, con corte al ${day(metrics.as_of, locale)}.`, `Status from the sales file, as of ${day(metrics.as_of, locale)}.`)
-                    : t('Estado calculado por CONTIGO con su regla de respaldo: el archivo de ventas todavía no trae el estado. [pendiente: Roxanna Quintero (S5)]', 'Status worked out by CONTIGO with its fallback rule: the sales file does not carry the status yet. [pending: Roxanna Quintero (S5)]')}
+                    : t('Estado calculado por CONTIGO con su regla de respaldo: el archivo de ventas todavía no trae el estado. [pendiente: Roxanna Quintero (Data y Reportería)]', 'Status worked out by CONTIGO with its fallback rule: the sales file does not carry the status yet. [pending: Roxanna Quintero (Data & Reporting)]')}
                   {' '}<Def t={t} k={a.lifecycle === 'active' ? 'active' : 'risk'} />
                 </p>
               )}

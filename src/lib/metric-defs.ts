@@ -322,19 +322,19 @@ export const METRICS = {
     owner: SALES, window: ['Los últimos 90 días.', 'The last 90 days.'], source: CONTIGO,
   },
   partnerPoints: {
-    label: ['Puntos de venta en mi red', 'Points of sale in my network'],
+    label: ['Puntos de venta en mi red', 'Stores in my network'],
     what: ['Tiendas que cuelgan del partner, a cualquier profundidad, sin archivar.', 'Stores under the partner, at any depth, not archived.'],
     owner: MARKET, window: TODAY, source: CONTIGO,
   },
   partnerActive: {
     label: ['Puntos activos', 'Active points'],
-    what: ['Puntos de venta de la red con estado activo. El estado lo manda el archivo diario de ventas cuando lo trae.', 'Points of sale in the network whose status is active. The status comes from the daily sales file when it carries it.'],
+    what: ['Puntos de venta de la red con estado activo. El estado lo manda el archivo diario de ventas cuando lo trae.', 'Stores in the network whose status is active. The status comes from the daily sales file when it carries it.'],
     owner: DATA, window: FILE_WINDOW, source: FILE,
   },
   partnerActiveRate: {
     label: ['Porcentaje activo', 'Active share'],
-    what: ['Qué parte de los puntos de venta de la red está activa.', 'The share of the network’s points of sale that are active.'],
-    num: ['Puntos activos.', 'Active points.'], den: ['Puntos de venta de la red.', 'Points of sale in the network.'],
+    what: ['Qué parte de los puntos de venta de la red está activa.', 'The share of the network’s stores that are active.'],
+    num: ['Puntos activos.', 'Active points.'], den: ['Puntos de venta de la red.', 'Stores in the network.'],
     owner: DATA, window: FILE_WINDOW, source: FILE,
   },
   partnerFirstSale30: {
@@ -344,7 +344,7 @@ export const METRICS = {
   },
   partnerAtRisk: {
     label: ['Puntos en riesgo', 'Points at risk'],
-    what: ['Puntos de venta de la red en riesgo o inactivos.', 'Points of sale in the network that are at risk or inactive.'],
+    what: ['Puntos de venta de la red en riesgo o inactivos.', 'Stores in the network that are at risk or inactive.'],
     owner: DATA, window: FILE_WINDOW, source: FILE,
   },
   partnerTier: {

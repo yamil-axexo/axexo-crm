@@ -188,7 +188,7 @@ create trigger zz_audit_capture after insert on crm.forecast_submissions for eac
 -- ============================================================ 4) AUT-06 / REP-04: archivo de ventas
 -- Manifiesto obligatorio: dato configurable. Valor propuesto apagado hasta que Data y Reportería entregue el manifiesto en cada archivo.
 insert into crm.settings (key, value) values
-  ('ingest.require_manifest', '{"value": false, "proposed": true, "pending": "Roxanna Quintero (S5)"}'::jsonb)
+  ('ingest.require_manifest', '{"value": false, "proposed": true, "pending": "Roxanna Quintero (Data y Reportería)"}'::jsonb)
 on conflict (key) do nothing;
 -- REP-04: TPV por producto y comisión, si el archivo los trae (opcionales en el contrato). CONTIGO no los calcula.
 alter table crm.merchant_metrics_daily
@@ -222,7 +222,7 @@ create index portfolio_snapshots_date_idx on crm.portfolio_snapshots (snapshot_d
 -- Ventana corta en CONTIGO (el histórico largo vive en el lakehouse). Solo se borra lo que ya se entregó en archivo:
 -- con el canal apagado nada se marca como entregado y nada se borra.
 insert into crm.settings (key, value) values
-  ('snapshots.window_days', '{"value": 90, "proposed": true, "pending": "Roxanna Quintero (S5)"}'::jsonb)
+  ('snapshots.window_days', '{"value": 90, "proposed": true, "pending": "Roxanna Quintero (Data y Reportería)"}'::jsonb)
 on conflict (key) do nothing;
 
 create or replace function app.take_team_snapshots() returns int

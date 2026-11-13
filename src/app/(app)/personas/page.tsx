@@ -9,7 +9,7 @@ import { qs } from '@/lib/labels'
 import { ViewsSection } from '../views-section'
 
 const ROLE: Record<string, [string, string]> = {
-  owner: ['Dueño', 'Owner'], decision_maker: ['Quien decide', 'Decision-maker'], manager: ['Encargado', 'Manager'], staff: ['Personal', 'Staff'], billing: ['Pagos', 'Billing'],
+  owner: ['Dueño del comercio', 'Owner'], decision_maker: ['Quien decide', 'Decision-maker'], manager: ['Encargado', 'Manager'], staff: ['Personal', 'Staff'], billing: ['Pagos', 'Billing'],
 }
 
 /**
@@ -27,7 +27,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const filters = { q: sp.q, market, role, owner: sp.owner === 'me' ? 'me' : undefined }
   return (
     <>
-      <PageHeader title={t('Personas de los comercios', 'Merchant contacts')} desc={t('Quién es quién en cada comercio: dueño, quien decide, encargado. Guarda una vista para tu equipo con los filtros que uses.', 'Who is who at each merchant: owner, decision-maker, manager. Save a view for your team with the filters you use.')} />
+      <PageHeader title={t('Personas de los comercios', 'Merchant contacts')} desc={t('Quién es quién en cada comercio: el dueño del comercio, quien decide, el encargado. Guarda una vista para tu equipo con los filtros que uses.', 'Who is who at each merchant: owner, decision-maker, manager. Save a view for your team with the filters you use.')} />
       <ViewsSection object="contact" filters={filters} current={sp.cola} />
       <form method="get" action="/personas" className="mb-5 flex flex-wrap items-end gap-3" data-testid="contacts-filters">
         <label className="block"><span className="mb-1 block text-[12.5px] font-semibold text-muted-2">{t('Buscar', 'Search')}</span><input name="q" className="input !h-11 !w-56" defaultValue={sp.q ?? ''} maxLength={60} data-testid="contacts-q" /></label>

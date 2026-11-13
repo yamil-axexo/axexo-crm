@@ -163,20 +163,22 @@ describe('archivo de ventas: corte tardío, manifiesto y campos opcionales (AUT-
     await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${acc.id}, 'MX', 's5', ${ref})`
     return { ref, acc }
   }
-  it('un archivo con corte anterior al último aplicado no entra y no cambia el estado de los comercios', async () => {
+  it('un archivo con corte anterior al último aplicado a sus comercios no entra y no cambia su estado', async () => {
     const sys = await systemContext()
     const { ref, acc } = await setup()
-    const row = { merchant_ref: ref, first_txn_at: '2026-06-01T15:00:00+00:00', last_txn_at: '2026-11-10T15:00:00+00:00', txn_count_30d: 0, volume_minor_30d: 0, currency: 'MXN', active_days_30d: 0, status: 'inactive' as const }
-    const last = (await one(admin<{ d: string }[]>`select max(as_of)::text as d from crm.ingest_batches where source = 's5' and status = 'loaded'`)).d
-    const before = (await one(admin<{ lifecycle: string }[]>`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle
-    await expect(ingestMetricsFile(sys, { as_of: '2026-10-01', file_name: `late-${tag()}.json`, mode: 'delta', rows: [row] })).rejects.toMatchObject({ code: 'stale_cutoff' })
-    expect((await one(admin<{ lifecycle: string }[]>`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe(before)
+    const row = { merchant_ref: ref, first_txn_at: '2026-06-01T15:00:00+00:00', last_txn_at: '2026-11-10T15:00:00+00:00', txn_count_30d: 40, volume_minor_30d: 9000, currency: 'MXN', active_days_30d: 20, status: 'active' as const }
+    expect((await ingestMetricsFile(sys, { as_of: '2026-11-20', file_name: `new-${tag()}.json`, mode: 'delta', rows: [row] })).status).toBe('loaded')
+    expect((await one(admin<{ lifecycle: string }[]>`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe('active')
+    await expect(ingestMetricsFile(sys, { as_of: '2026-11-15', file_name: `late-${tag()}.json`, mode: 'delta', rows: [{ ...row, txn_count_30d: 0, active_days_30d: 0, status: 'inactive' as const }] }))
+      .rejects.toMatchObject({ code: 'stale_cutoff' })
+    expect((await one(admin<{ lifecycle: string }[]>`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe('active')
     expect((await one(admin<{ n: number }[]>`select count(*)::int as n from crm.ingest_batches where reject_reason = 'stale_as_of'`)).n).toBe(1)
-    // El mismo corte sí entra (corrección) y el estado del archivo manda.
-    const out = await ingestMetricsFile(sys, { as_of: last, file_name: `same-${tag()}.json`, mode: 'delta', rows: [{ ...row, tpv_by_product: [{ product: 'Recargas', volume_minor_30d: 120000 }], commission_minor_30d: 3400 }] })
+    expect((await one(admin<{ n: number }[]>`select count(*)::int as n from crm.merchant_metrics_daily where account_id = ${acc.id} and as_of = '2026-11-15'`)).n).toBe(0)
+    // El mismo corte sí entra (corrección) y el estado del archivo manda. Los campos opcionales se guardan tal cual.
+    const out = await ingestMetricsFile(sys, { as_of: '2026-11-20', file_name: `same-${tag()}.json`, mode: 'delta', rows: [{ ...row, status: 'inactive' as const, tpv_by_product: [{ product: 'Recargas', volume_minor_30d: 120000 }], commission_minor_30d: 3400 }] })
     expect(out.status).toBe('loaded')
     expect((await one(admin<{ lifecycle: string }[]>`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe('inactive')
-    const mm = await one(admin<{ tpv_by_product: unknown; commission_minor_30d: string }[]>`select tpv_by_product, commission_minor_30d::text from crm.merchant_metrics_daily where account_id = ${acc.id} and as_of = ${last}`)
+    const mm = await one(admin<{ tpv_by_product: unknown; commission_minor_30d: string }[]>`select tpv_by_product, commission_minor_30d::text from crm.merchant_metrics_daily where account_id = ${acc.id} and as_of = '2026-11-20'`)
     expect(mm.tpv_by_product).toEqual([{ product: 'Recargas', volume_minor_30d: 120000 }])
     expect(mm.commission_minor_30d).toBe('3400')
   })

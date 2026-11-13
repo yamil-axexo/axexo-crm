@@ -235,14 +235,15 @@ describe('conciliación con el archivo de ventas (REP-04)', () => {
     const acc = await one(admin`select a.id from crm.accounts a where a.market_code = 'MX' and a.lifecycle = 'active' and a.kind = 'store' limit 1`)
     await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${acc.id}, 'MX', 's5', 'MID-REP-1')`
     const row = { merchant_ref: 'MID-REP-1', first_txn_at: '2026-06-01T15:00:00+00:00', last_txn_at: '2026-11-10T15:00:00+00:00', txn_count_30d: 90, volume_minor_30d: 900000, currency: 'MXN', active_days_30d: 28 }
+    // reportes2 (AUT-06): las fechas van después del corte del seed (12-nov); un corte anterior al último aplicado ya no entra.
     // Con 28 días de venta la regla propia diría "activo": el archivo dice "en riesgo" y eso queda.
-    await ingestMetricsFile(sys, { as_of: '2026-11-11', file_name: 'rep-1.json', mode: 'delta', rows: [{ ...row, status: 'at_risk' }] })
+    await ingestMetricsFile(sys, { as_of: '2026-11-13', file_name: 'rep-1.json', mode: 'delta', rows: [{ ...row, status: 'at_risk' }] })
     expect((await one(admin`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe('at_risk')
-    expect((await one(admin`select status from crm.merchant_metrics_daily where account_id = ${acc.id} and as_of = '2026-11-11'`)).status).toBe('at_risk')
+    expect((await one(admin`select status from crm.merchant_metrics_daily where account_id = ${acc.id} and as_of = '2026-11-13'`)).status).toBe('at_risk')
     // Sin estado en el archivo: regla de respaldo (28 días de venta: vuelve a activo).
-    await ingestMetricsFile(sys, { as_of: '2026-11-12', file_name: 'rep-2.json', mode: 'delta', rows: [row] })
+    await ingestMetricsFile(sys, { as_of: '2026-11-14', file_name: 'rep-2.json', mode: 'delta', rows: [row] })
     expect((await one(admin`select lifecycle from crm.accounts where id = ${acc.id}`)).lifecycle).toBe('active')
-    await expect(ingestMetricsFile(sys, { as_of: '2026-11-13', file_name: 'rep-3.json', mode: 'delta', rows: [{ ...row, status: 'feliz' }] })).rejects.toBeTruthy()
+    await expect(ingestMetricsFile(sys, { as_of: '2026-11-15', file_name: 'rep-3.json', mode: 'delta', rows: [{ ...row, status: 'feliz' }] })).rejects.toBeTruthy()
   })
   it('lista los ganados sin primera venta en el archivo y las primeras ventas con negocio abierto, y guarda la corrida con su umbral', async () => {
     const nora = await ctxFor('nora.salas')

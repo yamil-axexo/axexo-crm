@@ -39,7 +39,7 @@ export default async function BoardsAdminPage() {
   return (
     <div className="space-y-8">
       <PageHeader title={t('Tableros y valores propuestos', 'Boards and proposed values')}
-        desc={t('Lo que decide otra persona vive aquí como dato: mientras no lo fije, la pantalla lo dice como propuesta y Estado de CONTIGO lo lista con su dueño.', 'What someone else decides lives here as data: until they set it, the screen shows it as a proposal and CONTIGO status lists it with its owner.')} />
+        desc={t('Lo que decide otra persona vive aquí como dato: mientras no lo fije, la pantalla lo dice como propuesta y Estado de CONTIGO lo lista con quién lo tiene.', 'What someone else decides lives here as data: until they set it, the screen shows it as a proposal and CONTIGO status lists it with its owner.')} />
 
       {ctx.can('metric.owner') && (
         <Card data-testid="role-boards-admin">
@@ -152,17 +152,17 @@ export default async function BoardsAdminPage() {
 
       {ctx.can('user_alias.manage') && (
         <Card data-testid="user-aliases">
-          <CardTitle title={t('ID de cada persona en el archivo de ventas (S5)', 'Each person’s ID in the sales file (S5)')}
-            hint={t('Los reportes diarios de ventas y activaciones leen quién lleva cada comercio. Con este ID, la lectura de CONTIGO (API v1) dice quién es la persona en S5, no solo su ID en CONTIGO.', 'The daily sales and activation reports read who owns each merchant. With this ID, CONTIGO’s read API (v1) says who the person is in S5, not just their CONTIGO ID.')} />
+          <CardTitle title={t('ID de cada persona en el archivo de ventas', 'Each person’s ID in the sales file')}
+            hint={t('Los reportes diarios de ventas y activaciones leen quién lleva cada comercio. Con este ID, la lectura de CONTIGO (API v1) dice quién es la persona en el archivo de ventas, no solo su ID en CONTIGO.', 'The daily sales and activation reports read who owns each merchant. With this ID, CONTIGO’s read API (v1) says who the person is in the sales file, not just their CONTIGO ID.')} />
           {people.length === 0 ? <Empty title={t('Sin personas', 'No people')} /> : (
             <ul className="divide-y divide-line">
               {people.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-end justify-between gap-3 py-3" data-testid="user-alias-row">
                   <div className="min-w-0"><p className="font-medium text-strong">{p.full_name}</p>
-                    <p className="text-[13px] text-muted">{p.s5 ? t(`S5: ${p.s5} desde el ${day(p.since!, locale)}`, `S5: ${p.s5} since ${day(p.since!, locale)}`) : t('Sin ID en S5', 'No S5 ID')}</p></div>
+                    <p className="text-[13px] text-muted">{p.s5 ? t(`ID: ${p.s5}, desde el ${day(p.since!, locale)}`, `ID: ${p.s5}, since ${day(p.since!, locale)}`) : t('Sin ID todavía', 'No ID yet')}</p></div>
                   <ActionForm action={userAliasAction} className="flex items-end gap-2">
                     <input type="hidden" name="user" value={p.id} /><input type="hidden" name="system" value="s5" />
-                    <Field label={t('ID en S5', 'S5 ID')}><input name="external_id" className="input !h-11 !w-40" required maxLength={80} defaultValue={p.s5 ?? ''} data-testid="user-alias-input" /></Field>
+                    <Field label={t('ID en el archivo de ventas', 'Sales file ID')}><input name="external_id" className="input !h-11 !w-40" required maxLength={80} defaultValue={p.s5 ?? ''} data-testid="user-alias-input" /></Field>
                     <Submit size="sm" variant="ghost" testId="user-alias-save">{t('Guardar', 'Save')}</Submit>
                   </ActionForm>
                 </li>

@@ -134,7 +134,7 @@ export const PROPOSED_SETTINGS = {
 } as const
 export type ProposedKey = keyof typeof PROPOSED_SETTINGS
 export const PROPOSED_OWNER: Record<ProposedKey, string> = {
-  'ingest.require_manifest': 'Roxanna Quintero (S5)', 'snapshots.window_days': 'Roxanna Quintero (S5)', 'quality.exception_rules': 'C1 (Yamil Alvarez)',
+  'ingest.require_manifest': 'Roxanna Quintero (Data y Reportería)', 'snapshots.window_days': 'Roxanna Quintero (Data y Reportería)', 'quality.exception_rules': 'C1 (Yamil Alvarez)',
   'adoption.rollout_rule': 'Yamil Alvarez y quienes lideran los mercados', 'orders.brand': 'Marketing',
 }
 
