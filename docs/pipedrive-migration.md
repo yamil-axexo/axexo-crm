@@ -46,7 +46,6 @@ Custom fields that feed a model column instead of `custom` (visible in the scree
 |---|---|---|
 | Files and attachments | Need object storage, which is a platform decision (ADR-002) | After the platform decision |
 | Email threads | The API only exposes the mailbox of the token's user | Decide whether email history is needed |
-| Organization relationships (parent and child) | One API call per organization | Load once it is confirmed the team uses them; `Master Agent Account` stays as a field meanwhile |
 | Which Pipedrive field is the S5 merchant reference | Not known from the configuration | `[pending: S5 / Data & Reporting]` |
 
 ## People's edits win (E6.F2)
@@ -142,7 +141,39 @@ Source: `/home/claude/audit/pipedrive-inventario.md` (screens read on 13 Nov 202
 
 The Las Vegas views and reports are created once the Las Vegas pipeline exists in the database.
 
-### Zoho
+## Stage history, parent organizations and duplicates (GOB-05, package integraciones2)
+
+- **Stage history.** Lists do not carry it, so the import asks Pipedrive one deal at a time (`GET /v1/deals/{id}/flow`, only stage changes) for the deals that arrived or changed in that run (step "Stage changes"). Each change enters the deal's stage history with its real date and who made it; a change already in the history is not repeated.
+- **Parent organizations.** Same per-record request (`GET /v1/organizationRelationships?org_id=`) for the organizations of the run. A `parent` relationship hangs the child under the parent in the account tree, with its link record. If the account already has a parent in CONTIGO, CONTIGO wins and the row is counted as "it already had a parent in CONTIGO". Parents in another market are not linked.
+- If the Pipedrive account does not give either one (404 or no permission), the step ends with a notice in the run and the import goes on.
+- **Duplicates.** At the end of each load the data duplicate rules (DAT-04, `app.scan_duplicates`) run on the markets that changed. Possible pairs go to the duplicates queue in Data; the load never merges anything.
+- Tested against the simulated Pipedrive (`tests/support/pipedrive-mock.mjs`: one deal with two stage changes, one parent relationship).
+
+## Backup (E6.F4)
+
+Administration → Pipedrive → "Backup and migration tests" → "Download the backup" (`/admin/respaldo-pipedrive`, capability `pipedrive.backup`, administration only). One JSON file, format `contigo-pipedrive-backup/v1`:
+
+```json
+{ "format": "contigo-pipedrive-backup/v1", "source": "pipedrive", "generated_at": "ISO 8601", "generated_by": "email",
+  "rows": 0, "counts": { "organization": 0, "deal": 0 },
+  "records": [ { "object": "deal", "external_id": "7001", "parent_ref": "1001", "fetched_at": "...", "loaded_at": "...", "payload": {} } ] }
+```
+
+It carries everything in the raw copy (`crm.import_raw`, configuration included), with prohibited data masked again on the way out. Each download is logged (`pipedrive.backup_downloaded`) and kept in `crm.pipedrive_backups` with its SHA-256. Who keeps the file and where: `[pending: Yamil]`. Take it before purging the raw copy.
+
+## Contract signing does not go through Pipedrive (E5.F7)
+
+Contracts (package `partners-contratos`) request signatures through CONTIGO's own signing adapter (`CONTIGO_ESIGN_ADAPTER`, off until approved). Pipedrive neither requests the signature nor keeps the contract, so turning Pipedrive off does not affect signing. Shown in CONTIGO status ("What no longer goes through Pipedrive"); a test fails if any signing or contract module uses the Pipedrive adapter.
+
+## Wipe and reload a market in a test environment (E6.F8)
+
+Administration → Pipedrive → "Wipe and reload a market (tests only)". Not available in production; in staging only with `TEST_RESET_ON_STAGING=1` (staging holds real data). Type `BORRAR <market>` or `WIPE <market>`. It deletes the market's business data (merchants, contacts, leads, deals, activities, visits, figures, documents) and keeps configuration, access, the audit log and contact opt-outs; if something cannot be deleted nothing is deleted. Then it starts "re-apply the mapping" so everything from the Pipedrive mirror comes back. A market that came from sheets is reloaded by importing its sheets.
+
+## Mexico leads sheet (E18.F7, E18.F8)
+
+Import → "Mexico leads sheet (cut-over)", market MX only. Same preview, per-row report and undo as any import. Promotion columns are not loaded (the preview says which). A row with status `muerto` / `dead` needs a reason from the Mexico reasons list and comes in closed with that reason; undoing the import also removes those closed leads if nobody worked them.
+
+## Zoho
 
 No access to Zoho from CONTIGO and no importer. Nothing connects to Zoho without a technology review (Dan Mulligan or Michael Essiet).
 

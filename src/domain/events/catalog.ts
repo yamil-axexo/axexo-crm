@@ -106,6 +106,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   ['template.', WHY.internal], ['goal.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
   // Paquete mercados: qué datos van arriba en la ficha por rol y cómo se agrupan los campos es acomodo de pantalla.
   ['ficha.', WHY.internal], ['field_section.', WHY.internal],
+  // integraciones2: la bitácora de cargas y su horario, los documentos generados, el respaldo de Pipedrive y el borrado de un
+  // mercado de prueba. Lo que una carga cambia emite lo suyo; un documento o un respaldo no cambian registros.
+  ['load.', WHY.jobs], ['document.', WHY.read], ['pipedrive.', WHY.read], ['market.reset_test', WHY.migration],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
