@@ -40,6 +40,7 @@ export default async function IaAdminPage({ searchParams }: { searchParams: Prom
   const sp = flat(await searchParams)
   const tab: Tab = TABS.includes(sp.tab as Tab) ? (sp.tab as Tab) : 'autonomia'
   const tz = await readerTimeZone(ctx)
+  const now = new Date()
   const d = await iaAdmin(ctx)
   const stats = await recommendationStats(ctx)
   const labels: Record<Tab, string> = { autonomia: t('Autonomía y medición', 'Autonomy and measurement'), calificacion: t('Calificación de leads', 'Lead scoring'), evaluacion: t('Evaluación', 'Evaluation'), mcp: t('Servidor MCP', 'MCP server') }
@@ -68,7 +69,7 @@ export default async function IaAdminPage({ searchParams }: { searchParams: Prom
             </ul>
             <div className="space-y-5">
               {d.settings.map((s) => {
-                const late = s.level !== 'off' && s.level !== 'suggest' && (!s.last_spot_check_at || Date.now() - new Date(s.last_spot_check_at).getTime() > 7 * 86400000)
+                const late = s.level !== 'off' && s.level !== 'suggest' && (!s.last_spot_check_at || now.getTime() - new Date(s.last_spot_check_at).getTime() > 7 * 86400000)
                 const dr = d.drafts.find((x) => x.market_code === s.market_code)
                 return (
                   <div key={s.market_code} className="rounded-[14px] border border-line px-4 py-4" data-testid={`ia-market-${s.market_code}`}>

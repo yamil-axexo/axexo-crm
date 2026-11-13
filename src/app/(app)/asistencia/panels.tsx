@@ -9,7 +9,8 @@ import { acceptRecommendationAction, confirmLeadClassAction, dismissRecommendati
 /** Una sugerencia con su porqué, aceptable (con fecha) o descartable (con motivo). La usan Asistencia y la ficha del comercio. */
 export function RecItem({ ctx, r, showAccount, canAct }: { ctx: Ctx; r: Rec; showAccount: boolean; canAct: boolean }) {
   const { t } = ctx
-  const tomorrow = isoDay(new Date(Date.now() + 86400000), ctx.market(r.market_code).timezone)
+  const now = new Date()
+  const tomorrow = isoDay(new Date(now.getTime() + 86400000), ctx.market(r.market_code).timezone)
   return (
     <li className="rounded-[14px] border border-line px-4 py-3.5" data-testid="rec-item">
       <p className="text-[15px] font-semibold text-strong">{t(...NEXT_TITLE[r.rule_code])}{showAccount && <> · <a href={`/comercios/${r.account_id}`} className="text-blue-text underline">{r.account_name}</a></>}</p>

@@ -22,7 +22,7 @@ insert into crm.ia_settings (market_code) select code from crm.markets on confli
 alter table crm.ia_settings enable row level security;
 alter table crm.ia_settings force row level security;
 grant select, insert, update on crm.ia_settings to contigo_app;
-create policy ia_settings_read on crm.ia_settings for select to contigo_app using (market_code = any((select app.my_markets())));
+create policy ia_settings_read on crm.ia_settings for select to contigo_app using (market_code = any(app.my_markets()));
 create policy ia_settings_ins on crm.ia_settings for insert to contigo_app with check ((select app.has_area('config')));
 create policy ia_settings_upd on crm.ia_settings for update to contigo_app
   using ((select app.has_area('config')) or supervisor_id = (select app.current_user_id()))
@@ -38,7 +38,7 @@ create table crm.ia_holdouts (
 alter table crm.ia_holdouts enable row level security;
 alter table crm.ia_holdouts force row level security;
 grant select, insert, delete on crm.ia_holdouts to contigo_app;
-create policy ia_holdouts_read on crm.ia_holdouts for select to contigo_app using (market_code = any((select app.my_markets())));
+create policy ia_holdouts_read on crm.ia_holdouts for select to contigo_app using (market_code = any(app.my_markets()));
 create policy ia_holdouts_ins on crm.ia_holdouts for insert to contigo_app with check ((select app.has_area('config')) and created_by = (select app.current_user_id()));
 create policy ia_holdouts_del on crm.ia_holdouts for delete to contigo_app using ((select app.has_area('config')));
 
@@ -90,8 +90,8 @@ create policy recommendations_read on crm.recommendations for select to contigo_
   using ((not holdout or (select app.is_global())) and exists (select 1 from crm.accounts a where a.id = recommendations.account_id));
 create policy recommendations_ins on crm.recommendations for insert to contigo_app with check ((select app.is_admin()));
 create policy recommendations_upd on crm.recommendations for update to contigo_app
-  using ((select app.is_admin()) or (market_code = any((select app.write_markets())) and not holdout and exists (select 1 from crm.accounts a where a.id = recommendations.account_id)))
-  with check ((select app.is_admin()) or (market_code = any((select app.write_markets())) and decided_by = (select app.current_user_id())));
+  using ((select app.is_admin()) or (market_code = any(app.write_markets()) and not holdout and exists (select 1 from crm.accounts a where a.id = recommendations.account_id)))
+  with check ((select app.is_admin()) or (market_code = any(app.write_markets()) and decided_by = (select app.current_user_id())));
 
 -- ================================================================ IA-03: calificación de leads con pesos editables
 create table crm.lead_score_weights (
@@ -105,7 +105,7 @@ create table crm.lead_score_weights (
 alter table crm.lead_score_weights enable row level security;
 alter table crm.lead_score_weights force row level security;
 grant select, insert, update, delete on crm.lead_score_weights to contigo_app;
-create policy lead_score_weights_read on crm.lead_score_weights for select to contigo_app using (market_code = any((select app.my_markets())));
+create policy lead_score_weights_read on crm.lead_score_weights for select to contigo_app using (market_code = any(app.my_markets()));
 create policy lead_score_weights_ins on crm.lead_score_weights for insert to contigo_app with check ((select app.has_area('config')) and updated_by = (select app.current_user_id()));
 create policy lead_score_weights_upd on crm.lead_score_weights for update to contigo_app using ((select app.has_area('config'))) with check ((select app.has_area('config')) and updated_by = (select app.current_user_id()));
 create policy lead_score_weights_del on crm.lead_score_weights for delete to contigo_app using ((select app.has_area('config')));
@@ -126,9 +126,9 @@ grant select, insert, update on crm.lead_classifications to contigo_app;
 create policy lead_classifications_read on crm.lead_classifications for select to contigo_app
   using (exists (select 1 from crm.leads l where l.id = lead_classifications.lead_id));
 create policy lead_classifications_ins on crm.lead_classifications for insert to contigo_app
-  with check (market_code = any((select app.write_markets())) and confirmed_by = (select app.current_user_id()) and exists (select 1 from crm.leads l where l.id = lead_classifications.lead_id));
+  with check (market_code = any(app.write_markets()) and confirmed_by = (select app.current_user_id()) and exists (select 1 from crm.leads l where l.id = lead_classifications.lead_id));
 create policy lead_classifications_upd on crm.lead_classifications for update to contigo_app
-  using (market_code = any((select app.write_markets())) and exists (select 1 from crm.leads l where l.id = lead_classifications.lead_id))
+  using (market_code = any(app.write_markets()) and exists (select 1 from crm.leads l where l.id = lead_classifications.lead_id))
   with check (confirmed_by = (select app.current_user_id()));
 
 -- ================================================================ IA-04: cola de borradores para aprobar
@@ -160,7 +160,7 @@ grant update (subject, due_on, status, decided_by, decided_at, decision_note, re
 create policy ia_drafts_read on crm.ia_drafts for select to contigo_app using (exists (select 1 from crm.accounts a where a.id = ia_drafts.account_id));
 create policy ia_drafts_ins on crm.ia_drafts for insert to contigo_app with check ((select app.is_admin()));
 create policy ia_drafts_upd on crm.ia_drafts for update to contigo_app
-  using (market_code = any((select app.write_markets())) and exists (select 1 from crm.accounts a where a.id = ia_drafts.account_id))
+  using (market_code = any(app.write_markets()) and exists (select 1 from crm.accounts a where a.id = ia_drafts.account_id))
   with check (decided_by = (select app.current_user_id()));
 
 -- ================================================================ IA-07 / IA-08: registro de cada llamada al adaptador de AI
