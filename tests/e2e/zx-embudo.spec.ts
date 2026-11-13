@@ -70,6 +70,8 @@ test.describe('paquete embudo', () => {
     await cond.getByTestId('cond-save').click()
     await expect(page.getByTestId('cond-text').first()).toContainText('desde un monto de')
     await page.getByTestId('cond-form').first().getByTestId('cond-min').fill('')
+    // ActionForm ignora otro envío durante 700 ms después de guardar (doble clic): quien edita de nuevo espera ese momento.
+    await page.waitForTimeout(800)
     await page.getByTestId('cond-form').first().getByTestId('cond-save').click()
     await expect(page.getByTestId('cond-text').first()).toHaveText('siempre')
     await clean(page, 'admin embudo 1440')
