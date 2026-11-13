@@ -542,6 +542,8 @@ test.describe('datos: productos por comercio (DAT-07)', () => {
 
 test.describe('datos: tres anchos y dos idiomas', () => {
   test('las secciones de Datos y lo nuevo de la ficha caben a 1440, 1024 y 390, sin hallazgos serios de accesibilidad, también en inglés', async ({ page }) => {
+    // Nueve pantallas por tres anchos, cada una con su revisión de accesibilidad: no caben en el tiempo de una prueba normal.
+    test.setTimeout(240_000)
     const errors = pageErrors(page)
     const pdv = await idOf('Frontera Wireless Laredo')
     const suc = await idOf('Súper La Colmena Sucursal Irapuato')
