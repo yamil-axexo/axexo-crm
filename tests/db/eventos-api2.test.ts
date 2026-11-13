@@ -207,9 +207,6 @@ describe('AUT-07 · exportaciones con gobierno', () => {
     expect(told.map((n) => n.full_name)).toContain('Nora Salas')
     expect(told[0]).toMatchObject({ title: 'Fernando Ibarra pasó el umbral diario de exportaciones', link: '/admin/integraciones?tab=datos' })
     expect((await sql((db) => db`select 1 from crm.notifications where kind = 'export_alert' and channel = 'email' and status in ('queued_off', 'simulated', 'held_hours', 'held_digest')`)).length).toBeGreaterThan(0)
-    // Otra exportación el mismo día vuelve a quedar marcada, pero no repite el aviso.
-    await exportAccounts(fer, { market: 'MX' }, 'Y una más todavía en el mismo día')
-    expect((await sql((db) => db`select 1 from crm.notices where kind = 'export_alert' and from_user_id = ${fer.user.id}`)).length).toBe(told.length)
     // Cada quien ve sus exportaciones; administración y leadership, todas.
     await asPersona('ana.robles', async (tx) => {
       expect((await tx`select 1 from crm.export_log where user_id = ${fer.user.id}`).length).toBe(0)
@@ -217,6 +214,9 @@ describe('AUT-07 · exportaciones con gobierno', () => {
     await asPersona('nora.salas', async (tx) => {
       expect((await tx`select 1 from crm.export_log where user_id = ${fer.user.id} and alert`).length).toBe(1)
     })
+    // Otra exportación el mismo día vuelve a quedar marcada, pero no repite el aviso.
+    await exportAccounts(fer, { market: 'MX' }, 'Y una más todavía en el mismo día')
+    expect((await sql((db) => db`select 1 from crm.notices where kind = 'export_alert' and from_user_id = ${fer.user.id}`)).length).toBe(told.length)
   })
 })
 

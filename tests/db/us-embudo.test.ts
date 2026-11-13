@@ -15,7 +15,7 @@ import { stageFieldMarks } from '@/dal/fields'
 import { accountOrders } from '@/dal/order-history'
 import { visitReasons } from '@/dal/field'
 import { routeStores } from '@/dal/routes'
-import { storeProviders } from '@/dal/store-providers'
+import { accountIdentity } from '@/dal/datos'
 import { exportVisitDetail, visitDetail } from '@/domain/visit-detail'
 import { setOpsCheck } from '@/domain/ops'
 import { addDays, isoDay } from '@/lib/format'
@@ -412,18 +412,23 @@ describe('E12.F3: lo escrito en la nota de una visita pasa a los campos del nego
 })
 
 describe('E10.F2: la aprobación por proveedor se ve en la tienda', () => {
-  it('lo que Operaciones anota por proveedor en el negocio aparece en la tienda; sin movimiento no aparece nada', async () => {
+  it('lo que Operaciones anota por proveedor en el negocio aparece en el portafolio de la tienda (un solo modelo, DAT-07); sin movimiento no aparece nada', async () => {
     const { jade, id, accountId } = await enrollment()
-    expect(await storeProviders(jade, accountId)).toEqual([])
+    const providers = async (ctx: typeof jade) => (await accountIdentity(ctx, accountId, 'US')).products.filter((p) => p.product_id === null)
+    expect(await providers(jade)).toEqual([])
     const tom = await ctxFor('tom.reyes')
     const north = (await one(admin<{ id: string }[]>`select id from crm.ops_catalog where market_code = 'US' and kind = 'provider' and code = 'carrier_north'`)).id
     await setOpsCheck(tom, id, north, { status: 'sent', onDate: today })
+    expect((await providers(jade))[0]).toMatchObject({ provider_en: 'North carrier', status: 'submitted', deal_id: id })
     await setOpsCheck(tom, id, north, { status: 'approved', onDate: today })
-    const rows = await storeProviders(jade, accountId)
+    const rows = await providers(jade)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ label_en: 'North carrier', status: 'approved', on_date: today, deal_id: id })
+    expect(rows[0]).toMatchObject({ provider_en: 'North carrier', status: 'approved', deal_id: id })
+    expect(rows[0]!.decided_at).not.toBeNull()
+    // no hay una segunda lectura por negocio: la tienda tiene una sola fila por proveedor, con su historial de estados
+    expect((await admin`select 1 from crm.account_product_events e join crm.account_products p on p.id = e.account_product_id where p.account_id = ${accountId}`).length).toBe(2)
     // alguien de otro mercado no la ve
-    expect(await storeProviders(await ctxFor('marco.pena'), accountId)).toEqual([])
+    await expect(accountIdentity(await ctxFor('marco.pena'), accountId, 'US').then((x) => x.products)).resolves.toEqual([])
   })
 })
 
