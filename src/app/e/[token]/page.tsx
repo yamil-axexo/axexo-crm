@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { systemCtx } from '@/server/context'
-import { onboardingLinkView } from '@/domain/campo-canal/expediente'
+import { onboardingLinkUsed, onboardingLinkView } from '@/domain/campo-canal/expediente'
 import { translator } from '@/lib/format'
 import { Field } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
@@ -17,8 +17,20 @@ export const dynamic = 'force-dynamic'
 export default async function OnboardingLinkPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) notFound()
-  const v = await onboardingLinkView(await systemCtx(), token)
+  const sys = await systemCtx()
+  const v = await onboardingLinkView(sys, token)
   const t = translator(v?.locale ?? 'es')
+  if (!v && (await onboardingLinkUsed(sys, token))) {
+    return (
+      <main className="mx-auto max-w-[560px] px-6 py-14">
+        <Image src="/contigo-on-light.png" alt="axexo CONTIGO" width={200} height={50} className="h-10 w-auto" />
+        <section className="card mt-8 p-8" data-testid="link-sent">
+          <h1 className="text-[22px] font-bold">{t('Recibimos tus documentos', 'We received your documents')}</h1>
+          <p className="mt-2 text-[14px] text-muted-2">{t('Los estamos revisando. Si falta algo, quien te visitó te avisa.', 'We are reviewing them. If anything is missing, whoever visited you will let you know.')}</p>
+        </section>
+      </main>
+    )
+  }
   if (!v) {
     return (
       <main className="mx-auto max-w-[560px] px-6 py-14">

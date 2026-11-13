@@ -122,10 +122,10 @@ test.describe('campo2', () => {
       await expect(p2.getByTestId('form-ok').last()).toContainText('Guardado')
     }
     await p2.getByTestId('link-submit-btn').click()
-    await expect(p2.getByTestId('form-ok').last()).toContainText('Enviado')
-    await p2.reload()
-    await expect(p2.getByTestId('link-gone')).toBeVisible()
+    await expect(p2.getByTestId('link-sent')).toBeVisible()
     await clean(p2, 'enlace usado')
+    await p2.goto('/e/' + 'z'.repeat(32))
+    await expect(p2.getByTestId('link-gone')).toBeVisible()
     await outside.close()
     const f = (await sql<{ status: string }[]>`select status from crm.onboarding_files where id = ${fileId}`)[0]!
     expect(['submitted', 'auto_approved']).toContain(f.status)

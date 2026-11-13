@@ -213,6 +213,12 @@ export async function onboardingLinkView(sys: Ctx, token: string): Promise<LinkV
   })
 }
 
+/** Un enlace que ya se usó para enviar: quien lo abre ve que se recibió, sin ningún dato del expediente. */
+export async function onboardingLinkUsed(sys: Ctx, token: string): Promise<boolean> {
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return false
+  return withUser(sys.user.id, async (tx) => (await tx`select 1 from crm.onboarding_links where token_hash = ${tokenHash(token)} and used_at is not null`).length > 0)
+}
+
 /** Quien abre el enlace deja el enlace https de un documento. No ve ni cambia nada más. */
 export async function onboardingLinkReceive(sys: Ctx, token: string, docId: string, rawLink: string): Promise<void> {
   const link = clean(rawLink)
