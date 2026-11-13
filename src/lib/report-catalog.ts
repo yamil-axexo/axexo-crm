@@ -48,7 +48,8 @@ export const reportByKey = (key: string) => REPORTS.find((r) => r.key === key)
 export const REPORT_PARAMS = ['periodo', 'desde', 'hasta', 'mercado', 'embudo', 'equipo', 'persona', 'fuente', 'ver', 'nivel', 'tipo', 'resultado', 'por'] as const
 
 // ------------------------------------------------------------------ vistas guardadas (UX-03)
-export type ViewObject = 'account' | 'lead' | 'deal' | 'activity'
+// reportes2 (E8.F4): también las personas de los comercios (contactos).
+export type ViewObject = 'account' | 'lead' | 'deal' | 'activity' | 'contact'
 /** Lista blanca de filtros por lista. Una vista es un conjunto de estos valores con nombre, nunca una consulta. */
 export const VIEW_FILTERS: Record<ViewObject, readonly string[]> = {
   account: ['q', 'market', 'lifecycle', 'owner', 'kind', 'ver', 'region', 'city', 'territory', 'team', 'pipeline', 'visito'],
@@ -56,9 +57,10 @@ export const VIEW_FILTERS: Record<ViewObject, readonly string[]> = {
   lead: ['market', 'status', 'owner', 'q', 'clock', 'source', 'sort', 'motor', 'equipo', 'tipo', 'embudo', 'tiendas_min', 'tiendas_max'],
   deal: ['pipeline', 'owner', 'paso', 'quietos', 'equipo', 'vista', 'orden'],
   activity: ['view'],
+  contact: ['q', 'market', 'role', 'owner'],
 }
 export const VIEW_OBJECT_LABEL: Record<ViewObject, Pair> = {
-  account: ['Comercios', 'Merchants'], lead: ['Leads', 'Leads'], deal: ['Negocios', 'Deals'], activity: ['Actividades', 'Activities'],
+  account: ['Comercios', 'Merchants'], lead: ['Leads', 'Leads'], deal: ['Negocios', 'Deals'], activity: ['Actividades', 'Activities'], contact: ['Personas de los comercios', 'Merchant contacts'],
 }
 const UUID = /^[0-9a-f-]{36}$/
 /** La dirección de una vista: la lista con sus filtros. En Negocios, el embudo va en la ruta. */
@@ -66,7 +68,7 @@ export function viewHref(v: { id: string; object: ViewObject; filters: Record<st
   const sp = new URLSearchParams()
   for (const k of VIEW_FILTERS[v.object]) if (v.filters[k] && !(v.object === 'deal' && k === 'pipeline')) sp.set(k, v.filters[k]!)
   sp.set('cola', v.id)
-  const base = v.object === 'account' ? '/comercios' : v.object === 'lead' ? '/leads' : v.object === 'activity' ? '/actividades'
+  const base = v.object === 'account' ? '/comercios' : v.object === 'lead' ? '/leads' : v.object === 'activity' ? '/actividades' : v.object === 'contact' ? '/personas'
     : v.filters.pipeline && UUID.test(v.filters.pipeline) ? `/pipelines/${v.filters.pipeline}` : '/pipelines'
   return `${base}?${sp.toString()}`
 }

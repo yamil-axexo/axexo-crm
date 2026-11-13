@@ -109,3 +109,39 @@ export async function oneOnOnePeople(ctx: Ctx): Promise<{ id: string; full_name:
   return withUser(ctx.user.id, (tx) => tx<{ id: string; full_name: string }[]>`
     select u.id, u.full_name from crm.users u where u.id = any(app.supervised_user_ids()) and u.id <> app.current_user_id() and u.is_active order by u.full_name`)
 }
+
+// ------------------------------------------------------------------ REP-01: el Panel del LT por tipo de venta (los cuatro motores)
+export type MotorSlice = { motor: string; leads: number; open: number; awaiting: number; won: number; lost: number }
+/** Por tipo de venta, sumando todos los mercados que ve quien mira (RLS). Ganados, perdidos y leads: últimos 30 días; abiertos: hoy. */
+export async function motorSlices(ctx: Ctx, market?: string): Promise<MotorSlice[]> {
+  return withUser(ctx.user.id, (tx) => tx<MotorSlice[]>`
+    with m as (select distinct motor from crm.pipelines ${market ? tx`where market_code = ${market}` : tx``})
+    select m.motor,
+           (select count(*)::int from crm.leads l where l.motor = m.motor and l.created_at > now() - interval '30 days' ${market ? tx`and l.market_code = ${market}` : tx``}) as leads,
+           (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.stages s on s.id = d.stage_id where p.motor = m.motor and d.status = 'open' and s.kind = 'open' ${market ? tx`and d.market_code = ${market}` : tx``}) as open,
+           (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.stages s on s.id = d.stage_id where p.motor = m.motor and d.status = 'open' and s.kind = 'awaiting_txn' ${market ? tx`and d.market_code = ${market}` : tx``}) as awaiting,
+           (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where p.motor = m.motor and d.status = 'won' and d.won_at > now() - interval '30 days' ${market ? tx`and d.market_code = ${market}` : tx``}) as won,
+           (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where p.motor = m.motor and d.status = 'lost' and d.lost_at > now() - interval '30 days' ${market ? tx`and d.market_code = ${market}` : tx``}) as lost
+      from m order by m.motor`)
+}
+
+// ------------------------------------------------------------------ E8.F4: personas de los comercios (contactos) como lista con vistas
+export type ContactRow = { id: string; full_name: string; role: string; account_id: string; account: string; market_code: string; owner_name: string | null; has_phone: boolean; has_email: boolean }
+/**
+ * Las personas de los comercios que quien mira puede ver (la RLS de comercios decide). No muestra teléfonos ni correos en la lista:
+ * solo si los tiene; el dato se ve en la ficha del comercio.
+ */
+export async function contactList(ctx: Ctx, f: { q?: string; market?: string; role?: string; owner?: string }): Promise<ContactRow[]> {
+  const q = (f.q ?? '').trim().slice(0, 60)
+  return withUser(ctx.user.id, (tx) => tx<ContactRow[]>`
+    select c.id, c.full_name, ac.role, a.id as account_id, a.name as account, a.market_code, u.full_name as owner_name,
+           c.phone is not null as has_phone, c.email is not null as has_email
+      from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id join crm.accounts a on a.id = ac.account_id
+      left join crm.users u on u.id = a.owner_id
+     where ac.valid_to is null and a.archived_at is null
+       ${q ? tx`and (c.full_name ilike ${'%' + q + '%'} or a.name ilike ${'%' + q + '%'})` : tx``}
+       ${f.market ? tx`and a.market_code = ${f.market}` : tx``}
+       ${f.role ? tx`and ac.role = ${f.role}` : tx``}
+       ${f.owner === 'me' ? tx`and a.owner_id = ${ctx.user.id}` : tx``}
+     order by c.full_name, a.name limit 200`)
+}

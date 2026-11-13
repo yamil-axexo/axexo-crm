@@ -205,7 +205,7 @@ const filtersFor = (object: ViewObject, raw: Record<string, unknown>): Record<st
   }
   return out
 }
-const isObject = (o: string): o is ViewObject => o === 'account' || o === 'lead' || o === 'deal' || o === 'activity'
+const isObject = (o: string): o is ViewObject => o === 'account' || o === 'lead' || o === 'deal' || o === 'activity' || o === 'contact'
 
 /** Guarda el filtro actual de una lista como vista con nombre. Compartirla con el equipo es de quien dirige. */
 export async function saveView(ctx: Ctx, input: { object: string; name: string; filters: Record<string, unknown>; shared: boolean; pin: boolean }): Promise<string> {
