@@ -183,7 +183,7 @@ describe('entrega a Operaciones, devolución y ganado a mano en los reportes', (
     const onlyToday = await getClosedDeals(robert, marketPeriods(robert, 'rango', today, today), { market: 'US', pipeline: orders, result: 'won' }, 500)
     expect(onlyToday.rows.filter((r) => r.account_name === name).map((r) => r.closed_on)).toEqual([today])
 
-    const file = await exportClosedDeals(robert, period, { market: 'US', pipeline: orders, result: 'won' })
+    const file = await exportClosedDeals(robert, period, { market: 'US', pipeline: orders, result: 'won' }, 'Revisión de prueba del reporte')
     const lines = file.csv.split(/\r?\n/).filter((l) => l.includes(name))
     expect(lines.length).toBe(2)
     expect(lines.some((l) => l.includes(yesterday))).toBe(true)
@@ -191,7 +191,7 @@ describe('entrega a Operaciones, devolución y ganado a mano en los reportes', (
     const event = await one(admin<{ after: { report: string; rows: number } }[]>`select after from crm.audit_events where action = 'report.exported' and actor_id = ${robert.user.id} order by at desc limit 1`)
     expect(event.after).toMatchObject({ report: 'closed_deals', rows: file.rows })
     // quien vende no exporta
-    await expect(exportClosedDeals(jade, period, { market: 'US' })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(exportClosedDeals(jade, period, { market: 'US' }, 'Revisión de prueba del reporte')).rejects.toMatchObject({ code: 'forbidden' })
     // el panel del LT cuenta los dos ganados en el periodo
     const panel = await getLeadershipPanel(robert, period, 'US')
     expect(panel.pipelines.find((p) => p.id === orders)!.won).toBeGreaterThanOrEqual(2)

@@ -87,7 +87,7 @@ describe('catálogo de vendedores de calle (P1 parcial de Carlos y Beatriz)', ()
     // por quien visitó suma lo mismo que por persona: no se pierde ni se duplica ninguna visita
     const total = (list: { week: string; visits: number }[]) => list.filter((r) => r.week === report.weeks[0]).reduce((n, r) => n + r.visits, 0)
     expect(total(report.visitors)).toBe(total(report.visits))
-    const csv = (await exportFieldReport(fer, {}, 'visitas')).csv.replace(/^﻿/, '').split('\r\n')
+    const csv = (await exportFieldReport(fer, {}, 'visitas', 'Revisión de prueba del reporte')).csv.replace(/^﻿/, '').split('\r\n')
     expect(csv[0]).toBe('Semana (lunes),Mercado,Equipo,Persona,Quién visitó,Visitas,Visitas con venta')
     expect(csv.some((l) => l.includes(who) && l.includes('Marco Peña'))).toBe(true)
     // filtro "Visitado por" en Comercios

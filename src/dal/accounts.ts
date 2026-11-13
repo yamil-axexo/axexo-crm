@@ -36,7 +36,7 @@ export type AccountCounts = { all: number; risk: number; idle: number; nostep: n
 export const ACCOUNT_PAGE = 40
 
 /** PERF-02 / PERF-05 / UX-02: lista por llave (nombre, id) y búsqueda por nombre, ciudad, estado, teléfono o cualquier alias. */
-export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items: AccountListItem[]; next: string | null; total: number; counts: AccountCounts }> {
+export async function listAccounts(ctx: Ctx, f: AccountFilters, pageSize: number = ACCOUNT_PAGE): Promise<{ items: AccountListItem[]; next: string | null; total: number; counts: AccountCounts }> {
   return withUser(ctx.user.id, async (tx) => {
     const { base, where, risk, idle, nostep, openDeal, keys } = accountFilter(tx, ctx, f)
     const [aName, aId] = (f.after ?? '').split('|')
@@ -55,15 +55,15 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters): Promise<{ items
         left join crm.accounts p on p.id = a.parent_id
         left join lateral (select m.last_txn_at, m.txn_count_30d from crm.merchant_metrics_daily m where m.account_id = a.id order by m.as_of desc limit 1) mm on true
        where ${where} ${cursor}
-       order by a.name_norm, a.id limit ${ACCOUNT_PAGE + 1}`
+       order by a.name_norm, a.id limit ${pageSize + 1}`
     const counts = await tx<AccountCounts[]>`
       select count(*)::int as "all", count(*) filter (where ${risk})::int as risk, count(*) filter (where ${idle})::int as idle, count(*) filter (where ${nostep})::int as nostep
         from crm.accounts a where ${base}`
     const c = counts[0]!
-    const items = rows.slice(0, ACCOUNT_PAGE)
+    const items = rows.slice(0, pageSize)
     const last = items[items.length - 1]
     const total = f.ver === 'riesgo' ? c.risk : f.ver === 'sin-transaccionar' ? c.idle : f.ver === 'sin-paso' ? c.nostep : c.all
-    return { items, next: rows.length > ACCOUNT_PAGE && last ? `${last.name_norm}|${last.id}` : null, total, counts: c }
+    return { items, next: rows.length > pageSize && last ? `${last.name_norm}|${last.id}` : null, total, counts: c }
   })
 }
 

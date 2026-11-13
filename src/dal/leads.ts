@@ -33,7 +33,7 @@ export type LeadSort = (typeof LEAD_SORTS)[number]
  * antiguos, (sla_due_at, id) para "vence primero", que solo trae los leads que todavía tienen el reloj corriendo.
  * La búsqueda es por nombre del negocio, de la persona o por teléfono (cuatro dígitos o más, en cualquier formato).
  */
-export async function listLeads(ctx: Ctx, f: LeadFilters): Promise<{ items: LeadListItem[]; next: string | null; counts: Record<string, number>; sort: LeadSort }> {
+export async function listLeads(ctx: Ctx, f: LeadFilters, pageSize: number = LEAD_PAGE): Promise<{ items: LeadListItem[]; next: string | null; counts: Record<string, number>; sort: LeadSort }> {
   return withUser(ctx.user.id, async (tx) => {
     const sort: LeadSort = f.sort === 'oldest' || f.sort === 'due' ? f.sort : 'recent'
     const [bTs, bId] = (f.before ?? '').split('|')
@@ -70,18 +70,18 @@ export async function listLeads(ctx: Ctx, f: LeadFilters): Promise<{ items: Lead
              l.sla_due_at, l.first_touch_at, l.created_at, l.duplicate_of, l.phone
         from crm.leads l left join crm.users u on u.id = l.owner_id
        where true ${base} ${status} ${cursor}
-       order by ${order} limit ${LEAD_PAGE + 1}`
+       order by ${order} limit ${pageSize + 1}`
     const counts = await tx<{ k: string; n: number }[]>`
       select k, count(*)::int as n from (
         select unnest(array[l.status, case when l.status = 'new' and l.first_touch_at is null and l.sla_due_at < now() then 'overdue' end,
                             case when l.status in ('new','contacted','qualified') then 'open' end]) as k
           from crm.leads l where true ${base}) x where k is not null group by k`
-    const items = rows.slice(0, LEAD_PAGE)
+    const items = rows.slice(0, pageSize)
     const last = items[items.length - 1]
     const key = last ? new Date(sort === 'due' ? last.sla_due_at : last.created_at).toISOString() : ''
     return {
       items,
-      next: rows.length > LEAD_PAGE && last ? `${key}|${last.id}` : null,
+      next: rows.length > pageSize && last ? `${key}|${last.id}` : null,
       counts: Object.fromEntries(counts.map((c) => [c.k, c.n])),
       sort,
     }

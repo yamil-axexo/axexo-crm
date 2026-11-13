@@ -71,6 +71,9 @@ export const CAPABILITIES = {
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // Importar comercios, contactos y leads por archivo: administración y quien lidera el mercado (en el suyo). Cada fila pasa
+  // por las mismas reglas que el alta a mano; la base repite el límite (app.can_import).
+  'data.import': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

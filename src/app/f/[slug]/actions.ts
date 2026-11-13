@@ -1,6 +1,9 @@
 'use server'
 
 import { createHash } from 'node:crypto'
+import { headers } from 'next/headers'
+import { guardPublicSubmit } from '@/domain/form-guard'
+import { clientIp } from '@/server/protect'
 import { systemCtx, publicLocale } from '@/server/context'
 import { intakeFromForm } from '@/domain/leads'
 import { DomainError, type ActionResult } from '@/lib/errors'
@@ -16,6 +19,10 @@ export async function submitPublicForm(_: R | null, fd: FormData): Promise<R> {
   const slug = String(fd.get('slug') ?? '')
   const key = String(fd.get('idempotency_key') ?? '')
   if (!/^[a-z0-9-]{3,60}$/.test(slug) || !/^[0-9a-f-]{36}$/.test(key)) return { ok: false, code: 'invalid', error: t('Formulario inválido.', 'Invalid form.') }
+  // SEG-10: límite por IP, campo trampa, llave de la página, tiempo mínimo y anti-bot. Lo rechazado no se guarda y la
+  // respuesta es la misma para todos los motivos: no le dice a un bot qué defensa lo detuvo.
+  const guard = await guardPublicSubmit({ slug, key, ip: clientIp(await headers()), trap: String(fd.get('website') ?? ''), botToken: typeof fd.get('bot_token') === 'string' ? String(fd.get('bot_token')) : null })
+  if (!guard.ok) return { ok: false, code: 'rejected', error: t('No pudimos enviar el formulario. Espera un momento, vuelve a cargar la página e intenta otra vez.', 'We could not send the form. Wait a moment, reload the page and try again.') }
   try {
     // La llave del render evita el doble envío del mismo formulario. Se combina con lo enviado para que un segundo
     // negocio capturado en la misma pantalla (una tablet en mostrador, un dueño con dos tiendas) sea otro lead.

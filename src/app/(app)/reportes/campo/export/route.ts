@@ -13,12 +13,12 @@ export async function GET(req: NextRequest) {
   const sp = Object.fromEntries([...req.nextUrl.searchParams].map(([k, v]) => [k, v.slice(0, 200)])) as ReportParams & { tipo?: string }
   try {
     const f = reportFilters(sp, await getReportOptions(ctx))
-    const out = await exportFieldReport(ctx, { market: f.market, team: f.team, owner: f.owner, by: sp.por === 'plaza' ? 'plaza' : 'territorio' }, sp.tipo === 'visitas' ? 'visitas' : 'comercios')
+    const out = await exportFieldReport(ctx, { market: f.market, team: f.team, owner: f.owner, by: sp.por === 'plaza' ? 'plaza' : 'territorio' }, sp.tipo === 'visitas' ? 'visitas' : 'comercios', req.nextUrl.searchParams.get('motivo') ?? '')
     return new NextResponse(out.csv, {
       headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="${out.fileName}"`, 'cache-control': 'no-store', 'x-contigo-rows': String(out.rows) },
     })
   } catch (e) {
-    if (e instanceof DomainError) return new NextResponse(null, { status: e.status === 403 ? 403 : 422 })
+    if (e instanceof DomainError) return new NextResponse(e.status === 403 ? null : ctx.t(e.es, e.en), { status: e.status === 403 ? 403 : 422, headers: { 'content-type': 'text/plain; charset=utf-8' } })
     console.error(JSON.stringify({ level: 'error', msg: 'export_failed', name: (e as Error)?.name ?? 'Error' }))
     return new NextResponse(null, { status: 500 })
   }
