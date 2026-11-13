@@ -171,10 +171,13 @@ export async function setParent(ctx: Ctx, id: string, parentId: string | null, o
     if (a.parent_id && (reason.length < 5 || reason.length > 300)) throw invalid('Escribe por qué se mueve esta cuenta en el árbol (de 5 a 300 letras).', 'Say why this account is moving in the tree (5 to 300 characters).')
     // Fecha efectiva: hoy o un día pasado (un cambio que ya ocurrió y se registra tarde). Un cambio a futuro no se agenda aquí.
     const when = await tx<{ at: Date; future: boolean; early: boolean }[]>`
-      select case when ${effectiveOn || null}::date is null or ${effectiveOn || null}::date = ${marketToday(tx, a.market_code)} then now()
-                  else (${effectiveOn || null}::date + time '12:00') at time zone (select timezone from crm.markets where code = ${a.market_code}) end as at,
-             coalesce(${effectiveOn || null}::date > ${marketToday(tx, a.market_code)}, false) as future,
-             coalesce(exists (select 1 from crm.account_links l where l.child_id = ${id} and l.valid_from > (${effectiveOn || null}::date + time '12:00') at time zone (select timezone from crm.markets where code = ${a.market_code})), false) as early`
+      with w as (
+        select case when ${effectiveOn || null}::date is null or ${effectiveOn || null}::date = ${marketToday(tx, a.market_code)} then now()
+                    else (${effectiveOn || null}::date + time '12:00') at time zone (select timezone from crm.markets where code = ${a.market_code}) end as at
+      )
+      select w.at, coalesce(${effectiveOn || null}::date > ${marketToday(tx, a.market_code)}, false) as future,
+             exists (select 1 from crm.account_links l where l.child_id = ${id} and l.valid_from > w.at) as early
+        from w`
     if (when[0]!.future) throw invalid('La fecha efectiva no puede ser futura. Regístralo el día que ocurra.', 'The effective date cannot be in the future. Record it on the day it happens.')
     if (when[0]!.early) throw invalid('La fecha efectiva es anterior al vínculo que tiene hoy. Elige una fecha posterior.', 'The effective date is earlier than its current link. Pick a later date.')
     const at = when[0]!.at

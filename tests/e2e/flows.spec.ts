@@ -377,7 +377,10 @@ test.describe('cuentas', () => {
     await expect(page.getByTestId('breadcrumb')).toContainText('Grupo Abarrotero del Valle')
     await fichaTab(page, 'datos')
     await page.getByTestId('parent-select').selectOption({ label: 'Distribuidora La Central' })
+    // paquete datos (DAT-01): mover una cuenta que ya tiene matriz pide motivo
+    await page.getByTestId('parent-reason').fill('La tienda cambió de distribuidor')
     await page.getByTestId('parent-save').click()
+    await expect(page.getByTestId('parent-form').getByTestId('form-ok')).toContainText('Jerarquía actualizada')
     await fichaTab(page, 'arbol')
     await expect(page.getByTestId('breadcrumb')).toContainText('Distribuidora La Central')
     await page.goto('/comercios?q=Grupo+Abarrotero')
@@ -408,9 +411,12 @@ test.describe('cuentas', () => {
     await page.getByTestId('account-phone').fill(phone)
     await page.getByTestId('save-account').click()
     await expect(page.locator('dialog[open]').getByTestId('form-error')).toContainText('Parece que ya existe')
+    // paquete datos (DAT-04): el teléfono exacto es llave fuerte. Quien vende no crea otro ni marcando "crear de todos modos" con motivo.
     await page.getByTestId('account-force').check()
+    await page.getByTestId('account-reason').fill('Creo que es otro comercio distinto')
+    await page.waitForTimeout(800)
     await page.getByTestId('save-account').click()
-    await expect(page.getByTestId('account-facts')).toBeVisible()
+    await expect(page.locator('dialog[open]').getByTestId('form-error')).toContainText('No se crea otro')
   })
 
   test('administración fusiona el duplicado: uno sobrevive y el otro queda archivado', async ({ page }) => {
