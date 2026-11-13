@@ -113,13 +113,13 @@ describe('SEG-03: la bitácora la escribe la base', () => {
   it('cada exportación queda en el registro de lecturas y pasar el umbral abre una alerta que se revisa con nota', async () => {
     const ana = await ctxFor('ana.robles')
     const nora = await ctxFor('nora.salas')
-    const out = await exportClosedDeals(ana, await marketPeriods(ana, '90d'), { market: 'MX' })
+    const out = await exportClosedDeals(ana, marketPeriods(ana, 'mes'), { market: 'MX' })
     const read = await one(admin<{ kind: string; row_count: number; object: string; via: string }[]>`
       select kind, row_count, object, via from audit.read_log where actor_id = ${ana.user.id} and kind = 'export' order by id desc limit 1`)
     expect(read).toMatchObject({ kind: 'export', row_count: out.rows, object: 'closed_deals' })
 
     await setThresholds(nora, { exports_per_day: 1, export_rows_per_day: 5000, searches_per_hour: 120, reveals_per_day: 20, api_calls_per_hour: 2000, key_unused_days: 90, key_expiring_days: 14 })
-    await exportClosedDeals(ana, await marketPeriods(ana, '90d'), { market: 'MX' })
+    await exportClosedDeals(ana, marketPeriods(ana, 'mes'), { market: 'MX' })
     expect(await runSecurityScan(nora)).toBeGreaterThan(0)
     const before = (await getMonitoring(nora)).alerts.filter((a) => a.kind === 'exports_per_day' && a.subject === 'Ana Robles')
     expect(before).toHaveLength(1)
@@ -200,7 +200,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
     expect(access.can('audit.read')).toBe(false)
     // Da accesos de venta, pero no Administración: una parte no se da más poder.
     await grantAccess(access, { email: `rep.${tag()}@axexo.com`, fullName: 'Persona de Ventas', role: 'rep', market: 'MX' }, DOMAINS)
-    await expect(grantAccess(access, { email: `adm.${tag()}@axexo.com`, fullName: 'Otra Admin', role: 'admin', confirmAdmin: true }, DOMAINS)).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(grantAccess(access, { email: `adm.${tag()}@axexo.com`, fullName: 'Otra Admin', role: 'admin', market: '', confirmAdmin: true }, DOMAINS)).rejects.toMatchObject({ code: 'forbidden' })
     await withUser(access.user.id, async (tx) => {
       expect(await attempt(tx, (sp) => sp`insert into crm.memberships (user_id, role) values (${access.user.id}, 'admin')`)).toBe('42501')
       expect(await attempt(tx, (sp) => sp`update crm.memberships set admin_areas = null where user_id = ${access.user.id}`)).toMatch(/42501|0 rows/)
@@ -247,7 +247,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
     const diana = await personaId('diana.cruz')
     const d2d = await one(admin<{ id: string }[]>`select team_id as id from crm.memberships where user_id = ${fernando} and role = 'supervisor'`)
     const b2b = await one(admin<{ id: string }[]>`select team_id as id from crm.memberships where user_id = ${diana} and role = 'rep'`)
-    const supervised = async () => (await one(await withUser(fernando, (tx) => tx<{ ids: string[] }[]>`select app.supervised_user_ids() as ids`))).ids
+    const supervised = async () => ((await withUser(fernando, (tx) => tx<{ ids: string[] }[]>`select app.supervised_user_ids() as ids`))[0]!).ids
     expect(await supervised()).not.toContain(diana)
     await setTeamParent(nora, b2b.id, d2d.id)
     expect(await supervised()).toContain(diana)
@@ -428,7 +428,7 @@ describe('SEG-04: consentimiento, baja y retención', () => {
     await expect(setRetentionRule(await ctxFor('ana.robles'), 'leads_disqualified', { afterDays: 365, isActive: true })).rejects.toMatchObject({ code: 'forbidden' })
     // Con plazo y apagada: hay vista previa, y aplicar no toca nada.
     await setRetentionRule(nora, 'leads_disqualified', { afterDays: 365, isActive: false })
-    const preview = await one(await withUser(nora.user.id, (tx) => tx<{ total: number }[]>`select total from app.retention_preview('leads_disqualified')`))
+    const preview = await (await withUser(nora.user.id, (tx) => tx<{ total: number }[]>`select total from app.retention_preview('leads_disqualified')`))[0]!
     expect(preview.total).toBeGreaterThanOrEqual(1)
     expect(await applyRetention(nora, 'leads_disqualified')).toBe(0)
     expect((await one(admin<{ contact_name: string }[]>`select contact_name from crm.leads where id = ${old.id}`)).contact_name).toBe('Pedro Antiguo')
@@ -451,7 +451,7 @@ describe('SEG-07: ver como y recertificación de accesos', () => {
     await expect(startViewAs(diana, nora.user.id, 'Quiero ver lo que ve administración', 15)).rejects.toMatchObject({ code: 'forbidden' })
     expect(await code(withUser(diana.user.id, (tx) => tx`select app.view_as_start(${nora.user.id}, 'Quiero ver lo que ve administración', 15)`))).toBe('42501')
     const id = await startViewAs(nora, diana.user.id, 'Diana no encuentra un comercio en su lista', 600)
-    const cur = await one(await withoutUser((tx) => tx<{ target_id: string; expires_at: Date; actor_name: string }[]>`select target_id, expires_at, actor_name from app.view_as_current(${id}, ${nora.user.id})`))
+    const cur = await (await withoutUser((tx) => tx<{ target_id: string; expires_at: Date; actor_name: string }[]>`select target_id, expires_at, actor_name from app.view_as_current(${id}, ${nora.user.id})`))[0]!
     expect(cur).toMatchObject({ target_id: diana.user.id, actor_name: 'Nora Salas' })
     // El tiempo pedido se recorta a 60 minutos.
     expect(cur.expires_at.getTime() - Date.now()).toBeLessThanOrEqual(60 * 60_000 + 5_000)
@@ -499,7 +499,7 @@ describe('SEG-07: ver como y recertificación de accesos', () => {
     expect(await withoutUser((tx) => job.run(tx))).toMatchObject({ done: 0, note: 'Canal apagado' })
     process.env.DIRECTORY_ADAPTER = 'simulated'
     try {
-      const sys = await one(await withoutUser((tx) => tx<{ id: string }[]>`select app.system_user_id() as id`))
+      const sys = await (await withoutUser((tx) => tx<{ id: string }[]>`select app.system_user_id() as id`))[0]!
       const r = await withUser(sys.id, (tx) => job.run(tx))
       expect(r.done).toBe(1)
       expect(await loadCtx(gone.user.id, 'es')).toBeNull()
