@@ -225,12 +225,14 @@ export async function productMatrix(ctx: Ctx, f: { market: string | null; provid
              (select count(*)::int from crm.account_products p where p.provider_id = k.id and p.status = 'submitted') as waiting,
              (select count(*)::int from crm.account_products p where p.provider_id = k.id and p.status = 'submitted' and k.sla_days is not null and p.submitted_at < now() - make_interval(days => k.sla_days)) as late
         from crm.ops_catalog k where k.kind = 'provider' and k.is_active order by k.market_code nulls first, k.position, k.label_es`
-    const products = await tx<{ id: string; name: string; market_code: string | null; provider_id: string | null; merchants: number; without: number }[]>`
-      select pr.id, pr.name, pr.market_code, pr.provider_id, (select count(distinct p.account_id)::int from crm.account_products p where p.product_id = pr.id and p.status in ('approved','active')) as merchants,
+    const products = await tx<{ id: string; name: string; market_code: string | null; provider_id: string | null; merchants: number; without: number; legal_entity_id: string | null }[]>`
+      select pr.id, pr.name, pr.market_code, pr.provider_id, pr.legal_entity_id, (select count(distinct p.account_id)::int from crm.account_products p where p.product_id = pr.id and p.status in ('approved','active')) as merchants,
              (select count(*)::int from crm.accounts a where a.archived_at is null and a.kind = 'store' and a.lifecycle = 'active' and (pr.market_code is null or a.market_code = pr.market_code)
                  and not exists (select 1 from crm.account_products p where p.account_id = a.id and p.product_id = pr.id and p.status not in ('rejected'))) as without
         from crm.products pr where pr.is_active and (pr.market_code is null or pr.market_code = any(${ctx.markets.map((m) => m.code)}::text[])) order by pr.market_code nulls first, pr.name limit 200`
-    return { rows: [...rows], providers: [...providers], products: [...products] }
+    // DAT-07 (datos2): la entidad legal de cada producto, elegida entre las del mercado.
+    const entities = await tx<{ id: string; market_code: string; name: string }[]>`select id, market_code, name from crm.legal_entities order by market_code, name`
+    return { rows: [...rows], providers: [...providers], products: [...products], entities: [...entities] }
   })
 }
 

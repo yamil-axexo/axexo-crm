@@ -7,6 +7,7 @@ import { createMarket, createProcessList, createRoutingRule, createWebForm, deci
 import { setParent } from '@/domain/accounts'
 import { dismissContactPair, mergeContacts, undoContactMerge } from '@/domain/contacts-dedup'
 import { closePromotion, requestPromotion, setFieldSchema } from '@/domain/fields2'
+import { openExpansionDeals, setProductEntity } from '@/domain/products2'
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -317,5 +318,23 @@ export async function closePromotionAction(_: R | null, fd: FormData): Promise<R
   return runAction(async (ctx) => {
     await closePromotion(ctx, str(fd, 'id'), str(fd, 'note'))
     return { message: ['Pedido cerrado.', 'Request closed.'] }
+  })
+}
+
+// ---------------------------------------------------------------- DAT-07 entidad del producto y negocios de expansión (paquete datos2)
+
+export async function setProductEntityAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setProductEntity(ctx, str(fd, 'id'), str(fd, 'legal_entity_id') || null)
+    return { message: ['Entidad legal del producto guardada.', 'Product legal entity saved.'] }
+  })
+}
+
+export async function openExpansionDealsAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    const out = await openExpansionDeals(ctx, str(fd, 'product_id'), all(fd, 'account_id'))
+    return { message: out.opened === 0
+      ? ['No se abrió ningún negocio: los comercios elegidos ya tienen el producto o un trámite.', 'No deal was opened: the merchants picked already have the product or a request.']
+      : [`Listo: ${out.opened === 1 ? 'se abrió 1 negocio' : `se abrieron ${out.opened} negocios`} de expansión, a nombre de quien lleva cada comercio.`, `Done: ${out.opened === 1 ? '1 expansion deal was' : `${out.opened} expansion deals were`} opened, owned by whoever owns each merchant.`] }
   })
 }

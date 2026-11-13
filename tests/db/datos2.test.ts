@@ -6,6 +6,8 @@ import { fieldRegistry, nodeTotals } from '@/dal/datos'
 import { decideField, proposeField } from '@/domain/gobierno'
 import { updateCustom } from '@/domain/custom'
 import { requestPromotion, setFieldSchema } from '@/domain/fields2'
+import { openExpansionDeals, setProductEntity } from '@/domain/products2'
+import { productMatrix } from '@/dal/datos'
 import { convertLead, createLead, qualifyLead } from '@/domain/leads'
 import { dismissContactPair, mergeContacts, resolveContact, undoContactMerge } from '@/domain/contacts-dedup'
 import { decisionValue, DECISIONS, setDecision } from '@/domain/decisions'
@@ -321,5 +323,36 @@ describe('DAT-05 · reglas de valor, campos de contacto y actividad, paso a colu
     expect(r.slaStats.on_time).toBeLessThan(r.slaStats.decided)
     await setDecision(nora, { key: 'field.approval_sla_days', market: null, value: '5', confirmed: false })
     expect((await fieldRegistry(nora, 'propuestos')).sla).toBe(5)
+  })
+})
+
+describe('DAT-07 · entidad del producto y negocios de expansión', () => {
+  it('administración fija la entidad legal del producto, solo una del mismo mercado', async () => {
+    const nora = await ctxFor('nora.salas')
+    const prod = await one(admin<{ id: string }[]>`select id from crm.products where market_code = 'MX' and is_active order by name limit 1`)
+    const mx = await one(admin<{ id: string }[]>`select id from crm.legal_entities where market_code = 'MX' limit 1`)
+    const us = await one(admin<{ id: string }[]>`select id from crm.legal_entities where market_code = 'US' limit 1`)
+    await expect(setProductEntity(nora, prod.id, us.id)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(setProductEntity(await ctxFor('valeria.soto'), prod.id, mx.id)).rejects.toMatchObject({ code: 'forbidden' })
+    await setProductEntity(nora, prod.id, mx.id)
+    const m = await productMatrix(nora, { market: null, provider: null, status: null, late: false })
+    expect(m.products.find((p) => p.id === prod.id)?.legal_entity_id).toBe(mx.id)
+    expect(m.entities.length).toBeGreaterThan(0)
+  })
+
+  it('de la base de expansión se abren negocios a nombre de quien lleva cada comercio, con el producto pedido', async () => {
+    const valeria = await ctxFor('valeria.soto')
+    const prod = await one(admin<{ id: string; name: string }[]>`select id, name from crm.products where market_code = 'MX' and is_active order by name desc limit 1`)
+    const a = await rawAccount('MX', 'marco.pena')
+    await admin`update crm.accounts set lifecycle = 'active' where id = ${a}`
+    const out = await openExpansionDeals(valeria, prod.id, [a])
+    expect(out).toEqual({ opened: 1, skipped: 0 })
+    const deal = await one(admin<{ id: string; owner_id: string; title: string; status: string }[]>`select id, owner_id, title, status from crm.deals where account_id = ${a}`)
+    expect(deal.owner_id).toBe(await personaId('marco.pena'))
+    expect(deal.title).toContain(prod.name)
+    expect(await one(admin`select status, deal_id from crm.account_products where account_id = ${a} and product_id = ${prod.id}`)).toEqual({ status: 'requested', deal_id: deal.id })
+    // dos veces no abre otro
+    expect((await openExpansionDeals(valeria, prod.id, [a])).opened).toBe(0)
+    await expect(openExpansionDeals(await ctxFor('luis.tovar'), prod.id, [a])).rejects.toMatchObject({ code: 'forbidden' })
   })
 })
