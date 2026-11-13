@@ -5,6 +5,7 @@ import { requireCtx, systemCtx } from '@/server/context'
 import { getFxRates, getLeadershipPanel, marketPeriods, type PanelSlice, closeRules } from '@/dal/reports'
 import { track } from '@/dal/boards'
 import { ensureRulesFresh } from '@/domain/rules'
+import { GoalsSection } from '../goals-section'
 import { Bar, Card, CardTitle, Empty, LinkButton, PageHeader, NoData, shown } from '@/ui/kit'
 import { Def, Metric, ReportFilters, fxSource, periodText } from '@/ui/report'
 import { day, money, num, pct } from '@/lib/format'
@@ -88,6 +89,7 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
       />
       <ReportFilters t={t} locale={locale} base="/panel-lt" params={params} period={period.first}
         selects={[{ name: 'mercado', label: t('Mercado', 'Market'), all: t('Todos los mercados', 'All markets'), options: scope.length > 1 ? scope.map((m) => ({ value: m.code, label: m.name })) : [] }]} />
+      <GoalsSection ctx={ctx} market={market} />
 
       <p className="mb-5 rounded-[14px] bg-surface-3 px-4 py-3 text-[13.5px] text-strong" data-testid="lt-windows">
         {t(`Este panel usa tres ventanas y cada bloque dice la suya: el periodo elegido (${when}), la foto de hoy, y los 30 días del archivo diario de ventas${asOf ? ` con corte al ${day(asOf, locale)}` : ''}. Por eso un ganado del periodo y un comercio activo de hoy no se restan entre sí.`,

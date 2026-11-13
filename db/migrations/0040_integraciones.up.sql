@@ -351,7 +351,7 @@ begin
       update crm.saved_reports set params = jsonb_strip_nulls(r.params) where id = rid;
     end if;
     insert into crm.pipedrive_rebuild (kind, pd_name, position, market_code, status, contigo_kind, contigo_id, contigo_path, note_es, note_en)
-    values ('report', r.pd, r.pos, 'US', case when ok then 'built' else 'pending' end, 'saved_report', rid, '/reportes?guardado=' || rid,
+    values ('report', r.pd, r.pos, 'US', case when ok then 'built' else 'pending' end, 'saved_report', rid, '/reportes#guardados',
             case when ok then 'Reporte guardado y compartido con US: "' || r.name || '".' else 'Reporte guardado; el embudo que filtra no existe en esta base y muestra todo US hasta que llegue.' end,
             case when ok then 'Saved report shared with US.' else 'Saved report; the pipeline it filters does not exist in this database, so it shows all of US until it arrives.' end)
     on conflict (kind, pd_name) do update set status = excluded.status, contigo_id = excluded.contigo_id, contigo_path = excluded.contigo_path, note_es = excluded.note_es, note_en = excluded.note_en, updated_at = now();
@@ -390,7 +390,7 @@ begin
     on conflict (key) do update set report_ids = case when cardinality(excluded.report_ids) > 0 then excluded.report_ids else crm.report_boards.report_ids end
     returning id into rid;
     insert into crm.pipedrive_rebuild (kind, pd_name, position, market_code, status, contigo_kind, contigo_id, contigo_path, note_es, note_en)
-    values ('dashboard', r.pd, r.pos, r.market, 'built', 'report_board', rid, '/reportes?tablero=' || r.key,
+    values ('dashboard', r.pd, r.pos, r.market, 'built', 'report_board', rid, '/reportes#tablero-' || r.key,
             case when r.market = 'US' then 'Tablero de fábrica con los reportes de US que juntaba.' else 'Tablero de México: en Pipedrive no tenía reportes propios; junta los reportes de México de la galería.' end,
             case when r.market = 'US' then 'Factory board with the US reports it gathered.' else 'Mexico board: it had no reports of its own in Pipedrive; it gathers the Mexico reports in the gallery.' end)
     on conflict (kind, pd_name) do update set contigo_id = excluded.contigo_id, contigo_path = excluded.contigo_path, updated_at = now();
@@ -445,7 +445,7 @@ begin
     values ('filter', r.pd, r.pos, 'US',
             case when r.obj = 'none' then 'pending' when not ok then 'off' when r.note is not null then 'pending' else 'built' end,
             case when r.obj = 'none' or rid is null then 'none' when r.obj = 'report' then 'saved_report' else 'saved_view' end, rid,
-            case when rid is null then null when r.obj = 'report' then '/reportes?guardado=' || rid when r.obj = 'account' then '/comercios?cola=' || rid else '/pipelines?cola=' || rid end,
+            case when rid is null then null when r.obj = 'report' then '/reportes#guardados' when r.obj = 'account' then '/comercios?cola=' || rid else '/pipelines?cola=' || rid end,
             coalesce(r.note, case when not ok and r.pipe = 'dealer' then 'Se crea cuando exista el embudo de alta de dealers de US en esta base.'
                                   when not ok then 'Se crea cuando exista el embudo de Las Vegas en esta base.'
                                   when r.obj = 'report' then 'Los negocios cerrados no viven en una lista: queda como reporte guardado y compartido "' || r.name || '".'

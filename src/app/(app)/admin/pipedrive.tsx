@@ -6,6 +6,7 @@ import { ActionForm, Submit } from '@/ui/client'
 import { ImportRunner } from '@/ui/import-runner'
 import { ago, dayTime, num } from '@/lib/format'
 import { MOTOR, lab } from '@/lib/labels'
+import { CoexistenceCards } from './coexistence'
 import { cancelImportAction, importStepAction, purgeRawAction, resumeImportAction, startImportAction } from './actions'
 
 type Pair = [es: string, en: string]
@@ -41,6 +42,7 @@ const SKIP: Record<string, Pair> = {
   no_deal: ['su negocio no se cargó', 'its deal was not loaded'],
   empty: ['sin texto', 'no text'],
   merged_in_contigo: ['ya fusionado en CONTIGO', 'already merged in CONTIGO'],
+  market_cut_over: ['su mercado ya apagó Pipedrive', 'its market already switched Pipedrive off'],
 }
 const ISSUE: Record<string, Pair> = {
   pipedrive_unauthorized: ['Pipedrive rechazó el token. Revisa PIPEDRIVE_API_TOKEN en el servidor y que sea de un usuario administrador.', 'Pipedrive rejected the token. Check PIPEDRIVE_API_TOKEN on the server and that it belongs to an admin user.'],
@@ -154,6 +156,8 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
         )}
       </Card>
 
+      <CoexistenceCards ctx={ctx} />
+
       <Card pad={false} data-testid="import-counts">
         <div className="px-7 pt-7"><CardTitle title={t('Qué se copió y qué se cargó', 'What was copied and what was loaded')} hint={t('Lo que no se carga queda contado con su motivo. Nada se descarta en silencio.', 'Anything not loaded is counted with its reason. Nothing is dropped silently.')} /></div>
         <Table head={<><th>Pipedrive</th><th>{t('Copiados', 'Copied')}</th><th>CONTIGO</th><th>{t('Nuevos', 'New')}</th><th>{t('Actualizados', 'Updated')}</th><th>{t('No cargados', 'Not loaded')}</th><th>{t('Pendientes', 'Pending')}</th></>}>
@@ -253,7 +257,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
           </ul>
         )}
         {d.inventory.length > 0 && <p className="mt-5 text-[13px] text-muted-2">{d.inventory.map((x) => `${x.object.replace('_', ' ')}: ${x.n}`).join(' · ')}</p>}
-        <p className="mt-4 text-[13px] text-muted">{t('Las automatizaciones (Automations) de Pipedrive no se pueden leer por API. Se inventarían aparte y se rehacen como reglas de CONTIGO.', 'Pipedrive Automations cannot be read through the API. They are inventoried separately and rebuilt as CONTIGO rules.')}</p>
+        <p className="mt-4 text-[13px] text-muted">{t('Las automatizaciones, los reportes y las metas de Pipedrive no se leen por API: se levantaron de la pantalla y se reconstruyeron en CONTIGO. Dónde quedó cada uno está en "Qué falta por reconstruir".', 'Pipedrive automations, reports and goals cannot be read through the API: they were taken from the screen and rebuilt in CONTIGO. Where each one lives is in "What is left to rebuild".')}</p>
       </Card>
     </div>
   )

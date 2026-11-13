@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { listDeliveries, listSavedReports } from '@/dal/reportes'
 import { track } from '@/dal/boards'
+import { getBoards } from '@/dal/coexistence'
 import { GROUP_LABEL, REPORTS, VIEW_EN, reportByKey, type ReportDef } from '@/lib/report-catalog'
 import { Badge, Card, CardTitle, Empty, PageHeader } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
@@ -17,7 +18,7 @@ export default async function ReportsPage() {
   const ctx = await requireCtx()
   if (!ctx.can('report.gallery')) notFound()
   const { t, locale } = ctx
-  const [saved, deliveries, tz] = await Promise.all([listSavedReports(ctx), listDeliveries(ctx), readerTimeZone(ctx)])
+  const [saved, deliveries, tz, boards] = await Promise.all([listSavedReports(ctx), listDeliveries(ctx), readerTimeZone(ctx), getBoards(ctx)])
   await track(ctx, 'view.reportes')
   // "Negocios cerrados" lo ve quien tiene reportes o quien vende (los suyos).
   const visible = REPORTS.filter((r) => (r.key === 'cerrados' ? ctx.can('report.view') || ctx.can('report.own') : ctx.can(r.cap)))
@@ -54,7 +55,25 @@ export default async function ReportsPage() {
         </Card>
       )}
 
-      <Card className="mb-6" data-testid="my-reports">
+      {boards.some((b) => b.reports.some((r) => canOpen(r.report))) && (
+        <Card className="mb-6" data-testid="report-boards">
+          <CardTitle title={t('Tableros', 'Boards')} hint={t('Cada tablero junta los reportes que se revisan juntos. Los de US vienen de los tableros que el equipo tenía en Pipedrive.', 'Each board gathers the reports that are reviewed together. The US ones come from the boards the team had in Pipedrive.')} />
+          <div className="grid gap-4 md:grid-cols-2">
+            {boards.filter((b) => b.reports.some((r) => canOpen(r.report))).map((b) => (
+              <section key={b.id} id={`tablero-${b.key}`} className="rounded-[14px] border border-line-2 p-4" data-testid="report-board" data-key={b.key}>
+                <h3 className="mb-2 text-[15px] font-semibold text-strong">{t(b.name_es, b.name_en)}</h3>
+                <ul className="space-y-1.5">
+                  {b.reports.filter((r) => canOpen(r.report)).map((r) => (
+                    <li key={r.id}><Link href={href(r)} className="inline-flex min-h-11 items-center text-[14px] text-strong underline decoration-line-2 underline-offset-4 [overflow-wrap:anywhere]" data-testid="board-report">{t(r.name, VIEW_EN[r.name] ?? r.name)}</Link></li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card className="mb-6" data-testid="my-reports" id="guardados">
         <CardTitle title={t('Mis reportes', 'My reports')} hint={t('Un reporte guardado abre con el periodo y los filtros con que lo guardaste.', 'A saved report opens with the period and filters you saved it with.')} />
         {mine.length + shared.length === 0 ? (
           <Empty title={t('Todavía no guardas ningún reporte', 'You have not saved any report yet')} hint={t('Abre un reporte de la lista de abajo, pon el periodo y los filtros que usas siempre y toca "Guardar reporte".', 'Open a report from the list below, set the period and filters you always use and tap "Save report".')} />

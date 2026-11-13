@@ -71,6 +71,10 @@ export const CAPABILITIES = {
   // Tareas programadas: "Correr ahora" es de administración. Las corridas las ve también quien responde por los controles (status.read).
   'job.run': ['admin'],
   'integration.operate': ['admin'],
+  // E6.F2 y GOB-05: decidir los choques entre CONTIGO y Pipedrive y llevar la convivencia y el corte de cada mercado.
+  'migration.decide': ['admin'],
+  // Metas (la "Deals won" de Pipedrive): la cifra la pone quien lidera el mercado o administración. Todos los que ven el Panel o Mi equipo ven el avance.
+  'goal.manage': ['admin', 'market_lead'],
   // Página de estado: ambiente, versión, frescura de los datos e integraciones. La ven quien administra y quien responde por los controles.
   'status.read': ['admin', 'lt'],
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,

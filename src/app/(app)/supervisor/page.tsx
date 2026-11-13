@@ -8,6 +8,7 @@ import { ROLE_LABEL, rolesIn } from '@/domain/policy'
 import { getRepartoSources } from '@/dal/reparto'
 import { getReportOptions, getWeeklyResults } from '@/dal/reports'
 import { ensureRulesFresh, EXCEPTION_KINDS } from '@/domain/rules'
+import { GoalsSection } from '../goals-section'
 import { Badge, Card, CardTitle, Empty, LinkButton, PageHeader, Pills, NoData, shown } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { RepartoForm } from '@/ui/reparto'
@@ -115,6 +116,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           {ctx.can('rules.run') && <ActionForm action={runRulesAction}><Submit variant="ghost" testId="run-rules">{t('Actualizar avisos', 'Refresh alerts')}</Submit></ActionForm>}
         </>}
       />
+      {teamView && <GoalsSection ctx={ctx} market={sp.market ?? null} />}
       {live.length > 1 && (
         <div className="mb-6">
           <Pills label={t('Mercado', 'Market')} current={sp.market ?? ''} items={[{ key: '', href: link({ market: undefined, equipo: undefined }), label: t('Todos', 'All') }, ...live.map((m) => ({ key: m.code, href: link({ market: m.code, equipo: undefined }), label: m.name }))]} />
