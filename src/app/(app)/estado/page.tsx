@@ -8,6 +8,7 @@ import { pipedriveConfigured } from '@/server/adapters/pipedrive'
 import { deliveryMode } from '@/server/adapters/event-delivery'
 import { antibotMode } from '@/server/adapters/antibot'
 import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
+import { zohoAdapter } from '@/server/adapters/zoho'
 import { adapterQueue } from '@/dal/reportes'
 import { routesAdapter } from '@/server/adapters/routes'
 import { auditArchiveMode, AUDIT_ARCHIVE_ENV } from '@/server/adapters/audit-archive'
@@ -52,6 +53,7 @@ export default async function StatusPage() {
   // GOB-07: objetivos de servicio medidos, de los últimos 30 días. El detalle y los registros viven en Administración, Gobierno.
   const board = ctx.can('gov.read') ? await serviceBoard(ctx, 30) : null
   const salesFile = salesFileAdapter()
+  const zoho = zohoAdapter()
   const adConv = adConversionsAdapter()
   const desk = supportDeskAdapter()
   const version = deployedVersion()
@@ -121,6 +123,13 @@ export default async function StatusPage() {
       what: t('Tiendas de cada persona para planear su ruta', 'Each person’s stores to plan their route'),
       state: routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`La lista de tiendas por persona ya se arma dentro de CONTIGO. Para encenderlo hace falta elegir la herramienta, su aprobación de tecnología y la variable ${routes.envVar}.`, `The store list per person is already built inside CONTIGO. Turning it on needs the tool chosen, its technology approval and the ${routes.envVar} variable.`),
+    },
+    {
+      key: 'zoho',
+      name: t('Zoho', 'Zoho'),
+      what: t('Importar de Zoho comercios, contactos y negocios, con el mapa de campos documentado', 'Import merchants, contacts and deals from Zoho, with the documented field map'),
+      state: zoho.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`CONTIGO no tiene acceso a Zoho. Para encenderlo hace falta el acceso de solo lectura, la aprobación de tecnología y la variable ${zoho.envVar}.`, `CONTIGO has no access to Zoho. Turning it on needs read-only access, technology approval and the ${zoho.envVar} variable.`),
     },
     {
       key: 'sales_file',

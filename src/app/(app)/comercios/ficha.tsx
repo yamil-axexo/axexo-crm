@@ -158,6 +158,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
       // Una visita que llegó de la hoja del equipo de campo lo dice (paquete mx): no se confunde con una capturada en la pantalla.
       : manualVisit(it) ? [(meta(it) as { source?: string }).source === 'import' ? t('Cargada de la hoja', 'Loaded from the sheet') : t('Registrada en CONTIGO', 'Logged in CONTIGO'), it.actor].filter(Boolean).join(' · ')
         : it.kind === 'visit' ? `Sales App${it.actor ? ` · ${it.actor}` : ''}`
+          // E6.F5: lo que llegó con la migración desde Pipedrive (notas, llamadas, tareas) dice su origen en el hilo.
+          : ['note', 'call', 'meeting', 'task', 'email'].includes(it.kind) && (meta(it) as { source?: string }).source === 'import' ? [t('Vino de Pipedrive', 'From Pipedrive'), it.actor].filter(Boolean).join(' · ')
           : it.kind === 'attribution' && it.actor && ownerFrom(it) ? t(`Lo reasignó ${it.actor}`, `Reassigned by ${it.actor}`) : it.actor
   // Cada renglón dice qué fue (nota, llamada, reunión, tarea) y, si se completó con un resultado, cuál.
   const threadKind = (it: Item) =>

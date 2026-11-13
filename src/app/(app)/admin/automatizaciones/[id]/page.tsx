@@ -12,6 +12,8 @@ import { EXCEPTION, MOTOR, lab } from '@/lib/labels'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
 import { saveAutomationAction, testAutomationAction, toggleAutomationAction } from '../actions'
+import { setHandoffTargetAction } from '../../pipedrive-actions'
+import { opsPeople } from '@/dal/coexistence'
 
 const isId = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 
@@ -32,6 +34,8 @@ export default async function AutomationPage({ params, searchParams }: { params:
   const stageNames = Object.fromEntries(stages.map((x) => [x.code, { es: x.name_es, en: x.name_en }]))
   const d = describe({ source: a.source, trigger, conditions: a.conditions, actions: a.actions }, names, stageNames)
   const market = ctx.markets.find((m) => m.code === a.market_code)
+  const handoff = a.pipedrive_ref ? (a.actions.find((x) => x.type === 'ops_handoff') as { type: 'ops_handoff'; to: string } | undefined) : undefined
+  const ops = handoff && manage ? await opsPeople(ctx, a.market_code) : []
 
   // Qué acciones caben según el tipo de registro y el disparador.
   const fits = (type: ActionType): boolean =>
@@ -102,7 +106,19 @@ export default async function AutomationPage({ params, searchParams }: { params:
               <CardTitle title={t('Viene de Pipedrive', 'Comes from Pipedrive')} hint={t(`En Pipedrive se llamaba "${a.pipedrive_ref}".`, `In Pipedrive it was called "${a.pipedrive_ref}".`)} />
               {a.description_es && <p className="text-[14px] text-muted-2">{t(a.description_es, a.description_en ?? a.description_es)}</p>}
               {!a.is_active && a.off_reason_es && <p className="mt-2 text-[14px] text-muted" data-testid="auto-pd-off">{t(a.off_reason_es, a.off_reason_en ?? a.off_reason_es)}</p>}
-              <p className="mt-2 text-[13px] text-muted">{t('Sus condiciones usan el embudo y los campos que vinieron de Pipedrive; aquí se enciende, se apaga y se revisa su bitácora. Para cambiar a quién va el negocio en la #1 (cola de Operaciones o una persona), pídelo a administración.', 'Its conditions use the pipeline and fields that came from Pipedrive; here it is switched on or off and its log is reviewed. To change who gets the deal in #1 (Operations queue or a person), ask administration.')}</p>
+              <p className="mt-2 text-[13px] text-muted">{t('Sus condiciones usan el embudo y los campos que vinieron de Pipedrive; aquí se enciende, se apaga y se revisa su bitácora.', 'Its conditions use the pipeline and fields that came from Pipedrive; here it is switched on or off and its log is reviewed.')}</p>
+              {manage && handoff && (
+                <ActionForm action={setHandoffTargetAction} className="mt-4 flex flex-wrap items-end gap-3" testId="auto-handoff-form">
+                  <input type="hidden" name="id" value={a.id} />
+                  <Field label={t('A quién va el negocio', 'Who gets the deal')}>
+                    <select name="to" className="input" defaultValue={handoff.to ?? 'queue'} data-testid="auto-handoff-to">
+                      <option value="queue">{t('Cola de Operaciones (quien lidera Operaciones del embudo)', 'Operations queue (the pipeline Operations lead)')}</option>
+                      {ops.map((p) => <option key={p.id} value={`user:${p.id}`}>{p.full_name}</option>)}
+                    </select>
+                  </Field>
+                  <Submit variant="ghost" size="sm" testId="auto-handoff-save">{t('Guardar', 'Save')}</Submit>
+                </ActionForm>
+              )}
             </Card>
           )}
 

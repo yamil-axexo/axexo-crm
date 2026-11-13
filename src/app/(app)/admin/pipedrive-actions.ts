@@ -1,7 +1,7 @@
 'use server'
 
 import { runAction, str } from '@/server/action'
-import { resolveConflict, setCutover, setGoalTarget } from '@/domain/pipedrive/coexistence'
+import { resolveConflict, setCutover, setGoalTarget, setHandoffTarget } from '@/domain/pipedrive/coexistence'
 import { invalid, type ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -39,5 +39,13 @@ export async function setGoalTargetAction(_: R | null, fd: FormData): Promise<R>
   return runAction(async (ctx) => {
     await setGoalTarget(ctx, str(fd, 'id'), str(fd, 'target'))
     return { message: ['Meta guardada.', 'Goal saved.'] }
+  })
+}
+
+/** Automatización 1 de Pipedrive: cola de Operaciones o una persona de Operaciones. */
+export async function setHandoffTargetAction(_: R | null, fd: FormData): Promise<R> {
+  return runAction(async (ctx) => {
+    await setHandoffTarget(ctx, str(fd, 'id'), str(fd, 'to'))
+    return { message: ['Guardado: así se entregan los negocios que llegan a Aprobaciones.', 'Saved: this is how deals reaching Approvals are handed over.'] }
   })
 }

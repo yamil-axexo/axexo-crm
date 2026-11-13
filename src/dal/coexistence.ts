@@ -126,3 +126,11 @@ export async function getBoards(ctx: Ctx): Promise<Board[]> {
       reports: b.report_ids.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => Boolean(r)) }))
   })
 }
+
+/** Personas de Operaciones de un mercado, para elegir a quién va el negocio en la automatización 1. */
+export async function opsPeople(ctx: Ctx, market: string): Promise<{ id: string; full_name: string }[]> {
+  return withUser(ctx.user.id, (tx) => tx<{ id: string; full_name: string }[]>`
+    select distinct u.id, u.full_name from crm.users u join crm.memberships m on m.user_id = u.id
+     where u.is_active and not u.is_system and m.role = 'ops' and m.market_code = ${market} and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
+     order by u.full_name`)
+}

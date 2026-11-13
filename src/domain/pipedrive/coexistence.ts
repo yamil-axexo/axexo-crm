@@ -116,3 +116,27 @@ export async function setGoalTarget(ctx: Ctx, id: string, raw: string): Promise<
     await audit(tx, ctx, 'goal.updated', 'goal', id, g.market_code, { target: g.target }, { target })
   })
 }
+
+/**
+ * Automatización 1 de Pipedrive ("Owner - Valentina at Approvals"): a quién va el negocio al llegar a Aprobaciones. Por defecto la
+ * cola de Operaciones (la entrega de siempre); se puede elegir una persona de Operaciones del mercado. Sin nombres fijos en el código.
+ */
+export async function setHandoffTarget(ctx: Ctx, automationId: string, to: string): Promise<void> {
+  if (!(to === 'queue' || /^user:[0-9a-f-]{36}$/.test(to))) throw invalid('Elige la cola de Operaciones o una persona.', 'Choose the Operations queue or a person.')
+  await withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ market_code: string; actions: { type: string; to?: string }[]; version: number }[]>`select market_code, actions, version from crm.automations where id = ${automationId} for update`
+    const a = rows[0]
+    if (!a) throw notFound()
+    ctx.assert('automation.manage', a.market_code)
+    if (a.actions.length !== 1 || a.actions[0]!.type !== 'ops_handoff') throw invalid('Esta automatización no pasa negocios a Operaciones.', 'This automation does not hand deals to Operations.')
+    if (to !== 'queue') {
+      const ok = await tx<{ ok: boolean }[]>`select exists (select 1 from crm.memberships m join crm.users u on u.id = m.user_id where m.user_id = ${to.slice(5)} and u.is_active
+        and m.role in ('ops', 'admin') and (m.market_code is null or m.market_code = ${a.market_code}) and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())) as ok`
+      if (!ok[0]?.ok) throw invalid('Esa persona no está en Operaciones de este mercado.', 'That person is not in Operations for this market.')
+    }
+    const next = [{ type: 'ops_handoff', to }]
+    await tx`update crm.automations set actions = ${tx.json(next)}, version = version + 1, touched_by_person = true, updated_by = ${ctx.user.id}, updated_at = now() where id = ${automationId}`
+    await audit(tx, ctx, 'automation.updated', 'automation', automationId, a.market_code, { actions: a.actions, version: a.version }, { actions: next, version: a.version + 1 })
+  })
+}
+
