@@ -47,7 +47,7 @@ test.describe('campo-canal', () => {
     }
     await clean(page, 'expediente 1440')
     await page.getByTestId('file-submit-btn').click()
-    await expect(ok(page)).toContainText('mesa de control')
+    await expect(page.getByTestId('file-detail')).toContainText('En la mesa')
 
     await loginAs(page, 'valeria.soto')
     await page.goto('/campo?tab=expedientes&mercado=MX')
@@ -78,7 +78,7 @@ test.describe('campo-canal', () => {
     }
     await clean(page, 'expediente 390')
     await page.getByTestId('file-submit-btn').click()
-    await expect(ok(page)).toContainText('regla de prepago')
+    await expect(page.getByTestId('file-detail')).toContainText('Aprobado por regla')
     expect(errors).toEqual([])
   })
 
@@ -95,6 +95,7 @@ test.describe('campo-canal', () => {
     await expect(ok(page)).toContainText('Registrada hasta')
     await f.getByTestId('claim-node').fill('Distribuidora Dos')
     await f.getByTestId('claim-ref').fill('dist-dos')
+    await page.waitForTimeout(900)
     await page.getByTestId('claim-save').click()
     await expect(ok(page)).toContainText('ya tiene un registro vigente de otro canal')
     await expect(page.getByTestId('claim-row').filter({ hasText: store })).toHaveCount(2)
