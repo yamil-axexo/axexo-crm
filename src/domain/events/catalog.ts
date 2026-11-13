@@ -101,7 +101,7 @@ const SILENT: [prefix: string, why: Pair][] = [
   // Seguridad (0027):
   ['seat.', WHY.security], ['sensitive.', WHY.security], ['sensitive_field.', WHY.security], ['consent.', WHY.security], ['retention.', WHY.security],
   ['subject_request.', WHY.security], ['view_as.', WHY.security], ['access_review.', WHY.security], ['secret.', WHY.security], ['security.', WHY.security],
-  ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
+  ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal], ['care.', WHY.internal],
   // Paquete mercados: qué datos van arriba en la ficha por rol y cómo se agrupan los campos es acomodo de pantalla.
   ['ficha.', WHY.internal], ['field_section.', WHY.internal],
 ]

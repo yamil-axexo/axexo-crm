@@ -481,6 +481,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             <h3 className={h3}>{isParent ? t('Ventas de su red', 'Network sales') : t('Ventas', 'Sales')}</h3>
             <dl className="mt-2">
               <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde', 'since')} {day(a.lifecycle_at, locale, tz)}</KeyVal>
+              <KeyVal k={t('Después de la venta', 'After the sale')}><Link href={`/comercios/${a.id}/cuidado`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="ficha-care">{t('Cuidado del comercio', 'Merchant care')}</Link></KeyVal>
               {isParent ? (
                 <KeyVal k={t('Ventas, 30 días', 'Sales, 30 days')}>{num(rollup.txn_30d, locale)}{rollup.volume_30d ? ` · ${money(Number(rollup.volume_30d), rollup.currency ?? market.currency, locale, true)}` : ''}</KeyVal>
               ) : (

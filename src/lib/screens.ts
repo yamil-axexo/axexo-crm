@@ -19,6 +19,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/consolidado', 'Consolidado en USD', 'Consolidated in USD'],
   ['/reportes/mercado', 'Reporte del mercado', 'Market report'],
   ['/arranque', 'Arranque y hojas', 'Rollout and sheets'],
+  ['/cuidado', 'Cuidado de comercios', 'Merchant care'],
   ['/avisos/preferencias', 'Preferencias de avisos', 'Notice preferences'],
   ['/avisos', 'Avisos', 'Notices'],
   ['/anuncios', 'Anuncios', 'Announcements'],
@@ -39,6 +40,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes', 'Reportes', 'Reports'],
   // Va antes de /admin: la primera ruta que coincide es la que nombra la pantalla.
   ['/admin/operaciones', 'Administración, Operaciones', 'Administration, Operations'],
+  ['/admin/cuidado', 'Administración, Cuidado de comercios', 'Administration, Merchant care'],
   ['/admin/embudo', 'Administración, Asignación y embudo', 'Administration, Assignment and pipeline'],
   ['/admin/integraciones', 'Administración, Eventos, API y datos', 'Administration, Events, API and data'],
   ['/admin/gobierno', 'Administración, Gobierno', 'Administration, Governance'],

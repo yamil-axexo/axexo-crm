@@ -23,6 +23,7 @@ import { day, dayTime, num } from '@/lib/format'
 import { zoneLabel } from '@/lib/audit'
 import { NOT_YET, UNDEFINED_ITEMS } from '@/content/status'
 import { channelStatus } from '@/server/adapters/channels'
+import { careAdapterStatus } from '@/server/adapters/care'
 import { CHANNEL_LABEL } from '@/lib/notice-kinds'
 import Link from 'next/link'
 import { serviceBoard } from '@/dal/gobierno'
@@ -163,6 +164,14 @@ export default async function StatusPage() {
       name: t(`Avisos por ${CHANNEL_LABEL[c.channel][0]}`, `Notices by ${CHANNEL_LABEL[c.channel][1]}`),
       what: t('Canal de salida. Dentro de CONTIGO los avisos ya llegan.', 'Outgoing channel. Inside CONTIGO notices already arrive.'),
       state: c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Apagado', 'Off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
+      last: `${t(...c.needs)} ${t(`Se enciende con la variable ${c.envVar}, después de la aprobación.`, `It is turned on with the ${c.envVar} variable, after approval.`)}`,
+    })),
+    // Conexiones del cuidado del comercio (paquete ciclo-cs): construidas y apagadas.
+    ...careAdapterStatus().map((c) => ({
+      key: `care_${c.key}`,
+      name: t(c.name[0], c.name[1]),
+      what: t('Dato de otro sistema para el cuidado del comercio', 'Data from another system for merchant care'),
+      state: c.mode === 'off' ? { tone: 'neutral' as Tone, text: t('Conexión apagada', 'Connection off') } : { tone: 'warn' as Tone, text: t('Simulado (pruebas)', 'Simulated (tests)') },
       last: `${t(...c.needs)} ${t(`Se enciende con la variable ${c.envVar}, después de la aprobación.`, `It is turned on with the ${c.envVar} variable, after approval.`)}`,
     })),
     // Archivo de salida de Reportes: construido y apagado. El correo de reportes programados es el canal de correo de Avisos.
