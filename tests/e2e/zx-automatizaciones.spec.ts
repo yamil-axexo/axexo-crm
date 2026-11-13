@@ -81,7 +81,7 @@ test.describe('automatizaciones, pasos con aprobación, tareas programadas y esc
     await setLocale(page, 'en')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stalled deal')
     await expect(page.getByTestId('auto-then')).toContainText('Opens a notice in the supervisor queue')
-    await expect(page.getByTestId('auto-if')).toContainText('It passed the stall limit of its stage')
+    await expect(page.getByTestId('auto-if')).toContainText('It is stalled (past the limit and no upcoming next step)')
     await expect(page.getByTestId('auto-readable')).not.toContainText(/Cuando|Entonces|estancad|Activa/)
     await setLocale(page, 'es')
     expect(errors).toEqual([])
