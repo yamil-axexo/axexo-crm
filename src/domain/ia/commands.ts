@@ -129,6 +129,7 @@ export async function acceptRecommendation(ctx: Ctx, id: string, dueOn: string):
       insert into crm.activities (market_code, account_id, kind, subject, due_at, owner_id, created_by)
       values (${r.market_code}, ${r.account_id}, 'task', ${subject}, ${`${dueOn}T15:00:00Z`}, ${owner}, ${ctx.user.id}) returning id`
     await tx`update crm.recommendations set status = 'accepted', decided_by = ${ctx.user.id}, decided_at = now(), task_id = ${task[0]!.id} where id = ${id}`
+    await audit(tx, ctx, 'activity.added', 'activity', task[0]!.id, r.market_code, null, { kind: 'task', subject, due_on: dueOn, account_id: r.account_id })
     await audit(tx, ctx, 'recommendation.accepted', 'recommendation', id, r.market_code, { status: 'open' }, { status: 'accepted', rule: r.rule_code, task_id: task[0]!.id, due_on: dueOn })
     return task[0]!.id
   })
@@ -218,6 +219,7 @@ export async function decideDraft(ctx: Ctx, id: string, d: { approve: boolean; s
     const task = await tx<{ id: string }[]>`
       insert into crm.activities (market_code, account_id, kind, subject, due_at, owner_id, created_by)
       values (${r.market_code}, ${r.account_id}, 'task', ${subject}, ${`${dueOn}T15:00:00Z`}, ${r.owner_id ?? ctx.user.id}, ${ctx.user.id}) returning id`
+    await audit(tx, ctx, 'activity.added', 'activity', task[0]!.id, r.market_code, null, { kind: 'task', subject, due_on: dueOn, account_id: r.account_id })
     await tx`update crm.ia_drafts set status = 'approved', subject = ${subject}, due_on = ${dueOn}, decided_by = ${ctx.user.id}, decided_at = now(), result_ref = ${task[0]!.id} where id = ${id}`
     if (r.recommendation_id) {
       await tx`update crm.recommendations set status = 'accepted', decided_by = ${ctx.user.id}, decided_at = now(), task_id = ${task[0]!.id} where id = ${r.recommendation_id} and status = 'open'`
@@ -277,7 +279,7 @@ export async function confirmLeadClass(ctx: Ctx, leadId: string, cls: string): P
     await tx`insert into crm.lead_classifications (lead_id, market_code, proposed, confirmed, score, confirmed_by)
              values (${leadId}, ${r.market_code}, ${proposed}, ${cls}, ${score}, ${ctx.user.id})
              on conflict (lead_id) do update set proposed = excluded.proposed, confirmed = excluded.confirmed, score = excluded.score, confirmed_by = excluded.confirmed_by, confirmed_at = now()`
-    await audit(tx, ctx, 'lead.classified', 'lead', leadId, r.market_code, null, { proposed, confirmed: cls, score })
+    await audit(tx, ctx, 'ia.lead_classified', 'lead', leadId, r.market_code, null, { proposed, confirmed: cls, score })
   })
 }
 

@@ -109,6 +109,10 @@ const SILENT: [prefix: string, why: Pair][] = [
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
 const WHY_GOVERNANCE: Pair = ['Es un registro de cómo se opera CONTIGO (servicio, versiones, costos, solicitudes): queda en la bitácora y no cambia comercios, leads ni negocios.', 'It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals.']
 for (const prefix of ['objective.', 'incident.', 'restore_test.', 'component.', 'maintenance.', 'release.', 'deployment.', 'cost.', 'config_request.', 'change.', 'champion.', 'material.']) SILENT.push([prefix, WHY_GOVERNANCE])
+// Paquete ia (0044): sugerencias, nivel de asistencia, borradores, pesos, evaluación y lecturas por MCP. La tarea que resulta de
+// aceptar una sugerencia o aprobar un borrador sí emite su propio evento (activity.added).
+const WHY_IA: Pair = ['Es trabajo interno de la asistencia (sugerencias, borradores, pesos, evaluación): la tarea que resulta, si la hay, emite su propio evento.', 'It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event.']
+for (const prefix of ['ia.', 'recommendation.']) SILENT.push([prefix, WHY_IA])
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',
   'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.',

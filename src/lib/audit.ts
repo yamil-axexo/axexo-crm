@@ -45,7 +45,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'ia.draft_approved': ['Aprobó un borrador de tarea', 'Approved a task draft'],
   'ia.draft_rejected': ['Rechazó un borrador de tarea, con motivo', 'Rejected a task draft, with a reason'],
   'ia.lead_weights_changed': ['Cambió los pesos de la calificación de leads', 'Changed the lead scoring weights'],
-  'lead.classified': ['Confirmó la clasificación de un lead', 'Confirmed a lead’s classification'],
+  'ia.lead_classified': ['Confirmó la clasificación de un lead', 'Confirmed a lead’s classification'],
   'ia.eval_run': ['Corrió la evaluación de una función', 'Ran a feature’s evaluation'],
   'ia.eval_case_added': ['Agregó un caso a la evaluación', 'Added a case to the evaluation'],
   'ia.mcp_read': ['Un agente leyó datos por el servidor MCP', 'An agent read data through the MCP server'],

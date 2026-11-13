@@ -292,7 +292,7 @@ describe('IA-06: servidor MCP de solo lectura', () => {
 describe('registro: tareas y nombres de la bitácora', () => {
   it('las dos tareas del paquete están en el registro y cada acción nueva tiene nombre', () => {
     expect(JOBS.map((j) => j.key)).toEqual(expect.arrayContaining(['ia.next_actions', 'ia.measure']))
-    for (const a of ['recommendation.accepted', 'recommendation.dismissed', 'ia.settings_changed', 'ia.draft_approved', 'ia.eval_run', 'lead.classified', 'ia.mcp_read']) expect(AUDIT_ACTION[a], a).toBeDefined()
+    for (const a of ['recommendation.accepted', 'recommendation.dismissed', 'ia.settings_changed', 'ia.draft_approved', 'ia.eval_run', 'ia.lead_classified', 'ia.mcp_read']) expect(AUDIT_ACTION[a], a).toBeDefined()
   })
   it('la medición corre sin errores sobre lo que hay', async () => {
     expect(await withUser((await systemContext()).user.id, (tx) => measureRecommendations(tx))).toBeGreaterThanOrEqual(0)
