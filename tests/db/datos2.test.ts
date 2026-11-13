@@ -502,3 +502,20 @@ describe('E4.F9 · el asiento se aprueba antes del acceso', () => {
     await expect(grantAgencyAccess(nora, { email: `ag.${tag()}@axexo.com`, fullName: 'Persona Agencia', agencyId: ag.id } as never, D)).rejects.toMatchObject({ code: 'invalid' })
   })
 })
+
+describe('E6.F8 · borrar y recargar un mercado en producción queda bloqueado y visible', () => {
+  it('en producción no corre mientras la decisión siga pendiente, y el intento queda en la bitácora', async () => {
+    const { resetTestMarket, productionResetState } = await import('@/domain/test-reset')
+    const nora = await ctxFor('nora.salas')
+    const prev = process.env.APP_ENV
+    process.env.APP_ENV = 'production'
+    try {
+      await expect(resetTestMarket(nora, 'SV', 'BORRAR SV')).rejects.toMatchObject({ code: 'forbidden' })
+    } finally {
+      process.env.APP_ENV = prev
+    }
+    expect((await admin`select 1 from crm.audit_events where action = 'market.reset_blocked'`).length).toBe(1)
+    expect(await withSystem((tx) => productionResetState(tx))).toBe('blocked')
+    expect((await admin`select 1 from crm.accounts where market_code = 'SV'`).length).toBeGreaterThanOrEqual(0)
+  })
+})
