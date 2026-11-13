@@ -9,8 +9,8 @@ import type { RuleMatch, RouteStep } from '@/domain/embudo/routing'
 export type Milestones = { first_funding_at: Date | null; funding_method: string | null; first_txn_at: Date | null; habit_at: Date | null; as_of: string | null }
 export type MilestoneEvent = { kind: string; action: string; occurred_at: Date | null; previous_at: Date | null; method: string | null; reason: string | null; source: string; created_at: Date; actor: string | null }
 export type Touch = { touch: 'first' | 'last'; touched_at: Date; source: string | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; utm_content: string | null; utm_term: string | null
-  gclid: string | null; fbclid: string | null; ttclid: string | null; li_fat_id: string | null; twclid: string | null; landing_page: string | null; referrer: string | null; platform: string | null; referrer_account: string | null }
-const TOUCH_COLS = `t.touch, t.touched_at, t.source, t.utm_source, t.utm_medium, t.utm_campaign, t.utm_content, t.utm_term, t.gclid, t.fbclid, t.ttclid, t.li_fat_id, t.twclid, t.landing_page, t.referrer, t.platform`
+  gclid: string | null; fbclid: string | null; ttclid: string | null; li_fat_id: string | null; twclid: string | null; ctwa_clid: string | null; landing_page: string | null; referrer: string | null; platform: string | null; referrer_account: string | null }
+const TOUCH_COLS = `t.touch, t.touched_at, t.source, t.utm_source, t.utm_medium, t.utm_campaign, t.utm_content, t.utm_term, t.gclid, t.fbclid, t.ttclid, t.li_fat_id, t.twclid, t.ctwa_clid, t.landing_page, t.referrer, t.platform`
 
 /** Fecha de corte del archivo de ventas más reciente (los hitos se ven con un día de atraso). */
 const lastCut = async (tx: Parameters<Parameters<typeof withUser>[1]>[0]) =>

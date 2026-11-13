@@ -54,7 +54,7 @@ function TouchList({ ctx, touches, tz }: { ctx: Ctx; touches: Touch[]; tz: strin
     <ul className="space-y-3" data-testid="touches">
       {touches.map((x, i) => (
         <li key={i} className="text-[14px]" data-testid="touch">
-          <p className="font-medium text-strong">{x.touch === 'first' ? t('Primer toque', 'First touch') : t('Último toque', 'Last touch')} · {dayTime(x.touched_at, locale, tz)}{x.platform ? ` · ${t('clic de', 'click from')} ${PLATFORM_LABEL[x.platform as Platform] ?? x.platform}` : ''}</p>
+          <p className="font-medium text-strong">{x.touch === 'first' ? t('Primer toque', 'First touch') : t('Último toque', 'Last touch')} · {dayTime(x.touched_at, locale, tz)}{x.platform ? ` · ${t('clic de', 'click from')} ${PLATFORM_LABEL[x.platform as Platform] ?? x.platform}${x.ctwa_clid ? t(' (anuncio que abre WhatsApp)', ' (ad that opens WhatsApp)') : ''}` : ''}</p>
           <p className="text-[13px] text-muted-2 [overflow-wrap:anywhere]">
             {[x.utm_source && `${t('fuente', 'source')}: ${x.utm_source}`, x.utm_medium && `${t('medio', 'medium')}: ${x.utm_medium}`, x.utm_campaign && `${t('campaña', 'campaign')}: ${x.utm_campaign}`,
               x.landing_page && `${t('página de llegada', 'landing page')}: ${x.landing_page}`, x.referrer && `${t('venía de', 'came from')}: ${x.referrer}`, x.referrer_account && `${t('lo refirió', 'referred by')}: ${x.referrer_account}`].filter(Boolean).join(' · ') || t('Sin datos de campaña', 'No campaign data')}

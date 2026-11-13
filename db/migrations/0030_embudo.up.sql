@@ -262,6 +262,8 @@ alter table crm.leads
   add column ttclid        text check (ttclid is null or length(ttclid) <= 200),
   add column li_fat_id     text check (li_fat_id is null or length(li_fat_id) <= 200),
   add column twclid        text check (twclid is null or length(twclid) <= 200),
+  -- Click to WhatsApp (anuncio de Meta que abre una conversación): el identificador llega con el primer mensaje.
+  add column ctwa_clid     text check (ctwa_clid is null or length(ctwa_clid) <= 200),
   add column landing_page  text check (landing_page is null or length(landing_page) <= 500),
   add column referrer      text check (referrer is null or length(referrer) <= 500),
   -- LEAD-05: el comercio que lo refirió.
@@ -306,11 +308,11 @@ create table crm.source_touches (
   touched_at    timestamptz not null default now(),
   source        text,
   utm_source    text, utm_medium text, utm_campaign text, utm_content text, utm_term text,
-  gclid         text, fbclid text, ttclid text, li_fat_id text, twclid text,
+  gclid         text, fbclid text, ttclid text, li_fat_id text, twclid text, ctwa_clid text,
   landing_page  text, referrer text,
   referral_account_id uuid references crm.accounts(id),
   -- De qué plataforma de anuncios vino el clic, calculado: es lo que se filtra y se reporta.
-  platform      text generated always as (case when gclid is not null then 'google' when fbclid is not null then 'meta' when ttclid is not null then 'tiktok'
+  platform      text generated always as (case when gclid is not null then 'google' when fbclid is not null or ctwa_clid is not null then 'meta' when ttclid is not null then 'tiktok'
                                                 when li_fat_id is not null then 'linkedin' when twclid is not null then 'x' end) stored,
   created_at    timestamptz not null default now(),
   check (lead_id is not null or account_id is not null or deal_id is not null)

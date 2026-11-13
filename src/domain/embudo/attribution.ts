@@ -13,7 +13,7 @@ export type Platform = (typeof PLATFORMS)[number]
 export const PLATFORM_LABEL: Record<Platform, string> = { google: 'Google', meta: 'Meta', tiktok: 'TikTok', linkedin: 'LinkedIn', x: 'X' }
 export const CLICK_ID: Record<Platform, 'gclid' | 'fbclid' | 'ttclid' | 'li_fat_id' | 'twclid'> = { google: 'gclid', meta: 'fbclid', tiktok: 'ttclid', linkedin: 'li_fat_id', x: 'twclid' }
 /** Lo que este paquete agrega a lo que el formulario ya recibía. */
-export const EXTRA_ORIGIN_KEYS = ['ttclid', 'li_fat_id', 'twclid', 'landing_page', 'referrer'] as const
+export const EXTRA_ORIGIN_KEYS = ['ttclid', 'li_fat_id', 'twclid', 'ctwa_clid', 'landing_page', 'referrer'] as const
 export const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid', 'fbclid'] as const
 export type TouchValues = Partial<Record<(typeof UTM_KEYS)[number] | (typeof EXTRA_ORIGIN_KEYS)[number], string | null>>
 
@@ -33,7 +33,7 @@ export function readOrigin(raw: unknown): TouchValues {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   return {
     ...Object.fromEntries(UTM_KEYS.map((k) => [k, cleanOrigin(o[k])])),
-    ttclid: cleanOrigin(o.ttclid), li_fat_id: cleanOrigin(o.li_fat_id), twclid: cleanOrigin(o.twclid),
+    ttclid: cleanOrigin(o.ttclid), li_fat_id: cleanOrigin(o.li_fat_id), twclid: cleanOrigin(o.twclid), ctwa_clid: cleanOrigin(o.ctwa_clid),
     landing_page: cleanPage(o.landing_page), referrer: cleanPage(o.referrer),
   }
 }
@@ -42,16 +42,16 @@ const hasAny = (v: TouchValues): boolean => Object.values(v).some(Boolean)
 export async function recordTouch(tx: Tx, p: { market: string; leadId: string; touch: 'first' | 'last'; source: string; values: TouchValues; referralAccountId?: string | null }): Promise<boolean> {
   const v = p.values
   if (!hasAny(v) && !p.referralAccountId) return false
-  await tx`insert into crm.source_touches (market_code, lead_id, touch, source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, ttclid, li_fat_id, twclid, landing_page, referrer, referral_account_id)
+  await tx`insert into crm.source_touches (market_code, lead_id, touch, source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, ttclid, li_fat_id, twclid, ctwa_clid, landing_page, referrer, referral_account_id)
            values (${p.market}, ${p.leadId}, ${p.touch}, ${p.source}, ${v.utm_source ?? null}, ${v.utm_medium ?? null}, ${v.utm_campaign ?? null}, ${v.utm_content ?? null}, ${v.utm_term ?? null},
-                   ${v.gclid ?? null}, ${v.fbclid ?? null}, ${v.ttclid ?? null}, ${v.li_fat_id ?? null}, ${v.twclid ?? null}, ${v.landing_page ?? null}, ${v.referrer ?? null}, ${p.referralAccountId ?? null})`
+                   ${v.gclid ?? null}, ${v.fbclid ?? null}, ${v.ttclid ?? null}, ${v.li_fat_id ?? null}, ${v.twclid ?? null}, ${v.ctwa_clid ?? null}, ${v.landing_page ?? null}, ${v.referrer ?? null}, ${p.referralAccountId ?? null})`
   return true
 }
 
 /** El primer toque de un lead recién creado: llena los campos nuevos del lead (los de siempre ya los puso el alta) y guarda el renglón. */
 export async function saveFirstTouch(tx: Tx, p: { market: string; leadId: string; source: string; values: TouchValues; referralAccountId?: string | null }): Promise<void> {
   const v = p.values
-  await tx`update crm.leads set ttclid = coalesce(ttclid, ${v.ttclid ?? null}), li_fat_id = coalesce(li_fat_id, ${v.li_fat_id ?? null}), twclid = coalesce(twclid, ${v.twclid ?? null}),
+  await tx`update crm.leads set ttclid = coalesce(ttclid, ${v.ttclid ?? null}), li_fat_id = coalesce(li_fat_id, ${v.li_fat_id ?? null}), twclid = coalesce(twclid, ${v.twclid ?? null}), ctwa_clid = coalesce(ctwa_clid, ${v.ctwa_clid ?? null}),
             landing_page = coalesce(landing_page, ${v.landing_page ?? null}), referrer = coalesce(referrer, ${v.referrer ?? null}),
             referred_by_account_id = coalesce(referred_by_account_id, ${p.referralAccountId ?? null}),
             labels = case when ${p.referralAccountId ?? null}::uuid is not null and not ('referido' = any(labels)) then labels || 'referido'::text else labels end
@@ -63,9 +63,9 @@ export async function saveFirstTouch(tx: Tx, p: { market: string; leadId: string
 export async function carryTouches(tx: Tx, leadId: string, accountId: string, dealId: string): Promise<number> {
   const rows = await tx`
     insert into crm.source_touches (market_code, account_id, deal_id, touch, touched_at, source, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-                                    gclid, fbclid, ttclid, li_fat_id, twclid, landing_page, referrer, referral_account_id)
+                                    gclid, fbclid, ttclid, li_fat_id, twclid, ctwa_clid, landing_page, referrer, referral_account_id)
     select market_code, ${accountId}, ${dealId}, touch, touched_at, source, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-           gclid, fbclid, ttclid, li_fat_id, twclid, landing_page, referrer, referral_account_id
+           gclid, fbclid, ttclid, li_fat_id, twclid, ctwa_clid, landing_page, referrer, referral_account_id
       from crm.source_touches where lead_id = ${leadId}
        and not exists (select 1 from crm.source_touches x where x.deal_id = ${dealId})
     returning 1`
@@ -77,8 +77,9 @@ export async function carryTouches(tx: Tx, leadId: string, accountId: string, de
  * Una por plataforma, evento y registro: repetirla no la duplica (las plataformas no deduplican por nosotros).
  */
 export async function enqueueConversions(tx: Tx, p: { market: string; event: 'qualified_lead' | 'purchase'; leadId?: string | null; dealId?: string | null; accountId?: string | null }): Promise<number> {
+  // Para Meta vale el clic del anuncio web o el de Click to WhatsApp.
   const touches = await tx<{ platform: Platform | null; gclid: string | null; fbclid: string | null; ttclid: string | null; li_fat_id: string | null; twclid: string | null }[]>`
-    select platform, gclid, fbclid, ttclid, li_fat_id, twclid from crm.source_touches
+    select platform, gclid, coalesce(fbclid, ctwa_clid) as fbclid, ttclid, li_fat_id, twclid from crm.source_touches
      where touch = 'first' and ${p.dealId ? tx`deal_id = ${p.dealId}` : tx`lead_id = ${p.leadId ?? null}`} order by touched_at limit 1`
   const t = touches[0]
   if (!t) return 0

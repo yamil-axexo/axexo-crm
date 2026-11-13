@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { ctxFor, owner, personaId, systemContext } from './helpers'
-import { convertLead, createLead, intakeFromForm, qualifyLead, disqualifyLead } from '@/domain/leads'
+import { convertLead, createImportedLead, createLead, intakeFromForm, qualifyLead, disqualifyLead } from '@/domain/leads'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
 import { createAccount } from '@/domain/accounts'
 import { ingestMetricsFile, ingestSalesAppEvent } from '@/domain/integrations'
@@ -337,10 +337,11 @@ describe('LEAD-02, LEAD-01, LEAD-05, E3.F3, E3.F8 y ACT-01', () => {
   it('la atribución completa se guarda, el primer toque no se pisa, viaja al negocio al convertir y deja la conversión en cola', async () => {
     const sys = await systemContext()
     const tel = phone()
-    const body = { business_name: `Cadena Campaña ${tag()}`, contact_name: 'Ana Web', phone: tel, utm_source: 'tiktok', utm_campaign: 'otoño', ttclid: 'TT-123', li_fat_id: 'LI-9', twclid: 'TW-7',
+    const body = { business_name: `Cadena Campaña ${tag()}`, contact_name: 'Ana Web', phone: tel, utm_source: 'tiktok', utm_campaign: 'otoño', ttclid: 'TT-123', li_fat_id: 'LI-9', twclid: 'TW-7', ctwa_clid: 'CTWA-4',
       landing_page: 'https://axexo.example/landing/tiendas?email=persona@example.com', referrer: 'https://buscador.example/resultados?q=recargas' }
     const first = await intakeFromForm(sys, 'contacto-mx', body, `t-${tag()}${tag()}`)
-    const l = await one(admin`select owner_id, ttclid, li_fat_id, twclid, landing_page, referrer, utm_source from crm.leads where id = ${first.leadId}`)
+    const l = await one(admin`select owner_id, ttclid, li_fat_id, twclid, ctwa_clid, landing_page, referrer, utm_source from crm.leads where id = ${first.leadId}`)
+    expect(l.ctwa_clid).toBe('CTWA-4')
     // De la página se guarda dónde, nunca lo que venía después del signo de pregunta.
     expect(l).toMatchObject({ ttclid: 'TT-123', li_fat_id: 'LI-9', twclid: 'TW-7', landing_page: 'https://axexo.example/landing/tiendas', referrer: 'https://buscador.example/resultados', utm_source: 'tiktok' })
     // Segunda llegada de la misma empresa por otra campaña: último toque; el primero queda intacto.
@@ -354,20 +355,21 @@ describe('LEAD-02, LEAD-01, LEAD-05, E3.F3, E3.F8 y ACT-01', () => {
     const owner = await (async () => { const u = await one(admin<{ email: string }[]>`select email::text from crm.users where id = ${l.owner_id}`); return ctxFor(u.email.split('@')[0]!) })()
     await qualifyLead(owner, first.leadId)
     const queued = await admin<{ platform: string; event_name: string; status: string }[]>`select platform, event_name, status from crm.conversion_events where lead_id = ${first.leadId} order by platform`
-    expect(queued.map((q) => `${q.platform}:${q.event_name}:${q.status}`)).toEqual(['linkedin:qualified_lead:queued', 'tiktok:qualified_lead:queued', 'x:qualified_lead:queued'])
+    // Meta entra por el clic de Click to WhatsApp (no traía fbclid).
+    expect(queued.map((q) => `${q.platform}:${q.event_name}:${q.status}`)).toEqual(['linkedin:qualified_lead:queued', 'meta:qualified_lead:queued', 'tiktok:qualified_lead:queued', 'x:qualified_lead:queued'])
     const out = await convertLead(owner, first.leadId)
     const carried = await admin<{ touch: string; platform: string }[]>`select touch, platform from crm.source_touches where deal_id = ${out.dealId} and account_id = ${out.accountId} order by created_at`
     expect(carried.map((t) => `${t.touch}:${t.platform}`)).toEqual(['first:tiktok', 'last:google'])
     // El envío a las plataformas está apagado: la tarea marca cada conversión como "canal apagado" y no sale nada.
     const flushed = await withUser(sys.user.id, (tx) => flushConversions(tx))
-    expect(flushed.done).toBeGreaterThanOrEqual(3)
-    expect((await admin`select 1 from crm.conversion_events where lead_id = ${first.leadId} and status = 'channel_off'`).length).toBe(3)
+    expect(flushed.done).toBeGreaterThanOrEqual(4)
+    expect((await admin`select 1 from crm.conversion_events where lead_id = ${first.leadId} and status = 'channel_off'`).length).toBe(4)
     // La primera transacción deja la conversión "compra" en cola, una sola vez.
     const ref = await alias(out.accountId)
     await admin`update crm.pipelines set close_by_transaction = true where id = (select pipeline_id from crm.deals where id = ${out.dealId})`
     const t0 = '2026-11-11T15:00:00+00:00'
     await ingestMetricsFile(sys, file('2026-11-12', [row(ref, { first_txn_at: t0, txn_count_30d: 1, volume_minor_30d: 100, active_days_30d: 1 })]))
-    expect((await admin`select 1 from crm.conversion_events where deal_id = ${out.dealId} and event_name = 'purchase'`).length).toBe(3)
+    expect((await admin`select 1 from crm.conversion_events where deal_id = ${out.dealId} and event_name = 'purchase'`).length).toBe(4)
   })
 
   it('un lead ligado a un comercio existente se convierte dentro de ese comercio, y el comercio conserva la historia', async () => {
@@ -403,6 +405,26 @@ describe('LEAD-02, LEAD-01, LEAD-05, E3.F3, E3.F8 y ACT-01', () => {
     // Un código que no existe o de otro mercado no atribuye nada y no tumba el formulario.
     const other = await intakeFromForm(sys, 'tiendas-mx', { business_name: `Tienda Sin Ref ${tag()}`, contact_name: 'Pedro Sol', phone: phone(), ref: 'ZZZZZZZZ' }, `t-${tag()}${tag()}`)
     expect((await one(admin`select referred_by_account_id from crm.leads where id = ${other.leadId}`)).referred_by_account_id).toBeNull()
+    // El referido cuenta cuando hace su primera venta: queda en la bitácora del comercio que refirió.
+    const refOwner = await (async () => { const u = await one(admin<{ email: string }[]>`select u.email::text from crm.leads l join crm.users u on u.id = l.owner_id where l.id = ${out.leadId}`); return ctxFor(u.email.split('@')[0]!) })()
+    await qualifyLead(refOwner, out.leadId)
+    const terr = await one(admin<{ id: string }[]>`select id from crm.territories where market_code = 'MX' and archived_at is null order by name limit 1`)
+    const conv = await convertLead(refOwner, out.leadId, { territoryId: terr.id })
+    const mid = await alias(conv.accountId)
+    await ingestMetricsFile(sys, file('2026-11-13', [row(mid, { first_txn_at: '2026-11-12T15:00:00+00:00', txn_count_30d: 1, volume_minor_30d: 100, active_days_30d: 1 })]))
+    expect((await admin`select 1 from crm.audit_events where action = 'account.referral_qualified' and object_id = ${acc.id!}`).length).toBe(1)
+    // Un lead que entra por archivo también pasa por las reglas escritas; sin regla, sigue naciendo sin dueño.
+    const ana = await ctxFor('ana.robles')
+    const nora = await ctxFor('nora.salas')
+    const loose = await createImportedLead(ana, { market: 'MX', motor: 'd2d', businessName: `Tienda Archivo ${tag()}`, contactName: 'Rosa Luna', phone: phone(), source: 'manual' })
+    expect((await one(admin`select owner_id from crm.leads where id = ${loose}`)).owner_id).toBeNull()
+    const rule = await createAssignmentRule(nora, { market: 'MX', name: 'Lo importado a Marco', action: 'user', userId: marco.user.id, match: { sources: ['import'] } })
+    try {
+      const ruled = await createImportedLead(ana, { market: 'MX', motor: 'd2d', businessName: `Tienda Archivo ${tag()}`, contactName: 'Rosa Luna', phone: phone(), source: 'manual' })
+      expect((await one(admin`select owner_id from crm.leads where id = ${ruled}`)).owner_id).toBe(marco.user.id)
+    } finally {
+      await changeAssignmentRule(nora, rule, { active: false })
+    }
     const m = qrMatrix(`https://contigo.example/r/${code}`)
     expect(m.length).toBe(29)
     expect(m[0]!.slice(0, 7).every(Boolean)).toBe(true)

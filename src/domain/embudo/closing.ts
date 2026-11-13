@@ -142,6 +142,23 @@ export async function applyClosing(tx: Tx, sys: Ctx, file: FileLike, batchId: st
     returning d.id, d.market_code, t.from_stage, t.to_stage`
   for (const d of moved) await audit(tx, sys, 'deal.funded', 'deal', d.id, d.market_code, { stage_id: d.from_stage }, { stage_id: d.to_stage, as_of: file.as_of })
 
+  // LEAD-05: el referido cuenta cuando hace su primera transacción. Queda en la bitácora del comercio que lo refirió y quien
+  // lo lleva se entera. El premio y su monto son reglas del programa: no viven aquí.
+  const firstSales = fresh.filter((f) => f.kind === 'first_txn').map((f) => f.account_id)
+  const qualified = firstSales.length === 0 ? [] : await tx<{ referrer: string; referrer_name: string; owner_id: string | null; market_code: string; referred: string; referred_name: string }[]>`
+    select distinct r.id as referrer, r.name as referrer_name, r.owner_id, r.market_code, a.id as referred, a.name as referred_name
+      from crm.leads l join crm.accounts r on r.id = l.referred_by_account_id join crm.accounts a on a.id = l.account_id
+     where l.account_id = any(${firstSales}::uuid[]) and l.referred_by_account_id is not null`
+  for (const q of qualified) {
+    await audit(tx, sys, 'account.referral_qualified', 'account', q.referrer, q.market_code, null, { referred_account_id: q.referred, as_of: file.as_of })
+    if (q.owner_id)
+      await notify(tx, sys, {
+        to: q.owner_id, kind: 'lifecycle', market: q.market_code, link: `/comercios/${q.referrer}?tab=datos`, accountId: q.referrer, needsAction: false,
+        title: [`Un referido de ${q.referrer_name} ya hizo su primera venta`, `A referral from ${q.referrer_name} made its first sale`],
+        body: [`${q.referred_name} llegó por su enlace de referido y ya vende, con corte al ${file.as_of}.`, `${q.referred_name} came through its referral link and is now selling, as of ${file.as_of}.`],
+      })
+  }
+
   let corrections = 0
   let restated = 0
   for (const c of file.corrections ?? []) {

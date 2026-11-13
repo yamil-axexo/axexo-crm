@@ -47,6 +47,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'account.milestone_corrected': ['Corrigió un hito de venta de un comercio', 'Corrected a merchant’s sales milestone'],
   'account.lifecycle_corrected': ['Regresó un comercio a "en alta" por una corrección', 'Moved a merchant back to onboarding after a correction'],
   'account.referral_code_created': ['Creó el enlace de referido de un comercio', 'Created a merchant’s referral link'],
+  'account.referral_qualified': ['Un referido de este comercio hizo su primera venta', 'A referral from this merchant made its first sale'],
   'account.referral_code_toggled': ['Activó o pausó el enlace de referido de un comercio', 'Turned a merchant’s referral link on or off'],
   'account.ticket_linked': ['Ligó un ticket de soporte al hilo de un comercio', 'Linked a support ticket to a merchant’s thread'],
   'account.ticket_status_changed': ['Cambió el estado de un ticket de soporte', 'Changed the status of a support ticket'],

@@ -205,7 +205,11 @@ export async function createImportedLead(ctx: Ctx, input: LeadInput): Promise<st
   const v = leadInput.parse(input)
   ctx.assert('data.import', v.market)
   return withUser(ctx.user.id, async (tx) => {
-    const id = await insertLead(tx, ctx, { ...v, alreadyContacted: false }, { source: 'import', formId: null, ownerId: null, slaMinutes: 60 })
+    // LEAD-03: un lead que entra por archivo también pasa por las reglas de asignación escritas del mercado. Sin una regla que
+    // lo decida sigue naciendo sin dueño (lo ve todo el mercado y se reparte), como siempre.
+    const routed = await resolveOwner(tx, { market: v.market, source: 'import', motor: v.motor, locality: v.locality }, { rulesOnly: true })
+    const id = await insertLead(tx, ctx, { ...v, alreadyContacted: false }, { source: 'import', formId: null, ownerId: routed.ownerId, slaMinutes: routed.slaMinutes ?? 60 })
+    if (routed.ownerId) await logAssignment(tx, v.market, id, routed)
     await markUntrusted(tx, 'lead', id, v.market, 'csv_import', ['business_name', 'contact_name', ...(v.locality ? ['locality'] : []), ...(v.message ? ['message'] : [])])
     return id
   })
