@@ -1,17 +1,17 @@
 # Engineering Standard v1: compliance of this PR
 
-Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on branch `pkg/gobierno` merged with `design-v1` (migrations 0001 to 0025 and 0028). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
+Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on `design-v1` after integration 95-2 (migrations 0001 to 0030: wave 1 of the program plus `mercados` 0026, `seguridad` 0027, `gobierno` 0028, `embudo` 0029 and `us-ficha` 0030). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
 
 **Met** = implemented and covered by a test or a file you can open. **Partial** = part of the rule is in place; the gap is stated. **Not yet** = not built. **Open** = needs a decision or an owner outside this repository. **N/A** = the thing the rule governs does not exist here yet.
 
-Summary: 28 Met, 30 Partial, 7 Not yet, 16 Open, 5 N/A, out of 86 rules.
+Summary: 28 Met, 31 Partial, 6 Not yet, 16 Open, 5 N/A, out of 86 rules (after integration 95-2: AUTHZ-09 moved from Not yet to Partial).
 
 ## What this pass changed (13-Nov-2026, package `gobierno`)
 The previous version was dated 11-Nov-2026 and had fallen behind the code. Corrected, control by control:
 
 | Rule | Was | Now | Why |
 |---|---|---|---|
-| AUTHZ-03 | Met, "36 tables" | Met, 118 tables and 338 policies | Counted on a freshly migrated database |
+| AUTHZ-03 | Met, "36 tables" | Met, 158 tables and 453 policies | Counted on a freshly migrated database after integration 95-2 |
 | AUTHZ-05, DATA-11 | "the app role has no `DELETE`" | No `DELETE` on business records; 11 configuration tables listed | The grant exists on configuration and preference tables |
 | SEC-07 | Met, "there are no exports" | Met, exports governed | Seven export routes with reason, cap per role, daily alert and audit |
 | DATA-08 | Partial, "no owner or review date per field, no editor" | Partial, with owner, decision, review date and editor | Package `datos`; what is still missing is stated |
@@ -22,6 +22,8 @@ The previous version was dated 11-Nov-2026 and had fallen behind the code. Corre
 | OBS-05 | Partial, "no weekly series" | Partial, weekly series exists | Package `reportes` |
 | COMP-02 | Not yet | Partial | Consent on web leads and on templates |
 | REL-03, REL-04, REL-09, OBS-03, OPS-04, OPS-05, OPS-09, COMP-04, SEC-02, SEC-12, AUTHZ-08, DATA-06 | | Same status, evidence updated | Runbooks, restore test record, go-live checklist, deployment record, incident log |
+| AUTHZ-09 | Not yet | Partial | Integration 95-2 (`seguridad`): directory adapter off, unused-access report and access review signed off by the market lead |
+| OBS-03, COMP-02, DATA-06 | | Same status, evidence updated at integration 95-2 | Database-written log with the request identifier, consent register, one fiscal ID model |
 
 How it was checked: counts taken from a database migrated from zero on 13-Nov-2026; grants read from the database catalog; every file cited in a changed row exists in the tree and was read or searched for the behavior described. The text of the standard is not in this repository, so the status of each rule follows the evidence in the code against the rule as this document already described it. Rows not listed above were carried over as they were and not re-verified one by one in this pass; rows already updated by the packages `eventos-api` (SEC-06, REL-06, REL-08) were kept.
 
@@ -44,7 +46,7 @@ How it was checked: counts taken from a database migrated from zero on 13-Nov-20
 | DATA-03 | MUST | Met | `amount_minor bigint` + `currency char(3)`; conversion only in the leadership panel with a dated rate |
 | DATA-04 | MUST | Met | `timestamptz` everywhere; dates shown in the market time zone |
 | DATA-05 | MUST | Met | E.164 check constraint; `toE164` validates per country with libphonenumber (unit test) |
-| DATA-06 | MUST | Partial | No full fiscal ID is stored. The Pipedrive import keeps only the last 4 characters of `Tax ID` and drops fields that look like account, card or password fields, before the raw copy is written (DB test). The test data generator (`scripts/synthetic-lib.mjs`) builds a tax ID with a valid format and also stores only its last 4 characters (DB test). Encryption with KMS comes with the platform |
+| DATA-06 | MUST | Partial | No full fiscal ID is stored. One fiscal ID model (`crm.tax_ids`, package `mercados`): format and check digit, registry check (adapter off) and human review; it keeps the last 4, a keyed fingerprint to find repeats and the verification state, and the full value goes only to the protected-data adapter, which is off (`PROTECTED_DATA_ADAPTER`). The US dealer record (package `us-ficha`) uses the same model; keeping the full value needs a written exception `[pending: Michael Essiet or Dan Mulligan]`. The Pipedrive import keeps only the last 4 characters of `Tax ID` and drops fields that look like account, card or password fields, before the raw copy is written (DB test). The test data generator (`scripts/synthetic-lib.mjs`) builds a tax ID with a valid format and also stores only its last 4 characters (DB test). Encryption with KMS comes with the platform |
 | DATA-07 | SHOULD | Not yet | Addresses are plain columns, not per-market validated `jsonb` |
 | DATA-08 | MUST | Partial | `crm.field_definitions` + `custom jsonb`. Each field carries its owner, purpose, the decision it enables, a review date, a personal data class and an untrusted mark when it was imported; market leads propose and administration approves; definitions are edited in Data, Fields (package `datos`, migration 0023). A field can be linked to the change request that asked for it and the written decision is kept as the reason for the change (migration 0028). Missing: value validation with JSON Schema, and creating contact and activity fields from the screen |
 | DATA-09 | SHOULD | Met | `app.uuid_v7()` default on every table (DB test). Synthetic seed rows use deterministic IDs |
@@ -57,7 +59,7 @@ How it was checked: counts taken from a database migrated from zero on 13-Nov-20
 |---|---|---|---|
 | AUTHZ-01 | MUST | Partial | Google OIDC through the adapter, domain enforced server-side. Needs the OAuth client configured in staging to be exercised end to end; MFA is an IdP policy `[pending: Workspace admin]` |
 | AUTHZ-02 | MUST | Met | `crm.memberships`, `crm.user_territories`, `ancestor_ids`; no claims |
-| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 118 tables of schema `crm` (338 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0025 and 0028). `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
+| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 158 tables of schema `crm` (453 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0030). `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
 | AUTHZ-04 | MUST | Met | `withUser` in `src/server/db.ts`; `app.current_user_id()` |
 | AUTHZ-05 | MUST | Met | `contigo_app` has no BYPASSRLS and owns nothing (DB test; counted again on 13-Nov-2026). It has no `DELETE` on business records; DATA-11 lists the 11 configuration tables where it does |
 | AUTHZ-06 | MUST | Met | Scope functions wrapped in `(select …)`; indexes on `owner_id`, `territory_id`, `market_code`, GIN on `ancestor_ids` |

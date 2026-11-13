@@ -20,12 +20,14 @@ function MilestoneList({ ctx, ms, cut, tz }: { ctx: Ctx; ms: Milestones | null; 
   const { t, locale } = ctx
   const none = t('Todavía no', 'Not yet')
   return (
-    <dl className="space-y-1" data-testid="milestones">
+    <div data-testid="milestones">
+    <dl className="space-y-1">
       <KeyVal k={t('Primer fondeo', 'First funding')}><span data-testid="ms-funding">{ms?.first_funding_at ? `${day(ms.first_funding_at, locale, tz)} · ${t(FUNDING_LABEL[(ms.funding_method ?? 'other') as FundingMethod].es, FUNDING_LABEL[(ms.funding_method ?? 'other') as FundingMethod].en)}` : none}</span></KeyVal>
       <KeyVal k={t('Primera transacción', 'First transaction')}><span data-testid="ms-first-txn">{ms?.first_txn_at ? day(ms.first_txn_at, locale, tz) : none}</span></KeyVal>
       <KeyVal k={t('Hábito', 'Habit')}><span data-testid="ms-habit">{ms?.habit_at ? day(ms.habit_at, locale, tz) : none}</span></KeyVal>
+      </dl>
       <p className="pt-1 text-[12.5px] text-muted" data-testid="ms-cut">{cut ? t(`Lo pone el archivo de ventas, con un día de atraso. Último corte: ${day(cut, locale)}.`, `Set by the sales file, one day behind. Last cut: ${day(cut, locale)}.`) : t('Lo pone el archivo de ventas. Todavía no se ha cargado ninguno.', 'Set by the sales file. None has been loaded yet.')}</p>
-    </dl>
+    </div>
   )
 }
 

@@ -128,22 +128,23 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'telÃ
       await clean(page, `${w.name} calidad de datos`)
     })
 
-    test('un turno sin nadie con acceso deja el lead sin dueÃ±o, a la vista de quien vende en ese mercado', async ({ page }) => {
+    // Paquete embudo (E3.F10): antes de dejar un lead sin asignar, le toca a quien lidera el mercado (US: Robert Hale).
+    test('un turno sin nadie con acceso pasa el lead a quien lidera el mercado, a la vista de quien lo recibe', async ({ page }) => {
       const k = uniq()
       const business = `C2E Libre ${k}`
       await sql`update crm.routing_rules set member_ids = '{}', fallback_id = null where name = ${RULE}`
       try {
         await sendForm(page, '/f/dealers-us', business, false)
         await expect(page.getByTestId('form-ok')).toBeVisible()
-        expect((await sql`select owner_id from crm.leads where business_name = ${business}`)[0]!.owner_id).toBeNull()
-        await loginAs(page, 'sam.ortiz')
+        expect((await sql`select u.email::text as email from crm.leads l join crm.users u on u.id = l.owner_id where l.business_name = ${business}`)[0]!.email).toBe('robert.hale@contigo.test')
+        await loginAs(page, 'robert.hale')
         await page.goto(`/leads?q=${encodeURIComponent(business)}`)
         await expect(page.getByTestId('lead-row').filter({ hasText: business })).toHaveCount(1)
         await loginAs(page, 'nora.salas')
         await page.goto('/admin?tab=entrada')
         const card = page.getByTestId('rule-card').filter({ hasText: RULE })
         await expect(card.getByTestId('rule-empty')).toBeVisible()
-        await expect(card).toContainText('sin respaldo: si en el turno no queda nadie, el lead queda sin asignar')
+        await expect(card).toContainText('sin respaldo: si en el turno no queda nadie, el lead pasa a quien lidera el mercado')
         await clean(page, `${w.name} formularios y turnos`)
       } finally {
         await sql`update crm.routing_rules set member_ids = ${original.member_ids}::uuid[], cursor = ${original.cursor}, fallback_id = ${original.fallback_id} where name = ${RULE}`

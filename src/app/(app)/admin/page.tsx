@@ -277,8 +277,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <CardTitle
                 title={r.name}
                 hint={t(
-                  `Turno rotativo · respuesta en ${targetText(t, r)} · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead queda sin asignar y lo ve todo el mercado'}`,
-                  `Round robin · response within ${targetText(t, r)} · ${fallback ? `if nobody is left in the rotation, it goes to ${fallback}` : 'no fallback: if nobody is left in the rotation, the lead stays unowned and the whole market sees it'}`,
+                  `Turno rotativo · respuesta en ${targetText(t, r)} · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead pasa a quien lidera el mercado; si nadie lo lidera, queda sin asignar y lo ve todo el mercado'}`,
+                  `Round robin · response within ${targetText(t, r)} · ${fallback ? `if nobody is left in the rotation, it goes to ${fallback}` : 'no fallback: if nobody is left in the rotation, the lead goes to the market lead; with no market lead, it stays unowned and the whole market sees it'}`,
                 )}
                 right={<Badge>{r.market_code}</Badge>}
               />
