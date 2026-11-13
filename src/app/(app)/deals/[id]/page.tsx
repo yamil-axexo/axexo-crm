@@ -20,6 +20,7 @@ import { gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
 import { GateFields } from '@/ui/ops'
 import { getDealOps, notifyOptions } from '@/dal/ops'
 import { DealItems, DealOpsCard } from './ops'
+import { DealSteps } from './steps'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
@@ -122,6 +123,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
           )}
+
+          {deal.status === 'open' && <DealSteps ctx={ctx} dealId={deal.id} canEdit={canEdit} market={market} />}
 
           {deal.status === 'open' && current && (
             <Card data-testid="deal-move">

@@ -40,6 +40,12 @@ async function checkDefinition(tx: Parameters<Parameters<typeof withUser>[1]>[0]
   }
 }
 
+/** Un mercado recién creado recibe sus reglas de base cuando administración abre la lista (o cuando corre la revisión por horario). */
+export async function installDefaults(ctx: Ctx): Promise<void> {
+  if (!ctx.can('automation.manage')) return
+  await withUser(ctx.user.id, (tx) => ensureDefaults(tx))
+}
+
 /** Crea una automatización a partir de una plantilla, en un mercado. Nace en pausa: se revisa, se prueba y se activa. */
 export async function createFromTemplate(ctx: Ctx, market: string, templateKey: string): Promise<string> {
   ctx.assert('automation.manage')
