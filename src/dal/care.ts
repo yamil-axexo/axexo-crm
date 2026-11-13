@@ -17,10 +17,10 @@ export async function getAccountCare(ctx: Ctx, accountId: string) {
         from crm.accounts a left join crm.users u on u.id = a.owner_id where a.id = ${accountId} and a.archived_at is null`
     const a = accs[0]
     if (!a) return null
-    const care = (await tx<{ stage: string; stage_at: Date; stage_source: string; stage_reason: string | null; product_line: string; care_owner_id: string | null; care_owner: string | null; care_role: string | null; service_tier: string | null; service_tier_at: Date | null; service_tier_basis: string | null; msg_consent_at: Date | null }[]>`
-      select c.stage, c.stage_at, c.stage_source, c.stage_reason, c.product_line, c.care_owner_id, u.full_name as care_owner, c.care_role, c.service_tier, c.service_tier_at, c.service_tier_basis, c.msg_consent_at
+    const care = (await tx<{ stage: string; stage_at: Date; stage_source: string; stage_reason: string | null; product_line: string; care_owner_id: string | null; care_owner: string | null; care_role: string | null; service_tier: string | null; service_tier_at: Date | null; service_tier_basis: string | null }[]>`
+      select c.stage, c.stage_at, c.stage_source, c.stage_reason, c.product_line, c.care_owner_id, u.full_name as care_owner, c.care_role, c.service_tier, c.service_tier_at, c.service_tier_basis
         from crm.account_care c left join crm.users u on u.id = c.care_owner_id where c.account_id = ${a.id}`)[0]
-      ?? { stage: a.lifecycle, stage_at: a.lifecycle_at, stage_source: 'import', stage_reason: null, product_line: 'general', care_owner_id: null, care_owner: null, care_role: null, service_tier: null, service_tier_at: null, service_tier_basis: null, msg_consent_at: null }
+      ?? { stage: a.lifecycle, stage_at: a.lifecycle_at, stage_source: 'import', stage_reason: null, product_line: 'general', care_owner_id: null, care_owner: null, care_role: null, service_tier: null, service_tier_at: null, service_tier_basis: null }
     const win = (await tx<{ risk_below: number; recover_at: number; habit_at: number; habit_below: number; churn_after_days: number; min_days_in_stage: number }[]>`select * from app.lifecycle_window(${a.market_code}, ${care.product_line})`)[0]!
     const history = await tx<{ id: string; from_stage: string | null; to_stage: string; source: string; reason: string | null; actor: string | null; at: Date }[]>`
       select e.id, e.from_stage, e.to_stage, e.source, e.reason, case when u.is_system then null else u.full_name end as actor, e.at
@@ -40,6 +40,13 @@ export async function getAccountCare(ctx: Ctx, accountId: string) {
              (select m.status from crm.cs_messages m where m.alert_id = al.id order by m.created_at desc limit 1) as message_status
         from crm.cs_alerts al left join crm.users u on u.id = al.owner_id left join crm.playbooks p on p.id = al.playbook_id left join crm.activities act on act.id = al.activity_id
        where al.account_id = ${a.id} order by (al.status = 'open') desc, al.opened_at desc limit 12`
+    // Permiso para mensajes de WhatsApp: el registro único es el de consentimientos por contacto (Seguridad).
+    const waConsent = (await tx<{ full_name: string; granted_at: Date }[]>`
+      select ct.full_name, cs.granted_at from crm.account_contacts ac join crm.contacts ct on ct.id = ac.contact_id
+        join crm.consents cs on cs.contact_id = ct.id and cs.channel = 'whatsapp' and cs.revoked_at is null
+       where ac.account_id = ${a.id} and (ac.valid_to is null or ac.valid_to > now()) and ct.phone is not null
+         and (select mc.ok from app.may_contact('whatsapp', ct.phone, 'service') mc)
+       order by (ac.role = 'manager') desc, cs.granted_at desc limit 1`)[0] ?? null
     const settings = (await tx<{ alerts_on: boolean; health_published: boolean; health_threshold: number; low_balance_minor: string | null }[]>`
       select alerts_on, health_published, health_threshold, low_balance_minor::text from crm.cs_settings where market_code = ${a.market_code}`)[0] ?? { alerts_on: false, health_published: false, health_threshold: 50, low_balance_minor: null }
     const health = (await tx<{ as_of: string; score: number; band: string; groups: HealthPart[]; lowest: string | null }[]>`
@@ -68,7 +75,7 @@ export async function getAccountCare(ctx: Ctx, accountId: string) {
       select f.id, f.topic, f.kind, f.note, f.status, f.response, u.full_name as by, f.created_at from crm.product_feedback f left join crm.users u on u.id = f.created_by
        where f.account_id = ${a.id} order by f.created_at desc limit 12`
     const topics = await tx<{ code: string; label_es: string; label_en: string }[]>`select code, label_es, label_en from crm.feedback_topics where is_active order by sort`
-    return { account: a, care, window: win, history: [...history], metrics, handoffs: [...handoffs], people: [...people], alerts: [...alerts], settings, health, validation,
+    return { account: a, care, waConsent, window: win, history: [...history], metrics, handoffs: [...handoffs], people: [...people], alerts: [...alerts], settings, health, validation,
       completions: [...completions], managerChanges: [...managerChanges], opportunities: [...opportunities], plan, relationships: [...relationships], reviews: [...reviews], contacts: [...contacts], feedback: [...feedback], topics: [...topics] }
   })
 }

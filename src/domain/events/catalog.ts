@@ -82,6 +82,7 @@ const WHY = {
   quality: ['Es trabajo interno de calidad de datos (colas, mediciones, revisiones de repetidos): cuando termina en un cambio del registro, como una fusión o una edición, ese cambio emite su propio evento.', 'It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event.'] as Pair,
   internal: ['Es configuración interna de CONTIGO (métricas, plantillas de avisos, ayuda, arranque de un mercado): no cambia comercios, leads ni negocios.', 'It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals.'] as Pair,
   jobs: ['Es la corrida a mano de una tarea programada: lo que la tarea cambie emite su propio evento; la corrida en sí no.', 'It is a manual run of a scheduled job: whatever the job changes emits its own event; the run itself does not.'] as Pair,
+  security: ['Es un control de seguridad o de privacidad (datos reservados, consentimiento, solicitudes de titulares, revisiones de accesos, ver como, llaves): queda en la bitácora. Publicarlo sacaría de CONTIGO datos de control o de personas.', 'It is a security or privacy control (restricted data, consent, data subject requests, access reviews, view as, keys): it is logged. Publishing it would take control or personal data out of CONTIGO.'] as Pair,
   unknown: ['Acción nueva sin clasificar: no emite hasta que alguien decida aquí si es un cambio de dominio.', 'New action not classified yet: it emits nothing until someone decides here whether it is a domain change.'] as Pair,
 }
 
@@ -97,14 +98,26 @@ const SILENT: [prefix: string, why: Pair][] = [
   // cargas desde hojas (visitas pegadas, tiendas migradas): cada registro creado emite el suyo:
   ['sheet.', WHY.migration],
   ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
+  // Seguridad (0027):
+  ['seat.', WHY.security], ['sensitive.', WHY.security], ['sensitive_field.', WHY.security], ['consent.', WHY.security], ['retention.', WHY.security],
+  ['subject_request.', WHY.security], ['view_as.', WHY.security], ['access_review.', WHY.security], ['secret.', WHY.security], ['security.', WHY.security],
   ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal], ['care.', WHY.internal],
+  // Paquete mercados: qué datos van arriba en la ficha por rol y cómo se agrupan los campos es acomodo de pantalla.
+  ['ficha.', WHY.internal], ['field_section.', WHY.internal],
 ]
+// Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
+// solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
+const WHY_GOVERNANCE: Pair = ['Es un registro de cómo se opera CONTIGO (servicio, versiones, costos, solicitudes): queda en la bitácora y no cambia comercios, leads ni negocios.', 'It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals.']
+for (const prefix of ['objective.', 'incident.', 'restore_test.', 'component.', 'maintenance.', 'release.', 'deployment.', 'cost.', 'config_request.', 'change.', 'champion.', 'material.']) SILENT.push([prefix, WHY_GOVERNANCE])
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',
   'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.',
   // Ola 1 de los 95: identificadores de otros sistemas, mercados, procesos por comercio, proveedores y productos, pedidos,
   // capacitación del dealer, etiquetas de agencias y la configuración de las automatizaciones.
-  'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.']
+  'alias.', 'alias_system.', 'market.', 'process.', 'provider.', 'product.', 'order.', 'training.', 'agency.', 'automation.',
+  // Paquete mercados: entidad legal, identificador fiscal (el evento lleva qué campos cambiaron, nunca el identificador) y
+  // la configuración de WhatsApp de un mercado.
+  'entity.', 'taxid.', 'whatsapp.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {

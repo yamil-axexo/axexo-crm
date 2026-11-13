@@ -1,3 +1,4 @@
+import { LeadEmbudoPanel } from '@/app/(app)/embudo-panels'
 import Link from 'next/link'
 import { untrustedMark } from '@/dal/untrusted'
 import { UntrustedTag } from '@/ui/untrusted'
@@ -22,10 +23,11 @@ import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { LeadAnswers } from '../answers'
 
-export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ comercio?: string | string[] }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
   const { id } = await params
+  const linkSearch = [(await searchParams).comercio].flat()[0]
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getLead(ctx, id)
   // IA-07: si el texto del lead llegó de fuera (formulario, archivo), se dice junto al texto.
@@ -326,6 +328,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             </Card>
           )}
           <LeadAnswers ctx={ctx} leadId={lead.id} />
+          <LeadEmbudoPanel ctx={ctx} leadId={lead.id} canWork={canWork && (mine || !lead.owner_id || canAssign)} search={linkSearch} />
           <Card data-testid="lead-owner">
             <CardTitle title={t('Quién lo lleva', 'Owner')} />
             <p className="text-[15px] font-semibold text-strong">{lead.owner_name ?? t('Sin asignar', 'No owner')}</p>

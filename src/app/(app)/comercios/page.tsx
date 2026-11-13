@@ -1,3 +1,4 @@
+import { recruiterChoices } from '@/dal/store-record'
 import Link from 'next/link'
 import { requireCtx } from '@/server/context'
 import { getAccount, listAccounts, listTree, savedViews, type AccountFilters } from '@/dal/accounts'
@@ -59,6 +60,9 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const nodes = treeData.nodes
   // "Visitado por": sugiere el catálogo de vendedores de calle y los nombres ya usados en los mercados de la persona.
   const visitors = tree ? [] : [...new Set((await Promise.all((sp.market ? [sp.market] : live.map((x) => x.code)).map((code) => visitorNames(ctx, code)))).flat())]
+  // E9.F12: en mercados con ficha de dealer, el alta pregunta quién reclutó la tienda.
+  const dealerMarkets = live.filter((x) => x.dealerRecord && ctx.can('account.create', x.code))
+  const recruiters = dealerMarkets.length ? await recruiterChoices(ctx) : []
   const [typeOptions, intake] = ctx.can('account.create') ? await Promise.all([accountTypeOptions(ctx), intakeFields(ctx)]) : [[], []]
   // Canal por defecto de "Nuevo comercio": el del primer embudo del mercado de la persona (en US, Dealers; en México, tiendas).
   const firstPipe = ctx.can('account.create') ? (await marketPipelines(ctx, live.find((x) => ctx.can('account.create', x.code))?.code))[0] : undefined
@@ -119,6 +123,14 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                     <select name="territory_id" className="input" data-testid="account-territory"><option value="">{t('Según quien lo crea', 'Based on who creates it')}</option>{place.territories.map((x) => <option key={x.id} value={x.id}>{multi ? `${x.market_code} · ${x.name}` : x.name}</option>)}</select>
                   </Field>
                 )}
+                {dealerMarkets.length > 0 && (
+                  <Field label={t('Reclutado por', 'Recruited by')} className="col-span-2" hint={t(`Para tiendas de ${dealerMarkets.map((x) => x.name).join(', ')}. Queda fijo desde el alta.`, `For stores in ${dealerMarkets.map((x) => x.name).join(', ')}. It is fixed from creation.`)}>
+                    <select name="recruited_by" className="input" defaultValue="field_team" data-testid="account-recruiter">
+                      <option value="field_team">{t('Equipo de campo de axexo', 'axexo field team')}</option>
+                      {recruiters.map((g) => <option key={g.id} value={g.id}>{`${dealerMarkets.length > 1 ? `${g.market_code} · ` : ''}${g.kind === 'agency' ? t('Agencia', 'Agency') : t('Socio', 'Partner')}: ${g.name}`}</option>)}
+                    </select>
+                  </Field>
+                )}
                 <IntakeFields defs={intake} locale={locale} legend={t('Para calificar (lo que falte se completa después en la ficha)', 'To qualify (anything missing can be filled in later on the record)')} yes={t('Sí', 'Yes')} no={t('No', 'No')} />
                 <label className="col-span-2 flex items-center gap-3 text-[14px] text-muted-2"><input type="checkbox" name="force" className="h-4 w-4" data-testid="account-force" />{t('Crear de todos modos si se parece a uno que ya existe', 'Create anyway if it looks like an existing one')}</label>
                 <Field label={t('Si se parece a otro: ¿por qué es un comercio distinto?', 'If it looks like another one: why is it a different merchant?')} className="col-span-2" hint={t('Solo hace falta cuando marcas "Crear de todos modos". Lo revisa quien lidera tu mercado.', 'Only needed when you tick "Create anyway". Your market lead reviews it.')}>
@@ -174,6 +186,8 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
               <span className="sr-only">: {m('merchants.view.mapSoon')}</span>
             </span>
           </nav>
+          {/* MULTI-04: los comercios por distancia, con la ubicación del teléfono. No necesita mapa. */}
+          <Link href="/comercios/cerca" className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-4 text-[13px] font-medium text-strong hover:bg-green-50" data-testid="view-near">{t('Cerca de mí', 'Near me')}</Link>
         </div>
 
         {!tree && (

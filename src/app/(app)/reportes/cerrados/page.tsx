@@ -38,7 +38,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
     <>
       <PageHeader
         title={own ? t('Mis negocios cerrados', 'My closed deals') : t('Negocios cerrados', 'Closed deals')}
-        desc={t('Ganados y perdidos por persona y periodo. La fecha de cierre es el día en la zona horaria del mercado. Los montos se suman por moneda, sin convertir.', 'Won and lost by person and period. The close date is the day in the market’s time zone. Amounts add up by currency, with no conversion.')}
+        desc={<>{t('Ganados y perdidos por persona y periodo. La fecha de cierre es el día en la zona horaria del mercado. Los montos se suman por moneda, sin convertir.', 'Won and lost by person and period. The close date is the day in the market’s time zone. Amounts add up by currency, with no conversion.')}{ctx.can('board.lt') && <>{' '}<Link href="/reportes/consolidado?ver=ganados" className="font-medium text-blue-text underline" data-testid="closed-consolidated">{t('Ver el total en USD', 'See the total in USD')}</Link></>}</>}
         actions={canExport ? <ExportLink t={t} href={qs('/reportes/cerrados/export', params)}>{t('Exportar CSV', 'Export CSV')}</ExportLink> : undefined}
       />
       <ReportFilters t={t} locale={locale} base="/reportes/cerrados" params={params} period={period.first} selects={[sel.market, sel.pipeline, sel.team, sel.owner, sel.result]} />

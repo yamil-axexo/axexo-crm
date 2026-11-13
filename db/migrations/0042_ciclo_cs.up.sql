@@ -26,8 +26,6 @@ create table crm.account_care (
   service_tier        text check (service_tier in ('high','pooled','low','tech')),
   service_tier_at     timestamptz,
   service_tier_basis  text check (service_tier_basis in ('commission','volume','account_type')),
-  msg_consent_at      timestamptz,
-  msg_consent_by      uuid references crm.users(id),
   updated_at          timestamptz not null default now()
 );
 create index account_care_stage_idx on crm.account_care (market_code, stage);

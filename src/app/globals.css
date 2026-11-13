@@ -313,6 +313,8 @@
     padding-inline: 0;
   }
   .board-wide > .board-col { min-width: 156px; }
+  /* Más de ocho columnas (el B2B de MX con su etapa de NDA, 0025): más angostas para que todas quepan a 1440 px. */
+  .board-dense > .board-col { min-width: 118px; }
 }
 
 /* Impresión (avisos, 0020): en papel solo sale el contenido. La barra, el menú inferior, los avisos flotantes y lo marcado

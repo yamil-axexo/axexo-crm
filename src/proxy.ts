@@ -21,9 +21,13 @@ export function proxy(request: NextRequest) {
   const headers = new Headers(request.headers)
   headers.set('x-nonce', nonce)
   headers.set('Content-Security-Policy', csp)
-  headers.set('x-request-id', request.headers.get('x-request-id') ?? crypto.randomUUID())
+  // GOB-07: un identificador por petición, de punta a punta. Uno que llega de afuera solo vale si tiene forma de identificador.
+  const incoming = request.headers.get('x-request-id')
+  const requestId = incoming && /^[A-Za-z0-9._-]{8,80}$/.test(incoming) ? incoming : crypto.randomUUID()
+  headers.set('x-request-id', requestId)
   const response = NextResponse.next({ request: { headers } })
   response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('x-request-id', requestId)
   return response
 }
 

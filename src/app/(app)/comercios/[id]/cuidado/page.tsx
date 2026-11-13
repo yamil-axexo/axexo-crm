@@ -15,7 +15,7 @@ import {
   REL_HEALTH, STAGE, STAGE_REASON, STAGE_SOURCE, TIER, TIER_BASIS, isCorporate, type AlertKind, type HandoffRole, type HealthGroup, type ProductLine, type Stage, type Tier,
 } from '@/lib/care'
 import {
-  alertCloseAction, completionAction, consentAction, feedbackAction, handoffAckAction, handoffAction, handoffCheckAction, managerChangeAction, opportunityAction, planAction, productLineAction,
+  alertCloseAction, completionAction, feedbackAction, handoffAckAction, handoffAction, handoffCheckAction, managerChangeAction, opportunityAction, planAction, productLineAction,
   relationshipAction, reviewAction, stageAction,
 } from '../../../cuidado/actions'
 
@@ -242,15 +242,10 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
         <section className="mt-5 border-t border-line pt-4" data-testid="care-consent">
           <h3 className="text-[14px] font-semibold text-strong">{t('Mensajes al comercio', 'Messages to the merchant')}</h3>
           <p className="mt-1 text-[13.5px] text-muted">
-            {d.care.msg_consent_at ? t(`El comercio dio permiso para recibir mensajes el ${day(d.care.msg_consent_at, locale, tz)}.`, `The merchant gave permission to receive messages on ${day(d.care.msg_consent_at, locale, tz)}.`) : t('El comercio no ha dado permiso para recibir mensajes: no sale ninguno.', 'The merchant has not given permission to receive messages: none goes out.')}
+            {d.waConsent ? t(`${d.waConsent.full_name} dio permiso para recibir mensajes por WhatsApp el ${day(d.waConsent.granted_at, locale, tz)}.`, `${d.waConsent.full_name} gave permission to receive WhatsApp messages on ${day(d.waConsent.granted_at, locale, tz)}.`) : t('Ningún contacto de este comercio ha dado permiso para recibir mensajes por WhatsApp: no sale ninguno. El permiso se anota en el contacto, en la ficha.', 'No contact at this merchant has given permission to receive WhatsApp messages: none goes out. Permission is recorded on the contact, on the merchant page.')}
             {' '}{whatsappAdapter().mode === 'off' ? t('WhatsApp está apagado: los mensajes quedan en la cola, listos para enviar.', 'WhatsApp is off: messages stay in the queue, ready to send.') : t('WhatsApp está en simulación de pruebas.', 'WhatsApp is in test simulation.')}
           </p>
-          {canEdit && (
-            <ActionForm action={consentAction} className="mt-2">
-              {hidden}<input type="hidden" name="on" value={d.care.msg_consent_at ? '0' : '1'} />
-              <Submit variant="ghost" size="sm" testId="consent-toggle">{d.care.msg_consent_at ? t('Retirar el permiso', 'Withdraw permission') : t('El comercio dio permiso', 'The merchant gave permission')}</Submit>
-            </ActionForm>
-          )}
+          <Link href={`/comercios/${a.id}?tab=datos`} className="mt-1 inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="consent-link">{t('Ver contactos en la ficha', 'See contacts on the merchant page')}</Link>
         </section>
       </Card>
 

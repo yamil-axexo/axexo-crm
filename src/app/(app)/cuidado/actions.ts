@@ -5,7 +5,7 @@ import type { ActionResult } from '@/lib/errors'
 import { HEALTH_GROUPS } from '@/lib/care'
 import {
   ackHandoff, checkHandoffItem, closeAlert, createHandoff, lifecycleBacktest, publishHealth, runAlertsNow, runHealthNow, runLifecycleNow, runTiersNow,
-  saveCareSettings, saveHealthWeights, savePlaybook, saveTierRules, setLifecycleWindow, setMessageConsent, setProductLine, setStageByHand, validateHealth,
+  saveCareSettings, saveHealthWeights, savePlaybook, saveTierRules, setLifecycleWindow, setProductLine, setStageByHand, validateHealth,
 } from '@/domain/care'
 import {
   addFeedback, addReview, closeOpportunity, recordCompletion, recordManagerChange, runExpansionNow, saveExpansionRule, savePlan, saveRelationship, setFeedbackStatus, takeOpportunity,
@@ -110,14 +110,6 @@ export async function playbookAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     await savePlaybook(ctx, { market: str(fd, 'market'), kind: str(fd, 'kind') as never, tier: (str(fd, 'tier') || 'any') as never, titleEs: str(fd, 'titleEs'), titleEn: str(fd, 'titleEn'), stepsEs: str(fd, 'stepsEs'), stepsEn: str(fd, 'stepsEn'), messageEs: str(fd, 'messageEs'), messageEn: str(fd, 'messageEn'), dueDays: str(fd, 'dueDays'), isActive: on(fd, 'isActive') })
     return { message: ['Guía de acción guardada.', 'Playbook saved.'], revalidate: carePaths() }
-  })
-}
-
-export async function consentAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction(async (ctx) => {
-    const give = str(fd, 'on') === '1'
-    await setMessageConsent(ctx, str(fd, 'accountId'), give)
-    return { message: give ? ['Permiso anotado con fecha de hoy.', 'Permission recorded with today’s date.'] : ['Permiso retirado: no saldrán mensajes a este comercio.', 'Permission withdrawn: no messages will go to this merchant.'], revalidate: carePaths(str(fd, 'accountId')) }
   })
 }
 

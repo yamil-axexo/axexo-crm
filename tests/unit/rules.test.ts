@@ -35,7 +35,11 @@ describe('matriz de capacidades (AUT-01)', () => {
     const writes = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((c) => !['board.supervisor', 'board.lt', 'audit.read', 'status.read', 'report.view', 'report.export', 'adoption.read', 'exception.read', 'automation.read', 'rollout.read',
       // Paquete reportes: leadership lee la galería, Finanzas, la conciliación y la adopción por equipo. Guardar un reporte o una vista es
       // una preferencia de la persona (como reportar un problema): no cambia datos del negocio.
-      'report.gallery', 'report.finance', 'report.reconcile', 'adoption.team', 'report.save', 'view.save'].includes(c))
+      'report.gallery', 'report.finance', 'report.reconcile', 'adoption.team', 'report.save', 'view.save',
+      // Paquete seguridad: leadership lee la pantalla de Seguridad (alertas, lecturas, inventario); no revisa alertas ni cambia umbrales.
+      // Paquete gobierno: leadership lee Gobierno (servicio, versiones, costos) y, como cualquier persona, puede pedir un cambio de
+      // configuración; pedirlo no cambia nada hasta que administración decide.
+      'security.read', 'gov.read', 'config.request'].includes(c))
     for (const cap of writes) expect(can(m('lt', null), cap, 'MX'), cap).toBe(false)
     expect(can(m('lt', null), 'board.lt')).toBe(true)
   })

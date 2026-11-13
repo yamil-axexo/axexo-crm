@@ -321,18 +321,7 @@ export async function savePlaybook(ctx: Ctx, raw: z.input<typeof playbookInput>)
   })
 }
 
-/** El comercio dio (o retiró) su permiso para recibir mensajes. Sin permiso con fecha no sale ningún mensaje. */
-export async function setMessageConsent(ctx: Ctx, accountId: string, on: boolean): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
-    const a = await loadAccount(tx, accountId)
-    ctx.assert('account.edit', a.market_code)
-    await tx`insert into crm.account_care (account_id, market_code, stage, msg_consent_at, msg_consent_by) values (${a.id}, ${a.market_code}, ${a.lifecycle}, ${on ? tx`now()` : null}, ${on ? ctx.user.id : null})
-             on conflict (account_id) do update set msg_consent_at = excluded.msg_consent_at, msg_consent_by = excluded.msg_consent_by, updated_at = now()`
-    await audit(tx, ctx, on ? 'care.consent_given' : 'care.consent_withdrawn', 'account', a.id, a.market_code, null, { messages: on })
-  })
-}
-
-type Candidate = { account_id: string; market_code: string; name: string; kind: AlertKind; owner_id: string | null; care_owner_id: string | null; tier: string | null; consent: boolean; detail: Record<string, unknown>; holdout: boolean; locale: string; escalate_days: number; cap: number }
+type Candidate = { account_id: string; market_code: string; name: string; kind: AlertKind; owner_id: string | null; care_owner_id: string | null; tier: string | null; consent: boolean; wa_phone: string | null; detail: Record<string, unknown>; holdout: boolean; locale: string; escalate_days: number; cap: number }
 type Playbook = { id: string; title_es: string; title_en: string; steps_es: string[]; steps_en: string[]; message_es: string | null; message_en: string | null; due_days: number }
 
 async function playbookFor(tx: Tx, market: string, kind: AlertKind, tier: string | null): Promise<Playbook | null> {
@@ -400,12 +389,20 @@ export async function runAlerts(tx: Tx, actor: Actor, scope: { market?: string; 
   // 3) nuevas
   const cands = await tx<Candidate[]>`
     with a as (
-      select a.id, a.market_code, a.name, a.owner_id, a.lifecycle, a.lifecycle_at, c.care_owner_id, c.service_tier as tier, (c.msg_consent_at is not null) as consent,
+      select a.id, a.market_code, a.name, a.owner_id, a.lifecycle, a.lifecycle_at, c.care_owner_id, c.service_tier as tier, (wa.phone is not null) as consent, wa.phone as wa_phone,
              st.no_first_sale_days, st.drop_pct, st.low_balance_minor, st.holdout_pct, st.escalate_days, st.whatsapp_cap_per_owner as cap, mkt.default_locale as locale
         from crm.accounts a
         join crm.cs_settings st on st.market_code = a.market_code and st.alerts_on
         join crm.markets mkt on mkt.code = a.market_code
         left join crm.account_care c on c.account_id = a.id
+        -- Permiso para mensajes: un contacto vigente del comercio con teléfono, con consentimiento de WhatsApp sin retirar y sin baja
+        -- (el registro único de consentimientos y bajas es el de Seguridad: crm.consents y app.may_contact).
+        left join lateral (
+          select ct.phone from crm.account_contacts ac join crm.contacts ct on ct.id = ac.contact_id
+           where ac.account_id = a.id and (ac.valid_to is null or ac.valid_to > now()) and ct.phone is not null
+             and exists (select 1 from crm.consents cs where cs.contact_id = ct.id and cs.channel = 'whatsapp' and cs.revoked_at is null)
+             and (select mc.ok from app.may_contact('whatsapp', ct.phone, 'service') mc)
+           order by (ac.role = 'manager') desc, ac.valid_from desc limit 1) wa on true
        where a.archived_at is null and a.merged_into is null and (${mk}::text is null or a.market_code = ${mk}) and (${acc}::uuid is null or a.id = ${acc})
     ), hit as (
       select a.*, 'no_first_sale'::text as kind, jsonb_build_object('days', extract(day from now() - a.lifecycle_at)::int, 'limit', a.no_first_sale_days) as detail
@@ -426,7 +423,7 @@ export async function runAlerts(tx: Tx, actor: Actor, scope: { market?: string; 
       select a.*, 'manager_change', jsonb_build_object('changed_on', mc.changed_on, 'new_name', mc.new_name)
         from a join lateral (select x.* from crm.manager_changes x where x.account_id = a.id and x.trained_at is null and x.changed_on >= (now() - interval '60 days')::date order by x.changed_on desc limit 1) mc on true
     )
-    select h.id as account_id, h.market_code, h.name, h.kind, h.owner_id, h.care_owner_id, h.tier, h.consent, h.detail, app.in_holdout(h.id, h.holdout_pct) as holdout, h.locale, h.escalate_days, h.cap
+    select h.id as account_id, h.market_code, h.name, h.kind, h.owner_id, h.care_owner_id, h.tier, h.consent, h.wa_phone, h.detail, app.in_holdout(h.id, h.holdout_pct) as holdout, h.locale, h.escalate_days, h.cap
       from hit h
      where not exists (select 1 from crm.cs_alerts x where x.account_id = h.id and x.kind = h.kind
                         and (x.status = 'open' or (x.close_reason in ('done','dismissed') and x.closed_at > now() - interval '14 days')))
@@ -453,7 +450,7 @@ export async function runAlerts(tx: Tx, actor: Actor, scope: { market?: string; 
       else {
         const today = await tx<{ n: number }[]>`select count(*)::int as n from crm.cs_messages m join crm.cs_alerts x on x.id = m.alert_id
            where x.owner_id is not distinct from ${owner} and m.market_code = ${c.market_code} and m.status in ('queued_off','simulated') and m.created_at > now() - interval '24 hours'`
-        status = (today[0]?.n ?? 0) >= c.cap ? 'held_limit' : (await wa.send({ to: `account:${c.account_id}`, subject: ALERT[c.kind].label[0], body })).status
+        status = (today[0]?.n ?? 0) >= c.cap ? 'held_limit' : (await wa.send({ to: c.wa_phone ?? '', subject: ALERT[c.kind].label[0], body })).status
       }
       await tx`insert into crm.cs_messages (alert_id, account_id, market_code, body, status) values (${ins[0].id}, ${c.account_id}, ${c.market_code}, ${body}, ${status})`
       messages++
@@ -466,7 +463,7 @@ export async function runAlerts(tx: Tx, actor: Actor, scope: { market?: string; 
   }
   // 4) humano por excepción: lo que iba solo por mensaje y sigue abierto pasa a una persona
   const stuck = await tx<(Candidate & { alert_id: string; playbook_id: string | null })[]>`
-    select al.id as alert_id, al.playbook_id, al.account_id, al.market_code, a.name, al.kind, a.owner_id, c.care_owner_id, c.service_tier as tier, true as consent, al.detail, false as holdout, 'es' as locale, st.escalate_days, 0 as cap
+    select al.id as alert_id, al.playbook_id, al.account_id, al.market_code, a.name, al.kind, a.owner_id, c.care_owner_id, c.service_tier as tier, true as consent, null::text as wa_phone, al.detail, false as holdout, 'es' as locale, st.escalate_days, 0 as cap
       from crm.cs_alerts al join crm.accounts a on a.id = al.account_id join crm.cs_settings st on st.market_code = al.market_code
       left join crm.account_care c on c.account_id = a.id
      where al.status = 'open' and al.digital_only and al.activity_id is null and al.opened_at <= now() - make_interval(days => st.escalate_days)

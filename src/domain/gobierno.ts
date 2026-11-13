@@ -253,6 +253,8 @@ export async function createMarket(ctx: Ctx, input: z.input<typeof marketInput>)
     if ((await tx`select 1 from crm.markets where code = ${v.code}`)[0]) throw invalid('Ya existe un mercado con ese código.', 'There is already a market with that code.')
     await tx`insert into crm.markets (code, name, currency, default_locale, locales, timezone, phone_cc, status) values (${v.code}, ${v.name}, ${v.currency}, ${v.locale}, ${[v.locale]}::text[], ${v.timezone}, ${v.phoneCc}, 'planned')`
     await tx`insert into crm.market_hours (market_code, updated_by) values (${v.code}, ${ctx.user.id}) on conflict do nothing`
+    // Paquete mercados: todo mercado tiene una entidad legal. Nace una provisional "por confirmar"; administración le pone su nombre.
+    await tx`select app.default_entity(${v.code})`
     await audit(tx, ctx, 'market.created', 'market', null, v.code, null, { code: v.code, name: v.name, currency: v.currency, timezone: v.timezone, status: 'planned' })
     return v.code
   })

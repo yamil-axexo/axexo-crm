@@ -27,6 +27,7 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
       addressLine: str(fd, 'address_line'),
       force: fd.get('force') === 'on',
       reason: str(fd, 'reason'),
+      recruitedBy: str(fd, 'recruited_by'),
     })
     if (out.duplicates) {
       const names = out.duplicates.map((d) => `${d.name}${d.owner_name ? ` (${d.owner_name})` : ''}`).join('; ')

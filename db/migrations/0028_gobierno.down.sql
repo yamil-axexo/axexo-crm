@@ -1,0 +1,28 @@
+drop table crm.training_materials;
+-- Deshace también las dos exclusiones de la bitácora que agrega al final la subida.
+delete from audit.excluded_tables where table_name in ('request_metrics', 'error_events');
+drop table crm.champion_reviews;
+drop table crm.team_champions;
+drop table crm.change_reasons;
+alter table crm.field_definitions drop column request_id;
+drop table crm.config_requests;
+drop function app.data_origin();
+drop table crm.synthetic_accounts;
+drop table crm.synthetic_runs;
+drop function app.cost_denominators(date);
+drop table crm.cost_entries;
+drop function app.record_deployment(text, text, text);
+drop table crm.deployments;
+drop table crm.releases;
+drop table crm.maintenance_windows;
+drop table crm.components;
+drop table crm.restore_tests;
+drop table crm.incidents;
+drop function app.slo_check();
+drop table crm.service_objectives;
+drop function app.record_error(text, text, text, text, text);
+drop table crm.error_events;
+drop function app.record_request(text, text, integer, boolean);
+drop table crm.request_metrics;
+drop index crm.audit_events_request_idx;
+alter table crm.audit_events alter column request_id drop default;

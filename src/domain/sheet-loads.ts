@@ -6,6 +6,7 @@ import { audit, clean, newId } from '@/domain/common'
 import { invalid } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
 import { scrub } from '@/domain/pipedrive/mapping'
+import { recordStageGaps } from '@/domain/embudo/stage-conditions'
 
 /**
  * Carga desde las hojas mientras se retiran (E17.F4 y E14.F3). Quien dirige un equipo pega las filas de la hoja:
@@ -154,6 +155,7 @@ export async function loadVisitsSheet(ctx: Ctx, market: string, text: string, la
   ctx.assert('visit.sheet_load', market)
   const { mk, body, cell } = prepare(ctx, market, text, ['store', 'date'])
   return withUser(ctx.user.id, async (tx) => {
+    await recordStageGaps(tx) // PIPE-01: carga histórica; lo que falte para la etapa queda anotado, no se rechaza
     const loadId = await newId(tx)
     await tx`insert into crm.sheet_loads (id, market_code, kind, label, created_by) values (${loadId}, ${market}, 'visits', ${clean(label)?.slice(0, 120) ?? null}, ${ctx.user.id})`
     const problems: Problem[] = []
@@ -206,6 +208,7 @@ export async function loadMigratedStores(ctx: Ctx, market: string, text: string,
   ctx.assert('deal.migrated_load', market)
   const { mk, body, cell } = prepare(ctx, market, text, ['store', 'date'])
   return withUser(ctx.user.id, async (tx) => {
+    await recordStageGaps(tx) // PIPE-01: carga histórica; lo que falte para la etapa queda anotado, no se rechaza
     const pipes = await tx<{ id: string; won: string | null }[]>`
       select p.id, (select s.id from crm.stages s where s.pipeline_id = p.id and s.kind = 'won' and s.archived_at is null order by s.position limit 1) as won
         from crm.pipelines p where p.market_code = ${market} and p.motor = 'd2d' and p.is_active order by p.position limit 1`

@@ -1,6 +1,7 @@
 'use server'
 
 import { randomUUID } from 'node:crypto'
+import { runVia } from '@/server/db'
 import { runAction, str } from '@/server/action'
 import { systemCtx } from '@/server/context'
 import { env } from '@/env'
@@ -245,6 +246,7 @@ export async function purgeRawAction(_: R | null, _fd: FormData): Promise<R> {
 
 /** La pantalla llama a este paso una y otra vez mientras la corrida esté activa. Cada llamada trabaja unos segundos. */
 export async function importStepAction(): Promise<StepResult> {
-  const res = await runAction<StepResult>(async (ctx) => ({ data: await importStep(ctx), revalidate: [] }))
+  // SEG-03: lo que copia la importación queda en la bitácora de la base con la vía "importación".
+  const res = await runAction<StepResult>(async (ctx) => ({ data: await runVia('import', () => importStep(ctx)), revalidate: [] }))
   return res.ok && res.data ? res.data : { status: 'failed' }
 }

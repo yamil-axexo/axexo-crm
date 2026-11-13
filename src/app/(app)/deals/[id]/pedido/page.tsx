@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { orderPrint } from '@/dal/orders'
+import { documentTaxId } from '@/dal/store-record'
 import { ActionForm, Submit } from '@/ui/client'
 import { PrintButton } from '@/ui/orders'
 import { day, dayTime, money, noData } from '@/lib/format'
@@ -20,6 +21,8 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
   const o = await orderPrint(ctx, id)
   if (!o || !o.has_items) notFound()
   const market = ctx.market(o.market_code)
+  // E9.F13: el Tax ID se captura una vez en la tienda y llega solo al documento (enmascarado: CONTIGO guarda los últimos 4).
+  const taxId = market.dealerRecord ? await documentTaxId(ctx, o.account.id) : null
   const price = (minor: string | null) => (minor === null ? noData(locale) : new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX', { style: 'currency', currency: o.currency, currencyDisplay: 'code', minimumFractionDigits: 2 }).format(Number(minor) / 100))
   const total = o.items.reduce((n, it) => n + Number(it.sum_minor ?? 0), 0)
   const waiting = o.dispatches.find((d) => !d.received_at)
@@ -59,6 +62,7 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
             <p className="text-[13.5px] text-strong">{where || t('Dirección: s/d', 'Address: n/a')}</p>
             <p className="text-[13.5px] text-strong">{t('Teléfono', 'Phone')}: {o.account.phone ?? t('s/d', 'n/a')}</p>
             <p className="text-[13.5px] text-strong">Merchant ID: {o.account.merchant_ref ?? t('s/d', 'n/a')}</p>
+            {taxId && <p className="text-[13.5px] text-strong" data-testid="order-tax-id">Tax ID: {taxId.text}</p>}
           </div>
           <div>
             <h2 className="text-[12.5px] font-semibold tracking-wide text-muted-2 uppercase">{t('Pedido', 'Order')}</h2>

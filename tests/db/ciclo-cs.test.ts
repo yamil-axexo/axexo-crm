@@ -6,7 +6,7 @@ import { createDeal } from '@/domain/deals'
 import { ingestMetricsFile } from '@/domain/integrations'
 import {
   ackHandoff, checkHandoffItem, closeAlert, createHandoff, ingestCareSignals, lifecycleBacktest, publishHealth, pullSignals, runAlerts, runHealthNow, runLifecycleNow, runTiersNow,
-  saveCareSettings, saveHealthWeights, savePlaybook, saveTierRules, setLifecycleWindow, setMessageConsent, setProductLine, setStageByHand, validateHealth,
+  saveCareSettings, saveHealthWeights, savePlaybook, saveTierRules, setLifecycleWindow, setProductLine, setStageByHand, validateHealth,
 } from '@/domain/care'
 import {
   addFeedback, addReview, closeOpportunity, feedbackDigest, pullAcademy, recordCompletion, recordManagerChange, reviewDraft, runExpansionNow, saveExpansionRule, savePlan, saveRelationship,
@@ -408,8 +408,10 @@ describe('CS-03 · alertas tempranas que crean tarea con guía de acción', () =
       }
       expect(control && treated).toBeTruthy()
       // el tratado dio permiso de mensajes; lo cuida Operaciones (atención en equipo)
-      const marco = await ctxFor('marco.pena')
-      await setMessageConsent(marco, treated!, true)
+      // (el permiso vive en el registro único de consentimientos, por contacto)
+      const contact = await one(admin<{ id: string }[]>`insert into crm.contacts (market_code, full_name, phone) values ('MX', 'Encargada Con Permiso', ${'+5255' + String(Math.floor(10000000 + Math.random() * 89999999))}) returning id`)
+      await admin`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${treated!}, ${contact.id}, 'MX', 'manager')`
+      await admin`insert into crm.consents (market_code, contact_id, channel, category, source, evidence) values ('MX', ${contact.id}, 'whatsapp', 'service', 'verbal', 'Dijo que sí en la visita')`
       await admin`update crm.account_care set service_tier = 'pooled', care_owner_id = ${await uid('valeria.soto')}, care_role = 'ops' where account_id = ${treated!}`
       await alertsFor(control!)
       await alertsFor(treated!)
@@ -426,6 +428,13 @@ describe('CS-03 · alertas tempranas que crean tarea con guía de acción', () =
       await admin`update crm.cs_settings set holdout_pct = 0 where market_code = 'MX'`
       await alertsFor(noConsent.id)
       expect((await one(admin`select status from crm.cs_messages where account_id = ${noConsent.id}`)).status).toBe('skipped_consent')
+      // con el permiso retirado tampoco sale
+      const revoked = await store('onboarding', 9)
+      const c2 = await one(admin<{ id: string }[]>`insert into crm.contacts (market_code, full_name, phone) values ('MX', 'Encargado Sin Permiso', ${'+5255' + String(Math.floor(10000000 + Math.random() * 89999999))}) returning id`)
+      await admin`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${revoked.id}, ${c2.id}, 'MX', 'manager')`
+      await admin`insert into crm.consents (market_code, contact_id, channel, category, source, evidence, revoked_at, revoked_reason) values ('MX', ${c2.id}, 'whatsapp', 'service', 'verbal', 'Dijo que sí', now(), 'lo pidió')`
+      await alertsFor(revoked.id)
+      expect((await one(admin`select status from crm.cs_messages where account_id = ${revoked.id}`)).status).toBe('skipped_consent')
       // medición: a los 14 días se anota si volvió a vender, también para el grupo de control
       await admin`update crm.cs_alerts set opened_at = now() - interval '15 days' where id in (${c.id}, ${t.id})`
       await metrics(treated!, { d: 6, txn: 9, lastDays: 3 })
