@@ -82,7 +82,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   const today = isoDay(now, tz)
   const parent = ancestors[ancestors.length - 1]
   // El tipo de cuenta ya dice si es independiente: "Independiente" solo acompaña a un tipo que no lo dice.
-  const size = isParent ? m('merchants.size.children', { count: rollup.stores }) : parent ? m('merchants.size.under', { name: parent.name }) : a.account_type === 'store' ? null : m('merchants.size.independent')
+  const size = isParent ? m('merchants.size.children', { count: rollup.stores }) : parent ? m('merchants.size.under', { name: parent.name }) : a.account_type === 'store' || (market.dealerRecord && a.kind === 'store') ? null : m('merchants.size.independent')
   // Para llamar: el teléfono del comercio y, si no tiene, el de su contacto (primero quien decide).
   const callee = a.phone
     ? { phone: a.phone, who: null as string | null }
