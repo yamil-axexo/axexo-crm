@@ -33,11 +33,11 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/indicadores-campo', 'Indicadores de campo', 'Field indicators'],
   ['/reportes/indicadores', 'Indicadores y responsables', 'Metrics and owners'],
   ['/reportes/pronostico', 'Pronóstico', 'Forecast'],
+  ['/reportes/embudo', 'Reporte del embudo: motivos, revisitas, próximos pasos y origen', 'Pipeline report: reasons, revisits, next steps and origin'],
   ['/reportes', 'Reportes', 'Reports'],
   // Va antes de /admin: la primera ruta que coincide es la que nombra la pantalla.
   ['/admin/operaciones', 'Administración, Operaciones', 'Administration, Operations'],
   ['/admin/embudo', 'Administración, Asignación y embudo', 'Administration, Assignment and pipeline'],
-  ['/reportes/embudo', 'Reporte del embudo: motivos, revisitas, próximos pasos y origen', 'Pipeline report: reasons, revisits, next steps and origin'],
   ['/admin/integraciones', 'Administración, Eventos, API y datos', 'Administration, Events, API and data'],
   ['/admin', 'Administración', 'Administration'],
   ['/importar', 'Importar un archivo', 'Import a file'],
