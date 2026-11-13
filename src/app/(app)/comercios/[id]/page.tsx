@@ -7,13 +7,17 @@ import { Ficha, fichaTab, type FichaTab } from '../ficha'
 import { flat } from '@/server/params'
 
 /** La ficha a pantalla completa: a donde llegan los enlaces directos (Hoy, Buscar, un negocio). Desde la lista se abre como panel. */
-export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; al?: string }> }) {
   const ctx = await requireCtx()
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const data = await getAccount(ctx, id)
   if (!data) notFound()
-  const tab = fichaTab(flat(await searchParams).tab)
+  const sp = flat(await searchParams)
+  const tab = fichaTab(sp.tab)
+  // DAT-01: "al" (AAAA-MM-DD, hoy o antes) muestra lo que sumaba el árbol ese día.
+  // Un día futuro no cambia nada: las cifras de un día que no llegó son las de hoy (app.node_totals).
+  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(sp.al ?? '') ? sp.al! : null
   const href = (to: string, t?: FichaTab) => `/comercios/${to}${t && t !== 'hilo' ? `?tab=${t}` : ''}`
   return (
     <div className="mx-auto max-w-[720px]">
@@ -22,7 +26,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         {ctx.m('record.back')}
       </Link>
       <div className="card p-5 md:p-8">
-        <Ficha ctx={ctx} data={data} tab={tab} mode="page" href={href} closeHref="/comercios" />
+        <Ficha ctx={ctx} data={data} tab={tab} mode="page" href={href} closeHref="/comercios" asOf={asOf} />
       </div>
     </div>
   )

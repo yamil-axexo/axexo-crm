@@ -7,6 +7,8 @@ export const MATCH_KIND: Record<string, Pair> = {
   external_id: ['Mismo ID de otro sistema', 'Same ID from another system'],
   name_address: ['Mismo nombre y dirección', 'Same name and address'],
   name: ['Nombre parecido', 'Similar name'],
+  tax_id: ['Mismo identificador fiscal', 'Same tax ID'],
+  geo: ['Mismo lugar y nombre parecido', 'Same spot and similar name'],
 }
 
 export const SURVIVOR_LABEL: Record<string, Pair> = {

@@ -25,6 +25,7 @@ async function grant(page: Page, o: { email: string; name: string; role: string;
   const dialog = page.locator('dialog[open]')
   await dialog.getByTestId('grant-email').fill(o.email)
   await dialog.getByTestId('grant-name').fill(o.name)
+  await dialog.getByTestId('grant-seat-approver').fill('Responsable del presupuesto')
   await dialog.getByTestId('grant-role').selectOption(o.role)
   if (o.market) await dialog.getByTestId('grant-market').selectOption(o.market)
   if (o.expires) await dialog.getByTestId('grant-expires').fill(o.expires)
@@ -263,12 +264,14 @@ for (const w of [{ name: 'escritorio', width: 1440, height: 900 }, { name: 'tel�
       // El historial de un solo registro.
       await page.getByTestId('audit-row').filter({ hasText: name }).first().getByTestId('audit-history').click()
       await expect(page.getByTestId('audit-record')).toContainText(name)
-      await expect(page.getByTestId('audit-what')).toHaveText(['Quitó un acceso', 'Dio acceso'])
+      // E4.F9 (datos2, cambio a propósito): el acceso nace con su aprobación de asiento, que también queda en el historial.
+      expect((await page.getByTestId('audit-what').allInnerTexts()).sort()).toEqual(['Dio acceso', 'Quitó un acceso', 'Registró quién aprobó un asiento'])
 
       // En inglés, lo mismo con sus palabras.
       await english(page)
       await page.reload()
-      await expect(page.getByTestId('audit-what')).toHaveText(['Removed access', 'Granted access'])
+      await expect(page.getByTestId('audit-what')).toHaveCount(3)
+      expect(await page.getByTestId('audit-what').allInnerTexts()).toEqual(expect.arrayContaining(['Removed access', 'Granted access']))
       await expect(page.getByTestId('audit-zone')).toContainText('Times are in Puerto Rico time (GMT-4).')
       await spanish(page)
 

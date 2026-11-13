@@ -1,4 +1,6 @@
 import 'server-only'
+import { resolveContact } from '@/domain/contacts-dedup'
+import { decisionValue } from '@/domain/decisions'
 import { saveFormAnswers } from '@/domain/b2b'
 import { CONTACT_ROLES } from '@/domain/accounts'
 import { z } from 'zod'
@@ -62,6 +64,8 @@ const leadInput = z.object({
   email: z.string().trim().max(160).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
+  /** MULTI-02 (datos2): zona horaria IANA del negocio, si quien manda el lead la sabe. Opcional. */
+  timezone: z.string().trim().max(60).optional(),
 })
 export type LeadInput = z.input<typeof leadInput>
 
@@ -143,6 +147,9 @@ async function insertLead(
   if (accountType && !(await accountTypeLevel(tx, v.market, accountType))) throw invalid('Elige un tipo de cuenta de la lista.', 'Pick an account type from the list.')
   if (!accountType && opts.accountType && (await accountTypeLevel(tx, v.market, opts.accountType))) accountType = opts.accountType
   const dup = await tx<{ id: string }[]>`select id from app.duplicate_candidates(${v.market}, ${v.businessName}, ${phone})`
+  // MULTI-02 (datos2): el reloj corre en la hora de la cuenta. La del lead si el formulario o la Sales App la mandan; si el lead
+  // ya es de un comercio conocido, la de ese comercio; si no, la del mercado.
+  const tz = v.timezone && /^[A-Za-z_]+\/[A-Za-z_/+-]+$/.test(v.timezone) ? v.timezone : null
   const id = await newId(tx)
   const o = opts.origin ?? {}
   // "Ya hablé con esta persona" (solo en el alta a mano): nace contactado, con el primer contacto a tiempo y sin reloj que corra.
@@ -150,14 +157,14 @@ async function insertLead(
   // El reloj de primer contacto corre en el horario hábil del mercado (app.business_due): el cumplimiento usa esta misma fecha.
   await tx`insert into crm.leads (id, market_code, source, form_id, motor, business_name, contact_name, phone, email, locality, message,
                                   status, owner_id, assigned_at, sla_due_at, first_touch_at, duplicate_of, account_type, contact_role,
-                                  utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, consent_at, consent_text)
+                                  utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid, consent_at, consent_text, timezone)
            values (${id}, ${v.market}, ${opts.source}, ${opts.formId}, ${v.motor}, ${v.businessName}, ${v.contactName}, ${phone},
                    ${clean(v.email)}, ${clean(v.locality)}, ${clean(v.message)}, ${spoke ? 'contacted' : 'new'}, ${opts.ownerId},
                    ${opts.ownerId ? tx`now()` : null},
-                   ${spoke ? tx`now()` : tx`app.business_due(${v.market}, now(), ${opts.slaMinutes})`}, ${spoke ? tx`now()` : null}, ${dup[0]?.id ?? null},
+                   ${spoke ? tx`now()` : tx`app.business_due(${v.market}, now(), ${opts.slaMinutes}, coalesce(${tz}::text, (select a.timezone from crm.accounts a where a.id = ${dup[0]?.id ?? null}::uuid)))`}, ${spoke ? tx`now()` : null}, ${dup[0]?.id ?? null},
                    ${accountType}, ${v.contactRole ?? null},
                    ${o.utm_source ?? null}, ${o.utm_medium ?? null}, ${o.utm_campaign ?? null}, ${o.utm_content ?? null}, ${o.utm_term ?? null},
-                   ${o.gclid ?? null}, ${o.fbclid ?? null}, ${o.consentAt ?? null}, ${o.consentAt ? (o.consentText ?? null) : null})`
+                   ${o.gclid ?? null}, ${o.fbclid ?? null}, ${o.consentAt ?? null}, ${o.consentAt ? (o.consentText ?? null) : null}, ${tz})`
   // La bitácora guarda la fuente y la campaña, y si hubo consentimiento. Los identificadores de clic se quedan en el lead.
   await audit(tx, ctx, 'lead.created', 'lead', id, v.market, null, {
     source: opts.source, motor: v.motor, owner_id: opts.ownerId, ...(spoke ? { contacted: true } : {}),
@@ -253,7 +260,17 @@ export const CONSENT_TEXT = {
  * LEAD-03: entrada de un formulario web. Corre como usuario de sistema, es idempotente (REL-07)
  * y asigna por la regla del formulario (round robin atómico en la base).
  */
-export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idempotencyKey: string): Promise<{ leadId: string; duplicate: boolean; merged?: boolean }> {
+/** Lo que se guarda de un envío retenido: solo textos cortos y sin datos prohibidos (igual que crm.intake_retries). */
+function heldPayload(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries((raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>)) {
+    if (typeof v === 'string' && /^[a-z_][a-z0-9_]{0,40}$/i.test(k)) out[k] = scrub(v).slice(0, 2000)
+    else if (typeof v === 'boolean' || typeof v === 'number') out[k] = String(v)
+  }
+  return out
+}
+
+export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idempotencyKey: string): Promise<{ leadId: string; duplicate: boolean; merged?: boolean; held?: boolean }> {
   const parsed = formPayload.safeParse(raw)
   if (!parsed.success) throw invalid('Revisa los datos del formulario.', 'Check the form fields.')
   const p = { ...parsed.data, business_name: plainText(parsed.data.business_name), contact_name: plainText(parsed.data.contact_name), locality: plainText(parsed.data.locality), message: plainText(parsed.data.message) }
@@ -262,10 +279,16 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       select id, market_code, motor, routing_rule_id, locale, account_type, funnel, channel_id, is_campaign, offer_types from crm.web_forms where slug = ${slug} and is_active`
     const form = forms[0]
     if (!form) throw notFound('Ese formulario no existe o está apagado.', 'That form does not exist or is turned off.')
-    const seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
+    let seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
       insert into crm.inbound_events (source, event_type, idempotency_key, market_code, payload)
       values ('web_form', 'form.submitted', ${idempotencyKey}, ${form.market_code}, ${tx.json({ form: slug })})
       on conflict (source, idempotency_key) do nothing returning id, payload`
+    if (!seen[0]) {
+      // E3.F10 (datos2): un envío que quedó retenido por no tener dueño se vuelve a procesar con la misma llave.
+      seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
+        update crm.inbound_events set payload = payload - 'held', status = 'received'
+         where source = 'web_form' and idempotency_key = ${idempotencyKey} and payload ->> 'held' = 'true' returning id, payload`
+    }
     if (!seen[0]) {
       const prev = await tx<{ payload: { lead_id?: string } }[]>`
         select payload from crm.inbound_events where source = 'web_form' and idempotency_key = ${idempotencyKey}`
@@ -296,7 +319,19 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
     const dupAccount = await tx<{ id: string }[]>`select id from app.duplicate_candidates(${form.market_code}, ${p.business_name}, ${p.phone ? toE164(p.phone, sys.market(form.market_code).phoneCc) : null}) limit 1`
     const routed = await resolveOwner(tx, { market: form.market_code, source: form.is_campaign ? 'web_campaign' : 'web_form', motor: form.motor, formId: form.id, locality: p.locality,
       sizeUnits: size, accountId: dupAccount[0]?.id ?? null, formRotationId: form.routing_rule_id })
-    const ownerId = routed.ownerId
+    // E3.F10 (datos2): el formulario no crea un lead sin dueño. Si el mercado decidió "rechazar" (Decisiones de negocio), ni
+    // siquiera cae a quien lidera. Sin dueño, el envío no se pierde: queda retenido en Administración, Asignación y embudo, y se
+    // reintenta a mano cuando haya a quién dárselo. La persona que llenó el formulario recibe el mismo "recibimos tus datos".
+    const rule = (await decisionValue(tx, 'lead.no_owner', form.market_code)).value
+    const ownerId = rule === 'refuse' && routed.by === 'market_lead' ? null : routed.ownerId
+    if (!ownerId) {
+      await tx`update crm.inbound_events set payload = ${tx.json({ form: slug, held: true })} where id = ${seen[0].id}`
+      await tx`insert into crm.intake_retries (slug, idempotency_key, payload, error, status)
+               values (${slug.slice(0, 80)}, ${idempotencyKey.slice(0, 200)}, ${tx.json(heldPayload(raw))}, 'no_owner', 'failed')
+               on conflict (idempotency_key) do update set status = 'failed', error = 'no_owner', attempts = crm.intake_retries.attempts + 1, updated_at = now()`
+      await audit(tx, sys, 'lead.held', 'held_lead', null, form.market_code, null, { form: slug, reason: 'no_owner', rule })
+      return { leadId: '', duplicate: false, held: true }
+    }
     // La meta de primer contacto es la de la regla que decidió; si la regla no trae una, la del turno del formulario (como siempre).
     const formSla = routed.slaMinutes === null && form.routing_rule_id ? (await tx<{ sla_minutes: number }[]>`select sla_minutes from crm.routing_rules where id = ${form.routing_rule_id}`)[0]?.sla_minutes : null
     const sla = routed.slaMinutes ?? formSla ?? 60
@@ -353,9 +388,11 @@ async function repeatRequest(
     const person: ExtraContact = { name, phone, email, at: new Date().toISOString() }
     await tx`update crm.leads set extra_contacts = ${tx.json([...lead.extra_contacts, person].slice(-10))} where id = ${lead.id}`
     if (lead.account_id) {
-      const contactId = await newId(tx)
-      await tx`insert into crm.contacts (id, market_code, full_name, phone, email, created_by) values (${contactId}, ${form.market_code}, ${name}, ${phone}, ${email}, ${sys.user.id})`
-      await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${lead.account_id}, ${contactId}, ${form.market_code}, 'staff')`
+      // DAT-02: la misma detección por teléfono que el alta a mano; si ya es contacto de la cuenta, no se liga dos veces.
+      const r = await resolveContact(tx, sys.user.id, { market: form.market_code, name, phone, email, source: 'form' })
+      await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role)
+               select ${lead.account_id}, ${r.id}, ${form.market_code}, 'staff'
+                where not exists (select 1 from crm.account_contacts ac where ac.account_id = ${lead.account_id} and ac.contact_id = ${r.id} and ac.valid_to is null)`
     }
   }
   const deals = lead.account_id ? await tx<{ id: string }[]>`select id from crm.deals where lead_id = ${lead.id} and status = 'open' order by created_at desc limit 1` : []
@@ -656,11 +693,14 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
         { name: lead.contact_name, phone: lead.phone, email: lead.email, role: role.data },
         ...lead.extra_contacts.map((c) => ({ name: c.name, phone: c.phone, email: c.email, role: 'staff' })),
       ]
+      // DAT-02: cada persona pasa por la detección por teléfono. La que ya existe en el mercado se liga (un contacto, varias
+      // cuentas); un teléfono repetido con otro nombre queda en espera y el par va a Datos, Duplicados.
+      const seen = new Set<string>()
       for (const person of people) {
-        const contactId = await newId(tx)
-        await tx`insert into crm.contacts (id, market_code, full_name, phone, email, created_by)
-                 values (${contactId}, ${lead.market_code}, ${person.name}, ${person.phone}, ${person.email}, ${ctx.user.id})`
-        await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${contactId}, ${lead.market_code}, ${person.role})`
+        const r = await resolveContact(tx, ctx.user.id, { market: lead.market_code, name: person.name, phone: person.phone, email: person.email, source: 'lead' })
+        if (seen.has(r.id)) continue
+        seen.add(r.id)
+        await tx`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${accountId}, ${r.id}, ${lead.market_code}, ${person.role})`
       }
       await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
         (${accountId}, ${lead.market_code}, 'origin', ${isWebSource(lead.source) ? 'form' : 'user'}, ${lead.form_id ?? ctx.user.id},
@@ -698,6 +738,8 @@ export async function convertLead(ctx: Ctx, leadId: string, opts: ConvertOptions
     }
     // E16.F2: una tienda de venta puerta a puerta es del gerente de su territorio, también cuando nace de un lead.
     if (!opts.linkAccountId) await applyTerritoryOwners(tx, [accountId])
+    // DAT-04: el comercio que nace de un lead pasa por las mismas llaves que el alta a mano; sus pares entran a la cola ya.
+    if (!opts.linkAccountId) await tx`select app.queue_account_matches(${[accountId]}::uuid[])`
     // LEAD-02: la atribución del lead viaja al comercio y al negocio.
     await carryTouches(tx, leadId, accountId, dealId)
     await tx`update crm.leads set status = 'converted', account_id = ${accountId} where id = ${leadId}`

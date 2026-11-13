@@ -191,6 +191,7 @@ test.describe('leadership y administración', () => {
     // Un correo de un dominio que no entra: el mensaje dice cuáles sí y a quién pedir la cuenta.
     await dialog.getByTestId('grant-email').fill(`alguien.${tag()}@empowerretailers.com`)
     await dialog.getByTestId('grant-name').fill('Otra Persona')
+    await dialog.getByTestId('grant-seat-approver').fill('Responsable del presupuesto')
     await dialog.getByTestId('grant-save').click()
     await expect(dialog.getByTestId('form-error')).toContainText('necesita una cuenta de axexo.com, emida.com o emida.net')
     await expect(dialog.getByTestId('form-error')).toContainText('quien administra las cuentas de Google de la empresa')
@@ -201,6 +202,7 @@ test.describe('leadership y administración', () => {
     await expect(dialog.getByTestId('grant-admin-until')).toContainText('Sin fecha de fin')
     await dialog.getByTestId('grant-email').fill(`externa.${tag()}@emida.net`)
     await dialog.getByTestId('grant-name').fill('Persona Externa')
+    await dialog.getByTestId('grant-seat-approver').fill('Responsable del presupuesto')
     await expect(dialog.getByTestId('grant-admin-for')).toContainText('@emida.net')
     await expect(dialog.getByTestId('grant-admin-external')).toContainText('emida.net, un dominio distinto al tuyo')
     const until = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10)

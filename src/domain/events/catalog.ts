@@ -117,6 +117,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   // integraciones2: la bitácora de cargas y su horario, los documentos generados, el respaldo de Pipedrive y el borrado de un
   // mercado de prueba. Lo que una carga cambia emite lo suyo; un documento o un respaldo no cambian registros.
   ['load.', WHY.jobs], ['document.', WHY.read], ['pipedrive.', WHY.read], ['market.reset_test', WHY.migration],
+  // Paquete datos2: las decisiones de negocio son configuración interna; un intento bloqueado de borrar un mercado en
+  // producción es un control.
+  ['decision.', WHY.internal], ['market.reset_blocked', WHY.security],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
@@ -139,7 +142,9 @@ const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exceptio
   'entity.', 'taxid.', 'whatsapp.',
   // Paquete partners-contratos: términos (el evento lleva qué campos cambiaron, nunca los porcentajes), contratos, planes de
   // integración y el registro de una cuenta como partner.
-  'terms.', 'contract.', 'plan.', 'partner.']
+  'terms.', 'contract.', 'plan.', 'partner.',
+  // Paquete datos2: un negocio de expansión abierto desde la base de expansión.
+  'expansion.']
 
 /** La lista explícita: para cada acción de la bitácora, si emite un evento de dominio, cuál y, si no, por qué. */
 export function decide(action: string): Decision {

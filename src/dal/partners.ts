@@ -5,7 +5,7 @@ import { whatsappWindow, type WindowState } from '@/domain/comms'
 import type { CommissionLine, ContractStatus, TierMetrics } from '@/domain/partners'
 
 export type TermsRow = { id: string; version: number; commission_lines: CommissionLine[]; settlement: string; fees: string | null; nda: boolean; term_months: number; valid_from: string; valid_to: string; renewal_notice_days: number; note: string | null; is_current: boolean; created_at: string; created_by_name: string | null }
-export type ContractRow = { id: string; status: ContractStatus; terms_id: string; terms_version: number | null; starts_on: string; ends_on: string; renewal_notice_days: number; sent_at: string | null; signed_on: string | null; signed_by_name: string | null; document_url: string | null; esign_state: string | null; renewal_noticed_at: string | null; renewed_from: string | null; created_at: string }
+export type ContractRow = { id: string; status: ContractStatus; terms_id: string; terms_version: number | null; starts_on: string; ends_on: string; renewal_notice_days: number; sent_at: string | null; signed_on: string | null; signed_by_name: string | null; document_url: string | null; esign_state: string | null; renewal_noticed_at: string | null; renewed_from: string | null; created_at: string; /** MULTI-02 (datos2) */ entity_name: string | null }
 export type AccountHead = { id: string; name: string; market_code: string; owner: string | null; kind: string; can_terms_view: boolean; can_terms_edit: boolean }
 
 async function head(tx: Tx, id: string): Promise<AccountHead | null> {
@@ -27,8 +27,9 @@ export async function accountContracts(ctx: Ctx, id: string): Promise<{ account:
         from crm.commercial_terms t left join crm.users u on u.id = t.created_by where t.account_id = ${id} order by t.version desc`
     const contracts = await tx<ContractRow[]>`
       select c.id, c.status, c.terms_id, t.version as terms_version, c.starts_on::text, c.ends_on::text, c.renewal_notice_days, c.sent_at::text, c.signed_on::text,
-             c.signed_by_name, c.document_url, c.esign_state, c.renewal_noticed_at::text, c.renewed_from, c.created_at::text
-        from crm.contracts c left join crm.commercial_terms t on t.id = c.terms_id where c.account_id = ${id} order by c.created_at desc`
+             c.signed_by_name, c.document_url, c.esign_state, c.renewal_noticed_at::text, c.renewed_from, c.created_at::text, e.name as entity_name
+        from crm.contracts c left join crm.commercial_terms t on t.id = c.terms_id left join crm.legal_entities e on e.id = c.legal_entity_id
+       where c.account_id = ${id} order by c.created_at desc`
     return { account, terms, contracts }
   })
 }

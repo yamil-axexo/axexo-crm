@@ -6,7 +6,24 @@ import { DomainError, invalid, notFound } from '@/lib/errors'
 import { scrub } from '@/domain/pipedrive/mapping'
 import type postgres from 'postgres'
 
-type Def = { key: string; label_es: string; label_en: string; data_type: string; options: string[] }
+type Def = { key: string; label_es: string; label_en: string; data_type: string; options: string[]; value_schema?: ValueSchema | null }
+/** DAT-05 (datos2): reglas del valor con palabras de JSON Schema. */
+export type ValueSchema = { minimum?: number; maximum?: number; minLength?: number; maxLength?: number; pattern?: string }
+
+/** Revisa un valor ya convertido contra las reglas del campo. Devuelve el problema en ES/EN, o null si cumple. */
+export function schemaProblem(def: Pick<Def, 'label_es' | 'label_en'>, schema: ValueSchema | null | undefined, value: unknown): [string, string] | null {
+  if (!schema || value === undefined || value === null) return null
+  if (typeof value === 'number') {
+    if (schema.minimum !== undefined && value < schema.minimum) return [`"${def.label_es}" va de ${schema.minimum} en adelante.`, `"${def.label_en}" must be ${schema.minimum} or more.`]
+    if (schema.maximum !== undefined && value > schema.maximum) return [`"${def.label_es}" llega hasta ${schema.maximum}.`, `"${def.label_en}" must be ${schema.maximum} or less.`]
+  }
+  if (typeof value === 'string') {
+    if (schema.minLength !== undefined && value.length < schema.minLength) return [`"${def.label_es}" lleva al menos ${schema.minLength} caracteres.`, `"${def.label_en}" needs at least ${schema.minLength} characters.`]
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) return [`"${def.label_es}" lleva hasta ${schema.maxLength} caracteres.`, `"${def.label_en}" takes up to ${schema.maxLength} characters.`]
+    if (schema.pattern && !new RegExp(`^(?:${schema.pattern})$`).test(value)) return [`"${def.label_es}" no tiene la forma que se pide.`, `"${def.label_en}" is not in the expected format.`]
+  }
+  return null
+}
 export type CustomInput = Record<string, string | string[] | { amount: string; currency: string } | undefined>
 
 /** Un campo es editable aquí si vive en `custom`: los que alimentan columnas del modelo o están restringidos no se tocan por esta vía. */
@@ -52,23 +69,29 @@ function coerce(def: Def, raw: CustomInput[string]): unknown {
 }
 
 /** DATA-08: edita los campos adicionales de una cuenta o un deal. Solo audita lo que cambió. */
-export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: string, input: CustomInput): Promise<number> {
+export async function updateCustom(ctx: Ctx, object: 'account' | 'deal' | 'contact' | 'activity', id: string, input: CustomInput): Promise<number> {
   return withUser(ctx.user.id, (tx) => updateCustomTx(tx, ctx, object, id, input))
 }
 
 /** Lo mismo dentro de una transacción ya abierta (por ejemplo, al pasar a sus campos lo escrito en la nota de una visita). */
-export async function updateCustomTx(tx: Tx, ctx: Ctx, object: 'account' | 'deal', id: string, input: CustomInput): Promise<number> {
+export async function updateCustomTx(tx: Tx, ctx: Ctx, object: 'account' | 'deal' | 'contact' | 'activity', id: string, input: CustomInput): Promise<number> {
   {
-    const rows = object === 'account'
+    type Locked = { market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }
+    // DAT-05 (datos2): los campos de contacto y de actividad se editan igual que los de cuenta y negocio.
+    const rows = object === 'contact'
+      ? await tx<Locked[]>`select market_code, custom, archived_at is not null as locked, null::text as motor from crm.contacts where id = ${id} for update`
+      : object === 'activity'
+      ? await tx<Locked[]>`select market_code, custom, false as locked, null::text as motor from crm.activities where id = ${id} for update`
+      : object === 'account'
       ? await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`select market_code, custom, archived_at is not null as locked, segment as motor from crm.accounts where id = ${id} for update`
       : await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`
           select d.market_code, d.custom, false as locked, (select p.motor from crm.pipelines p where p.id = d.pipeline_id) as motor from crm.deals d where d.id = ${id} for update`
     const row = rows[0]
     if (!row) throw notFound()
-    ctx.assert(object === 'account' ? 'account.edit' : 'deal.edit', row.market_code)
+    ctx.assert(object === 'account' || object === 'contact' ? 'account.edit' : object === 'activity' ? 'activity.write' : 'deal.edit', row.market_code)
     if (row.locked) throw invalid('Un comercio archivado no se edita.', 'An archived merchant cannot be edited.')
     const defs = await tx<(Def & { mapped_to: string | null; data_class: string })[]>`
-      select key, label_es, label_en, data_type, options, mapped_to, data_class from crm.field_definitions
+      select key, label_es, label_en, data_type, options, mapped_to, data_class, value_schema from crm.field_definitions
        where object = ${object} and is_active and (market_code is null or market_code = ${row.market_code}) and (motor is null or motor = ${row.motor})`
     const before: Record<string, unknown> = {}
     const after: Record<string, unknown> = {}
@@ -77,6 +100,8 @@ export async function updateCustomTx(tx: Tx, ctx: Ctx, object: 'account' | 'deal
     for (const d of defs) {
       if (!isEditable(d) || !(d.key in input)) continue
       const next = coerce(d, input[d.key])
+      const problem = schemaProblem(d, d.value_schema, next)
+      if (problem) throw invalid(...problem)
       const prev = row.custom[d.key]
       if (JSON.stringify(next ?? null) === JSON.stringify(prev ?? null)) continue
       before[d.key] = prev ?? null
@@ -88,6 +113,8 @@ export async function updateCustomTx(tx: Tx, ctx: Ctx, object: 'account' | 'deal
     if (!changed) return 0
     const json = tx.json(patch as postgres.JSONValue)
     if (object === 'account') await tx`update crm.accounts set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
+    else if (object === 'contact') await tx`update crm.contacts set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
+    else if (object === 'activity') await tx`update crm.activities set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
     else await tx`update crm.deals set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
     await audit(tx, ctx, `${object}.custom_updated`, object, id, row.market_code, before, after)
     return changed

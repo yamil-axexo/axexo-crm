@@ -17,6 +17,23 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'account.territory_set': ['Cambió el territorio de comercios', 'Changed the territory of merchants'],
   'account.merged': ['Fusionó un comercio duplicado', 'Merged a duplicate merchant'],
   'contact.added': ['Agregó un contacto', 'Added a contact'],
+  // Paquete datos2 (0037)
+  'contact.merged': ['Fusionó un contacto duplicado', 'Merged a duplicate contact'],
+  'contact.merge_undone': ['Deshizo la fusión de un contacto', 'Undid a contact merge'],
+  'contact.pair_dismissed': ['Marcó que dos contactos no son la misma persona', 'Marked two contacts as different people'],
+  'contact.custom_updated': ['Cambió campos adicionales de un contacto', 'Edited a contact’s additional fields'],
+  'activity.custom_updated': ['Cambió campos adicionales de una actividad', 'Edited an activity’s additional fields'],
+  'field.schema_set': ['Cambió las reglas de valor de un campo', 'Changed a field’s value rules'],
+  'field.promotion_closed': ['Cerró un pedido de pasar un campo a columna', 'Closed a request to promote a field to a column'],
+  'field.overlap_decided': ['Decidió si un campo de US es el mismo que uno importado', 'Decided whether a US field matches an imported one'],
+  'field.converted_to_list': ['Pasó un campo de texto a lista', 'Turned a text field into a list'],
+  'decision.set': ['Cambió una decisión de negocio', 'Changed a business decision'],
+  'lead.held': ['Retuvo una solicitud que nadie podía tomar', 'Held a request nobody could take'],
+  'account.owner_followed_parent': ['El comercio pasó a quien lleva su cuenta de arriba', 'The merchant took the owner of the record above'],
+  'field.promotion_requested': ['Pidió pasar un campo a columna', 'Requested promoting a field to a column'],
+  'expansion.deal_opened': ['Abrió un negocio de expansión', 'Opened an expansion deal'],
+  'product.entity_set': ['Cambió la entidad legal de un producto', 'Changed a product’s legal entity'],
+  'market.reset_blocked': ['Intentó borrar y recargar un mercado en producción', 'Tried to wipe and reload a market in production'],
   'contact.updated': ['Corrigió los datos de un contacto', 'Edited a contact'],
   'contact.ended': ['Dio de baja a un contacto en una cuenta', 'Removed a contact from an account'],
   'account.unmerged': ['Deshizo una fusión de comercios', 'Undid a merchant merge'],
@@ -451,12 +468,12 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'rollout.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'rollout.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%', 'decision.%'], not: null },
   notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported', 'export.%'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%', 'load.%', 'pipedrive.%'], not: null },
-  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%', 'care.%', 'terms.%', 'contract.%', 'plan.created', 'plan.milestone_%', 'plan.shared', 'partner.%', 'partner_token.%', 'partner_tier.%', 'network_load.%'], not: null },
+  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%', 'care.%', 'terms.%', 'contract.%', 'plan.created', 'plan.milestone_%', 'plan.shared', 'partner.%', 'partner_token.%', 'partner_tier.%', 'network_load.%', 'expansion.deal_opened'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
   saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'goal.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },
@@ -474,6 +491,9 @@ export const isAuditGroup = (v: string | undefined): v is AuditGroup => v !== un
 
 /** Tipos de registro por los que se filtra, con su nombre. */
 export const AUDIT_OBJECT: Record<string, Pair> = {
+  contact_pair: ['Par de contactos', 'Contact pair'],
+  decision: ['Decisión de negocio', 'Business decision'],
+  held_lead: ['Solicitud retenida', 'Held request'],
   onboarding_file: ['Expediente de alta', 'Enrollment file'],
   threshold: ['Umbral', 'Threshold'],
   reassignment_plan: ['Plan de reparto', 'Reassignment plan'],

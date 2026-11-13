@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
+import { SEAT, asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
 import { intakeFromForm, qualifyLead, convertLead } from '@/domain/leads'
 import { leadFacets, listLeads, getLead } from '@/dal/leads'
 import { createAccount } from '@/domain/accounts'
@@ -374,19 +374,19 @@ describe('E18 · arranque, acceso y reportes de México', () => {
     await setLeadersFirst(ana, 'MX', true)
     try {
       // quien lidera entra siempre
-      await grantAccess(nora, { email: mail('supervision'), fullName: 'Supervisión Nueva', role: 'supervisor', market: 'MX' }, domains)
+      await grantAccess(nora, { ...SEAT, email: mail('supervision'), fullName: 'Supervisión Nueva', role: 'supervisor', market: 'MX' }, domains)
       // Ventas todavía no
       const rep = mail('ventas')
-      await expect(grantAccess(nora, { email: rep, fullName: 'Ventas Nueva', role: 'rep', market: 'MX' }, domains)).rejects.toMatchObject({ code: 'leaders_first' })
+      await expect(grantAccess(nora, { ...SEAT, email: rep, fullName: 'Ventas Nueva', role: 'rep', market: 'MX' }, domains)).rejects.toMatchObject({ code: 'leaders_first' })
       expect((await admin`select 1 from crm.memberships m join crm.users u on u.id = m.user_id where u.email = ${rep}`).length).toBe(0)
       // otro mercado no cambia
-      await grantAccess(nora, { email: mail('us'), fullName: 'US Rep', role: 'rep', market: 'US' }, domains)
+      await grantAccess(nora, { ...SEAT, email: mail('us'), fullName: 'US Rep', role: 'rep', market: 'US' }, domains)
       // la base repite el límite aunque alguien se salte la pantalla
       const someone = await one(admin<{ id: string }[]>`insert into crm.users (email, full_name) values (${mail('directo')}, 'Directo') returning id`)
       expect(await asPersona('nora.salas', (tx) => attempt(tx, (sp) => sp`insert into crm.memberships (user_id, market_code, role) values (${someone.id}, 'MX', 'rep')`))).toBe('23514')
       // una persona clave sí entra
       await setKeyPerson(ana, 'MX', rep, true)
-      await grantAccess(nora, { email: rep, fullName: 'Ventas Nueva', role: 'rep', market: 'MX' }, domains)
+      await grantAccess(nora, { ...SEAT, email: rep, fullName: 'Ventas Nueva', role: 'rep', market: 'MX' }, domains)
       // un paso del equipo no se marca antes que los de quienes lideran, y el mercado no se abre antes
       await expect(setRolloutStep(ana, 'MX', 'sessions', { done: true })).rejects.toMatchObject({ code: 'leaders_first' })
       await expect(openToTeam(ana, 'MX')).rejects.toMatchObject({ code: 'leaders_first' })
@@ -394,7 +394,7 @@ describe('E18 · arranque, acceso y reportes de México', () => {
       await expect(setRolloutStep(ana, 'MX', 'deck', { done: true, link: 'http://sin-candado.test' })).rejects.toMatchObject({ code: 'invalid' })
       await expect(setRolloutStep(ana, 'MX', 'configure', { done: true, link: 'https://ejemplo.test/x' })).rejects.toMatchObject({ code: 'invalid' })
       await openToTeam(ana, 'MX')
-      await grantAccess(nora, { email: mail('campo'), fullName: 'Campo Nuevo', role: 'rep', market: 'MX' }, domains)
+      await grantAccess(nora, { ...SEAT, email: mail('campo'), fullName: 'Campo Nuevo', role: 'rep', market: 'MX' }, domains)
       const r = await getRollout(ana, 'MX')
       expect(r.leadersFirst).toBe(true)
       expect(r.teamOpenedAt).not.toBeNull()
@@ -414,7 +414,7 @@ describe('E18 · arranque, acceso y reportes de México', () => {
     } finally {
       await setLeadersFirst(ana, 'MX', false)
     }
-    await grantAccess(nora, { email: mail('despues'), fullName: 'Después', role: 'rep', market: 'MX' }, domains)
+    await grantAccess(nora, { ...SEAT, email: mail('despues'), fullName: 'Después', role: 'rep', market: 'MX' }, domains)
   })
 
   it('E18.F10: el reporte de México trae leads capturados y convertidos, negocios por etapa y conteos por mes', async () => {

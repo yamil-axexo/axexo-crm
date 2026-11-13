@@ -35,7 +35,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const market = ctx.market(board.pipeline.market_code)
   const listView = sp.vista === 'lista'
   // Cerrar en bloque lo que lleva más de N días sin movimiento: Operaciones, supervisión y quien lidera.
-  const canBulk = ctx.can('deal.bulk_close', board.pipeline.market_code)
+  const canBulk = ctx.can('deal.bulk_close', board.pipeline.market_code) || ctx.can('operator.bulk_edit', board.pipeline.market_code)
   const quietDays = canBulk && sp.quietos ? Math.min(Math.max(Number(sp.quietos) || 30, 1), 720) : 0
   const [stale, reasons] = quietDays ? await Promise.all([staleDeals(ctx, id, quietDays), lossReasonsFor(ctx, board.pipeline.market_code, board.pipeline.motor)]) : [[], []]
   const stages = board.stages.filter((s) => s.kind === 'open' || s.kind === 'awaiting_txn')

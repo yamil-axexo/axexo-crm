@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
+import { SEAT, asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
 import { createAgency } from '@/domain/store-record'
 import { loadCtx } from '@/server/context'
 import { runVia, withUser, withoutUser } from '@/server/db'
@@ -207,7 +207,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
     expect(auditOnly.can('integration.operate')).toBe(false)
     expect(auditOnly.can('lead.create')).toBe(false)
     expect(auditOnly.isAdmin).toBe(false)
-    await expect(grantAccess(auditOnly, { email: `x.${tag()}@axexo.com`, fullName: 'Persona Nueva', role: 'rep', market: 'MX' }, DOMAINS)).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(grantAccess(auditOnly, { ...SEAT, email: `x.${tag()}@axexo.com`, fullName: 'Persona Nueva', role: 'rep', market: 'MX' }, DOMAINS)).rejects.toMatchObject({ code: 'forbidden' })
     await withUser(auditOnly.user.id, async (tx) => {
       expect(await attempt(tx, (sp) => sp`insert into crm.memberships (user_id, market_code, role) values (${auditOnly.user.id}, 'MX', 'rep')`)).toBe('42501')
       expect(await attempt(tx, (sp) => sp`update crm.stages set rot_days = rot_days where true`)).toBe('0 rows')
@@ -219,8 +219,8 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
     expect(access.can('access.manage')).toBe(true)
     expect(access.can('audit.read')).toBe(false)
     // Da accesos de venta, pero no Administración: una parte no se da más poder.
-    await grantAccess(access, { email: `rep.${tag()}@axexo.com`, fullName: 'Persona de Ventas', role: 'rep', market: 'MX' }, DOMAINS)
-    await expect(grantAccess(access, { email: `adm.${tag()}@axexo.com`, fullName: 'Otra Admin', role: 'admin', market: '', confirmAdmin: true }, DOMAINS)).rejects.toMatchObject({ code: 'forbidden' })
+    await grantAccess(access, { ...SEAT, email: `rep.${tag()}@axexo.com`, fullName: 'Persona de Ventas', role: 'rep', market: 'MX' }, DOMAINS)
+    await expect(grantAccess(access, { ...SEAT, email: `adm.${tag()}@axexo.com`, fullName: 'Otra Admin', role: 'admin', market: '', confirmAdmin: true }, DOMAINS)).rejects.toMatchObject({ code: 'forbidden' })
     await withUser(access.user.id, async (tx) => {
       expect(await attempt(tx, (sp) => sp`insert into crm.memberships (user_id, role) values (${access.user.id}, 'admin')`)).toBe('42501')
       expect(await attempt(tx, (sp) => sp`update crm.memberships set admin_areas = null where user_id = ${access.user.id}`)).toMatch(/42501|0 rows/)
@@ -302,7 +302,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
     const pipeline = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'd2d' limit 1`)
     const otherPipeline = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b' limit 1`)
     const agencyId = await createAgency(nora, { market: 'MX', kind: 'agency', name: `Agencia Norte ${tag()}`, pipelineId: pipeline.id })
-    const userId = await grantAgencyAccess(nora, { email: `agencia.${tag()}@axexo.com`, fullName: 'Persona de Agencia', agencyId }, DOMAINS)
+    const userId = await grantAgencyAccess(nora, { ...SEAT, email: `agencia.${tag()}@axexo.com`, fullName: 'Persona de Agencia', agencyId }, DOMAINS)
     const agent = (await loadCtx(userId, 'es'))!
     expect(agent.can('lead.create', 'MX')).toBe(true)
     expect(agent.can('report.export', 'MX')).toBe(false)
@@ -343,7 +343,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
       expect((await withUser(id, (tx) => tx`select 1 from crm.accounts where id = ${agencyAccount.id}`)).length, k).toBe(1)
     }
     // Una persona de agencia no combina su rol con otro.
-    await expect(grantAgencyAccess(nora, { email: 'diana.cruz@contigo.test', fullName: 'Diana Cruz', agencyId }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(grantAgencyAccess(nora, { ...SEAT, email: 'diana.cruz@contigo.test', fullName: 'Diana Cruz', agencyId }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
   })
 
   it('alcance por partner: un usuario de partner solo lee la cuenta que le toca y su árbol, sin cambiar nada', async () => {
@@ -546,7 +546,7 @@ describe('SEG-07: ver como y recertificación de accesos', () => {
 
   it('quien recibe un acceso se entera, y las alertas nuevas avisan una sola vez a quien lleva la bitácora', async () => {
     const nora = await ctxFor('nora.salas')
-    const out = await grantAccess(nora, { email: `nuevo.${tag()}@axexo.com`, fullName: 'Persona Recién Llegada', role: 'rep', market: 'MX' }, DOMAINS)
+    const out = await grantAccess(nora, { ...SEAT, email: `nuevo.${tag()}@axexo.com`, fullName: 'Persona Recién Llegada', role: 'rep', market: 'MX' }, DOMAINS)
     const notice = await admin<{ title: string; kind: string }[]>`select title, kind from crm.notices where user_id = ${out.userId}`
     expect(notice).toMatchObject([{ kind: 'access_granted', title: 'Tienes acceso a CONTIGO como Ventas en MX' }])
 

@@ -1,4 +1,6 @@
 import type { Job } from './types'
+import { inferAccountTimezones } from '@/domain/timezones'
+export { inferAccountTimezones }
 
 /**
  * Tareas programadas del paquete datos. Las dos son seguras de correr dos veces: la búsqueda de duplicados no reabre un par
@@ -29,4 +31,15 @@ export const datosJobs: Job[] = [
       return { done: rows[0]?.n ?? 0 }
     },
   },
+  // Paquete datos2 (MULTI-02): la zona del estado para los comercios nuevos que no tienen una propia.
+  {
+    key: 'datos.account_timezones',
+    everyMinutes: 24 * 60,
+    description: {
+      es: 'Pone la zona horaria de su estado a los comercios que no tienen una propia, solo donde el estado entero está en una zona.',
+      en: 'Gives merchants with no time zone of their own the zone of their state, only where the whole state is in one zone.',
+    },
+    run: async (tx) => ({ done: await inferAccountTimezones(tx) }),
+  },
 ]
+

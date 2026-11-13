@@ -206,6 +206,19 @@ export function GrantFields({ roles, markets, teams, labels, today, ownDomain, l
       {role === 'supervisor' && !team && (
         <p role="status" className="col-span-2 rounded-[10px] bg-warn-bg px-4 py-3 text-[13.5px] font-medium text-amber-text" data-testid="grant-supervisor-warn">{labels.supervisorWarn}</p>
       )}
+      {/* E4.F9 (datos2): el asiento se aprueba antes del acceso: quién lo aprobó y cuándo. */}
+      <label className="col-span-2 block sm:col-span-1">
+        <span className={field}>{locale === 'en' ? 'Seat approved by (budget holder)' : 'Aprobó el asiento (quien tiene el presupuesto)'}</span>
+        <input name="seat_approver" className="input" required minLength={2} maxLength={120} data-testid="grant-seat-approver" />
+      </label>
+      <label className="col-span-2 block sm:col-span-1">
+        <span className={field}>{locale === 'en' ? 'Approval date' : 'Fecha de aprobación'}</span>
+        <input name="seat_approved_on" type="date" className="input" required max={today} defaultValue={today} data-testid="grant-seat-date" />
+      </label>
+      <label className="col-span-2 block">
+        <span className={field}>{locale === 'en' ? 'Approval reference (optional)' : 'Referencia de la aprobación (opcional)'}</span>
+        <input name="seat_reference" className="input" maxLength={200} data-testid="grant-seat-ref" />
+      </label>
       <label className="col-span-2 block">
         <span className={field}>{labels.expires}</span>
         <input name="expires" type="date" className="input" min={today} value={expires} onChange={(e) => setExpires(e.target.value)} data-testid="grant-expires" />

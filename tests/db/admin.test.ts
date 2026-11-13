@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
+import { SEAT, asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
 import { loadCtx, type Ctx } from '@/server/context'
 import { withUser } from '@/server/db'
 import { createTeam, endMembership, grantAccess, grantMembership, keepTurn, recordSimulation, revokeApiClient, setMembershipExpiry, setRoutingMembers, updateStage } from '@/domain/admin'
@@ -41,7 +41,7 @@ async function person(role: 'rep' | 'supervisor' | 'market_lead' | 'ops' | 'admi
   const k = tag()
   const email = `c2.${role}.${k}@contigo.test`
   const name = `C2 ${role} ${k}`
-  const out = await grantAccess(nora, { email, fullName: name, role, market, ...extra }, DOMAINS)
+  const out = await grantAccess(nora, { ...SEAT, email, fullName: name, role, market, ...extra }, DOMAINS)
   const m = await one(admin<{ id: string }[]>`select id from crm.memberships where user_id = ${out.userId} order by created_at desc limit 1`)
   return { id: out.userId, membershipId: m.id, name, email, result: out }
 }
@@ -127,19 +127,18 @@ describe('quitar el acceso bien hecho', () => {
     await expire(fallback.membershipId)
     const robert = (await one(admin<{ id: string }[]>`select md5('contigo:robert.hale')::uuid as id`)).id
     expect((await webLead()).owner_id).toBe(robert)
-    // Solo si el mercado tampoco tiene quien lo lidere, el lead queda sin dueño y lo ve quien vende en ese mercado.
+    // Si el mercado tampoco tiene quien lo lidere, el formulario no crea un lead sin dueño (E3.F10, paquete datos2, cambio a
+    // propósito): el envío queda retenido en Administración, Asignación y embudo, y entra al reintentar cuando haya dueño.
     const leaders = await admin<{ id: string }[]>`update crm.memberships set valid_to = now() - interval '1 minute'
       where market_code = 'US' and role = 'market_lead' and (valid_to is null or valid_to > now()) returning id`
     try {
-      const lead = await webLead()
-      expect(lead.owner_id).toBeNull()
-      const sam = await ctxFor('sam.ortiz')
-      expect((await listLeads(sam, { owner: 'none', status: 'new' })).items.some((l) => l.id === lead.id)).toBe(true)
-      const marco = await ctxFor('marco.pena')
-      expect((await listLeads(marco, {})).items.some((l) => l.id === lead.id)).toBe(false)
+      const key = `c2:${randomUUID()}`
+      const out = await intakeFromForm(sys, formSlug, { business_name: `C2 Tienda ${tag()}`, contact_name: 'Persona De Prueba', phone: phone() }, key)
+      expect(out).toMatchObject({ leadId: '', held: true })
+      expect((await one(admin<{ error: string }[]>`select error from crm.intake_retries where idempotency_key = ${key}`)).error).toBe('no_owner')
       // Y un turno vacío hace lo mismo.
       await setTurn([], null)
-      expect((await webLead()).owner_id).toBeNull()
+      expect((await intakeFromForm(sys, formSlug, { business_name: `C2 Tienda ${tag()}`, contact_name: 'Persona De Prueba', phone: phone() }, `c2:${randomUUID()}`)).held).toBe(true)
     } finally {
       await admin`update crm.memberships set valid_to = null where id = any(${leaders.map((l) => l.id)}::uuid[])`
     }
@@ -147,7 +146,7 @@ describe('quitar el acceso bien hecho', () => {
 
   it('quien conserva otro rol de ventas en el mercado se queda en el turno; el respaldo que pierde el acceso deja de serlo', async () => {
     const two = await person('rep')
-    await grantMembership(nora, { email: two.email, fullName: two.name, role: 'supervisor', market: 'US' }, DOMAINS)
+    await grantMembership(nora, { ...SEAT, email: two.email, fullName: two.name, role: 'supervisor', market: 'US' }, DOMAINS)
     await setTurn([two.id], two.id)
     const kept = await endMembership(nora, two.membershipId)
     expect(kept.removedFrom).toEqual([])
@@ -231,8 +230,8 @@ describe('dar acceso con cuidado', () => {
   it('no acepta una fecha de vencimiento pasada ni mal escrita', async () => {
     const yesterday = addDays(todayIn('America/New_York'), -1)
     const base = { email: `c2.past.${tag()}@contigo.test`, fullName: 'C2 Fecha Pasada', role: 'rep' as const, market: 'US' }
-    await expect(grantMembership(nora, { ...base, expires: yesterday }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
-    await expect(grantMembership(nora, { ...base, expires: '30/11/2026' }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(grantMembership(nora, { ...SEAT, ...base, expires: yesterday }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(grantMembership(nora, { ...SEAT, ...base, expires: '30/11/2026' }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
     expect(await admin`select 1 from crm.memberships m join crm.users u on u.id = m.user_id where u.email = ${base.email}`).toHaveLength(0)
   })
 
@@ -251,10 +250,10 @@ describe('dar acceso con cuidado', () => {
 
   it('dar Administración pide una confirmación aparte, también para un externo, y queda destacado en la bitácora', async () => {
     const base = { email: `c2.adm.${tag()}@contigo.test`, fullName: 'C2 Admin Temporal', role: 'admin' as const, market: '' }
-    await expect(grantMembership(nora, base, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
-    await expect(grantMembership(nora, { ...base, confirmAdmin: false }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(grantMembership(nora, { ...SEAT, ...base }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
+    await expect(grantMembership(nora, { ...SEAT, ...base, confirmAdmin: false }, DOMAINS)).rejects.toMatchObject({ code: 'invalid' })
     const day = addDays(todayIn('UTC'), 15)
-    const out = await grantAccess(nora, { ...base, confirmAdmin: true, expires: day }, DOMAINS)
+    const out = await grantAccess(nora, { ...SEAT, ...base, confirmAdmin: true, expires: day }, DOMAINS)
     const ev = await one(admin<{ after: Record<string, unknown> }[]>`select after from crm.audit_events where action = 'membership.granted' and object_id = ${out.userId}`)
     expect(ev.after).toMatchObject({ role: 'admin', expires: day })
     // Leadership ve quién administra y hasta cuándo.
@@ -272,7 +271,7 @@ describe('dar acceso con cuidado', () => {
   })
 
   it('un dominio no admitido se rechaza con un mensaje que dice qué cuenta sí sirve', async () => {
-    await expect(grantMembership(nora, { email: `alguien.${tag()}@empowerretailers.com`, fullName: 'Persona Externa', role: 'rep', market: 'US' }, DOMAINS))
+    await expect(grantMembership(nora, { ...SEAT, email: `alguien.${tag()}@empowerretailers.com`, fullName: 'Persona Externa', role: 'rep', market: 'US' }, DOMAINS))
       .rejects.toMatchObject({ code: 'invalid', es: expect.stringContaining('necesita una cuenta de axexo.com, emida.com o emida.net') })
   })
 })
@@ -607,7 +606,7 @@ describe('solo lectura que se respeta', () => {
       ['atender sugerencia', () => completeItem(luis, { type: 'suggestion', id: exception.id, result: 'done', next: 'task', when: soon, nextText: 'Revisar con el equipo' })],
       ['descartar aviso', () => resolveException(luis, exception.id, 'no')],
       ['evaluar reglas', () => runRulesNow(luis, sys)],
-      ['dar acceso', () => grantMembership(luis, { email: `c2.no.${tag()}@contigo.test`, fullName: 'C2 No', role: 'rep', market: 'MX' }, DOMAINS)],
+      ['dar acceso', () => grantMembership(luis, { ...SEAT, email: `c2.no.${tag()}@contigo.test`, fullName: 'C2 No', role: 'rep', market: 'MX' }, DOMAINS)],
       ['quitar acceso', () => endMembership(luis, membership.id)],
       ['vencimiento', () => setMembershipExpiry(luis, membership.id, soon)],
       ['crear equipo', () => createTeam(luis, { market: 'MX', name: `C2 no ${tag()}`, motor: 'd2d' })],

@@ -1,6 +1,6 @@
 // AUT-01: una sola definición de quién puede hacer qué. La usan la UI, las acciones de servidor y la API.
 // La base repite el límite con RLS (AUTHZ-03): esta tabla decide la acción, RLS decide la fila.
-export type Role = 'admin' | 'lt' | 'market_lead' | 'supervisor' | 'rep' | 'ops' | 'agency' | 'partner'
+export type Role = 'admin' | 'lt' | 'market_lead' | 'supervisor' | 'rep' | 'ops' | 'agency' | 'partner' | 'finance'
 
 /**
  * SEG-01: Administración por partes. Una membresía de administración sin partes lo administra todo (como siempre);
@@ -24,6 +24,8 @@ export const ROLE_LABEL: Record<Role, { es: string; en: string }> = {
   ops: { es: 'Operaciones', en: 'Operations' },
   agency: { es: 'Agencia', en: 'Agency' },
   partner: { es: 'Partner', en: 'Partner' },
+  // E4.F2 (datos2): Finanzas trabaja los registros de su mercado y lee sus reportes; no administra ni exporta.
+  finance: { es: 'Finanzas', en: 'Finance' },
 }
 
 const SELLERS: Role[] = ['admin', 'market_lead', 'supervisor', 'rep']
@@ -55,7 +57,7 @@ export const CAPABILITIES = {
   // Cerrar en bloque los negocios sin movimiento: Operaciones, supervisión y quien lidera.
   'deal.bulk_close': [...MANAGERS, 'ops'],
   'account.create': FIELD,
-  'account.edit': [...FIELD, 'ops'],
+  'account.edit': [...FIELD, 'ops', 'finance'],
   'account.reassign': MANAGERS,
   // Tomar un comercio sin asignar: quien dirige, cualquiera de su alcance; quien vende, solo los de sus territorios
   // (el mismo límite que ya pone la base en accounts_upd; ver domain/reparto.ts).
@@ -63,7 +65,7 @@ export const CAPABILITIES = {
   // Armar el árbol: quien dirige mueve cualquier cuenta de su alcance; quien vende, solo entre cuentas que son suyas (ver domain/accounts.ts).
   'account.tree': SELLERS,
   'account.merge': ['admin'],
-  'activity.write': [...FIELD, 'ops'],
+  'activity.write': [...FIELD, 'ops', 'finance'],
   'exception.resolve': [...MANAGERS, 'ops', 'rep'],
   'board.supervisor': [...MANAGERS, 'lt'],
   // La cola de avisos del alcance, en solo lectura para leadership. Operaciones ve la de sus mercados (ya resolvía avisos
@@ -113,13 +115,13 @@ export const CAPABILITIES = {
   // por las mismas reglas que el alta a mano; la base repite el límite (app.can_import).
   'data.import': ['admin', 'market_lead'],
   // Página Reportes (paquete reportes): la ve todo el mundo, cada quien con lo de su alcance (RLS y el alcance del reporte deciden las filas).
-  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'report.gallery': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance'],
   // Guardar un reporte con sus filtros es de la persona (como reportar un problema): también quien solo lee. Compartirlo con el equipo es de quien dirige.
-  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'report.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance'],
   'report.share': MANAGERS,
   // Reportes de Finanzas y conciliación con el archivo de ventas. No existe un rol de Finanzas: hoy entran leadership, quien lidera y administración.
-  'report.finance': ['admin', 'lt', 'market_lead'],
-  'report.reconcile': ['admin', 'lt', 'market_lead'],
+  'report.finance': ['admin', 'lt', 'market_lead', 'finance'],
+  'report.reconcile': ['admin', 'lt', 'market_lead', 'finance'],
   // "Lo que llevo": los números que alimentan el incentivo de quien vende (sin montos de comisión).
   'report.carry': SELLERS,
   // Uso real de CONTIGO por persona y equipo. Supervisión ve a su equipo; ventas y operaciones no.
@@ -127,7 +129,7 @@ export const CAPABILITIES = {
   // Dueño de cada indicador: lo cambia administración.
   'metric.owner': ['admin'],
   // Vistas guardadas como colas: cada persona guarda y fija las suyas; compartir con el equipo es de quien dirige.
-  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'view.save': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance'],
   'view.share': MANAGERS,
   // Paquete datos (0023). Cola de duplicados: buscar en lote, descartar un par y revisar avisos saltados es de quien lidera el
   // mercado o administra; fusionar y deshacer sigue siendo solo de administración ('account.merge').
@@ -213,7 +215,7 @@ export const CAPABILITIES = {
   'gov.read': ['admin', 'lt'],
   'gov.manage': ['admin'],
   // Pedir un cambio de configuración (un campo, una opción, un embudo): cualquier persona con acceso. Decidir es de administración.
-  'config.request': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops'],
+  'config.request': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance'],
   // Cuidado del comercio (paquete ciclo-cs). Entregas entre equipos con acuse: las crea y las recibe quien trabaja el mercado.
   'handoff.create': [...SELLERS, 'ops'],
   // Atender o descartar una alerta del comercio, y trabajar oportunidades de expansión.
@@ -256,9 +258,18 @@ export const CAPABILITIES = {
   'ia.ask': ['admin', 'lt', 'market_lead', 'supervisor'],
   'ia.oversee': ['admin', 'lt'],
   'ia.manage': ['admin'],
+  // E4.F2 (datos2): Ventas, Operaciones y Finanzas cambian dueños, fusionan duplicados y editan en bloque SOLO en los mercados
+  // donde la decisión "Lo que pueden hacer Ventas y Operaciones" está encendida (Administración, Decisiones de negocio). El
+  // contexto revisa el mercado (server/context.ts); quien dirige o administra ya lo hace con sus capacidades de siempre.
+  'operator.reassign': ['rep', 'ops', 'finance'],
+  'operator.merge': ['rep', 'ops', 'finance'],
+  'operator.bulk_edit': ['rep', 'ops', 'finance'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES
+
+/** E4.F2 (datos2): capacidades que además dependen de una decisión por mercado. */
+export const OPERATOR_CAPS: readonly Capability[] = ['operator.reassign', 'operator.merge', 'operator.bulk_edit']
 
 export type Membership = { market: string | null; role: Role; teamId: string | null; /** Solo en administración: null o ausente = todas las partes. */ areas?: AdminArea[] | null }
 

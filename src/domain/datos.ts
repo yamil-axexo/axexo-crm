@@ -55,7 +55,8 @@ export async function mergeAccounts(ctx: Ctx, sourceId: string, targetId: string
   return withUser(ctx.user.id, async (tx) => {
     const { s, t } = await loadPair(tx, sourceId, targetId)
     const market = String(s.market_code)
-    ctx.assert('account.merge', market)
+    // E4.F2 (datos2): quien opera también fusiona donde la decisión del mercado lo permite.
+    if (!ctx.can('account.merge', market)) ctx.assert('operator.merge', market)
     if (s.market_code !== t.market_code) throw invalid('Solo se fusionan comercios del mismo mercado.', 'Only merchants in the same market can be merged.')
     if ((t.ancestor_ids as string[]).includes(sourceId)) throw invalid('El comercio que se queda cuelga del que se archiva. Fusiona al revés.', 'The merchant you keep sits under the one being archived. Merge the other way round.')
 
@@ -140,7 +141,7 @@ export async function undoMerge(ctx: Ctx, eventId: string, reason: string): Prom
       select id, market_code, source_id, target_id, snapshot, moved, survivorship, undone_at from crm.merge_events where id = ${eventId} for update`
     const ev = evs[0]
     if (!ev) throw notFound('No encontramos esa fusión.', 'We could not find that merge.')
-    ctx.assert('account.merge', ev.market_code)
+    if (!ctx.can('account.merge', ev.market_code)) ctx.assert('operator.merge', ev.market_code)
     if (ev.undone_at) throw invalid('Esa fusión ya se deshizo.', 'That merge was already undone.')
     const tgt = await tx<{ row: Row }[]>`select to_jsonb(a) as row from crm.accounts a where a.id = ${ev.target_id} for update of a`
     const t = tgt[0]?.row
