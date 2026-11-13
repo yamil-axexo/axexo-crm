@@ -1,5 +1,6 @@
 import 'server-only'
 import { resolveContact } from '@/domain/contacts-dedup'
+import { decisionValue } from '@/domain/decisions'
 import { saveFormAnswers } from '@/domain/b2b'
 import { CONTACT_ROLES } from '@/domain/accounts'
 import { z } from 'zod'
@@ -259,7 +260,17 @@ export const CONSENT_TEXT = {
  * LEAD-03: entrada de un formulario web. Corre como usuario de sistema, es idempotente (REL-07)
  * y asigna por la regla del formulario (round robin atómico en la base).
  */
-export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idempotencyKey: string): Promise<{ leadId: string; duplicate: boolean; merged?: boolean }> {
+/** Lo que se guarda de un envío retenido: solo textos cortos y sin datos prohibidos (igual que crm.intake_retries). */
+function heldPayload(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries((raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>)) {
+    if (typeof v === 'string' && /^[a-z_][a-z0-9_]{0,40}$/i.test(k)) out[k] = scrub(v).slice(0, 2000)
+    else if (typeof v === 'boolean' || typeof v === 'number') out[k] = String(v)
+  }
+  return out
+}
+
+export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idempotencyKey: string): Promise<{ leadId: string; duplicate: boolean; merged?: boolean; held?: boolean }> {
   const parsed = formPayload.safeParse(raw)
   if (!parsed.success) throw invalid('Revisa los datos del formulario.', 'Check the form fields.')
   const p = { ...parsed.data, business_name: plainText(parsed.data.business_name), contact_name: plainText(parsed.data.contact_name), locality: plainText(parsed.data.locality), message: plainText(parsed.data.message) }
@@ -268,10 +279,16 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
       select id, market_code, motor, routing_rule_id, locale, account_type, funnel, channel_id, is_campaign, offer_types from crm.web_forms where slug = ${slug} and is_active`
     const form = forms[0]
     if (!form) throw notFound('Ese formulario no existe o está apagado.', 'That form does not exist or is turned off.')
-    const seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
+    let seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
       insert into crm.inbound_events (source, event_type, idempotency_key, market_code, payload)
       values ('web_form', 'form.submitted', ${idempotencyKey}, ${form.market_code}, ${tx.json({ form: slug })})
       on conflict (source, idempotency_key) do nothing returning id, payload`
+    if (!seen[0]) {
+      // E3.F10 (datos2): un envío que quedó retenido por no tener dueño se vuelve a procesar con la misma llave.
+      seen = await tx<{ id: string; payload: { lead_id?: string } }[]>`
+        update crm.inbound_events set payload = payload - 'held', status = 'received'
+         where source = 'web_form' and idempotency_key = ${idempotencyKey} and payload ->> 'held' = 'true' returning id, payload`
+    }
     if (!seen[0]) {
       const prev = await tx<{ payload: { lead_id?: string } }[]>`
         select payload from crm.inbound_events where source = 'web_form' and idempotency_key = ${idempotencyKey}`
@@ -302,7 +319,19 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
     const dupAccount = await tx<{ id: string }[]>`select id from app.duplicate_candidates(${form.market_code}, ${p.business_name}, ${p.phone ? toE164(p.phone, sys.market(form.market_code).phoneCc) : null}) limit 1`
     const routed = await resolveOwner(tx, { market: form.market_code, source: form.is_campaign ? 'web_campaign' : 'web_form', motor: form.motor, formId: form.id, locality: p.locality,
       sizeUnits: size, accountId: dupAccount[0]?.id ?? null, formRotationId: form.routing_rule_id })
-    const ownerId = routed.ownerId
+    // E3.F10 (datos2): el formulario no crea un lead sin dueño. Si el mercado decidió "rechazar" (Decisiones de negocio), ni
+    // siquiera cae a quien lidera. Sin dueño, el envío no se pierde: queda retenido en Administración, Asignación y embudo, y se
+    // reintenta a mano cuando haya a quién dárselo. La persona que llenó el formulario recibe el mismo "recibimos tus datos".
+    const rule = (await decisionValue(tx, 'lead.no_owner', form.market_code)).value
+    const ownerId = rule === 'refuse' && routed.by === 'market_lead' ? null : routed.ownerId
+    if (!ownerId) {
+      await tx`update crm.inbound_events set payload = ${tx.json({ form: slug, held: true })} where id = ${seen[0].id}`
+      await tx`insert into crm.intake_retries (slug, idempotency_key, payload, error, status)
+               values (${slug.slice(0, 80)}, ${idempotencyKey.slice(0, 200)}, ${tx.json(heldPayload(raw))}, 'no_owner', 'failed')
+               on conflict (idempotency_key) do update set status = 'failed', error = 'no_owner', attempts = crm.intake_retries.attempts + 1, updated_at = now()`
+      await audit(tx, sys, 'lead.held', 'held_lead', null, form.market_code, null, { form: slug, reason: 'no_owner', rule })
+      return { leadId: '', duplicate: false, held: true }
+    }
     // La meta de primer contacto es la de la regla que decidió; si la regla no trae una, la del turno del formulario (como siempre).
     const formSla = routed.slaMinutes === null && form.routing_rule_id ? (await tx<{ sla_minutes: number }[]>`select sla_minutes from crm.routing_rules where id = ${form.routing_rule_id}`)[0]?.sla_minutes : null
     const sla = routed.slaMinutes ?? formSla ?? 60

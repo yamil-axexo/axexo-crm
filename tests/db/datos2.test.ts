@@ -10,7 +10,9 @@ import { openExpansionDeals, setProductEntity } from '@/domain/products2'
 import { productMatrix } from '@/dal/datos'
 import { inferAccountTimezones } from '@/server/jobs/datos'
 import { JOBS } from '@/server/jobs/registry'
-import { convertLead, createLead, qualifyLead } from '@/domain/leads'
+import { convertLead, createLead, intakeFromForm, qualifyLead } from '@/domain/leads'
+import { systemContext } from './helpers'
+import { retryIntakeNow } from '@/domain/embudo/intake-retry'
 import { dismissContactPair, mergeContacts, resolveContact, undoContactMerge } from '@/domain/contacts-dedup'
 import { decisionValue, DECISIONS, setDecision } from '@/domain/decisions'
 import { contactQueue, decisionsBoard } from '@/dal/datos2'
@@ -405,5 +407,35 @@ describe('MULTI-02 · entidad en contrato y lead, hora de la cuenta', () => {
     expect(rows.find((r) => r.id === b)!.timezone).toBe('America/Cancun')
     expect(rows.find((r) => r.id === c)!.timezone).toBe('America/Denver')
     expect(JOBS.some((j) => j.key === 'datos.account_timezones')).toBe(true)
+  })
+})
+
+describe('E3.F10 · el formulario no crea un lead sin dueño', () => {
+  it('sin nadie a quien dárselo, el envío queda retenido (no se pierde) y entra al reintentar cuando hay dueño', async () => {
+    const sys = await systemContext()
+    const nora = await ctxFor('nora.salas')
+    const form = await one(admin<{ routing_rule_id: string }[]>`select routing_rule_id from crm.web_forms where slug = 'tiendas-mx'`)
+    const before = await one(admin<{ member_ids: string[]; fallback_id: string | null }[]>`select member_ids, fallback_id from crm.routing_rules where id = ${form.routing_rule_id}`)
+    await admin`update crm.routing_rules set member_ids = '{}', fallback_id = null where id = ${form.routing_rule_id}`
+    const key = `t-${tag()}${tag()}`
+    try {
+      // regla del mercado en "rechazar": aunque haya quien lidera, no cae a esa persona
+      await setDecision(nora, { key: 'lead.no_owner', market: 'MX', value: 'refuse', confirmed: false })
+      const name = `Sin dueño ${tag()}`
+      const out = await intakeFromForm(sys, 'tiendas-mx', { business_name: name, contact_name: 'Persona Retenida', phone: mxPhone() }, key)
+      expect(out).toMatchObject({ leadId: '', held: true })
+      expect((await admin`select 1 from crm.leads where business_name = ${name}`).length).toBe(0)
+      const held = await one(admin<{ id: string; status: string; error: string }[]>`select id, status, error from crm.intake_retries where idempotency_key = ${key}`)
+      expect(held).toMatchObject({ status: 'failed', error: 'no_owner' })
+      expect((await admin`select 1 from crm.audit_events where action = 'lead.held'`).length).toBeGreaterThan(0)
+      // con la regla de vuelta a "pasa a quien lidera", el reintento lo crea con dueño
+      await setDecision(nora, { key: 'lead.no_owner', market: 'MX', value: 'market_lead', confirmed: false })
+      expect(await retryIntakeNow(nora, held.id)).toBe('done')
+      const l = await one(admin<{ owner_id: string | null }[]>`select owner_id from crm.leads where business_name = ${name}`)
+      expect(l.owner_id).toBe(await personaId('ana.robles'))
+    } finally {
+      await admin`update crm.routing_rules set member_ids = ${before.member_ids}, fallback_id = ${before.fallback_id} where id = ${form.routing_rule_id}`
+      await setDecision(nora, { key: 'lead.no_owner', market: 'MX', value: 'market_lead', confirmed: false })
+    }
   })
 })

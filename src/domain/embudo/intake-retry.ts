@@ -36,6 +36,8 @@ export async function holdForRetry(slug: string, idempotencyKey: string, raw: un
 async function attempt(sys: Ctx, r: { id: string; slug: string; idempotency_key: string; payload: unknown; attempts: number }): Promise<'done' | 'pending' | 'failed'> {
   try {
     const out = await intakeFromForm(sys, r.slug, r.payload, r.idempotency_key)
+    // E3.F10 (datos2): sigue sin haber a quién dárselo; el envío sigue retenido (intakeFromForm ya lo dejó así).
+    if (out.held) return 'failed'
     await withUser(sys.user.id, (tx) => tx`update crm.intake_retries set status = 'done', lead_id = ${out.leadId || null}, attempts = attempts + 1, updated_at = now(), error = null where id = ${r.id}`)
     return 'done'
   } catch (e) {
