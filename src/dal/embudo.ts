@@ -39,7 +39,9 @@ export async function accountEmbudo(ctx: Ctx, accountId: string) {
   })
 }
 
-export type ThreadEntry = { id: string; at: Date; kind: string; title: string; detail: string | null; who: string | null; account_id: string; account_name: string }
+export type ThreadEntry = { id: string; at: Date; kind: string; title: string; detail: string | null; who: string | null; account_id: string; account_name: string
+  /** ACT-01 (embudo2): una actividad corregida (la corrección es otra entrada), si esta es una corrección, y quién la ve. */
+  corrected?: boolean; is_correction?: boolean; visibility?: string | null; is_activity?: boolean }
 export const THREAD_PAGE = 50
 /** ACT-01: el hilo completo de un comercio, paginado, con lo de sus sucursales (si se pide) y sus tickets de soporte como entradas. */
 export async function fullThread(ctx: Ctx, accountId: string, opts: { withChildren: boolean; before?: string | null }) {
@@ -50,21 +52,22 @@ export async function fullThread(ctx: Ctx, accountId: string, opts: { withChildr
     const before = opts.before && !Number.isNaN(Date.parse(opts.before)) ? new Date(opts.before) : null
     const rows = await tx<ThreadEntry[]>`
       select * from (
-        select x.id::text, coalesce(x.done_at, x.created_at) as at, x.kind, x.subject as title, x.body as detail, u.full_name as who, a.id as account_id, a.name as account_name
+        select x.id::text, coalesce(x.done_at, x.created_at) as at, x.kind, x.subject as title, x.body as detail, u.full_name as who, a.id as account_id, a.name as account_name,
+               x.corrected_at is not null as corrected, x.corrects_id is not null as is_correction, x.visibility_class as visibility, (x.done_at is not null) as is_activity
           from crm.activities x join crm.accounts a on a.id = x.account_id left join crm.users u on u.id = coalesce(x.owner_id, x.created_by)
          where ${scope} and a.archived_at is null and (x.done_at is not null or x.kind in ('note', 'system'))
         union all
-        select v.id::text, v.checked_in_at, 'sales_app_visit', v.outcome, v.note, u.full_name, a.id, a.name
+        select v.id::text, v.checked_in_at, 'sales_app_visit', v.outcome, v.note, u.full_name, a.id, a.name, false, false, null::text, false
           from crm.visits v join crm.accounts a on a.id = v.account_id left join crm.users u on u.id = v.user_id where ${scope} and a.archived_at is null
         union all
-        select k.id::text, k.created_at, 'ticket', k.system || ' ' || k.external_ref || ': ' || k.subject, k.status, u.full_name, a.id, a.name
+        select k.id::text, k.created_at, 'ticket', k.system || ' ' || k.external_ref || ': ' || k.subject, k.status, u.full_name, a.id, a.name, false, false, null::text, false
           from crm.ticket_refs k join crm.accounts a on a.id = k.account_id left join crm.users u on u.id = k.created_by where ${scope} and a.archived_at is null
         union all
-        select e.id::text, e.at, 'stage', coalesce(s.name_es, '') || '|' || coalesce(s.name_en, ''), d.title, u.full_name, a.id, a.name
+        select e.id::text, e.at, 'stage', coalesce(s.name_es, '') || '|' || coalesce(s.name_en, ''), d.title, u.full_name, a.id, a.name, false, false, null::text, false
           from crm.deal_stage_events e join crm.deals d on d.id = e.deal_id join crm.accounts a on a.id = d.account_id
           join crm.stages s on s.id = e.to_stage_id left join crm.users u on u.id = e.actor_id where ${scope} and a.archived_at is null
         union all
-        select m.id::text, m.created_at, 'milestone', m.kind || ':' || m.action, m.reason, u.full_name, a.id, a.name
+        select m.id::text, m.created_at, 'milestone', m.kind || ':' || m.action, m.reason, u.full_name, a.id, a.name, false, false, null::text, false
           from crm.milestone_events m join crm.accounts a on a.id = m.account_id left join crm.users u on u.id = m.actor_id where ${scope} and a.archived_at is null
       ) t where ${before ? tx`t.at < ${before}` : tx`true`} order by t.at desc, t.id limit ${THREAD_PAGE + 1}`
     const items = rows.slice(0, THREAD_PAGE)

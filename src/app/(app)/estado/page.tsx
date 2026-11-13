@@ -38,6 +38,7 @@ import { partnersAdapterStatus } from '@/server/adapters/partners'
 import { externalQueueCounts } from '@/dal/partners'
 import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
+import { ProposedFunnelValues } from '@/app/(app)/admin/embudo/embudo2'
 
 export const dynamic = 'force-dynamic'
 
@@ -347,6 +348,7 @@ export default async function StatusPage() {
           </ul>
         </Card>
         <LoadsCard ctx={ctx} tz={tz} />
+        <ProposedFunnelValues ctx={ctx} />
         <Card pad={false} data-testid="status-integrations">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Datos e integraciones', 'Data and integrations')} hint={t('De dónde llegan los datos, si la conexión está viva y cuándo llegó lo último.', 'Where the data comes from, whether the connection is live and when the latest arrived.')} /></div>
           <ul className="border-t border-line">
