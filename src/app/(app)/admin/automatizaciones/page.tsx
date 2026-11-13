@@ -265,7 +265,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
   async function Jobs() {
     const d = await jobsPanel(ctx)
     const cron = Boolean(env().CRON_SECRET)
-    const TRIGGER: Record<string, [string, string]> = { cron: ['disparo externo', 'external trigger'], visit: ['con la app en uso', 'while the app is in use'], manual: ['a mano', 'by hand'] }
+    const TRIGGER: Record<string, [string, string]> = { cron: ['disparo externo', 'external trigger'], visit: ['con la app en uso', 'while the app is in use'], manual: ['a mano', 'by hand'], api: ['por la API', 'through the API'], watch: ['vigilancia de cargas', 'load watch'] }
     return (
       <NoticeArea closeLabel={t('Cerrar aviso', 'Dismiss notice')}>
         <div className="space-y-8" data-testid="jobs-panel">
@@ -298,7 +298,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                     <td className="text-[13.5px]">{dayTime(r.started_at, locale, tz)}</td>
                     <td className="text-[13.5px]">{r.job_key}</td>
                     <td className="text-[13.5px] text-muted-2">{t(TRIGGER[r.trigger]?.[0] ?? r.trigger, TRIGGER[r.trigger]?.[1] ?? r.trigger)}{r.actor ? ` · ${r.actor}` : ''}</td>
-                    <td className="text-[13.5px]">{r.status === 'ok' ? t(`${r.done} ${r.done === 1 ? 'registro' : 'registros'}`, `${r.done} ${r.done === 1 ? 'record' : 'records'}`) : <span className="font-semibold text-red-text">{t(`Falló (${r.error ?? 'error'})`, `Failed (${r.error ?? 'error'})`)}</span>}</td>
+                    <td className="text-[13.5px]">{r.status === 'ok' ? t(`${r.done} ${r.done === 1 ? 'registro' : 'registros'}`, `${r.done} ${r.done === 1 ? 'record' : 'records'}`) : r.status === 'running' ? t('Corriendo', 'Running') : r.status === 'paused' ? t('En pausa por mantenimiento', 'Paused for maintenance') : r.status === 'late' ? t('No llegó a su hora', 'Did not arrive on time') : <span className="font-semibold text-red-text">{t(`Falló (${r.error ?? 'error'})`, `Failed (${r.error ?? 'error'})`)}</span>}</td>
                     <td className="num text-[13.5px]">{r.duration_ms} ms</td>
                   </tr>
                 ))}

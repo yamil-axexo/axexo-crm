@@ -74,29 +74,42 @@ insert into crm.data_loads (key, label_es, label_en, job_key, expected_by, clock
   ('sales_app',   'Eventos de la Sales App',         'Sales App events',      null, null, null),
   ('imports',     'Importaciones de hojas',          'Sheet imports',         null, null, null);
 
-create table crm.load_runs (
-  id           uuid primary key default app.uuid_v7(),
-  load_key     text not null references crm.data_loads(key),
-  trigger      text not null check (trigger in ('cron','visit','manual','api','watch')),
-  status       text not null default 'running' check (status in ('running','ok','failed','paused','late')),
-  started_at   timestamptz not null default now(),
-  finished_at  timestamptz,
-  done         int not null default 0 check (done >= 0),
-  note         text check (note is null or char_length(note) <= 500),
-  error        text check (error is null or char_length(error) <= 80),
-  actor_id     uuid references crm.users(id),
-  check ((status = 'running') = (finished_at is null))
-);
--- E5.F4: nunca dos cargas a la vez. La base lo garantiza: solo puede haber una fila "running".
-create unique index load_runs_one_running on crm.load_runs ((true)) where status = 'running';
-create index load_runs_key_idx on crm.load_runs (load_key, started_at desc);
-alter table crm.load_runs enable row level security;
-alter table crm.load_runs force row level security;   -- AUTHZ-03
-revoke all on crm.load_runs from contigo_app;
+-- Un solo registro de corridas: el del corredor de tareas programadas (crm.job_runs, 0019). Una carga de datos es una corrida
+-- con su llave de carga (load_key) que además puede estar corriendo, en pausa o "no llegó". crm.load_runs es solo una vista
+-- de esas corridas, para leer y escribir las cargas con sus nombres; no guarda nada aparte.
+alter table crm.job_runs
+  add column load_key text references crm.data_loads(key),
+  alter column started_at set default now(),
+  alter column finished_at drop not null;
+alter table crm.job_runs drop constraint job_runs_trigger_check, drop constraint job_runs_status_check;
+alter table crm.job_runs
+  add constraint job_runs_trigger_check check (trigger in ('cron','visit','manual','api','watch')),
+  add constraint job_runs_status_check check (status in ('ok','failed') or (load_key is not null and status in ('running','paused','late'))),
+  add constraint job_runs_running_check check ((status = 'running') = (finished_at is null));
+-- E5.F4: nunca dos cargas a la vez. La base lo garantiza: solo puede haber una corrida "running" (solo las cargas corren así).
+create unique index job_runs_one_running on crm.job_runs ((true)) where status = 'running';
+create index job_runs_load_idx on crm.job_runs (load_key, started_at desc) where load_key is not null;
+-- La corrida de una carga sin tarea propia (Pipedrive, importaciones, Sales App) se anota como "load.<llave>".
+create function crm.job_runs_load_key() returns trigger language plpgsql as $$
+begin
+  if new.job_key is null and new.load_key is not null then
+    new.job_key := coalesce((select l.job_key from crm.data_loads l where l.key = new.load_key), 'load.' || new.load_key);
+  end if;
+  -- Una carga que empieza no ha terminado (la columna tiene "ahora" por defecto para las corridas ya cerradas).
+  if new.status = 'running' then new.finished_at := null; end if;
+  return new;
+end $$;
+create trigger job_runs_load_key before insert on crm.job_runs for each row execute function crm.job_runs_load_key();
+grant update (status, finished_at, done, note, error, duration_ms) on crm.job_runs to contigo_app;
+create policy job_runs_load_read on crm.job_runs for select to contigo_app using (load_key is not null and (select app.current_user_id()) is not null);
+create policy job_runs_load_ins on crm.job_runs for insert to contigo_app with check (load_key is not null and ((select app.is_admin()) or (select app.can_import_any())));
+create policy job_runs_load_upd on crm.job_runs for update to contigo_app using (load_key is not null and ((select app.is_admin()) or (select app.can_import_any())))
+  with check (load_key is not null and ((select app.is_admin()) or (select app.can_import_any())));
+create view crm.load_runs with (security_invoker = true) as
+  select id, load_key, trigger, status, started_at, finished_at, done, note, error, actor_id, duration_ms, job_key from crm.job_runs where load_key is not null;
+-- Una carga nueva nace corriendo (la tabla de corridas no tiene valor por defecto para el estado).
+alter view crm.load_runs alter column status set default 'running';
 grant select, insert, update on crm.load_runs to contigo_app;
-create policy load_runs_read on crm.load_runs for select to contigo_app using ((select app.current_user_id()) is not null);
-create policy load_runs_ins on crm.load_runs for insert to contigo_app with check ((select app.is_admin()) or (select app.can_import_any()));
-create policy load_runs_upd on crm.load_runs for update to contigo_app using ((select app.is_admin()) or (select app.can_import_any())) with check ((select app.is_admin()) or (select app.can_import_any()));
 
 create table crm.load_windows (
   market_code  text primary key references crm.markets(code),
@@ -269,8 +282,21 @@ declare
 begin
   if not app.is_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
   if not exists (select 1 from crm.markets where code = p_market) then raise exception 'unknown market' using errcode = '22023'; end if;
+  -- Integración de la ola 4: además de la lista, toda tabla con mercado que apunta a comercios, leads, negocios, contactos o
+  -- actividades (cuidado de comercios, campo y canales, partners, asistencia y lo que venga). Así ningún paquete nuevo deja
+  -- el borrado a medias por no estar en la lista.
+  select coalesce(array_agg(distinct c.relname::text), '{}') || v_tables into v_tables
+    from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace ns on ns.oid = c.relnamespace
+    join pg_class r on r.oid = k.confrelid
+   where ns.nspname = 'crm' and k.contype = 'f' and c.relkind = 'r' and r.relname in ('accounts','leads','deals','contacts','activities')
+     and c.relname <> all(v_tables) and c.relname not in ('memberships')   -- los accesos no son datos del mercado
+     and exists (select 1 from pg_attribute at where at.attrelid = c.oid and at.attname = 'market_code' and not at.attisdropped);
   -- Tablas sin mercado que apuntan a registros del mercado.
   delete from crm.account_links l where exists (select 1 from crm.accounts a where a.market_code = p_market and (a.id = l.child_id or a.id = l.parent_id));
+  -- Un acceso de partner apunta a un comercio del mercado (su subárbol): sin el comercio, el acceso no tiene a qué apuntar.
+  if exists (select 1 from information_schema.columns where table_schema = 'crm' and table_name = 'memberships' and column_name = 'scope_account_id') then
+    execute 'delete from crm.memberships m where m.scope_account_id in (select x.id from crm.accounts x where x.market_code = $1)' using p_market;
+  end if;
   if to_regclass('crm.intake_retries') is not null then
     execute 'delete from crm.intake_retries r where exists (select 1 from crm.leads x where x.id = r.lead_id and x.market_code = $1)' using p_market;
   end if;

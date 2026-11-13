@@ -5,7 +5,7 @@ import { notify, peopleWithRole } from '@/domain/notify'
 /**
  * E5.F3 / E5.F4 / E5.F5: cargas visibles. Toda carga (Pipedrive, datos de ventas, cifras por tienda, Sales App,
  * importaciones de hojas) pasa por aquí:
- *  - deja inicio y fin en crm.load_runs;
+ *  - deja inicio y fin en el registro único de corridas (crm.job_runs, que crm.load_runs muestra como cargas);
  *  - no corre dentro de la ventana de mantenimiento de ninguno de sus mercados;
  *  - nunca corre junto con otra carga (la base admite una sola fila "running"; una carga colgada más de 2 horas se da por caída);
  *  - si falla, avisa a su responsable (o a administración si no tiene) por el servicio de avisos;
@@ -64,6 +64,7 @@ async function owners(tx: Tx, info: Label): Promise<string[]> {
 export async function finishLoad(tx: Tx, runId: string, out: { ok: true; done: number; note?: string } | { ok: false; error: string }, actorId: string): Promise<void> {
   const rows = await tx<{ load_key: string }[]>`
     update crm.load_runs set status = ${out.ok ? 'ok' : 'failed'}, finished_at = now(), done = ${out.ok ? out.done : 0},
+           duration_ms = greatest(0, (extract(epoch from (clock_timestamp() - started_at)) * 1000)::int),
            note = ${out.ok ? (out.note?.slice(0, 500) ?? null) : null}, error = ${out.ok ? null : out.error.slice(0, 80)}
      where id = ${runId} and status = 'running' returning load_key`
   const key = rows[0]?.load_key

@@ -39,7 +39,8 @@ export async function runJob(job: Job, trigger: Trigger, opts: { force?: boolean
 async function runLoadJob(job: Job, trigger: Trigger, opts: { force?: boolean; actorId?: string | null }): Promise<RunOutcome> {
   if (!opts.force) {
     const recent = await withSystem((tx) => tx<{ recent: boolean }[]>`
-      select coalesce(max(started_at) > now() - make_interval(mins => ${job.everyMinutes}), false) as recent from crm.job_runs where job_key = ${job.key}`)
+      select coalesce(max(started_at) > now() - make_interval(mins => ${job.everyMinutes}), false) as recent from crm.job_runs
+       where job_key = ${job.key} and status in ('ok','failed','running')`)
     if (recent[0]?.recent) return { key: job.key, status: 'not_due' }
   }
   let start: LoadStart
@@ -50,7 +51,8 @@ async function runLoadJob(job: Job, trigger: Trigger, opts: { force?: boolean; a
   }
   if (start.status === 'busy') return { key: job.key, status: 'busy', note: `load_running:${start.running}` }
   if (start.status === 'paused') return { key: job.key, status: 'not_due', note: `maintenance_window:${start.markets.join(',')}` }
-  const out = await runPlain(job, trigger, { ...opts, force: true })
+  // La corrida ya está abierta en crm.job_runs (la abrió startLoad): runPlain no anota otra; finishLoad la cierra.
+  const out = await runPlain(job, trigger, { ...opts, force: true, loadRun: true })
   try {
     await withSystem((tx, sys) => finishLoad(tx, start.runId, out.status === 'ok' || out.status === 'busy' ? { ok: true, done: out.done ?? 0, note: out.note } : { ok: false, error: out.error ?? out.status }, sys))
   } catch (e) {
@@ -59,7 +61,7 @@ async function runLoadJob(job: Job, trigger: Trigger, opts: { force?: boolean; a
   return out
 }
 
-async function runPlain(job: Job, trigger: Trigger, opts: { force?: boolean; actorId?: string | null }): Promise<RunOutcome> {
+async function runPlain(job: Job, trigger: Trigger, opts: { force?: boolean; actorId?: string | null; loadRun?: boolean }): Promise<RunOutcome> {
   const t0 = Date.now()
   try {
     // SEG-03: lo que cambie una tarea programada queda en la bitácora de la base con la vía "tarea programada".
@@ -68,13 +70,14 @@ async function runPlain(job: Job, trigger: Trigger, opts: { force?: boolean; act
       if (!lock[0]?.ok) return { key: job.key, status: 'busy' as const }
       if (!opts.force) {
         const recent = await tx<{ recent: boolean }[]>`
-          select coalesce(max(started_at) > now() - make_interval(mins => ${job.everyMinutes}), false) as recent from crm.job_runs where job_key = ${job.key}`
+          select coalesce(max(started_at) > now() - make_interval(mins => ${job.everyMinutes}), false) as recent from crm.job_runs
+           where job_key = ${job.key} and status in ('ok','failed','running')`
         if (recent[0]?.recent) return { key: job.key, status: 'not_due' as const }
       }
       const started = (await tx<{ at: Date }[]>`select clock_timestamp() as at`)[0]!.at
       const out = await job.run(tx)
       const ms = Date.now() - t0
-      await tx`insert into crm.job_runs (job_key, trigger, actor_id, status, started_at, finished_at, duration_ms, done, note)
+      if (!opts.loadRun) await tx`insert into crm.job_runs (job_key, trigger, actor_id, status, started_at, finished_at, duration_ms, done, note)
                values (${job.key}, ${trigger}, ${opts.actorId ?? null}, 'ok', ${started}, clock_timestamp(), ${ms}, ${out.done}, ${out.note?.slice(0, 500) ?? null})`
       return { key: job.key, status: 'ok' as const, done: out.done, note: out.note, ms }
     }))
@@ -82,7 +85,7 @@ async function runPlain(job: Job, trigger: Trigger, opts: { force?: boolean; act
     const ms = Date.now() - t0
     const error = safeError(e)
     console.error(JSON.stringify({ level: 'error', msg: 'job_failed', job: job.key, code: error }))
-    try {
+    if (!opts.loadRun) try {
       await withSystem((tx) => tx`insert into crm.job_runs (job_key, trigger, actor_id, status, started_at, finished_at, duration_ms, done, error)
                                   values (${job.key}, ${trigger}, ${opts.actorId ?? null}, 'failed', now() - make_interval(secs => ${ms / 1000}), now(), ${ms}, 0, ${error})`)
     } catch {

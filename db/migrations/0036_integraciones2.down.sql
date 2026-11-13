@@ -72,7 +72,22 @@ alter table crm.inbound_events drop constraint if exists inbound_events_source_c
 alter table crm.inbound_events add constraint inbound_events_source_check check (source in ('sales_app','s5','web_form'));
 
 drop table if exists crm.load_windows;
-drop table if exists crm.load_runs;
+drop view if exists crm.load_runs;
+delete from crm.job_runs where load_key is not null and status in ('running','paused','late');
+drop policy if exists job_runs_load_read on crm.job_runs;
+drop policy if exists job_runs_load_ins on crm.job_runs;
+drop policy if exists job_runs_load_upd on crm.job_runs;
+revoke update on crm.job_runs from contigo_app;
+drop trigger if exists job_runs_load_key on crm.job_runs;
+drop function if exists crm.job_runs_load_key();
+drop index if exists crm.job_runs_one_running;
+drop index if exists crm.job_runs_load_idx;
+alter table crm.job_runs drop constraint job_runs_trigger_check, drop constraint job_runs_status_check, drop constraint job_runs_running_check;
+update crm.job_runs set trigger = 'manual' where trigger in ('api','watch');
+alter table crm.job_runs drop column load_key, alter column finished_at set not null, alter column started_at drop default;
+alter table crm.job_runs
+  add constraint job_runs_trigger_check check (trigger in ('cron','visit','manual')),
+  add constraint job_runs_status_check check (status in ('ok','failed'));
 drop table if exists crm.data_loads;
 drop function if exists app.can_import_any();
 drop function if exists app.in_maintenance(text, timestamptz);
