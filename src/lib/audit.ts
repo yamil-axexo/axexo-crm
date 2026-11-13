@@ -472,7 +472,7 @@ export const AUDIT_GROUPS = {
   security: { label: ['Seguridad y privacidad', 'Security and privacy'] as Pair, like: ['sensitive.%', 'sensitive_field.%', 'consent.%', 'retention.%', 'subject_request.%', 'view_as.%', 'access_review.%', 'security.%', 'secret.%', 'seat.%'], not: null },
   // Paquete gobierno: servicio, versiones, costos, solicitudes y motivos de cambio.
   governance: { label: ['Gobierno', 'Governance'] as Pair, like: ['objective.%', 'incident.%', 'restore_test.%', 'component.%', 'maintenance.%', 'release.%', 'deployment.%', 'cost.%', 'config_request.%', 'change.%', 'champion.%', 'material.%'], not: null },
-  field: { label: ['Campo y canales', 'Field and channels'] as Pair, like: ['onboarding.%', 'threshold.%', 'channel.%', 'seller.%', 'portfolio.%', 'attribution.%', 'dispute.%', 'claim.%', 'funding.%', 'credit.%', 'competitor.%', 'plan.set', 'field_incident.%'], not: null },
+  field: { label: ['Campo y canales', 'Field and channels'] as Pair, like: ['onboarding.%', 'threshold.%', 'channel.%', 'seller.%', 'portfolio.%', 'attribution.%', 'dispute.%', 'claim.%', 'funding.%', 'credit.%', 'competitor.%', 'plan.set', 'field_incident.%', 'commission_statement.%', 'channel_policy.%', 'enablement.%'], not: null },
   // Paquete ia: sugerencias, nivel de asistencia por mercado, borradores, pesos y evaluación.
   ia: { label: ['Sugerencias y asistencia', 'Suggestions and assistance'] as Pair, like: ['ia.%', 'recommendation.%'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
