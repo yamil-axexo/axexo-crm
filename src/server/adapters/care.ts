@@ -1,12 +1,13 @@
 import 'server-only'
+import { aiAdapter } from '@/server/adapters/ai'
 
 /**
- * Conexiones del cuidado del comercio (CS-02, CS-05, CS-06). Las cuatro están construidas y APAGADAS: ninguna llama a nada
+ * Conexiones del cuidado del comercio (CS-02, CS-05, CS-06). Las tres están construidas y APAGADAS: ninguna llama a nada
  * fuera de CONTIGO. `off` (por defecto) no trae ni manda nada y la pantalla lo dice; `simulated` solo vale con APP_ENV=test
  * y produce datos de mentira, siempre los mismos, para las pruebas. No hay implementación real: conectar cualquiera pasa
  * primero por la revisión de tecnología. Sin credenciales, sin URLs y sin llamadas de red.
  */
-export type CareAdapterKey = 'care_signals' | 'zendesk_counts' | 'kore_academy' | 'ai_draft'
+export type CareAdapterKey = 'care_signals' | 'zendesk_counts' | 'kore_academy'
 type Pair = [es: string, en: string]
 export const CARE_ADAPTERS: Record<CareAdapterKey, { envVar: string; name: Pair; needs: Pair }> = {
   care_signals: {
@@ -23,11 +24,6 @@ export const CARE_ADAPTERS: Record<CareAdapterKey, { envVar: string; name: Pair;
     envVar: 'KORE_ACADEMY_ADAPTER',
     name: ['Constancias de capacitación (Kore Academy)', 'Training completions (Kore Academy)'],
     needs: ['Falta: que Kore Academy emita el evento de curso terminado con el identificador del comercio, y aprobar la conexión en la revisión de tecnología. Mientras tanto, Operaciones registra la constancia a mano.', 'Missing: Kore Academy emitting the course-completed event with the merchant identifier, and approval of the connection in the technology review. Meanwhile, Operations records the completion by hand.'],
-  },
-  ai_draft: {
-    envVar: 'AI_DRAFT_ADAPTER',
-    name: ['Borrador de revisión de cuenta con IA', 'Account review draft with AI'],
-    needs: ['Falta: un modelo de IA aprobado en la revisión de tecnología y la regla de qué datos puede leer. Mientras tanto, el borrador se arma solo con los datos que CONTIGO ya tiene, sin IA.', 'Missing: an AI model approved in the technology review and the rule for which data it may read. Meanwhile, the draft is built only from the data CONTIGO already has, with no AI.'],
   },
 }
 
@@ -66,8 +62,12 @@ export async function pullCompletions(merchantRefs: string[], today: string): Pr
   return merchantRefs.map((ref) => ({ externalId: `sim-${ref}-intro`, merchantRef: ref, personName: 'Encargado de prueba', courseKey: 'intro-ventas', courseTitle: 'Primeros pasos para vender', completedOn: today }))
 }
 
-/** Redacción con AI de la revisión de cuenta. Apagada: devuelve null y la pantalla ofrece el borrador con datos. */
+/**
+ * Redacción con AI de la revisión de cuenta. Pasa por el adaptador único de AI (`@/server/adapters/ai`, AI_ADAPTER): no hay
+ * otro interruptor. Apagado: devuelve null y la pantalla ofrece el borrador con datos.
+ */
+export const aiReviewDraftMode = (): 'off' | 'simulated' => aiAdapter().mode
 export async function aiReviewDraft(facts: string[]): Promise<string | null> {
-  if (careAdapterMode('ai_draft') === 'off') return null
+  if (aiReviewDraftMode() === 'off') return null
   return `[Simulación de pruebas] ${facts.join(' ')}`
 }

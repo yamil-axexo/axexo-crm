@@ -92,8 +92,8 @@ export function aiStatus(): { key: string; name: [string, string]; mode: 'off' |
     {
       key: 'ai_model', name: ['Modelo de IA', 'AI model'], mode: ai.mode, envVar: AI_ENV,
       needs: [
-        `Falta: elegir el proveedor del modelo, aprobarlo en la revisión de tecnología (Michael Essiet o Dan Mulligan), fijar la lista de dominios de salida (${AI_EGRESS_ENV}) y que cada función pase su evaluación en Administración, IA y asistencia. Mientras tanto, las sugerencias, la calificación de leads y las preguntas sobre cifras funcionan con reglas.`,
-        `Missing: choosing the model provider, approving it in the technology review (Michael Essiet or Dan Mulligan), setting the outbound domain list (${AI_EGRESS_ENV}) and each feature passing its evaluation in Administration, AI and assistance. Meanwhile, suggestions, lead scoring and questions about figures work with rules.`,
+        `Falta: elegir el proveedor del modelo, aprobarlo en la revisión de tecnología (Michael Essiet o Dan Mulligan), fijar la lista de dominios de salida (${AI_EGRESS_ENV}) y que cada función pase su evaluación en Administración, IA y asistencia. Mientras tanto, las sugerencias, la calificación de leads y las preguntas sobre cifras funcionan con reglas, y el borrador de revisión de cuenta (Cuidado de comercios) se arma solo con datos.`,
+        `Missing: choosing the model provider, approving it in the technology review (Michael Essiet or Dan Mulligan), setting the outbound domain list (${AI_EGRESS_ENV}) and each feature passing its evaluation in Administration, AI and assistance. Meanwhile, suggestions, lead scoring and questions about figures work with rules, and the account review draft (Merchant care) is built from data only.`,
       ],
     },
     {

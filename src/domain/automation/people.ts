@@ -1,10 +1,10 @@
 import 'server-only'
 import type { Tx } from '@/server/db'
+import { peopleWithRole as peopleWithRoleIn } from '@/domain/notify'
 
 /** Quiénes tienen un rol en un mercado. Para supervisión, primero quienes supervisan el equipo de la persona de referencia. */
 export async function peopleWithRole(tx: Tx, market: string, role: string, forUserId: string | null): Promise<string[]> {
-  const rows = await tx<{ id: string }[]>`select app.people_with_role(${market}, ${role}, ${forUserId}) as id`
-  return rows.map((r) => r.id)
+  return peopleWithRoleIn(tx, market, [role], forUserId)
 }
 
 /** A quién va algo: quien lleva el registro, quienes tienen un rol, o una persona. Sin dueño, sube a supervisión. */

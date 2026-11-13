@@ -12,7 +12,8 @@ import { createAgencyAction, setProviderRefLabelAction, toggleAgencyAction } fro
  */
 export async function AgenciasCard({ ctx }: { ctx: Ctx }) {
   const { t, locale } = ctx
-  const markets = ctx.markets.filter((m) => m.dealerRecord && ctx.can('agency.manage', m.code))
+  // La única pantalla que agrega y da de baja agencias (Seguridad solo da acceso a su gente): todos los mercados que la persona administra.
+  const markets = ctx.markets.filter((m) => ctx.can('agency.manage', m.code))
   if (markets.length === 0) return null
   const d = await agenciesAdmin(ctx)
   const row = 'flex flex-wrap items-center justify-between gap-3 border-t border-line py-4 first:border-t-0'
@@ -26,6 +27,8 @@ export async function AgenciasCard({ ctx }: { ctx: Ctx }) {
                 <Field label={t('Mercado', 'Market')}><select name="market" className="input" data-testid="agency-market">{markets.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}</select></Field>
                 <Field label={t('Qué es', 'What it is')}><select name="kind" className="input" data-testid="agency-kind"><option value="agency">{t('Agencia', 'Agency')}</option><option value="partner">{t('Otro socio', 'Other partner')}</option></select></Field>
                 <Field label={t('Nombre', 'Name')}><input name="name" className="input" required minLength={2} maxLength={80} data-testid="agency-name" /></Field>
+                <Field label={t('Su embudo (opcional)', 'Its pipeline (optional)')} hint={t('Si lo eliges, los negocios de su gente solo nacen ahí.', 'If you choose one, its people’s deals are only created there.')}><select name="pipeline_id" className="input" defaultValue="" data-testid="agency-pipeline"><option value="">{t('Cualquiera del mercado', 'Any in the market')}</option>{d.pipelines.map((p) => <option key={p.id} value={p.id}>{p.market_code} · {p.name}</option>)}</select></Field>
+                <Field label={t('Su región (opcional)', 'Its region (optional)')} hint={t('Si la eliges, los comercios de su gente nacen con ese territorio.', 'If you choose one, its people’s merchants start with that territory.')}><select name="territory_id" className="input" defaultValue="" data-testid="agency-territory"><option value="">{t('Sin región fija', 'No fixed region')}</option>{d.territories.map((p) => <option key={p.id} value={p.id}>{p.market_code} · {p.name}</option>)}</select></Field>
                 <div className="flex justify-end"><Submit testId="agency-save">{t('Agregar', 'Add')}</Submit></div>
               </NoticeForm>
             </Dialog>

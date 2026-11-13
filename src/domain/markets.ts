@@ -99,8 +99,11 @@ export async function updateEntity(ctx: Ctx, id: string, input: { name: string; 
   })
 }
 
-/** A qué entidad pertenece una persona y, si hace falta, que su acceso en un mercado alcance solo los comercios de una entidad. */
-export async function setUserEntity(ctx: Ctx, userId: string, input: { entityId: string | null; limit: boolean }): Promise<void> {
+/**
+ * A qué entidad pertenece una persona. El límite de acceso a una entidad (memberships.legal_entity_id) tiene un solo lugar:
+ * Administración > Seguridad, por rol (`setMembershipEntity` en domain/security.ts). Aquí no se escribe.
+ */
+export async function setUserEntity(ctx: Ctx, userId: string, input: { entityId: string | null }): Promise<void> {
   ctx.assert('config.manage')
   await withUser(ctx.user.id, async (tx) => {
     const users = await tx<{ id: string; legal_entity_id: string | null }[]>`select id, legal_entity_id from crm.users where id = ${userId} and not is_system for update`
@@ -111,18 +114,8 @@ export async function setUserEntity(ctx: Ctx, userId: string, input: { entityId:
       if (!e[0]) throw invalid('Esa entidad no existe.', 'That entity does not exist.')
       market = e[0].market_code
     }
-    if (input.limit && !input.entityId) throw invalid('Para limitar el acceso, elige primero la entidad.', 'To limit access, pick the entity first.')
     await tx`update crm.users set legal_entity_id = ${input.entityId} where id = ${userId}`
-    // El límite vive en los accesos vigentes de la persona en el mercado de esa entidad. Sin límite, ve todo lo de su alcance.
-    const before = await tx<{ n: number }[]>`select count(*)::int as n from crm.memberships where user_id = ${userId} and legal_entity_id is not null and (valid_to is null or valid_to > now())`
-    await tx`update crm.memberships set legal_entity_id = null where user_id = ${userId} and legal_entity_id is not null and (valid_to is null or valid_to > now())`
-    let limited = 0
-    if (input.limit && market) {
-      const upd = await tx`update crm.memberships set legal_entity_id = ${input.entityId} where user_id = ${userId} and market_code = ${market} and (valid_to is null or valid_to > now()) returning id`
-      limited = upd.length
-      if (limited === 0) throw invalid('Esa persona no tiene acceso en el mercado de esa entidad: no hay nada que limitar.', 'That person has no access in that entity’s market: there is nothing to limit.')
-    }
-    await audit(tx, ctx, 'user.entity_set', 'user', userId, market, { entity_id: users[0].legal_entity_id, limited: (before[0]?.n ?? 0) > 0 }, { entity_id: input.entityId, limited: limited > 0 })
+    await audit(tx, ctx, 'user.entity_set', 'user', userId, market, { entity_id: users[0].legal_entity_id }, { entity_id: input.entityId })
   })
 }
 

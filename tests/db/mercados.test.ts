@@ -7,6 +7,7 @@ import { searchAll, getAccount } from '@/dal/accounts'
 import { fieldDefs } from '@/dal/fields'
 import { setFxRate } from '@/domain/reports'
 import { createMarket, updateMarket } from '@/domain/gobierno'
+import { setMembershipEntity } from '@/domain/security'
 import {
   addHoliday, captureTaxId, createEntity, createFieldSection, openWhatsappWindow, reviewTaxId, saveWhatsappAccount, saveWhatsappRate, saveWhatsappTemplate,
   setAccountProfile, setFichaLayout, setFieldSection, setLocation, setUserEntity, updateAddress, updateEntity,
@@ -179,7 +180,11 @@ describe('MULTI-02: entidad legal, límite por entidad, zona horaria y festivos'
     expect(before.accounts).toBeGreaterThan(100)
     expect(before.deals.sort()).toEqual([deal, other].sort())
 
-    await setUserEntity(admin, marcoId, { entityId: entity, limit: true })
+    // Pertenece a la entidad (Mercados) y su rol en MX queda limitado a ella (Seguridad: el único lugar que escribe el límite).
+    await setUserEntity(admin, marcoId, { entityId: entity })
+    expect((await seen()).accounts).toBe(before.accounts)
+    const roles = (await db<{ id: string }[]>`select id from crm.memberships where user_id = ${marcoId} and market_code = 'MX' and (valid_to is null or valid_to > now())`).map((r) => r.id)
+    for (const m of roles) await setMembershipEntity(admin, m, entity)
     const after = await seen()
     expect(after.accounts).toBe(1)
     expect(after.inEntity).toBe(1)
@@ -191,12 +196,14 @@ describe('MULTI-02: entidad legal, límite por entidad, zona horaria y festivos'
     // Su supervisor y quien lidera el mercado no tienen límite.
     expect(await asPersona('ana.robles', async (tx) => (await tx<{ n: number }[]>`select count(*)::int as n from crm.accounts where id = ${mine[1]!.id}`)[0]!.n)).toBe(1)
 
-    await setUserEntity(admin, marcoId, { entityId: entity, limit: false })
+    expect((await getMarketsAdmin(admin)).people.find((p) => p.id === marcoId)).toMatchObject({ legal_entity_id: entity, limited: true })
+    for (const m of roles) await setMembershipEntity(admin, m, null)
     expect((await seen()).accounts).toBe(before.accounts + 1)
     const people = (await getMarketsAdmin(admin)).people.find((p) => p.id === marcoId)!
     expect(people).toMatchObject({ legal_entity_id: entity, limited: false })
-    // Limitar a alguien sin acceso en ese mercado no hace nada a escondidas: lo dice.
-    expect(await code(setUserEntity(admin, await personaId('jade.kim'), { entityId: entity, limit: true }))).toBe('invalid')
+    // Cambiar la entidad a la que pertenece no toca el límite de sus roles.
+    await setUserEntity(admin, marcoId, { entityId: null })
+    expect((await db<{ n: number }[]>`select count(*)::int as n from crm.memberships where user_id = ${marcoId} and legal_entity_id is not null`)[0]!.n).toBe(0)
   })
 
   it('la entidad provisional se confirma al guardarle su nombre; solo administración la cambia', async () => {

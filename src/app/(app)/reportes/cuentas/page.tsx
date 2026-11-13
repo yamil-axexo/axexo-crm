@@ -64,7 +64,7 @@ export default async function AccountsReportPage({ searchParams }: { searchParam
               {kam.milestones.map((d) => (
                 <li key={d.id} className="px-5 py-3 md:px-7" data-testid="kam-milestone-row">
                   <Link href={`/deals/${d.id}`} className={`text-[15px] font-semibold text-strong ${linkClass}`}>{d.account_name}</Link>
-                  <p className="text-[13.5px] text-muted-2"><span className="num font-semibold text-strong">{day(d.next_step_due, locale)}</span> · {d.next_step ?? t('Próximo paso sin texto', 'Next step with no text')}{d.owner_name ? ` · ${d.owner_name}` : ''}</p>
+                  <p className="text-[13.5px] text-muted-2"><span className="num font-semibold text-strong">{day(d.next_step_due, locale)}</span> · {d.next_step ? <span lang={d.owner_locale ?? undefined}>{d.next_step}</span> : t('Próximo paso sin texto', 'Next step with no text')}{d.owner_name ? ` · ${d.owner_name}` : ''}</p>
                 </li>
               ))}
             </ul>

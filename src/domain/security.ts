@@ -87,26 +87,7 @@ export async function setTeamParent(ctx: Ctx, teamId: string, parentId: string |
   })
 }
 
-const agencyInput = z.object({ market: z.string().length(2), name: z.string().trim().min(2).max(80), pipelineId: uuid.or(z.literal('')).optional(), territoryId: uuid.or(z.literal('')).optional() })
-/** E4.F4: una agencia externa, con su embudo y su región si se le fijan. */
-export async function createAgency(ctx: Ctx, input: z.input<typeof agencyInput>): Promise<string> {
-  ctx.assert('access.manage')
-  const p = agencyInput.safeParse(input)
-  if (!p.success) throw invalid('Una agencia lleva mercado y nombre.', 'An agency needs a market and a name.')
-  const v = p.data
-  assertNoProhibited(v.name)
-  return withUser(ctx.user.id, async (tx) => {
-    const dup = await tx`select 1 from crm.agencies where market_code = ${v.market} and lower(name) = lower(${v.name})`
-    if (dup[0]) throw invalid('Ya hay una agencia con ese nombre en ese mercado.', 'There is already an agency with that name in that market.')
-    if (v.pipelineId && !(await tx`select 1 from crm.pipelines where id = ${v.pipelineId} and market_code = ${v.market}`)[0]) throw invalid('Ese embudo es de otro mercado.', 'That pipeline belongs to another market.')
-    if (v.territoryId && !(await tx`select 1 from crm.territories where id = ${v.territoryId} and market_code = ${v.market}`)[0]) throw invalid('Ese territorio es de otro mercado.', 'That territory belongs to another market.')
-    const id = await newId(tx)
-    await tx`insert into crm.agencies (id, market_code, name, pipeline_id, territory_id, created_by)
-             values (${id}, ${v.market}, ${v.name}, ${v.pipelineId || null}, ${v.territoryId || null}, ${ctx.user.id})`
-    await audit(tx, ctx, 'agency.created', 'agency', id, v.market, null, { name: v.name, pipeline_id: v.pipelineId || null, territory_id: v.territoryId || null })
-    return id
-  })
-}
+// Alta de agencias: una sola, en domain/store-record.ts (createAgency), y una sola pantalla, Datos > Catálogos.
 
 const externalInput = z.object({
   email: z.string().trim().toLowerCase().email(),

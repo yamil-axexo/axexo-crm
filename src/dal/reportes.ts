@@ -203,14 +203,14 @@ export async function getNodeReport(ctx: Ctx, p: MarketPeriods, f: Filters & { m
     return [...rows]
   })
 }
-export type KamDeal = { id: string; title: string; account_id: string; account_name: string; market_code: string; stage_es: string; stage_en: string; days: number; rot_days: number; next_step: string | null; next_step_due: string | null; owner_name: string | null }
+export type KamDeal = { id: string; title: string; account_id: string; account_name: string; market_code: string; stage_es: string; stage_en: string; days: number; rot_days: number; next_step: string | null; next_step_due: string | null; owner_name: string | null; owner_locale: string | null }
 /** Tablero de cuentas clave: negocios de cadenas y distribuidores que llevan demasiado en su etapa, y los próximos hitos (próximos pasos con fecha). */
 export async function getKamBoard(ctx: Ctx, f: Filters & { mine?: boolean }) {
   const scope = wideScope(ctx)
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<(KamDeal & { is_long: boolean; soon: boolean })[]>`
       select d.id, d.title, a.id as account_id, a.name as account_name, d.market_code, s.name_es as stage_es, s.name_en as stage_en,
-             floor(extract(epoch from (now() - d.stage_entered_at)) / 86400)::int as days, s.rot_days, d.next_step, d.next_step_due::text, u.full_name as owner_name,
+             floor(extract(epoch from (now() - d.stage_entered_at)) / 86400)::int as days, s.rot_days, d.next_step, d.next_step_due::text, u.full_name as owner_name, u.locale as owner_locale,
              now() - d.stage_entered_at > make_interval(days => s.rot_days) as is_long,
              d.next_step_due is not null and d.next_step_due between ${marketToday(tx, tx`d.market_code`)} and ${marketToday(tx, tx`d.market_code`)} + 30 as soon
         from crm.deals d join crm.stages s on s.id = d.stage_id join crm.pipelines p on p.id = d.pipeline_id join crm.accounts a on a.id = d.account_id

@@ -71,13 +71,13 @@ export async function outsideQueue(ctx: Ctx, channel: string | null): Promise<{ 
 
 export type Comms = {
   market_code: string; order_header: string | null; orders_mailbox: string | null; sender_address: string | null; walkthrough_url: string | null; support_whatsapp: string | null
-  whatsapp_daily_limit: number | null; email_unit_cost: string | null; whatsapp_unit_cost: string | null
+  email_unit_cost: string | null
   support_hours_high: number | null; support_hours_normal: number | null; support_hours_low: number | null
 }
 export async function marketComms(ctx: Ctx): Promise<Comms[]> {
   return withUser(ctx.user.id, (tx) => tx<Comms[]>`
-    select m.code as market_code, c.order_header, c.orders_mailbox, c.sender_address, c.walkthrough_url, c.support_whatsapp, c.whatsapp_daily_limit,
-           c.email_unit_cost::text, c.whatsapp_unit_cost::text, c.support_hours_high, c.support_hours_normal, c.support_hours_low
+    select m.code as market_code, c.order_header, c.orders_mailbox, c.sender_address, c.walkthrough_url, c.support_whatsapp,
+           c.email_unit_cost::text, c.support_hours_high, c.support_hours_normal, c.support_hours_low
       from crm.markets m left join crm.market_comms c on c.market_code = m.code where m.code = any(app.my_markets()) order by m.status, m.code`)
 }
 

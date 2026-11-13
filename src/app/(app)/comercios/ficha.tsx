@@ -112,9 +112,9 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
 
   // Lo siguiente: la actividad abierta más próxima; si no hay, el próximo paso del negocio abierto.
   const step = tasks[0]
-    ? { text: tasks[0].subject, due: tasks[0].due_at }
+    ? { text: tasks[0].subject, due: tasks[0].due_at, lang: null as string | null }
     : openDeal?.next_step
-      ? { text: openDeal.next_step, due: openDeal.next_step_due ? new Date(`${openDeal.next_step_due}T15:00:00Z`) : null }
+      ? { text: openDeal.next_step, due: openDeal.next_step_due ? new Date(`${openDeal.next_step_due}T15:00:00Z`) : null, lang: openDeal.owner_locale }
       : null
   const startOfToday = new Date(new Date(`${today}T00:00:00Z`).getTime() - offsetMs(now, tz))
   const stepLate = !!step?.due && step.due < startOfToday
@@ -257,7 +257,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
 
         <div className={cx('mt-4 rounded-[12px] px-4 py-3.5', step ? 'bg-green-100' : calm ? 'bg-surface-2' : 'bg-warn-bg')} data-testid="ficha-next" data-state={step ? (stepLate ? 'late' : 'set') : calm ? 'calm' : 'none'}>
           <p className={cx('text-[13px]', step ? 'text-brand-text' : calm ? 'text-muted-2' : 'text-amber-text')}>{m('record.next')}</p>
-          <p className="mt-0.5 text-[15px] leading-6 font-medium text-strong">{step ? step.text : calm ? m('record.next.calm') : m('record.next.none')}</p>
+          <p className="mt-0.5 text-[15px] leading-6 font-medium text-strong">{step ? <span lang={step.lang && step.lang !== locale ? step.lang : undefined}>{step.text}</span> : calm ? m('record.next.calm') : m('record.next.none')}</p>
           <p className={cx('text-[13px]', stepLate ? 'font-medium text-red-text' : 'text-muted-2')}>
             {step ? dueLabel(step.due, stepLate) : calm ? (metrics?.last_txn_at ? m('record.next.calmSale', { when: ago(metrics.last_txn_at, locale, now) }) : m('record.next.calmHint')) : m('record.next.noneHint')}
             {(openDeal || lastDeal) && (

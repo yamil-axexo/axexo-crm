@@ -65,7 +65,7 @@ export type AgencyRow = { id: string; market_code: string; market_name: string; 
 export type ProviderLabelRow = { id: string; market_name: string | null; label_es: string; label_en: string; ref_label: string | null }
 
 /** Agencias y socios de los mercados donde la persona los administra, con cuántas tiendas reclutó cada uno. */
-export async function agenciesAdmin(ctx: Ctx): Promise<{ agencies: AgencyRow[]; providers: ProviderLabelRow[] }> {
+export async function agenciesAdmin(ctx: Ctx): Promise<{ agencies: AgencyRow[]; providers: ProviderLabelRow[]; pipelines: { id: string; market_code: string; name: string }[]; territories: { id: string; market_code: string; name: string }[] }> {
   return withUser(ctx.user.id, async (tx) => {
     const markets = ctx.markets.filter((m) => ctx.can('agency.manage', m.code)).map((m) => m.code)
     const agencies = await tx<AgencyRow[]>`
@@ -76,7 +76,9 @@ export async function agenciesAdmin(ctx: Ctx): Promise<{ agencies: AgencyRow[]; 
     const providers = ctx.can('config.manage') ? await tx<ProviderLabelRow[]>`
       select k.id, m.name as market_name, k.label_es, k.label_en, k.ref_label from crm.ops_catalog k left join crm.markets m on m.code = k.market_code
        where k.kind = 'provider' and k.is_active order by m.name nulls first, k.position, k.label_en` : []
-    return { agencies: [...agencies], providers: [...providers] }
+    const pipelines = await tx<{ id: string; market_code: string; name: string }[]>`select id, market_code, name from crm.pipelines where market_code = any(${markets}::text[]) order by market_code, name`
+    const territories = await tx<{ id: string; market_code: string; name: string }[]>`select id, market_code, name from crm.territories where archived_at is null and market_code = any(${markets}::text[]) order by market_code, name`
+    return { agencies: [...agencies], providers: [...providers], pipelines: [...pipelines], territories: [...territories] }
   })
 }
 

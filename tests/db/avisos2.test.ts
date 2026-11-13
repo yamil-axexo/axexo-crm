@@ -28,7 +28,7 @@ const today = isoDay(new Date(), 'America/New_York')
 const uid = (k: string) => one(admin<{ id: string }[]>`select md5(${'contigo:' + k})::uuid as id`).then((r) => r.id)
 const stage = async (pipe: string, code: string) => (await one(admin<{ id: string }[]>`select s.id from crm.stages s where s.pipeline_id = md5(${'contigo:' + pipe})::uuid and s.code = ${code}`)).id
 const alwaysOpen = () => admin`update crm.market_hours set days = '{1,2,3,4,5,6,7}', opens = '00:00', closes = '23:59:59'`
-const comms = (over: Record<string, string>) => ({ market: 'US', orderHeader: '', ordersMailbox: '', senderAddress: '', walkthroughUrl: '', supportWhatsapp: '', whatsappDailyLimit: '', emailUnitCost: '', whatsappUnitCost: '', supportHoursHigh: '', supportHoursNormal: '', supportHoursLow: '', ...over })
+const comms = (over: Record<string, string>) => ({ market: 'US', orderHeader: '', ordersMailbox: '', senderAddress: '', walkthroughUrl: '', supportWhatsapp: '', emailUnitCost: '', supportHoursHigh: '', supportHoursNormal: '', supportHoursLow: '', ...over })
 
 async function jadeAccount(segment: 'dealer' | 'orders' = 'dealer') {
   const jade = await ctxFor('jade.kim')

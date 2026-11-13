@@ -39,7 +39,7 @@ export async function updateEntityAction(_: R | null, fd: FormData): Promise<R> 
 
 export async function setUserEntityAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await setUserEntity(ctx, str(fd, 'user_id'), { entityId: str(fd, 'entity_id') || null, limit: fd.get('limit') === 'on' })
+    await setUserEntity(ctx, str(fd, 'user_id'), { entityId: str(fd, 'entity_id') || null })
     return { message: ['Entidad de la persona guardada.', 'Person’s entity saved.'] }
   })
 }

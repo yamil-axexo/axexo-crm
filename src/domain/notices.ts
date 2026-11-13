@@ -76,7 +76,7 @@ const optional = (max: number) => z.string().trim().max(max)
 const commsInput = z.object({
   market: z.string().length(2),
   orderHeader: optional(80), ordersMailbox: optional(160), senderAddress: optional(160), walkthroughUrl: optional(500), supportWhatsapp: optional(20),
-  whatsappDailyLimit: optional(8), emailUnitCost: optional(12), whatsappUnitCost: optional(12),
+  emailUnitCost: optional(12),
   supportHoursHigh: optional(4), supportHoursNormal: optional(4), supportHoursLow: optional(4),
 })
 const mail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)
@@ -91,21 +91,20 @@ export async function saveComms(ctx: Ctx, raw: z.input<typeof commsInput>): Prom
   if ((v.ordersMailbox && !mail(v.ordersMailbox)) || (v.senderAddress && !mail(v.senderAddress))) throw invalid('Revisa las direcciones de correo.', 'Check the email addresses.')
   if (v.walkthroughUrl && !/^https:\/\/[^\s]+$/.test(v.walkthroughUrl)) throw invalid('El enlace del video tiene que empezar con https://.', 'The video link must start with https://.')
   if (v.supportWhatsapp && !/^\+[1-9][0-9]{7,14}$/.test(v.supportWhatsapp)) throw invalid('El WhatsApp de soporte va con signo + y código de país, sin espacios.', 'The support WhatsApp number needs a + sign and country code, no spaces.')
-  const limit = intOrNull(v.whatsappDailyLimit, 0, 1000000)
   const hours = [intOrNull(v.supportHoursHigh, 1, 720), intOrNull(v.supportHoursNormal, 1, 720), intOrNull(v.supportHoursLow, 1, 720)]
-  const costs = [costOrNull(v.emailUnitCost), costOrNull(v.whatsappUnitCost)]
-  if (limit === undefined || hours.includes(undefined) || costs.includes(undefined)) throw invalid('Los límites, plazos y costos son números. Deja vacío lo que no se ha definido.', 'Limits, deadlines and costs are numbers. Leave empty what has not been defined.')
+  const costs = [costOrNull(v.emailUnitCost)]
+  if (hours.includes(undefined) || costs.includes(undefined)) throw invalid('Los límites, plazos y costos son números. Deja vacío lo que no se ha definido.', 'Limits, deadlines and costs are numbers. Leave empty what has not been defined.')
   await withUser(ctx.user.id, async (tx) => {
-    await tx`insert into crm.market_comms (market_code, order_header, orders_mailbox, sender_address, walkthrough_url, support_whatsapp, whatsapp_daily_limit, email_unit_cost, whatsapp_unit_cost,
+    await tx`insert into crm.market_comms (market_code, order_header, orders_mailbox, sender_address, walkthrough_url, support_whatsapp, email_unit_cost,
                                            support_hours_high, support_hours_normal, support_hours_low, updated_by)
-             values (${v.market}, ${v.orderHeader || null}, ${v.ordersMailbox || null}, ${v.senderAddress || null}, ${v.walkthroughUrl || null}, ${v.supportWhatsapp || null}, ${limit ?? null},
-                     ${costs[0] ?? null}, ${costs[1] ?? null}, ${hours[0] ?? null}, ${hours[1] ?? null}, ${hours[2] ?? null}, ${ctx.user.id})
+             values (${v.market}, ${v.orderHeader || null}, ${v.ordersMailbox || null}, ${v.senderAddress || null}, ${v.walkthroughUrl || null}, ${v.supportWhatsapp || null},
+                     ${costs[0] ?? null}, ${hours[0] ?? null}, ${hours[1] ?? null}, ${hours[2] ?? null}, ${ctx.user.id})
              on conflict (market_code) do update set order_header = excluded.order_header, orders_mailbox = excluded.orders_mailbox, sender_address = excluded.sender_address, walkthrough_url = excluded.walkthrough_url,
-               support_whatsapp = excluded.support_whatsapp, whatsapp_daily_limit = excluded.whatsapp_daily_limit, email_unit_cost = excluded.email_unit_cost,
-               whatsapp_unit_cost = excluded.whatsapp_unit_cost, support_hours_high = excluded.support_hours_high, support_hours_normal = excluded.support_hours_normal,
+               support_whatsapp = excluded.support_whatsapp, email_unit_cost = excluded.email_unit_cost,
+               support_hours_high = excluded.support_hours_high, support_hours_normal = excluded.support_hours_normal,
                support_hours_low = excluded.support_hours_low, updated_by = excluded.updated_by, updated_at = now()`
     await audit(tx, ctx, 'comms.saved', 'market', null, v.market, null, {
-      orders_mailbox: Boolean(v.ordersMailbox), sender_address: Boolean(v.senderAddress), walkthrough_url: Boolean(v.walkthroughUrl), support_whatsapp: Boolean(v.supportWhatsapp), whatsapp_daily_limit: limit ?? null,
+      orders_mailbox: Boolean(v.ordersMailbox), sender_address: Boolean(v.senderAddress), walkthrough_url: Boolean(v.walkthroughUrl), support_whatsapp: Boolean(v.supportWhatsapp),
     })
   })
 }

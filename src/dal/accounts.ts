@@ -159,9 +159,9 @@ export async function getAccount(ctx: Ctx, id: string) {
       select layer, party_label, party_kind, effective_from, effective_to from crm.account_attributions where account_id = ${id}
        order by case layer when 'origin' then 0 when 'channel' then 1 else 2 end, effective_from desc`
     const deals = await tx<{ id: string; title: string; status: string; stage_es: string; stage_en: string; stage_kind: string; amount_minor: string | null; currency: string;
-      next_step: string | null; next_step_due: string | null; revisit_needed: boolean; owner_name: string | null; won_at: Date | null; closed_by: string | null }[]>`
+      next_step: string | null; next_step_due: string | null; revisit_needed: boolean; owner_name: string | null; owner_locale: string | null; won_at: Date | null; closed_by: string | null }[]>`
       select d.id, d.title, d.status, s.name_es as stage_es, s.name_en as stage_en, s.kind as stage_kind, d.amount_minor::text, d.currency, d.next_step,
-             d.next_step_due::text, d.revisit_needed, u.full_name as owner_name, d.won_at, d.closed_by
+             d.next_step_due::text, d.revisit_needed, u.full_name as owner_name, u.locale as owner_locale, d.won_at, d.closed_by
         from crm.deals d join crm.stages s on s.id = d.stage_id left join crm.users u on u.id = d.owner_id
        where d.account_id = ${id} order by (d.status = 'open') desc, d.created_at desc`
     // El archivo más reciente de S5 y, si existe, el de 30 días antes (hasta 7 días de tolerancia): la comparación no se inventa.

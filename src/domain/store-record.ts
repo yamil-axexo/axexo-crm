@@ -190,7 +190,11 @@ export async function setProviderRefLabel(ctx: Ctx, providerId: string, label: s
 
 // ---------------------------------------------------------------- agencias y socios que reclutan
 
-export async function createAgency(ctx: Ctx, input: { market: string; kind: string; name: string }): Promise<string> {
+/**
+ * Alta de una agencia o socio que recluta. Es la única: la usan Datos > Catálogos (la pantalla que edita agencias) y las
+ * pruebas de Seguridad. Embudo y región son opcionales (E4.F4): si se fijan, lo que crea su gente nace ahí.
+ */
+export async function createAgency(ctx: Ctx, input: { market: string; kind: string; name: string; pipelineId?: string; territoryId?: string }): Promise<string> {
   const name = input.name.trim()
   if (input.kind !== 'agency' && input.kind !== 'partner') throw invalid('Elige si es una agencia u otro socio.', 'Pick whether it is an agency or another partner.')
   if (name.length < 2 || name.length > 80) throw invalid('Nombre: de 2 a 80 letras.', 'Name: 2 to 80 characters.')
@@ -200,9 +204,13 @@ export async function createAgency(ctx: Ctx, input: { market: string; kind: stri
   return withUser(ctx.user.id, async (tx) => {
     if ((await tx`select 1 from crm.agencies where market_code = ${input.market} and lower(btrim(name)) = lower(${name})`)[0])
       throw invalid('Ya hay una agencia o socio con ese nombre en este mercado.', 'There is already an agency or partner with that name in this market.')
+    const pipelineId = input.pipelineId || null
+    const territoryId = input.territoryId || null
+    if (pipelineId && !(await tx`select 1 from crm.pipelines where id::text = ${pipelineId} and market_code = ${input.market}`)[0]) throw invalid('Ese embudo es de otro mercado.', 'That pipeline belongs to another market.')
+    if (territoryId && !(await tx`select 1 from crm.territories where id::text = ${territoryId} and market_code = ${input.market}`)[0]) throw invalid('Ese territorio es de otro mercado.', 'That territory belongs to another market.')
     const id = await newId(tx)
-    await tx`insert into crm.agencies (id, market_code, kind, name, created_by) values (${id}, ${input.market}, ${input.kind}, ${name}, ${ctx.user.id})`
-    await audit(tx, ctx, 'team.agency_created', 'agency', id, input.market, null, { kind: input.kind, name })
+    await tx`insert into crm.agencies (id, market_code, kind, name, pipeline_id, territory_id, created_by) values (${id}, ${input.market}, ${input.kind}, ${name}, ${pipelineId}, ${territoryId}, ${ctx.user.id})`
+    await audit(tx, ctx, 'team.agency_created', 'agency', id, input.market, null, { kind: input.kind, name, pipeline_id: pipelineId, territory_id: territoryId })
     return id
   })
 }

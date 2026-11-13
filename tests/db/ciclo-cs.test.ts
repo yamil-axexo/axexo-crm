@@ -566,7 +566,7 @@ describe('CS-02 · puntaje de salud explicable y validado', () => {
 
   it('Zendesk y las demás conexiones están apagadas: no traen nada y cada una dice qué falta para encenderla', async () => {
     const st = careAdapterStatus()
-    expect(st.map((s) => s.key).sort()).toEqual(['ai_draft', 'care_signals', 'kore_academy', 'zendesk_counts'])
+    expect(st.map((s) => s.key).sort()).toEqual(['care_signals', 'kore_academy', 'zendesk_counts'])
     expect(st.every((s) => s.mode === 'off' && s.needs[0].length > 20 && s.needs[1].length > 20)).toBe(true)
     const sys = await systemContext()
     const before = (await one(admin<{ n: number }[]>`select count(*)::int as n from crm.care_signals`)).n

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
+import { createAgency } from '@/domain/store-record'
 import { loadCtx } from '@/server/context'
 import { runVia, withUser, withoutUser } from '@/server/db'
 import { can, isReadOnly, type Membership } from '@/domain/policy'
@@ -12,7 +13,7 @@ import { marketPeriods } from '@/dal/reports'
 import { searchAll } from '@/dal/accounts'
 import { getAccountSecurity, getKeys, getMonitoring } from '@/dal/security'
 import {
-  acknowledgeAlert, addAccountTeamMember, anonymizeSubject, applyRetention, closeAccessReview, createAgency, createSubjectRequest, decideReviewItem,
+  acknowledgeAlert, addAccountTeamMember, anonymizeSubject, applyRetention, closeAccessReview, createSubjectRequest, decideReviewItem,
   exportSubject, grantAgencyAccess, liftOptOut, mayContact, openAccessReview, optOut, prepareAuditArchive, recordConsent, recordSeatApproval,
   revealSensitive, runSecurityScan, setAdminAreas, setApiClientMeta, setMembershipEntity, setRetentionRule, setSensitive,
   setTeamParent, setThresholds, startViewAs, updateSubjectRequest,
@@ -300,7 +301,7 @@ describe('SEG-01: Administración por partes, equipo de cuenta, jerarquía, enti
     const nora = await ctxFor('nora.salas')
     const pipeline = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'd2d' limit 1`)
     const otherPipeline = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b' limit 1`)
-    const agencyId = await createAgency(nora, { market: 'MX', name: `Agencia Norte ${tag()}`, pipelineId: pipeline.id })
+    const agencyId = await createAgency(nora, { market: 'MX', kind: 'agency', name: `Agencia Norte ${tag()}`, pipelineId: pipeline.id })
     const userId = await grantAgencyAccess(nora, { email: `agencia.${tag()}@axexo.com`, fullName: 'Persona de Agencia', agencyId }, DOMAINS)
     const agent = (await loadCtx(userId, 'es'))!
     expect(agent.can('lead.create', 'MX')).toBe(true)

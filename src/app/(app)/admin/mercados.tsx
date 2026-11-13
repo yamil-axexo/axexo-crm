@@ -83,12 +83,11 @@ export async function MercadosTab({ ctx }: { ctx: Ctx }) {
 
         <div className="mt-6 border-t border-line pt-5" data-testid="people-entity">
           <p className="text-[14.5px] font-semibold text-strong">{t('Personas por entidad', 'People by entity')}</p>
-          <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Di a qué entidad pertenece cada persona. Si marcas el límite, en ese mercado solo ve los comercios y negocios de su entidad (sirve para una red adquirida).', 'Say which entity each person belongs to. If you tick the limit, in that market they only see their entity’s merchants and deals (useful for an acquired network).')}</p>
+          <p className="mt-1 mb-4 text-[13px] text-muted-2">{t('Di a qué entidad pertenece cada persona. Para que en un mercado solo vea los comercios y negocios de su entidad (sirve para una red adquirida), limita su rol en Administración > Seguridad.', 'Say which entity each person belongs to. To make them see only their entity’s merchants and deals in a market (useful for an acquired network), limit their role in Administration > Security.')}</p>
           <ActionForm action={setUserEntityAction} className="grid grid-cols-1 gap-4 sm:grid-cols-3" testId="user-entity-form">
             <Field label={t('Persona', 'Person')}><select name="user_id" className="input" data-testid="user-entity-user">{d.people.map((p) => <option key={p.id} value={p.id}>{p.full_name}{p.markets.length ? ` · ${p.markets.join(', ')}` : ''}</option>)}</select></Field>
             <Field label={t('Entidad', 'Entity')}><select name="entity_id" className="input" data-testid="user-entity-entity"><option value="">{t('Sin entidad', 'No entity')}</option>{d.entities.map((e) => <option key={e.id} value={e.id}>{e.market_code} · {e.name}</option>)}</select></Field>
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 self-end text-[14px]"><input type="checkbox" name="limit" className="h-5 w-5 shrink-0" data-testid="user-entity-limit" />{t('Limitar su acceso a esa entidad', 'Limit their access to that entity')}</label>
-            <div className="flex justify-end sm:col-span-3"><Submit variant="ghost" size="sm" testId="user-entity-save">{t('Guardar', 'Save')}</Submit></div>
+            <div className="flex items-end justify-end"><Submit variant="ghost" size="sm" testId="user-entity-save">{t('Guardar', 'Save')}</Submit></div>
           </ActionForm>
           {d.people.some((p) => p.legal_entity_id) && (
             <ul className="mt-3 space-y-1 text-[13.5px]" data-testid="user-entity-list">

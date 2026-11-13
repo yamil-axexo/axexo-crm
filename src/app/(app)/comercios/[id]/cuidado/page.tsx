@@ -4,7 +4,7 @@ import { Check, ChevronLeft } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { getAccountCare } from '@/dal/care'
 import { reviewDraft } from '@/domain/care-accounts'
-import { careAdapterMode } from '@/server/adapters/care'
+import { aiReviewDraftMode, careAdapterMode } from '@/server/adapters/care'
 import { whatsappAdapter } from '@/server/adapters/whatsapp'
 import { Badge, Bar, Card, CardTitle, Empty, Field, PageHeader, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
@@ -450,7 +450,7 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
                 <Field label={t('Minuta', 'Minutes')} hint={t('Empieza con un borrador hecho con los datos que CONTIGO ya tiene. Cámbialo como haga falta.', 'It starts with a draft built from the data CONTIGO already has. Change it as needed.')}>
                   <textarea name="minutes" rows={6} required minLength={3} maxLength={4000} className="input" defaultValue={draft.ai ?? draft.text} data-testid="review-minutes" />
                 </Field>
-                <p className="text-[13px] text-muted" data-testid="review-ai">{careAdapterMode('ai_draft') === 'off' ? t('Borrador con IA: apagado. El de arriba son hechos puestos en orden, sin IA.', 'AI draft: off. The one above is facts put in order, with no AI.') : t('Borrador con IA: simulación de pruebas.', 'AI draft: test simulation.')}</p>
+                <p className="text-[13px] text-muted" data-testid="review-ai">{aiReviewDraftMode() === 'off' ? t('Borrador con IA: apagado. El de arriba son hechos puestos en orden, sin IA.', 'AI draft: off. The one above is facts put in order, with no AI.') : t('Borrador con IA: simulación de pruebas.', 'AI draft: test simulation.')}</p>
                 <Field label={t('Acuerdos (opcional)', 'Agreements (optional)')}><textarea name="agreements" rows={2} maxLength={2000} className="input" data-testid="review-agreements" /></Field>
                 <div className="flex justify-end"><Submit variant="ghost" testId="review-save">{t('Guardar revisión', 'Save review')}</Submit></div>
               </ActionForm>

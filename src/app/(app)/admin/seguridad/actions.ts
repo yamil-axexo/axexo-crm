@@ -8,7 +8,7 @@ import { env } from '@/env'
 import { endMembership } from '@/domain/admin'
 import { ADMIN_AREAS, type AdminArea } from '@/domain/policy'
 import {
-  acknowledgeAlert, addAccountTeamMember, anonymizeSubject, applyRetention, closeAccessReview, createAgency, createSensitiveField, createSubjectRequest,
+  acknowledgeAlert, addAccountTeamMember, anonymizeSubject, applyRetention, closeAccessReview, createSensitiveField, createSubjectRequest,
   decideReviewItem, grantAgencyAccess, liftOptOut, openAccessReview, optOut, prepareAuditArchive, recordConsent, recordSeatApproval, removeAccountTeamMember,
   revealSensitive, revokeConsent, runSecurityScan, setAdminAreas, setApiClientMeta, setDueDays, setMembershipEntity, setRetentionRule,
   setSecretMeta, setSensitive, setTeamParent, setThresholds, startViewAs, updateSensitiveField, updateSubjectRequest, THRESHOLD_KEYS,
@@ -68,13 +68,6 @@ export async function teamParentAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     await setTeamParent(ctx, str(fd, 'team_id'), str(fd, 'parent_id') || null)
     return { message: ['Jerarquía guardada.', 'Hierarchy saved.'], revalidate: here }
-  })
-}
-
-export async function createAgencyAction(_: R | null, fd: FormData): Promise<R> {
-  return runAction(async (ctx) => {
-    await createAgency(ctx, { market: str(fd, 'market'), name: str(fd, 'name'), pipelineId: str(fd, 'pipeline_id'), territoryId: str(fd, 'territory_id') })
-    return { message: ['Agencia creada.', 'Agency created.'], revalidate: here }
   })
 }
 

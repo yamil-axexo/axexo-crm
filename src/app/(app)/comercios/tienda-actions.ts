@@ -52,7 +52,7 @@ export async function setCarrierDetailAction(_: R | null, fd: FormData): Promise
 
 export async function createAgencyAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await createAgency(ctx, { market: str(fd, 'market'), kind: str(fd, 'kind'), name: str(fd, 'name') })
+    await createAgency(ctx, { market: str(fd, 'market'), kind: str(fd, 'kind'), name: str(fd, 'name'), pipelineId: str(fd, 'pipeline_id'), territoryId: str(fd, 'territory_id') })
     return { message: ['Agregado. Ya se puede elegir en "Reclutado por".', 'Added. It can now be picked under "Recruited by".'] }
   })
 }

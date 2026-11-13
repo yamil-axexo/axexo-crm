@@ -163,9 +163,12 @@ export async function notifyMany(tx: Tx, actor: Actor, userIds: string[], n: Omi
   return sent
 }
 
-/** Personas con alguno de esos roles en el mercado. */
-export async function peopleWithRole(tx: Tx, market: string | null, roles: string[]): Promise<string[]> {
-  const rows = await tx<{ user_id: string }[]>`select user_id from app.people_with_role(${market}, ${roles}::text[])`
+/**
+ * Personas con alguno de esos roles en el mercado (la única función: la usan avisos y automatizaciones). Con 'supervisor'
+ * y una persona de referencia, primero quienes supervisan su equipo.
+ */
+export async function peopleWithRole(tx: Tx, market: string | null, roles: string[], forUserId: string | null = null): Promise<string[]> {
+  const rows = await tx<{ user_id: string }[]>`select user_id from app.people_with_role(${market}, ${roles}::text[], ${forUserId}::uuid)`
   return rows.map((r) => r.user_id)
 }
 

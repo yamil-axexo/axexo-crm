@@ -391,15 +391,16 @@ for (const w of WIDTHS.filter((x) => x.width !== 1024)) {
           await expect(page.locator('h1').first(), path).toBeVisible()
           await noOverflow(page, `${w.name} ${locale} ${path}`)
           await axeClean(page, `${w.name} ${locale} ${path}`)
-          // Los próximos pasos de los negocios son datos escritos por quien los lleva, en su idioma: no cuentan como texto de la pantalla.
-          const text = await page.locator('main').evaluate((m) => {
+          // Los próximos pasos son datos escritos por quien los lleva, en su idioma, y la pantalla lo marca con `lang`: lo que va
+          // marcado en otro idioma no cuenta como texto de la pantalla.
+          const text = await page.locator('main').evaluate((m, loc) => {
             const c = m.cloneNode(true) as HTMLElement
-            for (const el of c.querySelectorAll('[data-testid="kam-milestone-row"]')) el.remove()
+            for (const el of c.querySelectorAll('[lang]')) if (el.getAttribute('lang') !== loc) el.remove()
             document.body.appendChild(c)
             const s = c.innerText
             c.remove()
             return s
-          })
+          }, locale)
           expect(text, `${path}: guion largo`).not.toMatch(/[—–]/)
           if (path.startsWith('/reportes')) {
             if (locale === 'es') expect(text, `${path}: jerga`).not.toMatch(/\bdeals?\b|\bpipelines?\b|\btimeline\b|\bS5\b|\bmotor\b/i)
