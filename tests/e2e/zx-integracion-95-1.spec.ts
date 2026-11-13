@@ -203,7 +203,7 @@ test.describe('integración de la ola 1 de los 95', () => {
     const item = page.getByTestId('account-products').getByTestId('product-item')
     await expect(item).toHaveCount(1)
     await expect(item).toContainText('North carrier')
-    await expect(item.getByTestId('product-state')).toHaveText('Sent to provider')
+    await expect(item.getByTestId('product-state')).toHaveText('Sent to the provider')
     await expect(item.getByRole('link', { name: 'see the deal' })).toHaveAttribute('href', `/deals/${deal.id}`)
     await expect(page.getByTestId('store-providers')).toHaveCount(0)
     await bothWidths(page, 'tienda con su portafolio de proveedores')
