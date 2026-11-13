@@ -38,12 +38,15 @@ export const FIELDS: Record<Source, FieldDef[]> = {
     yes('paused', 'Está en pausa', 'It is paused'),
     num('stage_age_days', 'Días en la etapa actual', 'Days in the current stage'),
     yes('over_stage_limit', 'Pasó los días de estancamiento de su etapa', 'It passed the stall limit of its stage'),
+    // PIPE-03: estancado de verdad. Pasó el umbral de su etapa (según a quién se espera) y no tiene un próximo paso con fecha por
+    // venir. Una nota cualquiera no reinicia nada: el reloj es la entrada a la etapa y la fecha del próximo paso.
+    yes('rotting', 'Está estancado (pasó el umbral y no tiene próximo paso por venir)', 'It is stalled (past the limit and no upcoming next step)'),
     yes('over_stage_sla', 'Venció la meta de tiempo de su etapa', 'The time goal of its stage has passed'),
     num('next_step_days_late', 'Días de atraso del próximo paso (sin próximo paso cuenta como 9999)', 'Days the next step is late (no next step counts as 9999)'),
     yes('revisit_needed', 'Tiene una revisita pendiente', 'It has a revisit pending'),
     num('revisit_days_late', 'Días desde que tocaba la revisita', 'Days since the revisit was due'),
     yes('has_open_visit', 'Ya hay una visita por hacer en ese comercio', 'A visit is already planned for that merchant'),
-    pick('waiting_on', 'A quién se espera', 'Who it is waiting on', [['us', 'a nosotros', 'us'], ['customer', 'al cliente', 'the customer'], ['third_party', 'a un tercero', 'a third party']]),
+    pick('waiting_on', 'A quién se espera', 'Who it is waiting on', [['us', 'a nosotros', 'us'], ['customer', 'al cliente', 'the customer'], ['carrier', 'al carrier', 'the carrier'], ['third_party', 'a otro tercero', 'another third party']]),
     num('amount', 'Monto esperado', 'Expected amount'),
     { key: 'pipeline_id', type: 'choice', label: { es: 'Embudo', en: 'Pipeline' }, dynamic: 'pipeline', hidden: true },
     { key: 'owner_id', type: 'choice', label: { es: 'Quien lleva el negocio', en: 'Deal owner' }, dynamic: 'user', hidden: true },
@@ -51,6 +54,10 @@ export const FIELDS: Record<Source, FieldDef[]> = {
   lead: [
     pick('status', 'Estado del lead', 'Lead status', [['new', 'nuevo', 'new'], ['contacted', 'contactado', 'contacted'], ['qualified', 'calificado', 'qualified']]),
     yes('touched', 'Ya hubo un primer intento de contacto', 'There has been a first contact attempt'),
+    // LEAD-04: el reloj de primer contacto se cierra con el contacto efectivo (o con el intento, si el mercado así lo decide).
+    yes('contact_pending', 'Todavía no hay contacto efectivo', 'There is no effective contact yet'),
+    // ACT-02: un lead contactado o calificado sin una tarea siguiente abierta.
+    yes('no_next_task', 'No tiene una tarea siguiente abierta', 'It has no open next task'),
     yes('first_contact_overdue', 'Venció la meta de primer contacto', 'The first contact goal has passed'),
     num('overdue_business_hours', 'Horas hábiles desde que venció la meta', 'Business hours since the goal passed'),
     yes('has_owner', 'Tiene responsable', 'It has an owner'),
@@ -60,6 +67,8 @@ export const FIELDS: Record<Source, FieldDef[]> = {
     yes('is_customer', 'Ya es cliente (en alta, activo o en riesgo)', 'It is already a customer (onboarding, active or at risk)'),
     yes('has_owner', 'Tiene responsable', 'It has an owner'),
     yes('is_branch', 'Es sucursal de otro comercio', 'It is a branch of another merchant'),
+    // ACT-02: un comercio en alta, sin negocio abierto, sin una tarea siguiente abierta.
+    yes('onboarding_no_next_task', 'Está en alta sin una tarea siguiente abierta', 'It is onboarding with no open next task'),
   ],
   account_pair: [],
 }
@@ -134,12 +143,13 @@ export const isTarget = (v: string): v is Target =>
   v === 'owner' || (TARGET_ROLES as readonly string[]).includes(v.replace(/^role:/, '')) && v.startsWith('role:') || /^user:[0-9a-f-]{36}$/.test(v)
 
 /** Los tipos de aviso de la cola (los que la base admite). Una automatización abre uno de estos. */
-export const NOTICE_KINDS = ['lead_sla', 'revisit_due', 'activation_risk', 'no_next_step', 'stalled_deal', 'reactivation', 'unowned_account', 'duplicate_suspect'] as const
+export const NOTICE_KINDS = ['lead_sla', 'revisit_due', 'activation_risk', 'no_next_step', 'stalled_deal', 'reactivation', 'unowned_account', 'duplicate_suspect', 'lead_no_next_step', 'onboarding_no_next_step'] as const
 export type NoticeKind = (typeof NOTICE_KINDS)[number]
 /** Qué registros puede señalar cada tipo de aviso: decide el detalle que lleva. */
 export const NOTICE_SOURCE: Record<NoticeKind, Source> = {
   lead_sla: 'lead', revisit_due: 'deal', activation_risk: 'deal', no_next_step: 'deal', stalled_deal: 'deal',
   reactivation: 'account', unowned_account: 'account', duplicate_suspect: 'account_pair',
+  lead_no_next_step: 'lead', onboarding_no_next_step: 'account',
 }
 export const SEVERITIES = ['low', 'medium', 'high'] as const
 
@@ -150,7 +160,8 @@ export const SETTABLE: Record<string, { source: Source; label: Pair; values: { v
     values: [
       { value: 'us', label: { es: 'a nosotros', en: 'us' } },
       { value: 'customer', label: { es: 'al cliente', en: 'the customer' } },
-      { value: 'third_party', label: { es: 'a un tercero', en: 'a third party' } },
+      { value: 'carrier', label: { es: 'al carrier', en: 'the carrier' } },
+      { value: 'third_party', label: { es: 'a otro tercero', en: 'another third party' } },
       { value: '', label: { es: 'a nadie', en: 'nobody' } },
     ],
   },
@@ -191,24 +202,36 @@ const notice = (kind: NoticeKind, severity: 'low' | 'medium' | 'high'): Action =
  */
 export const DEFAULTS: Definition[] = [
   { key: 'lead_sla', name: { es: 'Lead sin primer contacto a tiempo', en: 'Lead with no first contact on time' }, source: 'lead', trigger: { kind: 'schedule' },
-    conditions: [cond('status', 'eq', 'new'), cond('touched', 'is_false'), cond('first_contact_overdue', 'is_true')], actions: [notice('lead_sla', 'high')] },
+    conditions: [cond('contact_pending', 'is_true'), cond('first_contact_overdue', 'is_true')], actions: [notice('lead_sla', 'high')] },
   { key: 'revisit_due', name: { es: 'Revisita pendiente', en: 'Revisit due' }, source: 'deal', trigger: { kind: 'schedule' },
     conditions: [cond('revisit_needed', 'is_true'), cond('revisit_days_late', 'gte', 0), cond('has_open_visit', 'is_false')], actions: [notice('revisit_due', 'high')] },
   { key: 'activation_risk', name: { es: 'Alta sin primera venta', en: 'Signed up, no first sale' }, source: 'deal', trigger: { kind: 'schedule' },
-    conditions: [cond('stage_kind', 'eq', 'awaiting_txn'), cond('stage_age_days', 'gt', 7)], actions: [notice('activation_risk', 'high')] },
+    conditions: [cond('stage_kind', 'eq', 'awaiting_txn'), cond('over_stage_limit', 'is_true')], actions: [notice('activation_risk', 'high')] },
   { key: 'no_next_step', name: { es: 'Negocio sin próximo paso', en: 'Deal with no next step' }, source: 'deal', trigger: { kind: 'schedule' },
     conditions: [cond('stage_kind', 'eq', 'open'), cond('is_ops_stage', 'is_false'), cond('paused', 'is_false'), cond('next_step_days_late', 'gt', 2)], actions: [notice('no_next_step', 'medium')] },
   { key: 'stalled_deal', name: { es: 'Negocio estancado', en: 'Stalled deal' }, source: 'deal', trigger: { kind: 'schedule' },
-    conditions: [cond('stage_kind', 'eq', 'open'), cond('is_ops_stage', 'is_false'), cond('paused', 'is_false'), cond('over_stage_limit', 'is_true')], actions: [notice('stalled_deal', 'medium')] },
+    conditions: [cond('stage_kind', 'eq', 'open'), cond('is_ops_stage', 'is_false'), cond('paused', 'is_false'), cond('rotting', 'is_true')], actions: [notice('stalled_deal', 'medium')] },
   { key: 'stalled_ops', name: { es: 'Negocio estancado en Operaciones', en: 'Deal stalled in Operations' }, source: 'deal', trigger: { kind: 'schedule' },
-    conditions: [cond('is_ops_stage', 'is_true'), cond('paused', 'is_false'), cond('over_stage_limit', 'is_true')], actions: [notice('stalled_deal', 'medium')] },
+    conditions: [cond('is_ops_stage', 'is_true'), cond('paused', 'is_false'), cond('rotting', 'is_true')], actions: [notice('stalled_deal', 'medium')] },
   { key: 'reactivation', name: { es: 'Comercio en riesgo', en: 'Merchant at risk' }, source: 'account', trigger: { kind: 'schedule' },
     conditions: [cond('lifecycle', 'eq', 'at_risk')], actions: [notice('reactivation', 'medium')] },
   { key: 'unowned_account', name: { es: 'Comercio sin responsable', en: 'Merchant with no owner' }, source: 'account', trigger: { kind: 'schedule' },
     conditions: [cond('has_owner', 'is_false'), cond('is_branch', 'is_false'), cond('is_customer', 'is_true')], actions: [notice('unowned_account', 'low')] },
   { key: 'duplicate_suspect', name: { es: 'Posible comercio repetido', en: 'Possible duplicate merchant' }, source: 'account_pair', trigger: { kind: 'schedule' },
     conditions: [], actions: [notice('duplicate_suspect', 'medium')] },
+  ...ADDED_DEFAULTS(),
 ]
+
+/** ACT-02 (ola 6): reglas de base que llegaron después. Los mercados que ya tenían reglas también las reciben (ver ensureDefaults). */
+function ADDED_DEFAULTS(): Definition[] {
+  return [
+    { key: 'lead_no_next_step', name: { es: 'Lead contactado sin tarea siguiente', en: 'Contacted lead with no next task' }, source: 'lead', trigger: { kind: 'schedule' },
+      conditions: [cond('no_next_task', 'is_true')], actions: [notice('lead_no_next_step', 'medium')] },
+    { key: 'onboarding_no_next_step', name: { es: 'Comercio en alta sin tarea siguiente', en: 'Onboarding merchant with no next task' }, source: 'account', trigger: { kind: 'schedule' },
+      conditions: [cond('onboarding_no_next_task', 'is_true')], actions: [notice('onboarding_no_next_step', 'medium')] },
+  ]
+}
+export const ADDED_DEFAULT_KEYS = ['lead_no_next_step', 'onboarding_no_next_step'] as const
 
 /** Plantillas para crear una automatización nueva desde Administración. Nacen en pausa: quien administra las revisa y las activa. */
 export const TEMPLATES: Definition[] = [

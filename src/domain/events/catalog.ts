@@ -120,6 +120,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   // Paquete datos2: las decisiones de negocio son configuración interna; un intento bloqueado de borrar un mercado en
   // producción es un control.
   ['decision.', WHY.internal], ['market.reset_blocked', WHY.security],
+  // embudo2: valores del embudo, dueño de una automatización y pasos propuestos son configuración interna; la sugerencia de
+  // tienda saturada es una decisión de supervisión (la tarea que deja emite activity.added).
+  ['funnel.', WHY.internal], ['automation.owner_set', WHY.internal], ['transition.', WHY.internal], ['routing.suggestion_', WHY.internal],
 ]
 // Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
 // solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.

@@ -1,4 +1,5 @@
 import 'server-only'
+import { assertNextStepWithinCap } from '@/domain/embudo2/settings'
 import { z } from 'zod'
 import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
@@ -175,6 +176,7 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
     if (next.next_step_due && String(next.next_step_due) !== String(d.next_step_due)) {
       const ok = await tx<{ ok: boolean }[]>`select ${String(next.next_step_due)}::date >= ${marketToday(tx, d.market_code)} as ok`
       if (!ok[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
+      await assertNextStepWithinCap(tx, d.market_code, isoDate(next.next_step_due)!)
     }
     if (next.decision_maker_id) {
       const ok = await tx`select 1 from crm.account_contacts where account_id = ${d.account_id} and contact_id = ${next.decision_maker_id} and valid_to is null`
@@ -462,6 +464,8 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
   return withUser(ctx.user.id, async (tx) => {
     const range = await tx<{ ok: boolean }[]>`select ${v.nextStepDue}::date >= ${marketToday(tx, tx`(select market_code from crm.accounts where id = ${v.accountId})`)} as ok`
     if (!range[0]?.ok) throw invalid('La fecha del próximo paso tiene que ser de hoy en adelante.', 'The next step date must be today or later.')
+    const mk = await tx<{ market_code: string }[]>`select market_code from crm.accounts where id = ${v.accountId}`
+    if (mk[0]) await assertNextStepWithinCap(tx, mk[0].market_code, v.nextStepDue)
     const accs = await tx<{ market_code: string; owner_id: string | null; lifecycle: string }[]>`select market_code, owner_id, lifecycle from crm.accounts where id = ${v.accountId} and archived_at is null`
     const acc = accs[0]
     if (!acc) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')

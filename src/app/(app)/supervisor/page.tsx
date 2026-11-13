@@ -24,6 +24,7 @@ import { ConfirmButton } from '@/ui/confirm'
 import { repartoPreviewAction, repartoStepAction } from '@/app/(app)/reparto-actions'
 import { flat } from '@/server/params'
 import { TeamStoreSales } from './ventas-equipo'
+import { SaturationSuggestions } from './sugerencias'
 
 /** Columnas de la tabla del equipo. En pantallas angostas cada persona se lee como tarjeta, con el nombre arriba y cada cifra con su etiqueta. */
 const COLS: [es: string, en: string][] = [
@@ -118,6 +119,7 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
           {ctx.can('rules.run') && <ActionForm action={runRulesAction}><Submit variant="ghost" testId="run-rules">{t('Actualizar avisos', 'Refresh alerts')}</Submit></ActionForm>}
         </>}
       />
+      <SaturationSuggestions ctx={ctx} />
       {teamView && <GoalsSection ctx={ctx} market={sp.market ?? null} />}
       {live.length > 1 && (
         <div className="mb-6">

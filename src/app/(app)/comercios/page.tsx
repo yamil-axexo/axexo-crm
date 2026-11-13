@@ -72,7 +72,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const cutoff = tree ? null : await salesCutoff(ctx, sp.market)
   const multi = ctx.markets.length > 1
   // El estado de la lista vive en la URL: abrir o cerrar la ficha no pierde filtros, búsqueda ni página.
-  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito, repartir: repartir ? '1' : undefined }
+  const base = { q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, vista: sp.vista, after: sp.after, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito, fondeo: sp.fondeo === 'sin' ? 'sin' : undefined, repartir: repartir ? '1' : undefined }
   const link = (patch: Record<string, string | undefined>) => qs('/comercios', { ...base, ...patch })
   const fichaHref = (id: string, tab?: FichaTab) => link({ ficha: id, tab: tab && tab !== 'hilo' ? tab : undefined })
   const closeHref = link({})
@@ -163,7 +163,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
           ]}
         />}
 
-        {!tree && <ViewsSection object="account" filters={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito }} current={sp.cola} />}
+        {!tree && <ViewsSection object="account" filters={{ q: sp.q, market: sp.market, lifecycle: sp.lifecycle, owner: sp.owner, kind: sp.kind, ver: sp.ver, region: sp.region, city: sp.city, territory: sp.territory, team: sp.team, pipeline: sp.pipeline, visito: sp.visito, fondeo: sp.fondeo }} current={sp.cola} />}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <form action="/comercios" method="get" role="search" className="flex min-w-0 flex-1 basis-64 flex-wrap gap-2">

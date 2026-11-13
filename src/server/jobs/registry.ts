@@ -9,6 +9,7 @@ import { mercadosJobs } from './mercados'
 import { seguridadJobs } from './seguridad'
 import { gobiernoJobs } from './gobierno'
 import { embudoJobs } from './embudo'
+import { embudo2Jobs } from './embudo2'
 import { cicloCsJobs } from './ciclo-cs'
 import { partnersJobs } from './partners'
 import { iaJobs } from './ia'
@@ -26,6 +27,7 @@ export const JOBS: Job[] = [
   ...seguridadJobs,
   ...gobiernoJobs,
   ...embudoJobs,
+  ...embudo2Jobs,
   ...cicloCsJobs,
   ...partnersJobs,
   ...iaJobs,

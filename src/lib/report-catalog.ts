@@ -48,7 +48,7 @@ export const REPORT_PARAMS = ['periodo', 'desde', 'hasta', 'mercado', 'embudo', 
 export type ViewObject = 'account' | 'lead' | 'deal' | 'activity'
 /** Lista blanca de filtros por lista. Una vista es un conjunto de estos valores con nombre, nunca una consulta. */
 export const VIEW_FILTERS: Record<ViewObject, readonly string[]> = {
-  account: ['q', 'market', 'lifecycle', 'owner', 'kind', 'ver', 'region', 'city', 'territory', 'team', 'pipeline', 'visito'],
+  account: ['q', 'market', 'lifecycle', 'owner', 'kind', 'ver', 'region', 'city', 'territory', 'team', 'pipeline', 'visito', 'fondeo'],
   // tipo, embudo y tiendas: los filtros de campaña de México (tipo de empresa, embudo de campaña y número de tiendas) también se guardan.
   lead: ['market', 'status', 'owner', 'q', 'clock', 'source', 'sort', 'motor', 'equipo', 'tipo', 'embudo', 'tiendas_min', 'tiendas_max'],
   deal: ['pipeline', 'owner', 'paso', 'quietos', 'equipo', 'vista', 'orden'],
@@ -69,7 +69,7 @@ export function viewHref(v: { id: string; object: ViewObject; filters: Record<st
 }
 /** Las vistas que vienen de fábrica se guardaron en español: en inglés se leen en inglés. Las que crea cada equipo salen como las escribió. */
 export const VIEW_EN: Record<string, string> = {
-  'En riesgo': 'At risk', 'Sin persona asignada': 'No one assigned', 'Esperando primera venta': 'Awaiting first sale',
+  'En riesgo': 'At risk', 'Revisitas vencidas': 'Overdue revisits', 'Altas sin fondeo': 'Onboarding with no funding', 'PDV en riesgo': 'Stores at risk', 'Sin persona asignada': 'No one assigned', 'Esperando primera venta': 'Awaiting first sale',
   'Negocios sin persona asignada': 'Deals with no owner', 'Negocios abiertos sin próximo paso': 'Open deals with no next step',
   'Leads sin persona asignada': 'Leads with no owner', 'Leads perdidos': 'Lost leads', 'Organizaciones de US': 'US organizations', 'Tareas del equipo': 'Team tasks', 'Negocios perdidos del mes en US': 'Deals lost this month in the US',
   // integraciones-migracion: lo reconstruido desde Pipedrive (reportes, filtros y tableros de México).

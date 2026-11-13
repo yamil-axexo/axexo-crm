@@ -17,6 +17,7 @@ Optional fields, on both paths:
 | `gclid`, `fbclid` | Click identifiers from Google and Meta, read the same way. |
 | `ttclid`, `li_fat_id`, `twclid` | Click identifiers from TikTok, LinkedIn and X, read the same way (added 13-nov-2026, package `embudo`). |
 | `landing_page`, `referrer` | Page where the person landed and page they came from. Only host and path are stored: anything after `?` or `#` is dropped. The hosted page fills them by itself. |
+| `timezone` | IANA time zone of the store (for example `America/Tijuana`), added 13-nov-2026 by package `embudo2`. The first contact clock counts business hours in this zone; without it (or with an unknown zone) it uses the market zone. Never rejects the form. |
 | `ref` | Referral code of a merchant (8 characters). The link `/r/<code>` opens the form with it. The lead is attributed to that merchant; an unknown code is ignored and never rejects the form. |
 | `x_store_count` (or `store_count` in the API) | Number of stores, used by the assignment rules that route by size. |
 | `consent` | `true` when the person ticked the email opt-in (requirement E3.F7). The hosted page shows an optional, unticked box. |

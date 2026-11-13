@@ -757,3 +757,18 @@ insert into crm.partner_tiers (market_code, code, name_es, name_en, rank, min_ac
 -- Lo que el equipo armó en Pipedrive se reconstruye otra vez con los embudos y campos que el seed acaba de crear
 -- (la migración 0035 corrió antes, cuando la base aún no los tenía).
 select crm.pipedrive_rebuild_apply();
+
+-- embudo2
+-- PIPE-02 / AUT-03: los pasos de alta y de crédito ACH quedan configurados y en pausa, como valor propuesto: Operaciones los
+-- confirma y administración los activa con un clic. Aprueba Operaciones del mercado, con quien lidera como suplente.
+insert into crm.stage_transitions (pipeline_id, from_stage_id, to_stage_id, allowed_roles, requires_evidence, evidence_es, evidence_en, needs_approval, approver_role, backup_id, approval_hours, is_active, pending_owner)
+values
+  (pg_temp.uid('p-mx-d2d'), pg_temp.uid('s-mx-d2d-alta'), pg_temp.uid('s-mx-d2d-espera'), '{}', true,
+   'Expediente de alta completo (documento del expediente)', 'Complete enrollment file (document from the file)', true, 'ops', pg_temp.uid('ana.robles'), 8, false, 'Operaciones'),
+  (pg_temp.uid('p-us-dealer'), pg_temp.uid('s-us-dealer-carrier'), pg_temp.uid('s-us-dealer-awaiting'), '{}', true,
+   'Autorización ACH firmada si liquida por crédito ACH', 'Signed ACH authorization if it settles by ACH credit', true, 'ops', pg_temp.uid('robert.hale'), 8, false, 'Operaciones');
+-- UX-03: las tres colas oficiales por rol (las publica administración). "En riesgo" ya venía de fábrica.
+insert into crm.saved_views (user_id, object, name, filters, is_shared, official_role) values
+  (pg_temp.uid('nora.salas'), 'deal', 'Revisitas vencidas', '{"paso":"revisita-vencida","vista":"lista"}', true, 'rep'),
+  (pg_temp.uid('nora.salas'), 'account', 'Altas sin fondeo', '{"lifecycle":"onboarding","fondeo":"sin"}', true, 'ops');
+update crm.saved_views set official_role = 'supervisor' where name = 'En riesgo' and is_shared and object = 'account';

@@ -7,6 +7,11 @@ import { ingestMetricsFile, ingestSalesAppEvent } from '@/domain/integrations'
 import { evaluateRules } from '@/domain/rules'
 import { withUser } from '@/server/db'
 
+// embudo2 (ACT-02): la fecha del próximo paso tiene tope (90 días propuestos); las pruebas usan fechas cercanas.
+const SOON = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
+const SOON2 = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10)
+void SOON2
+
 const admin = owner()
 afterAll(() => admin.end())
 const one = async <T>(q: Promise<T[]>) => (await q)[0]!
@@ -69,7 +74,7 @@ describe('embudo (PIPE-01, PIPE-04, PIPE-06, ACT-02)', () => {
     const diana = await ctxFor('diana.cruz')
     const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena Dominio ${tag()}`, segment: 'b2b' })
     const pipe = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b'`)
-    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal de prueba', nextStep: 'Llamar', nextStepDue: '2030-01-10' })
+    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal de prueba', nextStep: 'Llamar', nextStepDue: SOON })
     const stages = await admin<{ id: string; code: string }[]>`select id, code from crm.stages where pipeline_id = ${pipe.id} order by position`
     const stage = (code: string) => stages.find((s) => s.code === code)!.id
     return { diana, dealId, accountId: acc.id!, stage }
@@ -244,17 +249,23 @@ describe('reglas (CAMPO-04, CS-03)', () => {
     const diana = await ctxFor('diana.cruz')
     const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena Reglas ${tag()}`, segment: 'b2b' })
     const pipe = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b'`)
-    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal reglas', nextStep: 'Llamar', nextStepDue: '2030-01-10' })
+    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal reglas', nextStep: 'Llamar', nextStepDue: SOON })
     await admin`update crm.deals set next_step = null, next_step_due = null, stage_entered_at = now() - interval '40 days' where id = ${dealId}`
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     const open = await admin`select kind from crm.exceptions where deal_id = ${dealId} and resolved_at is null order by kind`
     expect(open.map((e) => e.kind)).toEqual(['no_next_step', 'stalled_deal'])
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     expect((await admin`select 1 from crm.exceptions where deal_id = ${dealId} and resolved_at is null`).length).toBe(2)
-    await updateDeal(diana, dealId, { nextStep: 'Visitar', nextStepDue: '2030-02-01' })
+    await updateDeal(diana, dealId, { nextStep: 'Visitar', nextStepDue: SOON2 })
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     const after = await admin`select kind, resolution from crm.exceptions where deal_id = ${dealId} order by kind`
     expect(after.find((e) => e.kind === 'no_next_step')).toMatchObject({ resolution: 'auto' })
-    expect(after.find((e) => e.kind === 'stalled_deal')!.resolution).toBeNull()
+    // embudo2 (PIPE-03): un próximo paso con fecha por venir también saca al negocio de "estancado" (valor propuesto
+    // rot_respects_next_step); con el valor apagado, el aviso de estancado sigue abierto como antes.
+    expect(after.find((e) => e.kind === 'stalled_deal')).toMatchObject({ resolution: 'auto' })
+    await admin`update crm.funnel_settings set value = 'false' where key = 'rot_respects_next_step' and market_code is null`
+    await withUser(sys.user.id, (tx) => evaluateRules(tx))
+    expect(await admin`select 1 from crm.exceptions where deal_id = ${dealId} and kind = 'stalled_deal' and resolved_at is null`).toHaveLength(1)
+    await admin`update crm.funnel_settings set value = 'true' where key = 'rot_respects_next_step' and market_code is null`
   })
 })

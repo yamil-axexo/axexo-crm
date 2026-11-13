@@ -5,6 +5,7 @@ import { withUser, type Tx } from '@/server/db'
 import { systemCtx, type Ctx } from '@/server/context'
 import { audit, emit, newId } from '@/domain/common'
 import { insertAccountTx } from '@/domain/accounts'
+import { routeNewAccount } from '@/domain/embudo/routing'
 import { accountRule, skipReason } from '@/domain/intake'
 import { DomainError, invalid } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
@@ -302,6 +303,8 @@ async function linkOrCreateStore(tx: Tx, sys: Ctx, d: StoreData): Promise<{ acco
     const name = scrub(plainText(d.name)).slice(0, 160)
     accountId = await insertAccountTx(tx, { market: d.market, kind: 'store', accountType: null, name, segment: 'd2d', lifecycle: 'onboarding', parentId: null,
       ownerId: owner[0]?.id ?? null, territoryId: null, phone, locality, region, createdBy: sys.user.id })
+    // LEAD-03 (embudo2): sin vendedor conocido, el punto de venta pasa por las reglas de asignación del mercado.
+    if (!owner[0]?.id) await routeNewAccount(tx, accountId, 'sales_app')
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by)
              values (${accountId}, ${d.market}, 'origin', 'import', 'sales_app', 'Sales App', ${sys.user.id})`
     await markUntrusted(tx, 'account', accountId, d.market, 'sales_app', ['name', ...(locality ? ['locality'] : []), ...(region ? ['region'] : [])])

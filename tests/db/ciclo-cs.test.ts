@@ -19,6 +19,11 @@ import { JOBS } from '@/server/jobs/registry'
 import { addDays, isoDay } from '@/lib/format'
 import type { Ctx } from '@/server/context'
 
+// embudo2 (ACT-02): la fecha del próximo paso tiene tope (90 días propuestos); las pruebas usan fechas cercanas.
+const SOON = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
+const SOON2 = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10)
+void SOON2
+
 // Paquete ciclo-cs (13-nov-2026): cuidado del comercio después de la venta, catálogo CS-01 a CS-08.
 // Cada punto del campo "falta" de la auditoría tiene una prueba que falla sin su cambio. Las pruebas crean sus propios registros.
 const admin = owner()
@@ -305,7 +310,7 @@ describe('CS-01 · entregas con dueño, fecha, lista y acuse', () => {
     const diana = await ctxFor('diana.cruz')
     const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena Entrega ${tag()}`, segment: 'b2b', force: true, reason: 'Comercio de prueba distinto' })
     const pipe = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b'`)
-    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Negocio con entrega', nextStep: 'Llamar', nextStepDue: '2030-01-10' })
+    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Negocio con entrega', nextStep: 'Llamar', nextStepDue: SOON })
     const ref = `MID-E${tag()}`
     await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${acc.id!}, 'MX', 's5', ${ref})`
     const out = await ingestMetricsFile(await systemContext(), { as_of: addDays(today, -1), file_name: `e-${tag()}.json`, mode: 'delta', rows: [{ merchant_ref: ref, first_txn_at: days(1), last_txn_at: days(1), txn_count_30d: 3, volume_minor_30d: 90000, currency: 'MXN', active_days_30d: 2 }] })

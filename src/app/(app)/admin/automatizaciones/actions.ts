@@ -77,7 +77,7 @@ export async function saveStepAction(_: R | null, fd: FormData): Promise<R> {
 export async function stageTimesAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const n = (k: string) => (str(fd, k).trim() === '' ? null : Number(str(fd, k)))
-    await setStageTimes(ctx, str(fd, 'stage_id'), { slaHours: n('sla_hours'), rotDaysWaiting: n('rot_days_waiting') })
+    await setStageTimes(ctx, str(fd, 'stage_id'), { slaHours: n('sla_hours'), rotDaysWaiting: n('rot_days_waiting'), rotDaysCustomer: n('rot_days_customer'), rotDaysCarrier: n('rot_days_carrier') })
     return { message: ['Tiempos de la etapa guardados.', 'Stage times saved.'] }
   })
 }
@@ -94,7 +94,7 @@ export async function escalationAction(_: R | null, fd: FormData): Promise<R> {
 
 export async function addEvidenceAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await addEvidence(ctx, str(fd, 'deal_id'), { toStageId: str(fd, 'to_stage_id'), url: str(fd, 'url'), note: str(fd, 'note') })
+    await addEvidence(ctx, str(fd, 'deal_id'), { toStageId: str(fd, 'to_stage_id'), url: str(fd, 'url'), note: str(fd, 'note'), documentId: str(fd, 'document_id'), contentHash: str(fd, 'content_hash') })
     return { message: ['Evidencia agregada. Ya puedes mover el negocio a esa etapa.', 'Evidence added. You can now move the deal to that stage.'] }
   })
 }

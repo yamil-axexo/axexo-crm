@@ -64,10 +64,13 @@ const leadInput = z.object({
   email: z.string().trim().max(160).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
-  /** MULTI-02 (datos2): zona horaria IANA del negocio, si quien manda el lead la sabe. Opcional. */
-  timezone: z.string().trim().max(60).optional(),
+  /** LEAD-04 (embudo2): zona horaria del punto de venta (IANA), si quien manda el lead la conoce. Sin ella, la del mercado. */
+  timezone: z.string().trim().max(60).optional().default('').refine((z) => z === '' || validZone(z)),
 })
 export type LeadInput = z.input<typeof leadInput>
+function validZone(zone: string): boolean {
+  try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); return /^[A-Za-z_]+\/[A-Za-z_/+-]+$/.test(zone) } catch { return false }
+}
 
 type LeadRow = {
   id: string
@@ -237,6 +240,8 @@ const formPayload = z.object({
   phone: z.string().trim().max(30).optional().default(''),
   email: z.string().trim().max(160).optional().default(''),
   locality: z.string().trim().max(120).optional().default(''),
+  /** LEAD-04 (embudo2): zona horaria del punto de venta (IANA), opcional. Sin ella, el reloj usa la del mercado. */
+  timezone: z.string().trim().max(60).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
   website: z.string().max(0).optional().default(''), // trampa para bots: debe llegar vacío
   // Tipo de empresa (E15.F3): solo cuenta si el formulario lo ofrece; un valor que no está en su lista se ignora.
@@ -338,7 +343,7 @@ export async function intakeFromForm(sys: Ctx, slug: string, raw: unknown, idemp
     const leadId = await insertLead(
       tx,
       sys,
-      { market: form.market_code, motor: form.motor, businessName: p.business_name, contactName: p.contact_name, phone: p.phone, email: p.email, locality: p.locality, message: p.message, source: 'manual', alreadyContacted: false },
+      { market: form.market_code, motor: form.motor, businessName: p.business_name, contactName: p.contact_name, phone: p.phone, email: p.email, locality: p.locality, message: p.message, source: 'manual', alreadyContacted: false, timezone: validZone(p.timezone) ? p.timezone : '' },
       // Un formulario de campaña deja el origen "Campaña web" (E15.F2). El tipo de empresa que eligió la persona manda sobre el del formulario (E15.F3).
       { source: form.is_campaign ? 'web_campaign' : 'web_form', formId: form.id, ownerId, slaMinutes: sla, origin, accountType: form.offer_types.includes(p.company_type) ? p.company_type : form.account_type },
     )

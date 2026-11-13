@@ -22,6 +22,7 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/cuidado', 'Cuidado de comercios', 'Merchant care'],
   ['/avisos/preferencias', 'Preferencias de avisos', 'Notice preferences'],
   ['/avisos', 'Avisos', 'Notices'],
+  ['/colas', 'Colas del equipo', 'Team queues'],
   ['/anuncios', 'Anuncios', 'Announcements'],
   ['/como-se-usa', 'Ayuda de una pantalla', 'Help for a screen'],
   ['/admin/avisos', 'Administración, Avisos y plantillas', 'Administration, Notices and templates'],

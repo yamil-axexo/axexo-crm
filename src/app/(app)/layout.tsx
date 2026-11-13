@@ -13,7 +13,7 @@ import { LogHost } from '@/ui/log'
 import { Beacon } from '@/ui/beacon'
 import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
-import { pinnedQueues } from '@/dal/reportes'
+import { officialQueues, pinnedQueues } from '@/dal/reportes'
 import { VIEW_EN, VIEW_OBJECT_LABEL, viewHref } from '@/lib/report-catalog'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
@@ -76,6 +76,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const viewAsUntil = ctx.viewAs ? new Intl.DateTimeFormat(ctx.locale === 'en' ? 'en-US' : 'es-MX', { hour: 'numeric', minute: '2-digit', timeZone: await readerTimeZone(ctx) }).format(new Date(ctx.viewAs.until)) : ''
   // Colas fijadas por la persona (vistas guardadas), con su contador.
   const queues = await pinnedQueues(ctx)
+  // UX-03 (embudo2): las colas oficiales del rol, con su total en la barra principal.
+  const official = await officialQueues(ctx)
+  const officialTotal = official.reduce((n, q) => n + (q.count ?? 0), 0)
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
   // UX-02: la paleta (Ctrl+K) ofrece los mismos destinos que la persona ya tiene en el dock y en su menú, ni uno más.
   const palette = [
@@ -110,6 +113,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/buscar" aria-label={m('top.searchLabel')} className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-strong md:hidden" data-testid="search-link">
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
+          {official.length > 0 && (
+            <Link href="/colas" className="press relative inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-full border border-line px-1.5 text-[13px] font-semibold text-strong hover:bg-green-50 md:px-3" data-testid="nav-official-queues">
+              <ListChecks size={18} strokeWidth={1.75} aria-hidden className="hidden md:block" />
+              <span className="sr-only md:not-sr-only">{t('Colas', 'Queues')}</span>
+              <span className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="nav-official-count">{officialTotal > 99 ? '99+' : officialTotal}</span>
+            </Link>
+          )}
           <Link href="/avisos" aria-label={bellLabel} title={bellLabel} className={`press relative h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-strong hover:bg-green-50 ${readOnly ? 'hidden md:inline-flex' : 'inline-flex'}`} data-testid="bell">
             <Bell size={20} strokeWidth={1.75} aria-hidden />
             {unread > 0 && <span className="num absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="bell-count">{unread > 99 ? '99+' : unread}</span>}
