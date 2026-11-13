@@ -22,7 +22,7 @@ const stage = async (pipe: string, code: string) => (await one(admin<{ id: strin
 /** Un comercio nuevo de Jade (ventas US), con su id. */
 async function jadeAccount(segment: 'dealer' | 'orders' | 'event' | 'other' = 'dealer') {
   const jade = await ctxFor('jade.kim')
-  const out = await createAccount(jade, { market: 'US', kind: 'store', name: `Operaciones prueba ${tag()}`, segment, force: true })
+  const out = await createAccount(jade, { market: 'US', kind: 'store', name: `Operaciones prueba ${tag()}`, segment, force: true, reason: 'Prueba: es otro comercio' })
   return { jade, accountId: out.id! }
 }
 
@@ -249,10 +249,10 @@ describe('avisos, cierre en bloque, ganar a mano y etapa inicial', () => {
     await expect(createDeal(jade, { accountId, pipelineId: dealer, title: 'Directo', nextStep: 'Llamar', nextStepDue: today, stageId: await stage('p-us-dealer', 'application') })).rejects.toMatchObject({ code: 'stage_gate' })
     await expect(createDeal(jade, { accountId, pipelineId: dealer, title: 'Directo', nextStep: 'Llamar', nextStepDue: today, stageId: await stage('p-us-dealer', 'carrier') })).rejects.toMatchObject({ code: 'invalid' })
     const marco = await ctxFor('marco.pena')
-    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Abarrotes prueba ${tag()}`, segment: 'd2d', force: true })
+    const acc = await createAccount(marco, { market: 'MX', kind: 'store', name: `Abarrotes prueba ${tag()}`, segment: 'd2d', force: true, reason: 'Prueba: es otro comercio' })
     const b2b = await uid('p-mx-b2b')
     const diana = await ctxFor('diana.cruz')
-    const acc2 = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena prueba ${tag()}`, segment: 'b2b', force: true })
+    const acc2 = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena prueba ${tag()}`, segment: 'b2b', force: true, reason: 'Prueba: es otro comercio' })
     const mxToday = isoDay(new Date(), 'America/Mexico_City')
     await expect(createDeal(diana, { accountId: acc2.id!, pipelineId: b2b, title: 'Con propuesta', nextStep: 'Enviar', nextStepDue: mxToday, stageId: await stage('p-mx-b2b', 'propuesta') })).rejects.toMatchObject({ code: 'stage_gate' })
     const id = await createDeal(diana, { accountId: acc2.id!, pipelineId: b2b, title: 'Con propuesta', amount: 5000, nextStep: 'Enviar', nextStepDue: mxToday, stageId: await stage('p-mx-b2b', 'propuesta') })

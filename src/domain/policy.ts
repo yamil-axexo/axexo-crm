@@ -71,6 +71,18 @@ export const CAPABILITIES = {
   // Reportes del equipo (0017): reportar un problema lo puede hacer cualquier persona con acceso, también quien solo lee,
   // porque el reporte es suyo y no cambia datos del negocio (domain/reports.ts). Verlos todos y responder es de administración.
   'report.manage': ['admin'],
+  // Paquete datos (0023). Cola de duplicados: buscar en lote, descartar un par y revisar avisos saltados es de quien lidera el
+  // mercado o administra; fusionar y deshacer sigue siendo solo de administración ('account.merge').
+  'duplicate.review': ['admin', 'market_lead'],
+  // Identificadores de otros sistemas: los agrega y los cierra quien cuida los datos del mercado.
+  'alias.manage': ['admin', 'market_lead', 'ops'],
+  // Campos: quien lidera un mercado propone; administración aprueba ('config.manage'). Listas de proceso del mercado.
+  'field.propose': ['admin', 'market_lead'],
+  'process.define': ['admin', 'market_lead'],
+  // Tablero de calidad de datos: cada quien sobre lo que ve (supervisión, su equipo). Leadership lo lee.
+  'data.quality': [...MANAGERS, 'lt', 'ops'],
+  // Matriz de productos por comercio y su estado con cada proveedor: la mantiene Operaciones.
+  'account.products': ['admin', 'ops'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

@@ -54,7 +54,7 @@ describe('un lead convertido hereda el territorio', () => {
 describe('tomar una tienda sin asignar', () => {
   const unowned = async (code: string) => {
     const ana = await ctxFor('ana.robles')
-    const acc = await createAccount(ana, { market: 'MX', kind: 'store', name: `Tienda Libre ${code} ${tag()}`, segment: 'd2d', force: true })
+    const acc = await createAccount(ana, { market: 'MX', kind: 'store', name: `Tienda Libre ${code} ${tag()}`, segment: 'd2d', force: true, reason: 'Prueba: es otro comercio' })
     await admin`update crm.accounts set owner_id = null, territory_id = ${await territory('MX', code)} where id = ${acc.id!}`
     return acc.id!
   }
@@ -92,7 +92,7 @@ describe('la devolución de Operaciones se lee en el idioma de quien la lee', ()
     const jade = await ctxFor('jade.kim')
     const tom = await ctxFor('tom.reyes')
     const stage = async (code: string) => (await one(admin<{ id: string }[]>`select s.id from crm.stages s where s.pipeline_id = md5('contigo:p-us-dealer')::uuid and s.code = ${code}`)).id
-    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Return Wireless ${tag()}`, segment: 'dealer', force: true })
+    const acc = await createAccount(jade, { market: 'US', kind: 'store', name: `Return Wireless ${tag()}`, segment: 'dealer', force: true, reason: 'Prueba: es otro comercio' })
     const contact = await one(admin<{ id: string }[]>`insert into crm.contacts (market_code, full_name) values ('US', 'Dana Fox') returning id`)
     await admin`insert into crm.account_contacts (account_id, contact_id, market_code, role) values (${acc.id!}, ${contact.id}, 'US', 'decision_maker')`
     const today = (await one(admin<{ d: string }[]>`select (now() at time zone 'America/New_York')::date::text as d`)).d
