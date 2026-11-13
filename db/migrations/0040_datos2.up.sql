@@ -289,3 +289,54 @@ language sql stable security definer set search_path = crm, app, public, extensi
    limit 5
 $$;
 grant execute on function app.duplicate_matches(text, text, text, text, text, text, text, uuid, text[], numeric, numeric) to contigo_app;
+
+-- ================================================================ DAT-01 agregados a una fecha y comisión por nodo
+-- El subárbol de una cuenta en un momento: las aristas vigentes ese día (crm.account_links), no el padre de hoy.
+create or replace function app.subtree_at(p_root uuid, p_at timestamptz)
+returns table (id uuid)
+language sql stable set search_path = crm, app, pg_catalog as $$
+  with recursive t(id) as (
+    select p_root
+    union
+    select l.child_id from crm.account_links l join t on l.parent_id = t.id
+     where l.valid_from <= p_at and (l.valid_to is null or l.valid_to > p_at)
+  )
+  select t.id from t
+$$;
+grant execute on function app.subtree_at(uuid, timestamptz) to contigo_app;
+
+-- Lo que suma un nodo. Sin fecha: hoy (árbol vigente, etapa de vida de hoy). Con fecha: el árbol y las cifras de ese día; la
+-- etapa de vida de ese día no se guarda, así que "activos" queda sin dato. Corre con los permisos de quien pregunta (RLS).
+create or replace function app.node_totals(p_root uuid, p_day date default null)
+returns table (open_deals int, open_amount text, won_deals int, active int, accounts int, txn_30d int, currency text, commission_30d text, as_of text)
+language sql stable set search_path = crm, app, pg_catalog as $$
+  with cut as (
+    select case when p_day is null then now() else ((p_day + 1)::timestamp at time zone coalesce(
+             (select mk.timezone from crm.accounts r join crm.markets mk on mk.code = r.market_code where r.id = p_root), 'UTC')) end as at
+  ), node as (
+    select d.id, d.lifecycle, d.market_code from crm.accounts d
+     where d.archived_at is null and d.created_at <= (select at from cut)
+       and (case when p_day is null then (d.id = p_root or d.ancestor_ids @> array[p_root]::uuid[])
+                 else d.id in (select s.id from app.subtree_at(p_root, (select at from cut)) s) end)
+  ), dl as (
+    select x.* from crm.deals x where x.account_id in (select id from node) and x.created_at <= (select at from cut)
+  ), mday as (
+    select max(as_of) as d from crm.merchant_metrics_daily where as_of <= coalesce(p_day, as_of)
+  ), cday as (
+    select c.account_id, c.commission_minor_30d,
+           row_number() over (partition by c.account_id order by c.as_of desc) as rn
+      from crm.care_signals c where c.account_id in (select id from node) and c.as_of <= coalesce(p_day, c.as_of) and c.commission_minor_30d is not null
+  )
+  select (select count(*)::int from dl where (p_day is null and dl.status = 'open')
+                                          or (p_day is not null and (dl.won_at is null or dl.won_at > (select at from cut)) and (dl.lost_at is null or dl.lost_at > (select at from cut)))),
+         (select sum(dl.amount_minor)::text from dl where (p_day is null and dl.status = 'open')
+                                          or (p_day is not null and (dl.won_at is null or dl.won_at > (select at from cut)) and (dl.lost_at is null or dl.lost_at > (select at from cut)))),
+         (select count(*)::int from dl where dl.status = 'won' and (p_day is null or dl.won_at <= (select at from cut))),
+         case when p_day is null then (select count(*)::int from node where lifecycle = 'active') end,
+         (select count(*)::int from node),
+         coalesce((select sum(m.txn_count_30d)::int from crm.merchant_metrics_daily m where m.account_id in (select id from node) and m.as_of = (select d from mday)), 0),
+         (select mk.currency::text from crm.markets mk where mk.code = (select market_code from crm.accounts where id = p_root)),
+         (select sum(commission_minor_30d)::text from cday where rn = 1),
+         p_day::text
+$$;
+grant execute on function app.node_totals(uuid, date) to contigo_app;

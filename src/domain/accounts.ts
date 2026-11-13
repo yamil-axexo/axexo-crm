@@ -12,9 +12,10 @@ import { notifyMany, peopleWithRole } from '@/domain/notify'
 import { resolveRecruiter } from '@/domain/store-record'
 import { checkTaxId, TAX_ID_TYPES } from '@/lib/tax-id'
 import { blindIndex } from '@/server/adapters/markets'
+import { decisionValue } from '@/domain/decisions'
 
 /** `strong`: coincide una llave fuerte exacta (teléfono, correo, identificador externo, o nombre más dirección). */
-export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'email' | 'external_id' | 'name_address' | 'name'; strong: boolean }
+export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'email' | 'external_id' | 'name_address' | 'tax_id' | 'geo' | 'name'; strong: boolean }
 
 const createInput = z.object({
   market: z.string().length(2),
@@ -205,7 +206,7 @@ export async function updateAccount(ctx: Ctx, id: string, input: z.input<typeof 
  * y abre el nuevo. La cuenta conserva su historia, su atribución y a quien la lleva; el árbol no crece más de lo que admite el
  * tipo de su raíz. Poner por primera vez una cuenta independiente bajo una matriz no pide motivo; cambiarla o sacarla, sí.
  */
-export async function setParent(ctx: Ctx, id: string, parentId: string | null, opts: { reason?: string; effectiveOn?: string } = {}): Promise<{ ownerDiffers: boolean }> {
+export async function setParent(ctx: Ctx, id: string, parentId: string | null, opts: { reason?: string; effectiveOn?: string } = {}): Promise<{ ownerDiffers: boolean; ownerFollowed?: number }> {
   const reason = (opts.reason ?? '').trim()
   const effectiveOn = (opts.effectiveOn ?? '').trim()
   if (effectiveOn && !/^\d{4}-\d{2}-\d{2}$/.test(effectiveOn)) throw invalid('La fecha efectiva no es válida.', 'The effective date is not valid.')
@@ -226,7 +227,7 @@ export async function setParent(ctx: Ctx, id: string, parentId: string | null, o
       if (parentId === id || p[0].ancestor_ids.includes(id)) throw invalid('Esa cuenta cuelga de esta: no puede ser su matriz.', 'That account sits under this one: it cannot be its parent.')
       parentOwner = p[0].owner_id
     }
-    if (parentId === a.parent_id) return { ownerDiffers: false }
+    if (parentId === a.parent_id) return { ownerDiffers: false, ownerFollowed: 0 }
     if (a.parent_id && (reason.length < 5 || reason.length > 300)) throw invalid('Escribe por qué se mueve esta cuenta en el árbol (de 5 a 300 letras).', 'Say why this account is moving in the tree (5 to 300 characters).')
     // Fecha efectiva: hoy o un día pasado (un cambio que ya ocurrió y se registra tarde). Un cambio a futuro no se agenda aquí.
     const when = await tx<{ at: Date; future: boolean; early: boolean }[]>`
@@ -250,8 +251,18 @@ export async function setParent(ctx: Ctx, id: string, parentId: string | null, o
     }
     if (parentId) await tx`insert into crm.account_links (child_id, parent_id, valid_from, created_by, reason) values (${id}, ${parentId}, ${at}, ${ctx.user.id}, ${clean(reason)})`
     const ownerDiffers = !!parentId && !!a.owner_id && !!parentOwner && parentOwner !== a.owner_id
-    await audit(tx, ctx, 'account.parent_changed', 'account', id, a.market_code, { parent_id: a.parent_id }, { parent_id: parentId, reason: clean(reason), effective_on: effectiveOn || null, owner_kept: a.owner_id, owner_differs_from_parent: ownerDiffers })
-    return { ownerDiffers }
+    // DAT-01 (datos2): la regla de dueño al mover es una decisión del mercado (Administración, Decisiones de negocio). Con "toma
+    // el dueño de arriba", la cuenta y lo que cuelga de ella con el mismo dueño pasan al dueño de la matriz; queda en la bitácora.
+    const rule = ownerDiffers ? (await decisionValue(tx, 'tree.reparent_owner', a.market_code)).value : 'keep'
+    let followed: string[] = []
+    if (rule === 'parent' && parentOwner) {
+      followed = (await tx<{ id: string }[]>`
+        update crm.accounts set owner_id = ${parentOwner}
+         where (id = ${id} or ancestor_ids @> array[${id}]::uuid[]) and owner_id = ${a.owner_id} and archived_at is null returning id`).map((r) => r.id)
+      if (followed.length) await audit(tx, ctx, 'account.owner_followed_parent', 'account', id, a.market_code, { owner_id: a.owner_id }, { owner_id: parentOwner, accounts: followed.length, rule })
+    }
+    await audit(tx, ctx, 'account.parent_changed', 'account', id, a.market_code, { parent_id: a.parent_id }, { parent_id: parentId, reason: clean(reason), effective_on: effectiveOn || null, owner_kept: followed.length ? null : a.owner_id, owner_differs_from_parent: ownerDiffers, owner_rule: rule })
+    return { ownerDiffers: ownerDiffers && !followed.length, ownerFollowed: followed.length }
   })
 }
 

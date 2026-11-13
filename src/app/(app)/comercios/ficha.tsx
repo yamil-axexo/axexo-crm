@@ -60,7 +60,7 @@ const LEVEL: Record<string, string> = {
  * Ficha del comercio (handoff, sección 5): encabezado, "Lo siguiente", cuatro acciones y las pestañas Hilo, Árbol y Datos.
  * La misma ficha se usa como panel sobre la lista (desktop), a un lado de la lista (tablet) y a pantalla completa (móvil y enlaces directos).
  */
-export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ctx; data: Data; tab: FichaTab; mode: 'panel' | 'page'; href: (id: string, tab?: FichaTab) => string; closeHref: string }) {
+export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null }: { ctx: Ctx; data: Data; tab: FichaTab; mode: 'panel' | 'page'; href: (id: string, tab?: FichaTab) => string; closeHref: string; /** DAT-01: día para ver lo que sumaba el árbol (AAAA-MM-DD). */ asOf?: string | null }) {
   const { t, m, locale } = ctx
   const { account: a, ancestors, rollup, children, contacts, aliases, attributions, deals, metrics, tasks, timeline, pipelines } = data
   const market = ctx.market(a.market_code)
@@ -182,7 +182,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
   // Paquete datos: identidad del comercio (movimientos en el árbol, contactos, ID de otros sistemas, productos, procesos, fusiones)
   // y lo que suma el nodo con todo lo que cuelga de él.
   const identity = tab === 'datos' || tab === 'arbol' ? await accountIdentity(ctx, a.id, a.market_code) : null
-  const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id) : null
+  const totals = tab === 'arbol' && isParent ? await nodeTotals(ctx, a.id, asOf) : null
   const canAlias = !a.archived_at && ctx.can('alias.manage', a.market_code)
   const canProducts = !a.archived_at && ctx.can('account.products', a.market_code)
   // E9: en un mercado con ficha de dealer (US), la ficha abre con ventas e identificadores y lleva los datos de la tienda y sus carriers.
@@ -409,7 +409,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               </p>
             </div>
           )}
-          {identity && (totals || identity.moves.length > 0) && <TreeTotals ctx={ctx} totals={totals} moves={identity.moves} tz={tz} />}
+          {identity && (totals || identity.moves.length > 0) && <TreeTotals ctx={ctx} totals={totals} moves={identity.moves} tz={tz} accountId={a.id} asOf={asOf} />}
           {ancestors.length + children.length === 0 ? (
             <p className="text-[15px] text-muted">{m('record.tree.alone')}</p>
           ) : (

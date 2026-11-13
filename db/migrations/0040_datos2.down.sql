@@ -1,4 +1,6 @@
 -- 0040_datos2 (down)
+drop function if exists app.node_totals(uuid, date);
+drop function if exists app.subtree_at(uuid, timestamptz);
 drop table if exists crm.decision_settings;
 drop function if exists app.contact_brief(uuid);
 drop policy if exists contacts_steward_read on crm.contacts;

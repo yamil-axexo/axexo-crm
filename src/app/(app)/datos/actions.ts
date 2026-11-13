@@ -66,6 +66,7 @@ export async function reviewBypassAction(_: R | null, fd: FormData): Promise<R> 
 export async function moveInTreeAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const out = await setParent(ctx, str(fd, 'id'), str(fd, 'parent_id') || null, { reason: str(fd, 'reason'), effectiveOn: str(fd, 'effective_on') })
+    if (out.ownerFollowed) return { message: [`Jerarquía actualizada. ${out.ownerFollowed === 1 ? 'La cuenta pasó' : `${out.ownerFollowed} cuentas pasaron`} a quien lleva la matriz, como dice la regla del mercado.`, `Hierarchy updated. ${out.ownerFollowed === 1 ? 'The account moved' : `${out.ownerFollowed} accounts moved`} to the parent’s owner, as the market rule says.`] }
     return { message: out.ownerDiffers
       ? ['Jerarquía actualizada. La cuenta conserva a quien la lleva, que no es quien lleva la matriz: revisa si hay que reasignarla.', 'Hierarchy updated. The account keeps its owner, who is not the parent’s owner: check whether it needs reassigning.']
       : ['Jerarquía actualizada.', 'Hierarchy updated.'] }

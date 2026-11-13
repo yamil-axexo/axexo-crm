@@ -118,6 +118,10 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="account-phone" /></Field>
                 <Field label={t('Ciudad', 'City')}><input name="locality" className="input" /></Field>
                 <Field label={t('Estado o región', 'State or region')}><input name="region" className="input" /></Field>
+                {/* DAT-04 (datos2): el identificador fiscal, si se tiene a la mano, también busca si el comercio ya existe. */}
+                <Field label={t('Identificador fiscal (opcional)', 'Tax ID (optional)')} className="col-span-2" hint={t('Sirve para ver si el comercio ya existe. Se registra completo en la ficha, en Datos.', 'It checks whether the merchant already exists. It is recorded in full on the record, under Data.')}>
+                  <input name="tax_id" className="input" maxLength={40} autoComplete="off" data-testid="account-taxid" />
+                </Field>
                 {place.territories.length > 0 && (
                   <Field label={t('Territorio', 'Territory')} className="col-span-2" hint={t('Si lo dejas así y tienes un solo territorio, el comercio nace con el tuyo.', 'If you leave it like this and you have a single territory, the merchant starts with yours.')}>
                     <select name="territory_id" className="input" data-testid="account-territory"><option value="">{t('Según quien lo crea', 'Based on who creates it')}</option>{place.territories.map((x) => <option key={x.id} value={x.id}>{multi ? `${x.market_code} · ${x.name}` : x.name}</option>)}</select>

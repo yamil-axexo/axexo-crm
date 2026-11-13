@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Ctx } from '@/server/context'
 import type { accountIdentity, NodeTotals } from '@/dal/datos'
 import { PRODUCT_STATUSES } from '@/domain/gobierno'
-import { Badge, Field, KeyVal, cx } from '@/ui/kit'
+import { Badge, Field, KeyVal, NoData, cx } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { CopyButton } from '@/ui/confirm'
 import { ago, day, money, num } from '@/lib/format'
@@ -19,19 +19,31 @@ const section = 'border-t border-line pt-6'
 const h3 = 'text-[15px] leading-6 font-semibold'
 
 /** DAT-01: lo que suma este nodo con todo lo que cuelga de él. */
-export function TreeTotals({ ctx, totals, moves, tz }: { ctx: Ctx; totals: NodeTotals | null; moves: Identity['moves']; tz: string }) {
+export function TreeTotals({ ctx, totals, moves, tz, accountId, asOf = null }: { ctx: Ctx; totals: NodeTotals | null; moves: Identity['moves']; tz: string; accountId?: string; asOf?: string | null }) {
   const { t, locale } = ctx
   const cell = 'rounded-[12px] border border-line bg-surface px-3 py-2.5'
   return (
     <div className="mb-5 space-y-4" data-testid="tree-totals">
+      {totals && accountId && (
+        <form method="get" action={`/comercios/${accountId}`} className="flex flex-wrap items-end gap-2" data-testid="tree-asof">
+          <input type="hidden" name="tab" value="arbol" />
+          <label className="text-[13px] text-muted">{t('Ver cómo estaba el día', 'See how it stood on')}
+            <input type="date" name="al" defaultValue={asOf ?? ''} max={new Date().toISOString().slice(0, 10)} className="input mt-1 !w-auto" data-testid="tree-asof-date" /></label>
+          <button type="submit" className="press inline-flex min-h-11 items-center rounded-full border border-line px-4 text-[13px] font-medium text-strong" data-testid="tree-asof-go">{t('Ver', 'Show')}</button>
+          {asOf && <a href={`/comercios/${accountId}?tab=arbol`} className="inline-flex min-h-11 items-center text-[13px] font-medium text-blue-text underline">{t('Volver a hoy', 'Back to today')}</a>}
+        </form>
+      )}
       {totals && <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className={cell}><dt className="text-[13px] text-muted">{t('Negocios abiertos', 'Open deals')}</dt><dd className="num text-[18px] font-semibold text-strong" data-testid="node-open">{num(totals.open_deals, locale)}</dd>
           {totals.open_amount && Number(totals.open_amount) > 0 && <dd className="text-[13px] text-muted-2">{money(Number(totals.open_amount), totals.currency ?? 'USD', locale, true)}</dd>}</div>
         <div className={cell}><dt className="text-[13px] text-muted">{t('Negocios ganados', 'Deals won')}</dt><dd className="num text-[18px] font-semibold text-strong" data-testid="node-won">{num(totals.won_deals, locale)}</dd></div>
-        <div className={cell}><dt className="text-[13px] text-muted">{t('Comercios activos', 'Active merchants')}</dt><dd className="num text-[18px] font-semibold text-strong" data-testid="node-active">{num(totals.active, locale)}</dd><dd className="text-[13px] text-muted-2">{t(`de ${num(totals.accounts, locale)} cuentas`, `of ${num(totals.accounts, locale)} accounts`)}</dd></div>
+        <div className={cell}><dt className="text-[13px] text-muted">{t('Comercios activos', 'Active merchants')}</dt><dd className="num text-[18px] font-semibold text-strong" data-testid="node-active">{totals.active === null ? <NoData locale={locale} /> : num(totals.active, locale)}</dd><dd className="text-[13px] text-muted-2">{t(`de ${num(totals.accounts, locale)} cuentas`, `of ${num(totals.accounts, locale)} accounts`)}</dd></div>
         <div className={cell}><dt className="text-[13px] text-muted">{t('Ventas en 30 días', 'Sales in 30 days')}</dt><dd className="num text-[18px] font-semibold text-strong" data-testid="node-sales">{num(totals.txn_30d, locale)}</dd></div>
+        <div className={cell}><dt className="text-[13px] text-muted">{t('Comisión en 30 días', 'Commission in 30 days')}</dt><dd className="num text-[18px] font-semibold text-strong" data-testid="node-commission">{totals.commission_30d === null ? <NoData locale={locale} /> : money(Number(totals.commission_30d), totals.currency ?? 'USD', locale, true)}</dd></div>
       </dl>}
-      {totals && <p className="text-[13px] text-muted">{t('Suma esta cuenta y todo lo que cuelga de ella, hasta donde tú la ves.', 'Adds up this account and everything under it, as far as you can see it.')}</p>}
+      {totals && <p className="text-[13px] text-muted" data-testid="tree-totals-note">{asOf
+        ? t(`Así estaba el ${day(asOf, locale)}: el árbol de ese día y el último corte de ventas hasta esa fecha. La etapa de cada comercio ese día no se guarda.`, `How it stood on ${day(asOf, locale)}: that day's tree and the latest sales cut up to that date. Each merchant's stage on that day is not stored.`)
+        : t('Suma esta cuenta y todo lo que cuelga de ella, hasta donde tú la ves. La comisión llega por la conexión de señales; sin ella, queda sin dato.', 'Adds up this account and everything under it, as far as you can see it. Commission arrives through the signals connection; without it, there is no figure.')}</p>}
       {moves.length > 0 && (
         <details className="rounded-[12px] border border-line px-4 py-3" data-testid="tree-moves">
           <summary className="cursor-pointer text-[14px] font-medium text-strong">{t('Movimientos en el árbol', 'Moves in the tree')} ({moves.length})</summary>

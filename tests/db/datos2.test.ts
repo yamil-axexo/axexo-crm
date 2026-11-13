@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { ctxFor, owner, personaId } from './helpers'
 import { withSystem } from '@/server/db'
-import { addContactLinked, createAccount } from '@/domain/accounts'
+import { addContactLinked, createAccount, setParent } from '@/domain/accounts'
+import { nodeTotals } from '@/dal/datos'
 import { convertLead, createLead, qualifyLead } from '@/domain/leads'
 import { dismissContactPair, mergeContacts, resolveContact, undoContactMerge } from '@/domain/contacts-dedup'
 import { decisionValue, DECISIONS, setDecision } from '@/domain/decisions'
@@ -20,11 +21,12 @@ afterAll(async () => {
   await admin.end()
 })
 
-async function rawAccount(market: 'MX' | 'US', who: string, extra: Record<string, string | number | null> = {}): Promise<string> {
+async function rawAccount(market: 'MX' | 'US', who: string, extra: Record<string, string | number | null> = {}, type = 'store'): Promise<string> {
   const o = await personaId(who)
+  const kind = type === 'chain' ? 'chain' : 'store'
   const row = await one(admin<{ id: string }[]>`
     insert into crm.accounts (market_code, kind, account_type, name, segment, owner_id, phone, email, locality, country, latitude, longitude, created_by)
-    values (${market}, 'store', 'store', ${(extra.name as string) ?? `Datos2 ${tag()} ${tag()}`}, ${market === 'US' ? 'dealer' : 'd2d'}, ${o}, ${(extra.phone as string) ?? null},
+    values (${market}, ${kind}, ${type}, ${(extra.name as string) ?? `Datos2 ${tag()} ${tag()}`}, ${market === 'US' ? 'dealer' : 'd2d'}, ${o}, ${(extra.phone as string) ?? null},
             ${(extra.email as string) ?? null}, ${(extra.locality as string) ?? null}, ${market}, ${(extra.lat as number) ?? null}, ${(extra.lon as number) ?? null}, ${o}) returning id`)
   return row.id
 }
@@ -205,5 +207,54 @@ describe('Decisiones de negocio con dueño', () => {
     expect(v).toEqual({ value: 'keep', proposed: false })
     expect((await admin`select 1 from crm.audit_events where action = 'decision.set'`).length).toBeGreaterThan(0)
     expect(AUDIT_ACTION['decision.set']).toBeTruthy()
+  })
+})
+
+describe('DAT-01 · árbol a una fecha, comisión por nodo y dueño al mover', () => {
+  it('lo que suma un nodo se puede ver a una fecha pasada con el árbol de ese día', async () => {
+    const paula = await ctxFor('paula.mendez')
+    const chain = await rawAccount('MX', 'diana.cruz', {}, 'chain')
+    const kid = await rawAccount('MX', 'diana.cruz', {}, 'branch')
+    await admin`update crm.accounts set created_at = now() - interval '30 days' where id in (${chain}, ${kid})`
+    await setParent(paula, kid, chain)
+    await admin`update crm.account_links set valid_from = now() - interval '5 days' where child_id = ${kid}`
+    const ago = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10)
+    const today = await nodeTotals(paula, chain)
+    expect(today.accounts).toBe(2)
+    expect(today.as_of).toBeNull()
+    const before = await nodeTotals(paula, chain, ago(10))
+    expect(before.accounts).toBe(1)
+    // la etapa de vida de un día pasado no se guarda: queda sin dato en vez de inventarse
+    expect(before.active).toBeNull()
+    expect(before.as_of).toBe(ago(10))
+    // comisión: sin señales, sin dato; con señales, suma el último corte de cada comercio del subárbol
+    expect(today.commission_30d).toBeNull()
+    await admin`insert into crm.care_signals (account_id, as_of, market_code, commission_minor_30d, source) values (${kid}, current_date - 1, 'MX', 12500, 'manual'), (${chain}, current_date - 1, 'MX', 500, 'manual')`
+    expect((await nodeTotals(paula, chain)).commission_30d).toBe('13000')
+  })
+
+  it('al mover una cuenta, el dueño sigue la regla del mercado: por defecto se conserva; con "toma el de arriba", pasa con su subárbol', async () => {
+    const paula = await ctxFor('paula.mendez')
+    const nora = await ctxFor('nora.salas')
+    const ivan = await personaId('ivan.rios')
+    const diana = await personaId('diana.cruz')
+    const top = await rawAccount('MX', 'ivan.rios', {}, 'chain')
+    const mid = await rawAccount('MX', 'diana.cruz', {}, 'chain')
+    const leaf = await rawAccount('MX', 'diana.cruz', {}, 'branch')
+    await setParent(paula, leaf, mid)
+    const kept = await setParent(paula, mid, top)
+    expect(kept).toMatchObject({ ownerDiffers: true, ownerFollowed: 0 })
+    expect((await one(admin<{ owner_id: string }[]>`select owner_id from crm.accounts where id = ${mid}`)).owner_id).toBe(diana)
+    await setParent(paula, mid, null, { reason: 'Se reacomoda la cadena' })
+    await setDecision(nora, { key: 'tree.reparent_owner', market: 'MX', value: 'parent', confirmed: false })
+    try {
+      const out = await setParent(paula, mid, top)
+      expect(out.ownerFollowed).toBe(2)
+      const owners = await admin<{ owner_id: string }[]>`select owner_id from crm.accounts where id in (${mid}, ${leaf})`
+      expect(owners.every((o) => o.owner_id === ivan)).toBe(true)
+      expect((await admin`select 1 from crm.audit_events where action = 'account.owner_followed_parent' and object_id = ${mid}`).length).toBe(1)
+    } finally {
+      await setDecision(nora, { key: 'tree.reparent_owner', market: 'MX', value: 'keep', confirmed: false })
+    }
   })
 })

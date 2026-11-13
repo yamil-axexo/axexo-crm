@@ -7,21 +7,18 @@ import type { Survivor } from '@/domain/datos'
 // Lecturas del paquete datos: identidad del comercio (árbol, contactos, alias, productos, procesos), cola de duplicados,
 // registro de campos, catálogos administrables y tablero de calidad. Todo corre con la identidad de quien mira (RLS).
 
-export type NodeTotals = { open_deals: number; open_amount: string | null; won_deals: number; active: number; accounts: number; txn_30d: number; currency: string | null }
+export type NodeTotals = { open_deals: number; open_amount: string | null; won_deals: number; active: number | null; accounts: number; txn_30d: number; currency: string | null
+  /** DAT-01 (datos2): comisión de 30 días del subárbol, si la conexión de señales la manda; null = sin dato. */
+  commission_30d: string | null; as_of: string | null }
 
-/** DAT-01: lo que suma un nodo del árbol con todo lo que cuelga de él: negocios abiertos y ganados, comercios activos y ventas. */
-export async function nodeTotals(ctx: Ctx, accountId: string): Promise<NodeTotals> {
+/**
+ * DAT-01: lo que suma un nodo del árbol con todo lo que cuelga de él: negocios abiertos y ganados, comercios activos, ventas y
+ * comisión. Con `asOf` (AAAA-MM-DD), el árbol y las cifras son los de ese día: las aristas fechadas de crm.account_links dicen
+ * quién colgaba de quién, los negocios cuentan según sus fechas y las ventas y comisiones salen del último corte hasta ese día.
+ */
+export async function nodeTotals(ctx: Ctx, accountId: string, asOf: string | null = null): Promise<NodeTotals> {
   return withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<NodeTotals[]>`
-      with node as (select d.id, d.lifecycle, d.market_code from crm.accounts d where (d.id = ${accountId} or d.ancestor_ids @> array[${accountId}]::uuid[]) and d.archived_at is null)
-      select (select count(*)::int from crm.deals x where x.status = 'open' and x.account_id in (select id from node)) as open_deals,
-             (select sum(x.amount_minor)::text from crm.deals x where x.status = 'open' and x.account_id in (select id from node)) as open_amount,
-             (select count(*)::int from crm.deals x where x.status = 'won' and x.account_id in (select id from node)) as won_deals,
-             (select count(*)::int from node where lifecycle = 'active') as active,
-             (select count(*)::int from node) as accounts,
-             coalesce((select sum(m.txn_count_30d)::int from crm.merchant_metrics_daily m
-                        where m.account_id in (select id from node) and m.as_of = (select max(as_of) from crm.merchant_metrics_daily)), 0) as txn_30d,
-             (select mk.currency::text from crm.markets mk where mk.code = (select market_code from node limit 1)) as currency`
+    const rows = await tx<NodeTotals[]>`select * from app.node_totals(${accountId}, ${asOf}::date)`
     return rows[0]!
   })
 }
