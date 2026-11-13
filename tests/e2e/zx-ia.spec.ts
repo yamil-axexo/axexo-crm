@@ -23,11 +23,11 @@ test.describe.serial('Asistencia por reglas', () => {
   test('administración corre la tarea de sugerencias y quien vende acepta una con fecha y descarta otra con motivo', async ({ page }) => {
     const errors = pageErrors(page)
     await loginAs(page, 'nora.salas', { stay: true })
-    await page.goto('/admin/automatizaciones')
+    await page.goto('/admin/automatizaciones?v=tareas')
     const row = page.locator('[data-testid="job-row"][data-key="ia.next_actions"]')
     await expect(row).toBeVisible()
     await row.getByTestId('job-run-btn').click()
-    await expect(row.getByTestId('job-last')).toContainText(/Bien|OK/)
+    await expect(page.getByTestId('admin-notice')).toContainText('Tarea corrida')
 
     await loginAs(page, 'marco.pena', { stay: true })
     await page.goto('/asistencia')
@@ -117,10 +117,10 @@ test.describe.serial('Asistencia por reglas', () => {
     const db = testDb()
     await db`update crm.recommendations set status = 'expired' where status = 'open' and market_code = 'MX'`
     await db.end()
-    await page.goto('/admin/automatizaciones')
+    await page.goto('/admin/automatizaciones?v=tareas')
     const row = page.locator('[data-testid="job-row"][data-key="ia.next_actions"]')
     await row.getByTestId('job-run-btn').click()
-    await expect(row.getByTestId('job-last')).toContainText(/borradores|registros/)
+    await expect(page.getByTestId('admin-notice')).toContainText('Tarea corrida')
 
     await loginAs(page, 'marco.pena', { stay: true })
     await page.goto('/asistencia?tab=borradores')
