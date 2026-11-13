@@ -10,7 +10,7 @@ import { recordActivity, addActivity } from '@/domain/activities'
 import { completeItem } from '@/domain/queue'
 import { reassignDeals } from '@/domain/reparto'
 import { getDeal } from '@/dal/pipelines'
-import { getDealOps, gateInfo } from '@/dal/ops'
+import { getDealOps, getOpsQueue, gateInfo } from '@/dal/ops'
 import { stageFieldMarks } from '@/dal/fields'
 import { accountOrders } from '@/dal/order-history'
 import { visitReasons } from '@/dal/field'
@@ -213,6 +213,8 @@ describe('E10.F8 a F11: de Docs & Contract a Operaciones', () => {
     expect(d.sales_rep_id).toBe(jadeId)
     ops = (await getDealOps(await ctxFor('tom.reyes'), id))!
     expect(ops).toMatchObject({ sales_rep: 'Jade Kim', sales_rep_frozen: true })
+    // la cola de Operaciones sigue diciendo quién lo vendió, no a quién se le reasignó
+    expect((await getOpsQueue(await ctxFor('tom.reyes'), { view: 'mine' })).rows.find((r) => r.id === id)).toMatchObject({ seller: 'Jade Kim', ops_owner: 'Tom Reyes' })
     // la base no deja cambiarlo, tampoco a Operaciones
     const code = await asPersona('tom.reyes', (tx) => attempt(tx, (sp) => sp`update crm.deals set sales_rep_id = ${tom} where id = ${id}`))
     expect(code).toBe('42501')

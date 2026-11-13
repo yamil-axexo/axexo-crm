@@ -63,7 +63,9 @@ export async function getOpsQueue(ctx: Ctx, f: { view?: OpsView; market?: string
     const focus = f.focus === 'approval' ? tx`and x.providers_pending > 0 and d.paused_at is null` : f.focus === 'training' ? tx`and p.ops_checklist and d.training_status <> 'done' and d.paused_at is null` : tx``
     const rows = await tx<OpsRow[]>`
       select d.id, d.title, d.account_id, a.name as account_name, a.merchant_ref, d.market_code, p.name as pipeline_name, s.name_es as stage_es, s.name_en as stage_en,
-             coalesce(d.ops_entered_at, d.stage_entered_at) as since, u.full_name as seller, d.ops_owner_id, o.full_name as ops_owner,
+             coalesce(d.ops_entered_at, d.stage_entered_at) as since,
+             -- Quién lo vendió: el nombre que quedó fijo al entregar (E10.F11), aunque el negocio se haya reasignado después.
+             coalesce((select r.full_name from crm.users r where r.id = d.sales_rep_id), u.full_name) as seller, d.ops_owner_id, o.full_name as ops_owner,
              d.ops_next_step, d.ops_next_step_due::text, x.docs_missing, x.providers_pending, d.training_status, p.ops_checklist as checklist, d.paused_at, d.pause_review_on::text
         ${base} ${f.focus ? tx`` : view} ${focus}
        order by (d.paused_at is not null), coalesce(d.ops_entered_at, d.stage_entered_at) limit 100`
