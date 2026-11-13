@@ -2,7 +2,7 @@
 
 import { runAction, str } from '@/server/action'
 import { captureTaxId, clearLocation, openWhatsappWindow, reviewTaxId, setAccountProfile, setLocation, updateAddress } from '@/domain/markets'
-import { accountsNear, type NearAccount } from '@/dal/markets'
+import { accountsByTaxId, accountsNear, type NearAccount } from '@/dal/markets'
 import { distanceText } from '@/lib/markets'
 import { invalid, type ActionResult } from '@/lib/errors'
 
@@ -74,6 +74,18 @@ export async function openWhatsappWindowAction(_: R | null, fd: FormData): Promi
     const kind = str(fd, 'kind') === 'ad_72h' ? 'ad_72h' : 'service_24h'
     await openWhatsappWindow(ctx, str(fd, 'id'), kind)
     return { message: kind === 'ad_72h' ? ['Anotado: tienes 72 horas para responderle sin plantilla.', 'Noted: you have 72 hours to reply without a template.'] : ['Anotado: tienes 24 horas para responderle sin plantilla.', 'Noted: you have 24 hours to reply without a template.'] }
+  })
+}
+
+/**
+ * Búsqueda por identificador fiscal completo. Llega en el cuerpo de la petición (no en la dirección de la página), se
+ * compara por huella y no se guarda ni se anota en la bitácora.
+ */
+export async function taxSearchAction(value: string): Promise<ActionResult<{ id: string; name: string; market_code: string; locality: string | null }[]>> {
+  return runAction<{ id: string; name: string; market_code: string; locality: string | null }[]>(async (ctx) => {
+    const term = String(value ?? '').slice(0, 40).trim()
+    if (term.length < 5) throw invalid('Escribe el identificador fiscal completo.', 'Enter the full tax ID.')
+    return { data: await accountsByTaxId(ctx, term), revalidate: [] }
   })
 }
 

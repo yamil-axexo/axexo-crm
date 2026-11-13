@@ -204,7 +204,7 @@
   "record.archived": "Archived (merged)",
   "search.title": "Search",
   "search.results": "Results for \"{q}\"",
-  "search.hint": "Merchants by name, person, phone, address, ID or full tax ID; also leads and deals your role can see.",
+  "search.hint": "Merchants by name, person, phone, address or ID; also leads and deals your role can see. The tax ID is searched in its own field, below.",
   "search.empty.title": "No results",
   "search.empty.body": "Try fewer letters, the phone number or the Sales App ID.",
   "search.start": "Type at least 2 letters or 4 digits.",

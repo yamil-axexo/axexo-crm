@@ -204,7 +204,7 @@
   "record.archived": "Archivado (fusionado)",
   "search.title": "Buscar",
   "search.results": "Resultados para \"{q}\"",
-  "search.hint": "Comercios por nombre, persona, teléfono, dirección, ID o identificador fiscal completo; también leads y negocios que tu rol puede ver.",
+  "search.hint": "Comercios por nombre, persona, teléfono, dirección o ID; también leads y negocios que tu rol puede ver. El identificador fiscal se busca en su propio campo, abajo.",
   "search.empty.title": "Sin resultados",
   "search.empty.body": "Prueba con menos letras, con el teléfono o con el ID de la Sales App.",
   "search.start": "Escribe al menos 2 letras o 4 dígitos.",

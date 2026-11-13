@@ -188,9 +188,15 @@ test.describe('MULTI-03: identificador fiscal en tres capas', () => {
     await expect(page.getByTestId('account-tax').getByTestId('tax-status')).toHaveAttribute('data-status', 'verified')
     await expect(page.getByTestId('account-tax').getByTestId('tax-check-human')).toContainText('Valeria Soto')
     await noOverflow(page, 'ficha datos 390 (operaciones)')
-    // búsqueda por coincidencia exacta
-    await page.goto(`/buscar?q=${RFC}`)
+    // búsqueda por coincidencia exacta, en su propio campo: el identificador no queda en la dirección de la página
+    await page.goto('/buscar')
+    await page.getByTestId('tax-search-input').fill(RFC)
+    await page.getByTestId('tax-search-go').click()
     await expect(page.getByTestId('search-tax-hit').filter({ hasText: store.name })).toBeVisible()
+    expect(page.url()).not.toContain(RFC)
+    // y escrito en el buscador general no encuentra nada por esa vía
+    await page.goto(`/buscar?q=${RFC.slice(0, 10)}`)
+    await expect(page.getByTestId('search-tax-hit')).toHaveCount(0)
     expect(errors).toEqual([])
   })
 
