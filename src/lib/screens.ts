@@ -15,6 +15,8 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes/cerrados', 'Negocios cerrados', 'Closed deals'],
   ['/reportes/campo', 'Reporte de campo', 'Field report'],
   ['/reportes/adopcion', 'Adopción', 'Adoption'],
+  ['/reportes/mercado', 'Reporte del mercado', 'Market report'],
+  ['/arranque', 'Arranque y hojas', 'Rollout and sheets'],
   ['/avisos/preferencias', 'Preferencias de avisos', 'Notice preferences'],
   ['/avisos', 'Avisos', 'Notices'],
   ['/anuncios', 'Anuncios', 'Announcements'],

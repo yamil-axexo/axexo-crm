@@ -183,7 +183,8 @@ describe('campos B2B', () => {
 describe('etapas y embudos administrables', () => {
   it('el embudo B2B de México sembrado ya trae integración, pruebas, certificación y alta y capacitación', async () => {
     const names = (await admin<{ name_es: string }[]>`select name_es from crm.stages where pipeline_id = ${b2bPipe} and archived_at is null order by position`).map((s) => s.name_es)
-    expect(names).toEqual(['Calificación', 'Propuesta', 'Negociación', 'Integración', 'Pruebas', 'Certificación', 'Alta y capacitación', 'Contrato firmado, esperando primera venta', 'Ganada', 'Perdida'])
+    // (paquete mx: el NDA y el contrato son etapas, como en el documento de requerimientos, E14.F5)
+    expect(names).toEqual(['Calificación', 'Propuesta', 'Acuerdo de confidencialidad (NDA)', 'Negociación', 'Integración', 'Pruebas', 'Contrato', 'Certificación', 'Alta y capacitación', 'Contrato firmado, esperando primera venta', 'Ganada', 'Perdida'])
   })
 
   it('administración crea un embudo con sus etapas, agrega, reordena y archiva; una etapa con negocios pide a dónde moverlos', async () => {

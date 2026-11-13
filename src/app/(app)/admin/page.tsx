@@ -21,6 +21,8 @@ import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
 import { ReportesTab, reportFilter } from './reportes'
 import { FxCard } from './fx'
+import { CampaignConfig, TerritoryManagers, WinRules } from './mx'
+import { targetText } from '@/lib/response-target'
 import { mergeAction } from '@/app/(app)/comercios/actions'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
@@ -60,7 +62,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <PageHeader title={t('Administración', 'Administration')} desc={t('La configuración se hace aquí y queda en la bitácora. Ventas opera; administración configura.', 'Configuration happens here and is logged. Sales operates; administration configures.')} />
       <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={tab} items={[...allowed.map((k) => ({ key: k as string, href: qs('/admin', { tab: k }), label: labels[k] })),
         // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
-        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }, { key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }, { key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }] : []),
+        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }, { key: 'eventos-api', href: '/admin/integraciones', label: t('Eventos, API y datos', 'Events, API and data') }, { key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }, { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : []),
         // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
         ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : [])]} /></div>
       {hidden && (
@@ -69,8 +71,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </p>
       )}
       {tab === 'personas' && <PeopleTab ctx={ctx} access={accessFilter(sp.acceso)} today={isoDay(new Date(), await readerTimeZone(ctx))} />}
-      {tab === 'territorios' && <TerritoriosTab ctx={ctx} />}
-      {tab === 'embudos' && <Config />}
+      {tab === 'territorios' && <><TerritoriosTab ctx={ctx} /><TerritoryManagers ctx={ctx} /></>}
+      {tab === 'embudos' && <><Config />{admin && <WinRules ctx={ctx} />}</>}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}
       {tab === 'pipedrive' && <PipedriveTab ctx={ctx} />}
@@ -210,6 +212,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     return (
       <div className="space-y-8" data-testid="admin-intake">
         <Horario />
+        <CampaignConfig ctx={ctx} />
         <Card pad={false}>
           <div className="px-7 pt-7"><CardTitle title={t('Formularios web', 'Web forms')} hint={t('Cada formulario tiene una página lista para usar y una API para conectarlo desde el sitio web.', 'Each form has a ready-to-use page and an API to connect it from the website.')} /></div>
           <Table testId="form-table" head={<><th>{t('Formulario', 'Form')}</th><th>{t('Página', 'Page')}</th><th>API</th><th>{t('Reparte por', 'Routed by')}</th><th>{t('Leads 30 días', 'Leads, 30 days')}</th></>}>
@@ -236,8 +239,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <CardTitle
                 title={r.name}
                 hint={t(
-                  `Turno rotativo · respuesta en ${r.sla_minutes} min · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead queda sin asignar y lo ve todo el mercado'}`,
-                  `Round robin · response within ${r.sla_minutes} min · ${fallback ? `if nobody is left in the rotation, it goes to ${fallback}` : 'no fallback: if nobody is left in the rotation, the lead stays unowned and the whole market sees it'}`,
+                  `Turno rotativo · respuesta en ${targetText(t, r)} · ${fallback ? `si en el turno no queda nadie, va a ${fallback}` : 'sin respaldo: si en el turno no queda nadie, el lead queda sin asignar y lo ve todo el mercado'}`,
+                  `Round robin · response within ${targetText(t, r)} · ${fallback ? `if nobody is left in the rotation, it goes to ${fallback}` : 'no fallback: if nobody is left in the rotation, the lead stays unowned and the whole market sees it'}`,
                 )}
                 right={<Badge>{r.market_code}</Badge>}
               />

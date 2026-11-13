@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { untrustedMark } from '@/dal/untrusted'
 import { UntrustedTag } from '@/ui/untrusted'
+import { isWebSource } from '@/lib/lead-source'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getLead, marketPipelines, sellers, territoriesOf } from '@/dal/leads'
@@ -10,7 +11,7 @@ import { accountTypes, lossReasonsFor } from '@/dal/b2b'
 import { LeadCall } from '@/ui/lead-call'
 import { Badge, Card, CardTitle, Field, KeyVal, NoData, PageHeader } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
-import { ago, dayTime, marketTime, phoneText, zoneNote } from '@/lib/format'
+import { ago, dayTime, marketTime, num, phoneText, zoneNote } from '@/lib/format'
 import { OwnTime } from '@/ui/own-time'
 import { ACTIVITY, CONTACT_ROLE, LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
 import { leadStepAction, takeLeadAction } from '../actions'
@@ -267,7 +268,10 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               {lead.extra_contacts.length > 0 && (
                 <KeyVal k={t('También escribió', 'Also wrote in')}><span data-testid="lead-extra">{lead.extra_contacts.map((c) => [c.name, c.phone ? phoneText(c.phone) : c.email].filter(Boolean).join(' · ')).join('; ')}</span></KeyVal>
               )}
-              <KeyVal k={t('Origen', 'Source')}>{lead.form_name ?? lab(t, SOURCE[lead.source])}</KeyVal>
+              <KeyVal k={t('Origen', 'Source')}><span data-testid="lead-source-text">{[lab(t, SOURCE[lead.source]), lead.form_name].filter(Boolean).join(' · ')}</span></KeyVal>
+              {lead.funnel && <KeyVal k={t('Embudo de campaña', 'Campaign group')}><span data-testid="lead-funnel">{lead.funnel}</span></KeyVal>}
+              {lead.channel_id && <KeyVal k={t('Canal de origen', 'Source channel')}><span data-testid="lead-channel">{lead.channel_id}</span></KeyVal>}
+              {lead.store_count !== null && <KeyVal k={t('Número de tiendas', 'Number of stores')}><span data-testid="lead-stores">{num(Number(lead.store_count), locale)}</span></KeyVal>}
               <KeyVal k={t('Llegó', 'Arrived')}><span data-testid="lead-arrived">{marketTime(lead.created_at, locale, market)}<OwnTime at={new Date(lead.created_at).toISOString()} zone={market.timezone} locale={locale} /></span></KeyVal>
               <KeyVal k={t('Primer contacto', 'First touch')}>{lead.first_touch_at ? <>{marketTime(lead.first_touch_at, locale, market)}<OwnTime at={new Date(lead.first_touch_at).toISOString()} zone={market.timezone} locale={locale} /></> : <NoData locale={locale} />}</KeyVal>
             </dl>
@@ -300,7 +304,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               </div>
             )}
           </Card>
-          {lead.source === 'web_form' && (
+          {isWebSource(lead.source) && (
             <Card data-testid="lead-origin">
               <CardTitle title={t('De dónde vino', 'Where it came from')} hint={t('Lo que traía la dirección de la página cuando la persona llenó el formulario.', 'What the page address carried when the person filled in the form.')} />
               {origin.length === 0 ? (
