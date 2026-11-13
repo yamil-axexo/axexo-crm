@@ -285,7 +285,7 @@ export const CAPABILITIES = {
   'channel_policy.manage': ['admin', 'market_lead'],
   // Avance de capacitación de aliados mientras Kore Academy no lo manda.
   'enablement.record': ['admin', 'market_lead'],
-  // Paquete reportes2 (0043). Tablero KAM: la persona KAM ve el suyo; quien dirige y leadership, el de las personas KAM de su alcance.
+  // Paquete reportes2 (0040). Tablero KAM: la persona KAM ve el suyo; quien dirige y leadership, el de las personas KAM de su alcance.
   'board.kam': ['kam', ...MANAGERS, 'lt'],
   // Tablero de Operaciones: su cola en cifras, con definición y dueño.
   'board.ops': ['ops', 'admin', 'market_lead', 'lt'],

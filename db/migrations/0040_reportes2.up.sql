@@ -1,4 +1,4 @@
--- 0043 reportes2 (ola 6, residuos): rol de Finanzas, rol KAM, tableros por rol con indicadores configurables, pronóstico por
+-- 0040 reportes2 (ola 6, residuos): rol de Finanzas, rol KAM, tableros por rol con indicadores configurables, pronóstico por
 -- categoría con envíos versionados, foto diaria por equipo con ventana corta, guarda de fecha de corte del archivo de ventas,
 -- avisos de calidad del dato, eventos de uso en el outbox, costo por acción de IA, identidad de la persona en otros sistemas
 -- y vistas guardadas de personas (contactos).
@@ -15,7 +15,8 @@ $$;
 revoke execute on function app.is_finance() from public;
 grant execute on function app.is_finance() to contigo_app;
 
--- Finanzas lee todo su mercado (como quien lidera), pero no escribe: no entra en write_markets.
+-- Finanzas lee todo su mercado (como quien lidera) y no hace trabajo comercial: solo escribe en los mercados donde la decisión
+-- 'ops.operator_rights' (0037_datos2) le deja cambiar dueños, fusionar y editar en bloque (app.operator_markets).
 create or replace function app.full_markets() returns text[]
 language sql stable security definer set search_path = crm, app, pg_catalog as $$
   select case when app.is_global()
@@ -36,6 +37,8 @@ language sql stable security definer set search_path = crm, app, pg_catalog as $
               then coalesce((select array_agg(code) from crm.markets), '{}')
               else coalesce((select array_agg(distinct market_code) from app.active_memberships()
                               where role in ('market_lead','supervisor','rep','ops','agency','kam')), '{}')
+           || coalesce((select array_agg(distinct m.market_code) from app.active_memberships() m
+                         where m.role = 'finance' and m.market_code = any(app.operator_markets())), '{}')
          end
 $$;
 create or replace function app.sell_markets() returns text[]
@@ -271,7 +274,7 @@ grant execute on function app.prune_report_snapshots(int) to contigo_app;
 -- ============================================================ 6) GOB-02: una regla de calidad abre un aviso en la cola de Mi equipo
 alter table crm.exceptions drop constraint exceptions_kind_check;
 alter table crm.exceptions add constraint exceptions_kind_check check (kind = any (array['lead_sla','no_next_step','stalled_deal','revisit_due','activation_risk',
-  'reactivation','unowned_account','duplicate_suspect','unmatched_event','under_plan','perfect_store_low','data_quality']));
+  'reactivation','unowned_account','duplicate_suspect','unmatched_event','under_plan','perfect_store_low','lead_no_next_step','onboarding_no_next_step','competitor_share_loss','indirect_route','data_quality']));
 -- Qué reglas abren aviso y desde cuántos registros por persona. Valor propuesto: ninguna regla abre avisos hasta que alguien lo decida.
 insert into crm.settings (key, value) values
   ('quality.exception_rules', '{"value": [], "min_failing": 5, "proposed": true, "pending": "C1 (Yamil Alvarez)"}'::jsonb)

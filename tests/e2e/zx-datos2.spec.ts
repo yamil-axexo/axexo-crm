@@ -61,7 +61,7 @@ test.describe('datos2', () => {
     await expect(notice(page)).toContainText('valor propuesto')
     await sql`delete from crm.decision_settings where key = 'tree.reparent_owner'`
     await page.goto('/estado')
-    await expect(page.locator('[data-testid="status-decision-row"][data-key="market.reset_production"]')).toBeVisible()
+    await expect(page.locator('[data-testid="status-proposed-row"][data-key="market.reset_production"]')).toBeVisible()
   })
 
   test('DAT-05: pedir que un campo pase a columna deja el cambio preparado', async ({ page }) => {

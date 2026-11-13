@@ -210,7 +210,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </div>
       ) : listView ? (
         <>
-        {/* Vistas guardadas (UX-03): en Lista y también en el tablero (embudo2), arriba de las columnas. */}
+        {/* Vistas guardadas (UX-03): en Lista abiertas; en el tablero, plegadas en "Vistas del equipo" (una sola entrada, reportes2). */}
         <div className="mb-4"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team, orden: sp.orden, vista: 'lista' }} current={sp.cola} /></div>
         <nav aria-label={t('Orden de la lista', 'List order')} className="mb-3 inline-flex flex-wrap items-center gap-1 rounded-full border border-line bg-surface p-1" data-testid="list-order">
           <Link href={here({ orden: undefined })} aria-current={!order ? 'page' : undefined} className={seg(!order)} data-testid="order-stage">{t('Por etapa', 'By stage')}</Link>
@@ -250,7 +250,6 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </>
       ) : (
         <>
-          <div className="mb-4" data-testid="board-views"><ViewsSection object="deal" filters={{ pipeline: id, owner: sp.owner, paso: sp.paso, equipo: team }} current={sp.cola} /></div>
           <Board
             key={board.deals.map((d) => `${d.id}:${d.stage_id}:${d.next_step_due ?? ''}`).join('|')}
             id={id}

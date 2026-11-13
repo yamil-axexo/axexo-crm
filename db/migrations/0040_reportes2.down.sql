@@ -70,7 +70,7 @@ AS $function$
 $function$;
 delete from crm.quality_snapshots where rule_code = 's5_diff';
 delete from crm.quality_rules where code = 's5_diff';
--- 0043 reportes2: vuelve todo a como lo dejó 0042 (funciones con su definición anterior).
+-- 0040 reportes2: vuelve todo a como lo dejó 0039 (funciones con su definición anterior).
 delete from crm.settings where key in ('ingest.require_manifest','snapshots.window_days','quality.exception_rules','adoption.rollout_rule','orders.brand');
 delete from crm.saved_views where object = 'contact';
 alter table crm.saved_views drop constraint saved_views_object_check;
@@ -80,7 +80,7 @@ drop table crm.one_on_ones;
 update crm.exceptions set resolved_at = coalesce(resolved_at, now()), resolution = coalesce(resolution, 'rollback') where kind = 'data_quality';
 delete from crm.exceptions where kind = 'data_quality';
 alter table crm.exceptions drop constraint exceptions_kind_check;
-alter table crm.exceptions add constraint exceptions_kind_check check (kind = any (array['lead_sla','no_next_step','stalled_deal','revisit_due','activation_risk','reactivation','unowned_account','duplicate_suspect','unmatched_event','under_plan','perfect_store_low']));
+alter table crm.exceptions add constraint exceptions_kind_check check (kind = any (array['lead_sla','no_next_step','stalled_deal','revisit_due','activation_risk','reactivation','unowned_account','duplicate_suspect','unmatched_event','under_plan','perfect_store_low','lead_no_next_step','onboarding_no_next_step','competitor_share_loss','indirect_route']));
 drop function app.prune_report_snapshots(int);
 drop function app.take_team_snapshots();
 drop index crm.pipeline_snapshots_date_idx; drop index crm.portfolio_snapshots_date_idx;
@@ -158,7 +158,7 @@ AS $function$
   select case when app.is_admin()
               then coalesce((select array_agg(code) from crm.markets), '{}')
               else coalesce((select array_agg(distinct market_code) from app.active_memberships()
-                              where role in ('market_lead','supervisor','rep','ops','agency')), '{}')
+                              where role in ('market_lead','supervisor','rep','ops','agency','finance')), '{}')
          end
 $function$
 
@@ -182,12 +182,12 @@ AS $function$
   select case when app.is_global()
               then coalesce((select array_agg(code) from crm.markets), '{}')
               else coalesce((select array_agg(distinct market_code) from app.active_memberships()
-                              where role in ('market_lead','ops')), '{}')
+                              where role in ('market_lead','ops','finance')), '{}')
          end
 $function$
 
 ;
-drop function app.is_finance();
-delete from crm.memberships where role in ('finance','kam');
+drop function app.is_finance(); -- Finanzas sigue como rol de 0037_datos2
+delete from crm.memberships where role = 'kam';
 alter table crm.memberships drop constraint memberships_role_check;
-alter table crm.memberships add constraint memberships_role_check check (role in ('admin','lt','market_lead','supervisor','rep','ops','agency','partner'));
+alter table crm.memberships add constraint memberships_role_check check (role in ('admin','lt','market_lead','supervisor','rep','ops','agency','partner','finance'));

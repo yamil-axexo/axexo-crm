@@ -105,29 +105,6 @@ export function EditRuleDialog({ ctx, rule, sources, motors }: { ctx: Ctx; rule:
   )
 }
 
-/** Estado de CONTIGO: los valores del embudo que siguen como propuesta, con quién los tiene que decidir (ola 6, embudo2). */
-export async function ProposedFunnelValues({ ctx }: { ctx: Ctx }) {
-  const { t, locale } = ctx
-  const rows = (await listFunnelSettings(ctx)).filter((r) => r.proposed)
-  const steps = await withUser(ctx.user.id, (tx) => tx<{ id: string; name_es: string; name_en: string; pending_owner: string }[]>`
-    select t.id, p.name || ': ' || s.name_es as name_es, p.name || ': ' || s.name_en as name_en, t.pending_owner
-      from crm.stage_transitions t join crm.pipelines p on p.id = t.pipeline_id join crm.stages s on s.id = t.to_stage_id
-     where t.pending_owner is not null order by p.name`)
-  if (rows.length === 0 && steps.length === 0) return null
-  return (
-    <Card data-testid="status-proposed">
-      <CardTitle title={t('Valores propuestos por decidir', 'Proposed values to decide')} hint={t('Funcionan con un valor conservador que se puede cambiar en Administración, Embudo y Automatizaciones. Falta que quien decide lo confirme.', 'They run on a conservative value that can be changed under Administration, Pipeline and Automations. Their owner still has to confirm it.')} />
-      <ul className="divide-y divide-line text-[14px]">
-        {rows.map((r) => {
-          const def = FUNNEL_SETTINGS.find((d) => d.key === r.key)
-          return <li key={r.id} className="flex flex-wrap justify-between gap-2 py-2" data-testid="status-proposed-row"><span className="text-strong">{def?.label[locale] ?? r.key}{r.market_code ? ` · ${r.market_code}` : ''}</span><span className="text-muted-2">{t(`pendiente: ${r.pending_owner ?? 'por definir'}`, `pending: ${r.pending_owner ?? 'to be defined'}`)}</span></li>
-        })}
-        {steps.map((s) => <li key={s.id} className="flex flex-wrap justify-between gap-2 py-2" data-testid="status-proposed-row"><span className="text-strong">{t(`Paso a "${s.name_es}" (en pausa)`, `Step to "${s.name_en}" (paused)`)}</span><span className="text-muted-2">{t(`pendiente: ${s.pending_owner}`, `pending: ${s.pending_owner}`)}</span></li>)}
-      </ul>
-    </Card>
-  )
-}
-
 /** E12.F4: la lista de propósitos de visita de un mercado es propuesta hasta que ventas la confirme; confirmarla queda en la bitácora. */
 export async function VisitPurposesProposal({ ctx }: { ctx: Ctx }) {
   const { t } = ctx

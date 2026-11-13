@@ -15,7 +15,7 @@ import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
 import { officialQueues, pinnedQueues } from '@/dal/reportes'
 import { VIEW_EN, VIEW_OBJECT_LABEL, viewHref } from '@/lib/report-catalog'
-import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
+import { OPERATOR_CAPS, ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
 import { stopViewAsAction } from '@/app/(app)/admin/seguridad/view-as-actions'
 import { CommandPalette } from '@/ui/palette'
@@ -42,7 +42,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
   const showAdmin = ctx.can('config.manage') || ctx.can('audit.read') || ctx.can('access.manage') || ctx.can('integration.operate') || ctx.can('security.read')
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
-  const readOnly = isReadOnly(ctx.memberships)
+  // Finanzas deja de ser solo lectura en los mercados donde la decisión de datos2 le permite cambiar dueños, fusionar y editar en bloque.
+  const readOnly = isReadOnly(ctx.memberships) && !OPERATOR_CAPS.some((c) => ctx.can(c))
   const counts = await dockCounts(ctx)
   // La campana: cuántos avisos sin leer tiene la persona (AUT-05).
   const unread = ctx.user.isSystem ? 0 : await unreadNotices(ctx)

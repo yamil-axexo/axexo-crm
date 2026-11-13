@@ -64,7 +64,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'ia.lead_weights_changed': ['Cambió los pesos de la calificación de leads', 'Changed the lead scoring weights'],
   'ia.lead_classified': ['Confirmó la clasificación de un lead', 'Confirmed a lead’s classification'],
   'ia.eval_run': ['Corrió la evaluación de una función', 'Ran a feature’s evaluation'],
-  // reportes2 (0043)
+  // reportes2 (0040)
   'ia.eval_auto_run': ['Corrió sola la evaluación porque cambió la versión de la instrucción o del modelo', 'Ran the evaluation on its own because the prompt or model version changed'],
   'deal.forecast_set': ['Puso la categoría de pronóstico de un negocio', 'Set a deal’s forecast category'],
   'deal.forecast_adjusted': ['Ajustó la categoría de pronóstico de un negocio, con nota', 'Adjusted a deal’s forecast category, with a note'],

@@ -38,18 +38,12 @@ import { partnersAdapterStatus } from '@/server/adapters/partners'
 import { externalQueueCounts } from '@/dal/partners'
 import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
-import { decisionsBoard } from '@/dal/datos2'
-import { DECISIONS } from '@/domain/decisions'
-import { ProposedFunnelValues } from '@/app/(app)/admin/embudo/embudo2'
 import { campo2AdapterStatus } from '@/server/adapters/campo2'
-import { proposedValues } from '@/dal/campo-canal'
-import { THRESHOLDS, type ThresholdKey } from '@/domain/campo-canal/thresholds'
 import { ProposedCard } from './propuestos'
 
 export const dynamic = 'force-dynamic'
 
 type Tone = 'good' | 'warn' | 'neutral'
-const OWNER_EN: Record<string, string> = { Ventas: 'Sales', 'Ventas y canales': 'Sales and channels', 'Ventas y Finanzas': 'Sales and Finance', 'Finanzas y Ventas': 'Finance and Sales', 'Customer Success': 'Customer Success', 'Mesa de control': 'Control desk' }
 
 /**
  * Página de estado: qué corre, qué tan al día están los datos, qué está conectado y qué falta.
@@ -64,9 +58,6 @@ export default async function StatusPage() {
   // Cómo se gana cada embudo y quién cambió esa regla por última vez (queda en la bitácora con cuántos negocios abiertos tocó).
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
-  const decisions = await decisionsBoard(ctx)
-  // Paquete campo2: valores con los que arrancó CONTIGO y que esperan confirmación.
-  const proposed = await proposedValues(ctx)
   const routes = routesAdapter()
   // GOB-07: objetivos de servicio medidos, de los últimos 30 días. El detalle y los registros viven en Administración, Gobierno.
   const board = ctx.can('gov.read') ? await serviceBoard(ctx, 30) : null
@@ -366,7 +357,6 @@ export default async function StatusPage() {
           </ul>
         </Card>
         <LoadsCard ctx={ctx} tz={tz} />
-        <ProposedFunnelValues ctx={ctx} />
         <Card pad={false} data-testid="status-integrations">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Datos e integraciones', 'Data and integrations')} hint={t('De dónde llegan los datos, si la conexión está viva y cuándo llegó lo último.', 'Where the data comes from, whether the connection is live and when the latest arrived.')} /></div>
           <ul className="border-t border-line">
@@ -402,37 +392,7 @@ export default async function StatusPage() {
                 </li>
               ))}
             </ul>
-            {/* Paquete datos2: decisiones de negocio que siguen con valor propuesto, con su dueño. */}
-            <ul data-testid="status-decisions">
-              {decisions.filter((r) => r.proposed).map((r) => {
-                const d = DECISIONS.find((x) => x.key === r.key)!
-                return (
-                  <li key={`${r.key}-${r.market ?? ''}`} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3" data-testid="status-decision-row" data-key={r.key}>
-                    <span className="min-w-0 flex-1 basis-48"><span className="block text-[14px] font-medium text-strong">{t(...d.label)}{r.market ? ` · ${r.market}` : ''}</span><span className="text-[12.5px] text-muted-2">{t(...(d.options.find((o) => o.value === r.value)?.label ?? [r.value, r.value]))}</span></span>
-                    <span className="inline-block max-w-full rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text" data-testid="decision-pending">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${d.owner}`)}</span>
-                  </li>
-                )
-              })}
-            </ul>
-            <p className="mt-3 text-[13px]"><Link href="/admin/decisiones" className="font-medium text-blue-text underline" data-testid="status-decisions-link">{t('Ver y cambiar las decisiones de negocio', 'See and change business decisions')}</Link></p>
-          </Card>
-          <Card data-testid="status-proposed">
-            <CardTitle title={t('Valores propuestos', 'Proposed values')} hint={t('CONTIGO arrancó con estos valores para poder funcionar. Son una propuesta: cada uno espera a quien tiene que confirmarlo y se cambia en Campo y canales.', 'CONTIGO started with these values so it can work. They are a proposal: each one waits for its owner and is changed under Field and channels.')} />
-            {proposed.length === 0 ? <p className="text-[13.5px] text-muted-2">{t('Todos los valores están confirmados.', 'All values are confirmed.')}</p> : (
-              <ul>
-                {[...new Set(proposed.map((x) => x.key))].map((k) => {
-                  const items = proposed.filter((x) => x.key === k)
-                  const def = THRESHOLDS[k as ThresholdKey]
-                  const label = k === 'clawback_policy' ? t('Política de reversos: días de ventana', 'Reversal policy: window days') : k === 'health_weight' ? t('Salud: peso del punto de venta perfecto', 'Health: perfect store weight') : def ? t(def.es, def.en) : k
-                  return (
-                    <li key={k} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid="status-proposed-row" data-key={k}>
-                      <span className="min-w-0 flex-1 basis-48"><span className="block text-[14px] font-medium text-strong">{label}</span><span className="text-[12.5px] text-muted-2">{items.map((x) => `${x.market_code ?? t('Todos', 'All')}: ${num(x.value, locale)}`).join(' · ')}</span></span>
-                      <Badge tone="warn">{t(`pendiente: ${items[0]!.owner}`, `pending: ${OWNER_EN[items[0]!.owner] ?? items[0]!.owner}`)}</Badge>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
+            <p className="mt-3 text-[13px] text-muted-2">{t('Los valores propuestos, con su dueño, están en la lista de abajo.', 'Proposed values, with their owner, are in the list below.')}</p>
           </Card>
         </div>
 
