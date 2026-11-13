@@ -378,7 +378,7 @@ async function Access({ ctx, tz }: P) {
           </Card>
 
           <Card data-testid="hierarchy-card">
-            <CardTitle title={t('Jerarquía de supervisión', 'Supervision hierarchy')} hint={t('Un equipo puede colgar de otro. Quien supervisa el de arriba ve también lo que llevan los equipos de abajo, a cualquier profundidad.', 'A team can report to another. Whoever supervises the upper one also sees what the teams below carry, at any depth.')} />
+            <CardTitle title={t('Jerarquía de supervisión', 'Team reporting lines')} hint={t('Un equipo puede colgar de otro. Quien supervisa el de arriba ve también lo que llevan los equipos de abajo, a cualquier profundidad.', 'A team can report to another. Whoever supervises the upper one also sees what the teams below carry, at any depth.')} />
             {d.teams.length === 0 ? <Empty title={t('Todavía no hay equipos', 'No teams yet')} hint={t('Los equipos se crean en Personas y acceso.', 'Teams are created in People and access.')} /> : (
               <ul data-testid="team-tree">
                 {d.teams.map((team) => (
@@ -604,7 +604,7 @@ async function Keys({ ctx, tz }: P) {
   return (
     <div className="space-y-8" data-testid="security-keys">
       <Card data-testid="keys-card">
-        <CardTitle title={t('Llaves de API', 'API keys')} hint={t('El inventario de llaves: de quién es cada una, cuándo vence, cuándo se usó por última vez y de cuál salió por rotación. Aquí se les pone dueño y vencimiento; se crean, se rotan y se revocan en Integraciones. Nunca se muestra el valor.', 'The key inventory: who owns each one, when it expires, when it was last used and which key it replaced. Set the owner and the expiry here; keys are created, rotated and revoked in Integrations. The value is never shown.')} />
+        <CardTitle title={t('Llaves de API', 'API keys')} hint={t('El inventario de llaves: quién responde por cada una, cuándo vence, cuándo se usó por última vez y de cuál salió por rotación. Aquí se les pone responsable y vencimiento; se crean, se rotan y se revocan en Integraciones. Nunca se muestra el valor.', 'The key inventory: who owns each one, when it expires, when it was last used and which key it replaced. Set the owner and the expiry here; keys are created, rotated and revoked in Integrations. The value is never shown.')} />
         {d.keys.length === 0 ? <Empty title={t('Todavía no hay llaves', 'No keys yet')} hint={t('Se crean en Administración, Integraciones.', 'They are created in Administration, Integrations.')} /> : (
           <ul data-testid="key-list">
             {d.keys.map((k) => (
@@ -613,12 +613,12 @@ async function Keys({ ctx, tz }: P) {
                   <p className="text-[15px] font-semibold text-strong">{k.name} <code className="ml-1 text-[12px] font-normal text-muted">{k.key_prefix}…</code></p>
                   <Badge tone={k.revoked_at ? 'neutral' : k.expired ? 'bad' : 'good'}>{k.revoked_at ? t('Revocada', 'Revoked') : k.expired ? t('Vencida', 'Expired') : t('Vigente', 'Active')}</Badge>
                 </div>
-                <p className={small} data-testid="key-meta">{k.scopes.join(', ')} · {t(`dueño: ${k.owner ?? 'sin dueño'}`, `owner: ${k.owner ?? 'no owner'}`)} · {k.expires ? t(`vence el ${k.expires}`, `expires ${k.expires}`) : t('sin vencimiento', 'no expiry')} · {k.retires ? t(`se retira el ${k.retires} por rotación · `, `retires ${k.retires} after rotation · `) : ''}{k.rotated_from ? t('salió de una rotación · ', 'came from a rotation · ') : ''}{k.last_used_at ? t(`último uso ${dayTime(k.last_used_at, locale, tz)}`, `last used ${dayTime(k.last_used_at, locale, tz)}`) : t('sin uso', 'never used')}</p>
+                <p className={small} data-testid="key-meta">{k.scopes.join(', ')} · {t(`responsable: ${k.owner ?? 'sin responsable'}`, `owner: ${k.owner ?? 'nobody yet'}`)} · {k.expires ? t(`vence el ${k.expires}`, `expires ${k.expires}`) : t('sin vencimiento', 'no expiry')} · {k.retires ? t(`se retira el ${k.retires} por rotación · `, `retires ${k.retires} after rotation · `) : ''}{k.rotated_from ? t('salió de una rotación · ', 'came from a rotation · ') : ''}{k.last_used_at ? t(`último uso ${dayTime(k.last_used_at, locale, tz)}`, `last used ${dayTime(k.last_used_at, locale, tz)}`) : t('sin uso', 'never used')}</p>
                 {manage && !k.revoked_at && !k.expired && (
                   <div className="mt-3 flex flex-wrap items-end gap-3">
                     <ActionForm action={A.keyMetaAction} className="flex flex-wrap items-end gap-3">
                       <input type="hidden" name="id" value={k.id} />
-                      <Field label={t('Dueño', 'Owner')} className="basis-52"><select name="owner_id" className="input" defaultValue={k.owner_id ?? ''} data-testid="key-owner"><option value="">{t('Sin dueño', 'No owner')}</option>{d.people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field>
+                      <Field label={t('Responsable', 'Owner')} className="basis-52"><select name="owner_id" className="input" defaultValue={k.owner_id ?? ''} data-testid="key-owner"><option value="">{t('Sin responsable', 'Nobody yet')}</option>{d.people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field>
                       <Field label={t('Vence el', 'Expires on')} className="basis-44"><input type="date" name="expires" className="input" min={today} defaultValue={k.expires ?? ''} data-testid="key-expires" /></Field>
                       <Submit variant="ghost" testId="key-save">{t('Guardar', 'Save')}</Submit>
                     </ActionForm>
@@ -632,7 +632,7 @@ async function Keys({ ctx, tz }: P) {
       </Card>
 
       <Card data-testid="secrets-card">
-        <CardTitle title={t('Inventario de secretos de salida', 'Outbound secrets inventory')} hint={t('Lo que CONTIGO usa para conectarse hacia afuera. Aquí vive el nombre, el dueño y la rotación; el valor nunca se guarda ni se muestra en CONTIGO: vive en la plataforma donde corre.', 'What CONTIGO uses to connect outward. This holds the name, the owner and the rotation; the value is never stored or shown in CONTIGO: it lives in the platform it runs on.')} />
+        <CardTitle title={t('Inventario de secretos de salida', 'Outbound secrets inventory')} hint={t('Lo que CONTIGO usa para conectarse hacia afuera. Aquí vive el nombre, quién responde por ella y la rotación; el valor nunca se guarda ni se muestra en CONTIGO: vive en la plataforma donde corre.', 'What CONTIGO uses to connect outward. This holds the name, the owner and the rotation; the value is never stored or shown in CONTIGO: it lives in the platform it runs on.')} />
         <ul data-testid="secret-list">
           {d.secrets.map((x) => (
             <li key={x.key} className="border-t border-line py-5 first:border-t-0" data-testid="secret-row">
@@ -640,11 +640,11 @@ async function Keys({ ctx, tz }: P) {
                 <p className="text-[15px] font-semibold text-strong">{t(x.label_es, x.label_en)} <code className="ml-1 text-[12px] font-normal text-muted">{x.key}</code></p>
                 <span className="flex flex-wrap gap-2"><Badge tone={x.configured ? 'good' : 'neutral'}>{x.configured ? t('Configurada en este ambiente', 'Set in this environment') : t('Sin configurar aquí', 'Not set here')}</Badge>{x.due && <Badge tone="bad">{t('Rotación vencida', 'Rotation overdue')}</Badge>}</span>
               </div>
-              <p className={small}>{x.system_name} · {t(`dueño: ${x.owner ?? 'sin dueño'}`, `owner: ${x.owner ?? 'no owner'}`)} · {x.rotate_every_days ? t(`se rota cada ${x.rotate_every_days} días`, `rotated every ${x.rotate_every_days} days`) : t('sin rotación definida', 'no rotation defined')} · {x.last_rotated_on ? t(`última rotación ${x.last_rotated_on}`, `last rotated ${x.last_rotated_on}`) : t('última rotación sin registrar', 'last rotation not recorded')}</p>
+              <p className={small}>{x.system_name} · {t(`responsable: ${x.owner ?? 'sin responsable'}`, `owner: ${x.owner ?? 'nobody yet'}`)} · {x.rotate_every_days ? t(`se rota cada ${x.rotate_every_days} días`, `rotated every ${x.rotate_every_days} days`) : t('sin rotación definida', 'no rotation defined')} · {x.last_rotated_on ? t(`última rotación ${x.last_rotated_on}`, `last rotated ${x.last_rotated_on}`) : t('última rotación sin registrar', 'last rotation not recorded')}</p>
               {manage && (
                 <ActionForm action={A.secretMetaAction} className="mt-3 flex flex-wrap items-end gap-3">
                   <input type="hidden" name="key" value={x.key} /><input type="hidden" name="note" value={x.note ?? ''} />
-                  <Field label={t('Dueño', 'Owner')} className="basis-52"><select name="owner_id" className="input" defaultValue={x.owner_id ?? ''} data-testid="secret-owner"><option value="">{t('Sin dueño', 'No owner')}</option>{d.people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field>
+                  <Field label={t('Responsable', 'Owner')} className="basis-52"><select name="owner_id" className="input" defaultValue={x.owner_id ?? ''} data-testid="secret-owner"><option value="">{t('Sin responsable', 'Nobody yet')}</option>{d.people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field>
                   <Field label={t('Rotar cada (días)', 'Rotate every (days)')} className="basis-36"><input name="rotate_every_days" type="number" min={1} max={730} defaultValue={x.rotate_every_days ?? ''} className="input" data-testid="secret-days" /></Field>
                   <Field label={t('Última rotación', 'Last rotation')} className="basis-44"><input name="last_rotated_on" type="date" max={today} defaultValue={x.last_rotated_on ?? ''} className="input" data-testid="secret-date" /></Field>
                   <Submit variant="ghost" testId="secret-save">{t('Guardar', 'Save')}</Submit>

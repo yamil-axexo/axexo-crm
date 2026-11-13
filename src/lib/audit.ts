@@ -247,7 +247,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'access_review.opened': ['Abrió una revisión de accesos', 'Opened an access review'],
   'access_review.decided': ['Decidió un acceso en la revisión', 'Decided an access in the review'],
   'access_review.closed': ['Cerró una revisión de accesos', 'Closed an access review'],
-  'api_client.updated': ['Cambió el dueño o el vencimiento de una llave de API', 'Changed the owner or expiry of an API key'],
+  'api_client.updated': ['Cambió quién responde por una llave de API o su vencimiento', 'Changed the owner or expiry of an API key'],
   'secret.updated': ['Actualizó el inventario de una conexión', 'Updated a connection’s inventory entry'],
   'security.thresholds_changed': ['Cambió los umbrales de alerta', 'Changed the alert thresholds'],
   'security.due_days_changed': ['Cambió el plazo de respuesta a solicitudes de datos', 'Changed the response period for data requests'],

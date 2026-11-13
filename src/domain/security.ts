@@ -9,7 +9,7 @@ import { forbidden, invalid, notFound } from '@/lib/errors'
 import { emailInDomains, domainList } from '@/lib/domains'
 import { open, seal } from '@/server/adapters/field-crypto'
 import { archiveBatchStatus } from '@/server/adapters/audit-archive'
-import { notify } from '@/domain/notify'
+import { notify, notifyMany } from '@/domain/notify'
 
 // 0031 seguridad: comandos de SEG-01, 02, 03, 04, 07, 08 y 09. Cada uno revisa el permiso aquí y la base lo repite.
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -535,7 +535,7 @@ const secretMeta = z.object({ ownerId: uuid.or(z.literal('')), rotateEveryDays: 
 export async function setSecretMeta(ctx: Ctx, key: string, input: z.input<typeof secretMeta>): Promise<void> {
   ctx.assert('integration.operate')
   const p = secretMeta.safeParse(input)
-  if (!p.success) throw invalid('Revisa el dueño, los días entre rotaciones (1 a 730) y la fecha.', 'Check the owner, the days between rotations (1 to 730) and the date.')
+  if (!p.success) throw invalid('Revisa quién responde por ella, los días entre rotaciones (1 a 730) y la fecha.', 'Check the owner, the days between rotations (1 to 730) and the date.')
   const v = p.data
   assertNoProhibited(v.note)
   await withUser(ctx.user.id, async (tx) => {
@@ -602,4 +602,57 @@ export async function acknowledgeAlert(ctx: Ctx, id: string, note: string): Prom
 export async function prepareAuditArchive(ctx: Ctx): Promise<number> {
   ctx.assert('security.manage')
   return withUser(ctx.user.id, async (tx) => (await tx<{ n: number }[]>`select app.audit_archive_prepare(${archiveBatchStatus()}) as n`)[0]?.n ?? 0)
+}
+
+// ------------------------------------------------------------ lo que corre por horario (src/server/jobs/seguridad.ts)
+const ALERT_TEXT: Record<string, [string, string]> = {
+  exports_per_day: ['muchas exportaciones en un día', 'many exports in one day'],
+  export_rows_per_day: ['muchas filas exportadas en un día', 'many rows exported in one day'],
+  searches_per_hour: ['muchas búsquedas en una hora', 'many searches in one hour'],
+  reveals_per_day: ['muchos datos reservados revelados en un día', 'many restricted values revealed in one day'],
+  api_calls_per_hour: ['muchas llamadas con una llave en una hora', 'many calls with one key in an hour'],
+  api_rows_per_day: ['muchas filas leídas con una llave en un día', 'many rows read with one key in one day'],
+  key_expiring: ['una llave está por vencer', 'a key is about to expire'],
+  key_unused: ['una llave lleva mucho sin uso', 'a key has gone unused for long'],
+  secret_rotation_due: ['la rotación de una conexión está vencida', 'a connection’s rotation is overdue'],
+  direct_sql_change: ['datos cambiados por fuera de la aplicación', 'data changed outside the application'],
+}
+
+/** Avisa de las alertas nuevas a quien lleva la bitácora (administración completa o su parte Bitácora), una sola vez por alerta. */
+export async function notifyNewAlertsTx(tx: Tx): Promise<number> {
+  const fresh = await tx<{ id: string; kind: string }[]>`
+    update crm.security_alerts set notified_at = now() where status = 'open' and notified_at is null returning id, kind`
+  if (fresh.length === 0) return 0
+  const people = await tx<{ user_id: string }[]>`
+    select distinct m.user_id from crm.memberships m join crm.users u on u.id = m.user_id and u.is_active and not u.is_system
+     where m.role = 'admin' and (m.admin_areas is null or 'audit' = any(m.admin_areas)) and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())`
+  const actor = (await tx<{ id: string }[]>`select app.system_user_id() as id`)[0]!
+  const kinds = [...new Set(fresh.map((f) => f.kind))]
+  const list = (i: 0 | 1) => kinds.map((k) => ALERT_TEXT[k]?.[i] ?? k).join('; ')
+  await notifyMany(tx, { user: { id: actor.id } }, people.map((p) => p.user_id), {
+    kind: 'security_alert', market: null, link: '/admin/seguridad?s=alertas',
+    title: [fresh.length === 1 ? 'Hay una alerta de seguridad sin revisar' : `Hay ${fresh.length} alertas de seguridad sin revisar`, fresh.length === 1 ? 'There is a security alert to review' : `There are ${fresh.length} security alerts to review`],
+    body: [`Revisa en Seguridad: ${list(0)}.`, `Review under Security: ${list(1)}.`],
+  })
+  return fresh.length
+}
+
+/**
+ * SEG-07: quita el acceso a quien el directorio reporta sin cuenta. Lo llama la tarea programada, solo con el adaptador encendido.
+ * Nunca deja a CONTIGO sin una administración completa y sin vencimiento.
+ */
+export async function endAccessByDirectoryTx(tx: Tx, gone: string[]): Promise<number> {
+  const rows = await tx<{ user_id: string }[]>`
+    update crm.memberships m set valid_to = now() from crm.users u
+     where u.id = m.user_id and lower(u.email::text) = any(${gone}::text[]) and not u.is_system and (m.valid_to is null or m.valid_to > now())
+       and not (m.role = 'admin' and m.admin_areas is null and not exists (
+             select 1 from crm.memberships o join crm.users ou on ou.id = o.user_id and ou.is_active and not ou.is_system
+              where o.role = 'admin' and o.admin_areas is null and o.valid_to is null and o.id <> m.id and lower(ou.email::text) <> all(${gone}::text[])))
+    returning m.user_id`
+  const users = [...new Set(rows.map((r) => r.user_id))]
+  for (const id of users) {
+    await tx`insert into crm.audit_events (actor_id, action, object, object_id, after)
+             values (app.current_user_id(), 'membership.ended_by_directory', 'user', ${id}, ${tx.json({ reason: 'account_not_in_directory' })})`
+  }
+  return users.length
 }
