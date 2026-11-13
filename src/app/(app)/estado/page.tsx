@@ -19,7 +19,9 @@ import { channelStatus } from '@/server/adapters/channels'
 import { CHANNEL_LABEL } from '@/lib/notice-kinds'
 import Link from 'next/link'
 import { serviceBoard } from '@/dal/gobierno'
-import { gobiernoAdapterStatus } from '@/server/adapters/gobierno'
+import { gobiernoAdapterStatus } from '@/server/gobierno-status'
+import { tracesAdapter } from '@/server/adapters/traces'
+import { billingAdapter } from '@/server/adapters/billing'
 import { OBJECTIVE_LABEL, msText } from '@/lib/gobierno-labels'
 
 export const dynamic = 'force-dynamic'
@@ -211,7 +213,7 @@ export default async function StatusPage() {
         <Card data-testid="status-gov-adapters">
           <CardTitle title={t('Conexiones de operación, apagadas', 'Operating connections, turned off')} hint={t('Están construidas y no llaman a nada. Cada una dice qué falta para encenderla.', 'They are built and call nothing. Each one says what is missing to turn it on.')} />
           <ul>
-            {gobiernoAdapterStatus().map((a) => (
+            {gobiernoAdapterStatus(tracesAdapter(), billingAdapter()).map((a) => (
               <li key={a.key} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid={`status-adapter-${a.key}`}>
                 <span className="min-w-0 flex-1 basis-60"><span className="block text-[14px] font-medium text-strong">{t(...a.name)}</span><span className="text-[12.5px] text-muted-2">{t(...a.needs)}</span></span>
                 <Badge>{a.mode === 'off' ? t('Apagado', 'Off') : t('Simulado (pruebas)', 'Simulated (tests)')}</Badge>

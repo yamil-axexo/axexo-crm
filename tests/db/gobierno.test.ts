@@ -17,7 +17,7 @@ import { deployWatch, gobiernoJobs, healthProbe, sloWatch } from '@/server/jobs/
 import { JOBS } from '@/server/jobs/registry'
 import { tracesAdapter, simulatedSpans } from '@/server/adapters/traces'
 import { billingAdapter, simulatedBilling } from '@/server/adapters/billing'
-import { gobiernoAdapterStatus } from '@/server/adapters/gobierno'
+import { gobiernoAdapterStatus } from '@/server/gobierno-status'
 import { AUDIT_ACTION, AUDIT_GROUPS, AUDIT_OBJECT } from '@/lib/audit'
 import { generate, plan, rfcCheckDigit, syntheticRfc, syntheticEin, syntheticNit, rng } from '../../scripts/synthetic-lib.mjs'
 

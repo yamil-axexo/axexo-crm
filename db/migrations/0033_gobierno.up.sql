@@ -484,8 +484,11 @@ alter table crm.field_definitions
 
 -- ------------------------------------------------------------------ E7.F7: el motivo de cada cambio de configuración
 -- La bitácora no se edita: el motivo vive al lado, una vez por evento, y tampoco se edita.
+-- Sin llave foránea hacia la bitácora a propósito: una referencia cambiaría cómo responde la base a un intento de vaciar
+-- crm.audit_events (la protege su propio disparador). La bitácora no se borra nunca, así que el evento no puede faltar
+-- después; que exista al anotar lo exige la política de inserción.
 create table crm.change_reasons (
-  event_id    uuid primary key references crm.audit_events(id),
+  event_id    uuid primary key,
   reason      text not null check (char_length(reason) between 5 and 1000),
   created_by  uuid not null references crm.users(id),
   created_at  timestamptz not null default now()
@@ -496,7 +499,8 @@ grant select, insert on crm.change_reasons to contigo_app;
 create policy change_reasons_read on crm.change_reasons for select to contigo_app
   using ((select app.is_global()) or exists (select 1 from crm.audit_events e where e.id = event_id));
 create policy change_reasons_ins on crm.change_reasons for insert to contigo_app
-  with check ((select app.is_admin()) and created_by = (select app.current_user_id()));
+  with check ((select app.is_admin()) and created_by = (select app.current_user_id())
+              and exists (select 1 from crm.audit_events e where e.id = event_id));
 
 -- ------------------------------------------------------------------ E7.F3: champion por equipo y revisión mensual
 create table crm.team_champions (

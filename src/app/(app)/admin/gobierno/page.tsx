@@ -10,7 +10,7 @@ import {
 } from '@/dal/gobierno'
 import { COST_COMPONENTS, MATERIAL_KINDS, missingItems, SEVERITIES } from '@/domain/gobierno-ops'
 import { RELEASE_CHECKLIST } from '@/content/release-checklist'
-import { gobiernoAdapterStatus } from '@/server/adapters/gobierno'
+import { gobiernoAdapterStatus } from '@/server/gobierno-status'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Stat, Table, buttonClass } from '@/ui/kit'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { actionLabel, zoneLabel } from '@/lib/audit'
