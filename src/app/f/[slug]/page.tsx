@@ -10,6 +10,7 @@ import { Field } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { submitPublicForm } from './actions'
 import { ATTRIBUTION_KEYS, CONSENT_TEXT, cleanAttribution } from '@/domain/leads'
+import { cleanPage } from '@/domain/embudo/attribution'
 
 export default async function PublicForm({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { slug } = await params
@@ -20,6 +21,12 @@ export default async function PublicForm({ params, searchParams }: { params: Pro
     const v = cleanAttribution(Array.isArray(raw) ? raw[0] : raw)
     return v ? [[k, v] as const] : []
   })
+  // LEAD-02 / LEAD-05: además, los identificadores de clic de TikTok, LinkedIn y X, el código de referido de un comercio,
+  // la página de llegada y la página de la que venía la persona (sin lo que traigan después del signo de pregunta).
+  const one = (k: string) => { const raw = sp[k]; return cleanAttribution(Array.isArray(raw) ? raw[0] : raw) }
+  const cameFrom = cleanPage((await headers()).get('referer'))
+  const originExtra: [string, string][] = ([['ttclid', one('ttclid')], ['li_fat_id', one('li_fat_id')], ['twclid', one('twclid')], ['ref', /^[A-Za-z2-9]{8}$/.test(one('ref') ?? '') ? one('ref') : null],
+    ['landing_page', `/f/${slug}`], ['referrer', cameFrom && !cameFrom.includes(`/f/${slug}`) ? cameFrom : null]] as [string, string | null][]).filter((x): x is [string, string] => Boolean(x[1]))
   if (!/^[a-z0-9-]{3,60}$/.test(slug)) notFound()
   const rows = await withoutUser((tx) => tx<{ name: string; locale: Locale; market_code: string }[]>`select name, locale, market_code from app.form_public(${slug})`)
   const form = rows[0]
@@ -54,6 +61,7 @@ export default async function PublicForm({ params, searchParams }: { params: Pro
           <input type="hidden" name="idempotency_key" value={renderKey} />
           <input type="hidden" name="locale" value={form.locale === 'en' ? 'en' : 'es'} />
           {origin.map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+          {originExtra.map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
           <div className="hidden" aria-hidden><label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
           <Field label={t('Nombre del negocio', 'Business name')}><input name="business_name" className="input" required minLength={2} maxLength={120} /></Field>
           {companyTypes.length > 0 && (

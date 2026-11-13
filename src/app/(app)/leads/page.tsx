@@ -1,3 +1,5 @@
+import { leadLabelCatalog } from '@/dal/embudo'
+import { PLATFORMS, PLATFORM_LABEL } from '@/domain/embudo/attribution'
 import { ViewsSection } from '../views-section'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
@@ -34,7 +36,7 @@ function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'o
   )
 }
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string; motor?: string; equipo?: string; cola?: string; tipo?: string; embudo?: string; tiendas_min?: string; tiendas_max?: string }> }) {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ market?: string; status?: string; owner?: string; q?: string; before?: string; clock?: string; source?: string; sort?: string; from?: string; to?: string; motor?: string; equipo?: string; cola?: string; tipo?: string; embudo?: string; tiendas_min?: string; tiendas_max?: string; etiqueta?: string; utm?: string; clic?: string }> }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
   const sp = flat(await searchParams)
@@ -44,6 +46,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const teams = byTeam ? (await getReportOptions(ctx)).teams.filter((x) => !sp.market || x.market_code === sp.market) : []
   const team = !byTeam ? undefined : sp.equipo === 'none' ? 'none' : teams.some((x) => x.id === sp.equipo) ? sp.equipo : undefined
   const data = await listLeads(ctx, { ...sp, status: status === 'all' ? undefined : status, team })
+  // E3.F3: mercado como filtro a la vista (cuando hay más de uno) y etiquetas de lead.
+  const liveMarkets = ctx.markets.filter((mk) => mk.status === 'live')
+  const labelCatalog = await leadLabelCatalog(ctx)
   await track(ctx, 'view.leads')
   // El alta ofrece solo los mercados donde la persona puede crear leads y los tipos de venta que tienen embudo ahí.
   const live = ctx.markets.filter((x) => x.status === 'live' && ctx.can('lead.create', x.code))
@@ -67,9 +72,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const isDay = (v: string | undefined) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
   const from = isDay(sp.from) ? sp.from : undefined
   const to = isDay(sp.to) ? sp.to : undefined
-  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, from, to, motor, equipo: team, tipo, embudo, tiendas_min: tiendasMin, tiendas_max: tiendasMax }
+  const keep = { market: sp.market, status, owner: sp.owner, q: sp.q, clock: sp.clock, source: sp.source, sort: sp.sort, from, to, motor, equipo: team, tipo, embudo, tiendas_min: tiendasMin, tiendas_max: tiendasMax, etiqueta: sp.etiqueta, utm: sp.utm, clic: sp.clic }
   const link = (patch: Record<string, string | undefined>) => qs('/leads', { ...keep, ...patch, before: undefined })
-  const filtered = !!(sp.q || sp.clock || sp.source || sp.sort || from || to || motor || team || tipo || embudo || tiendasMin || tiendasMax || (sp.owner && sp.owner !== 'me'))
+  const filtered = !!(sp.etiqueta || sp.utm || sp.clic || sp.q || sp.clock || sp.source || sp.sort || from || to || motor || team || tipo || embudo || tiendasMin || tiendasMax || (sp.owner && sp.owner !== 'me'))
   const now = new Date()
   const config = sheetConfig(ctx, now)
   const seg = (on: boolean) => cx('press inline-flex h-9 items-center rounded-full px-4 text-[13px] font-medium', on ? 'bg-ink text-white' : 'text-strong hover:bg-green-50')
@@ -176,7 +181,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       {/* La llave vuelve a montar el formulario cuando cambian los filtros: así "Quitar filtros" también limpia lo que se ve. */}
       <form key={JSON.stringify(keep)} action="/leads" method="get" role="search" className="mt-4 grid grid-cols-2 items-end gap-3 @3xl:flex @3xl:flex-wrap" data-testid="lead-filters">
         <input type="hidden" name="status" value={status} />
-        {sp.market && <input type="hidden" name="market" value={sp.market} />}
+        {sp.market && liveMarkets.length <= 1 && <input type="hidden" name="market" value={sp.market} />}
         {from && <input type="hidden" name="from" value={from} />}
         {to && <input type="hidden" name="to" value={to} />}
         {(from || to) && (
@@ -195,6 +200,29 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             <option value="">{t('Todos', 'All')}</option>
             <option value="with">{t('Con reloj corriendo', 'Clock running')}</option>
             <option value="without">{t('Sin reloj (importados)', 'No clock (imported)')}</option>
+          </select>
+        </Field>
+        {liveMarkets.length > 1 && (
+          <Field label={t('Mercado', 'Market')}>
+            <select name="market" className="input" defaultValue={sp.market ?? ''} data-testid="lead-f-market">
+              <option value="">{t('Todos', 'All')}</option>
+              {liveMarkets.map((mk) => <option key={mk.code} value={mk.code}>{mk.name}</option>)}
+            </select>
+          </Field>
+        )}
+        <Field label={t('Etiqueta', 'Label')}>
+          <select name="etiqueta" className="input" defaultValue={sp.etiqueta ?? ''} data-testid="lead-f-label">
+            <option value="">{t('Todas', 'All')}</option>
+            {labelCatalog.map((b) => <option key={b.code} value={b.code}>{t(b.label_es, b.label_en)}</option>)}
+          </select>
+        </Field>
+        <Field label={t('Fuente o campaña', 'Source or campaign')}>
+          <input name="utm" className="input" defaultValue={sp.utm ?? ''} maxLength={80} placeholder={t('Por ejemplo: google', 'For example: google')} data-testid="lead-f-utm" />
+        </Field>
+        <Field label={t('Clic de anuncio', 'Ad click')}>
+          <select name="clic" className="input" defaultValue={sp.clic ?? ''} data-testid="lead-f-click">
+            <option value="">{t('Todos', 'All')}</option>
+            {PLATFORMS.map((k) => <option key={k} value={k}>{PLATFORM_LABEL[k]}</option>)}
           </select>
         </Field>
         <Field label={t('Origen', 'Source')}>

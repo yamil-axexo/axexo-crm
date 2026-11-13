@@ -9,6 +9,9 @@ import { antibotMode } from '@/server/adapters/antibot'
 import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
 import { adapterQueue } from '@/dal/reportes'
 import { routesAdapter } from '@/server/adapters/routes'
+import { salesFileAdapter } from '@/server/adapters/sales-file'
+import { adConversionsAdapter } from '@/server/adapters/ad-conversions'
+import { supportDeskAdapter } from '@/server/adapters/support-desk'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
@@ -36,6 +39,9 @@ export default async function StatusPage() {
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
   const routes = routesAdapter()
+  const salesFile = salesFileAdapter()
+  const adConv = adConversionsAdapter()
+  const desk = supportDeskAdapter()
   const version = deployedVersion()
   const when = (d: string | null | undefined) => (d ? dayTime(d, locale, tz) : null)
   const envName: Record<string, [string, string]> = {
@@ -103,6 +109,27 @@ export default async function StatusPage() {
       what: t('Tiendas de cada persona para planear su ruta', 'Each person’s stores to plan their route'),
       state: routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`La lista de tiendas por persona ya se arma dentro de CONTIGO. Para encenderlo hace falta elegir la herramienta, su aprobación de tecnología y la variable ${routes.envVar}.`, `The store list per person is already built inside CONTIGO. Turning it on needs the tool chosen, its technology approval and the ${routes.envVar} variable.`),
+    },
+    {
+      key: 'sales_file',
+      name: t('Archivo de ventas: ir a buscarlo', 'Sales file: fetching it'),
+      what: t('Primer fondeo y método, primera transacción, hábito y correcciones', 'First funding and method, first transaction, habit and corrections'),
+      state: salesFile.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`Hoy el archivo entra cuando alguien lo entrega por la API. Para que CONTIGO vaya por él hace falta que Data y Reportería confirme el contrato con fondeo y método y dónde deja el archivo, la aprobación de tecnología y la variable ${salesFile.envVar}.`, `Today the file comes in when someone delivers it through the API. For CONTIGO to fetch it, Data and Reporting must confirm the contract with funding and method and where the file is left, plus technology approval and the ${salesFile.envVar} variable.`),
+    },
+    {
+      key: 'ad_conversions',
+      name: t('Conversiones a plataformas de anuncios', 'Conversions to ad platforms'),
+      what: t('Lead calificado y primera transacción para Google, Meta, TikTok, LinkedIn y X', 'Qualified lead and first transaction for Google, Meta, TikTok, LinkedIn and X'),
+      state: adConv.mode === 'off' ? { tone: 'neutral', text: t('Canal apagado', 'Channel off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`Las conversiones se guardan en cola y no sale nada. Para encenderlo hace falta, por plataforma, la cuenta de anuncios y su credencial, la aprobación de tecnología y la variable ${adConv.envVar}.`, `Conversions are queued and nothing leaves. Turning it on needs, per platform, the ad account and its credential, technology approval and the ${adConv.envVar} variable.`),
+    },
+    {
+      key: 'support_desk',
+      name: t('Mesa de soporte (tickets)', 'Support desk (tickets)'),
+      what: t('Tickets como referencia en el hilo del comercio', 'Tickets as a reference in the merchant thread'),
+      state: desk.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`La referencia (número y asunto) la escribe una persona y el estado es el que ella pone. Para traer el estado y abrir el ticket desde aquí hace falta la dirección de la mesa de soporte, su aprobación de tecnología y la variable ${desk.envVar}.`, `The reference (number and subject) is typed by a person and the status is whatever they set. Fetching the status and opening the ticket from here needs the support desk address, its technology approval and the ${desk.envVar} variable.`),
     },
     {
       key: 'outbox',
