@@ -36,6 +36,8 @@ async function accountOf(persona: string, lifecycle: string, kind = 'store', ski
       select a.id, a.name from crm.accounts a
        where a.owner_id = md5(${'contigo:' + persona})::uuid and a.lifecycle = ${lifecycle} and a.kind = ${kind} and a.archived_at is null
          and not exists (select 1 from crm.handoffs h where h.account_id = a.id) and not exists (select 1 from crm.cs_alerts x where x.account_id = a.id)
+         -- un comercio activo de otra prueba (campo y canales) puede no estar en el archivo de ventas: aquí se usa uno que sí está
+         and (a.lifecycle <> 'active' or exists (select 1 from crm.merchant_metrics_daily m where m.account_id = a.id))
        order by a.id offset ${skip} limit 1`
     if (!rows[0]) throw new Error(`no hay comercio ${lifecycle} de ${persona}`)
     return rows[0]
@@ -233,7 +235,8 @@ test.describe('CS-02 y CS-04 · salud explicada y modelo de atención', () => {
     await weights.getByTestId('weights-save').click()
     await expect(weights.getByTestId('form-ok')).toContainText('Pesos guardados')
     // las conexiones apagadas dicen qué falta
-    await expect(page.getByTestId('care-adapter')).toHaveCount(4)
+    // tres conexiones propias; el borrador con IA usa el adaptador único de AI (integración 95-4)
+    await expect(page.getByTestId('care-adapter')).toHaveCount(3)
     await expect(page.getByTestId('admin-care-adapters')).toContainText('Conteo de solicitudes de soporte (Zendesk)')
     await expect(page.getByTestId('admin-care-adapters')).toContainText('Conexión apagada')
     await page.goto('/estado')

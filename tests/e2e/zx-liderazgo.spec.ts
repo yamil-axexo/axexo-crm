@@ -288,7 +288,9 @@ test.describe('adopción', () => {
 test.describe('Mi equipo', () => {
   test('quien lidera ve todos los equipos con subtotal y 8 semanas de resultados; la tabla cabe en 1440', async ({ page }) => {
     await loginAs(page, 'ana.robles', { stay: true })
-    const groups = page.getByTestId('team-group')
+    // Si otra prueba de la corrida le dejó a quien lidera un registro propio (una importación de leads, por ejemplo), aparece en
+    // "Sin equipo": no es un equipo y no cuenta aquí.
+    const groups = page.getByTestId('team-group').filter({ hasNot: page.getByTestId('team-name').filter({ hasText: 'Sin equipo' }) })
     await expect(groups).toHaveCount(2)
     await expect(groups.nth(0).getByTestId('team-name')).toHaveText('B2B México')
     await expect(groups.nth(1).getByTestId('team-name')).toHaveText('D2D Centro')

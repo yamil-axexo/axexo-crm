@@ -170,6 +170,7 @@ test.describe('Paquete partners-contratos', () => {
     await loginAs(page, 'nora.salas')
     await page.goto('/estado')
     await expect(page.getByText('Firma electrónica de contratos')).toBeVisible()
-    await expect(page.getByText(/CONTIGO_ESIGN_ADAPTER/)).toBeVisible()
+    // la fila del adaptador dice qué falta; 'Lo que ya no pasa por Pipedrive' (integraciones2) también la nombra
+    await expect(page.getByTestId('status-last').filter({ hasText: /CONTIGO_ESIGN_ADAPTER/ })).toBeVisible()
   })
 })
