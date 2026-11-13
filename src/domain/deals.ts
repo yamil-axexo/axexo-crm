@@ -6,6 +6,7 @@ import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { DomainError, invalid, notFound } from '@/lib/errors'
 import { day as dayLabel, isoDay } from '@/lib/format'
+import { cancelPendingApproval, transitionGate } from '@/domain/automation/transitions'
 
 export type StageKind = 'open' | 'awaiting_txn' | 'won' | 'lost'
 
@@ -181,7 +182,14 @@ export async function updateDeal(ctx: Ctx, dealId: string, input: DealEdit): Pro
 /** Fecha (AAAA-MM-DD) de un valor que puede venir como Date de la base. */
 export const isoDate = (v: string | Date | null): string | null => (v === null ? null : v instanceof Date ? isoDay(v, 'UTC') : String(v).slice(0, 10))
 
+/** Qué pasó al pedir el movimiento: se movió, o quedó esperando la aprobación de alguien (PIPE-02). */
+export type MoveResult = { status: 'moved' } | { status: 'pending'; approver: string }
+
 export type MoveExtra = {
+  /** La aprobación ya decidida que autoriza este movimiento (lo pone `decideApproval`, nunca la pantalla). */
+  approvalId?: string
+  /** El movimiento lo pide una automatización: no cruza etapas de Operaciones ni pasos que piden aprobación de una persona. */
+  byRule?: boolean
   /** Día real en que se ganó (AAAA-MM-DD), de hoy hacia atrás en la zona del mercado. Vacío es hoy. */
   wonOn?: string
   /** Motivo al devolver el negocio de Operaciones a Ventas. */
@@ -196,8 +204,16 @@ export type MoveExtra = {
  * Dentro de esas etapas solo avanza Operaciones, nunca quien lo vendió (la base lo repite con un trigger).
  * Regresarlo a una etapa de Ventas pide motivo y le deja a quien vende una tarea para hoy.
  */
-export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }, extra?: MoveExtra): Promise<void> {
-  await withUser(ctx.user.id, async (tx) => {
+export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }, extra?: MoveExtra): Promise<MoveResult> {
+  return withUser(ctx.user.id, (tx) => moveDealTx(tx, ctx, dealId, toStageId, loss, next, extra))
+}
+
+/**
+ * El mismo movimiento, dentro de una transacción que ya existe: lo usan la pantalla (por `moveDeal`), la decisión de una
+ * aprobación y las automatizaciones. Una sola función decide si un negocio cambia de etapa (AUT-01).
+ */
+export async function moveDealTx(tx: Tx, ctx: Ctx, dealId: string, toStageId: string, loss?: { reasonCode: string; note?: string }, next?: { step: string; due: string }, extra?: MoveExtra): Promise<MoveResult> {
+  {
     const d = await loadDeal(tx, dealId)
     if (next) {
       const step = clean(next.step)
@@ -214,7 +230,7 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
     }
     ctx.assert('deal.move', d.market_code)
     if (d.status !== 'open') throw invalid('Este negocio ya está cerrado.', 'This deal is already closed.')
-    if (toStageId === d.stage_id) return
+    if (toStageId === d.stage_id) return { status: 'moved' }
     const stages = await tx<{ id: string; kind: StageKind; required_fields: string[]; name_es: string; name_en: string; position: number; is_ops: boolean }[]>`
       select id, kind, required_fields, name_es, name_en, position, is_ops from crm.stages where id = ${toStageId} and pipeline_id = ${d.pipeline_id} and archived_at is null`
     const stage = stages[0]
@@ -297,13 +313,17 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
         throw new DomainError(missing.length === 1 && missing[0] === 'next_step' ? 'next_step_required' : 'stage_gate',
           `Para pasar a "${stage.name_es}" falta: ${es}.`, `To move to "${stage.name_en}" you still need: ${en}.`)
       }
+      // PIPE-02: el paso puede tener dueño, pedir evidencia o la aprobación de alguien. Si queda esperando, el negocio no se mueve.
+      const held = await transitionGate(tx, ctx, d, { id: toStageId, name_es: stage.name_es, name_en: stage.name_en, crossesOps: await crossesOps(tx, d.pipeline_id, cur.position, stage.position) }, { next, extra })
+      if (held) return held
       await tx`update crm.deals set stage_id = ${toStageId}, stage_entered_at = now(),
                 status = ${stage.kind === 'won' ? 'won' : 'open'}, won_at = ${stage.kind === 'won' ? wonAt : null},
                 closed_by = ${stage.kind === 'won' ? 'manual' : null},
                 ops_entered_at = ${entering ? tx`now()` : tx`ops_entered_at`} where id = ${dealId}`
     }
     await tx`insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause)
-             values (${dealId}, ${d.market_code}, ${d.stage_id}, ${toStageId}, ${ctx.user.id}, 'user')`
+             values (${dealId}, ${d.market_code}, ${d.stage_id}, ${toStageId}, ${ctx.user.id}, ${extra?.byRule ? 'rule' : 'user'})`
+    await cancelPendingApproval(tx, dealId, extra?.approvalId ?? null)
     await audit(tx, ctx, 'deal.stage_changed', 'deal', dealId, d.market_code, { stage_id: d.stage_id },
       { stage_id: toStageId, kind: stage.kind, reason: loss?.reasonCode ?? null, ...(stage.kind === 'won' && extra?.wonOn ? { won_on: extra.wonOn } : {}) })
     await emit(tx, 'deal.stage_changed', 'deal', dealId, d.market_code, { from: d.stage_id, to: toStageId, kind: stage.kind })
@@ -349,7 +369,8 @@ export async function moveDeal(ctx: Ctx, dealId: string, toStageId: string, loss
       await tx`insert into crm.notices (market_code, user_id, from_user_id, kind, account_id, deal_id, body)
                values (${d.market_code}, ${d.owner_id}, ${ctx.user.id}, 'mention', ${d.account_id}, ${dealId}, ${body.slice(0, 600)})`
     }
-  })
+    return { status: 'moved' }
+  }
 }
 
 const createInput = z.object({

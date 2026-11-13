@@ -6,6 +6,7 @@ import type { Ctx } from '@/server/context'
 import { audit, emit, newId, clean } from '@/domain/common'
 import { invalid, notFound } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
+import { accountRule, intakeError } from '@/domain/intake'
 
 export type Duplicate = { id: string; name: string; locality: string | null; owner_name: string | null; lifecycle: string; match: 'phone' | 'name' }
 
@@ -23,6 +24,25 @@ const createInput = z.object({
   territoryId: z.guid().or(z.literal('')).optional(),
   force: z.boolean().optional().default(false),
 })
+
+export type NewAccount = {
+  market: string; kind: string; accountType: string | null; name: string; segment: string; lifecycle: 'prospect' | 'onboarding'; parentId: string | null
+  ownerId: string | null; territoryId: string | null; phone: string | null; locality: string | null; region: string | null; createdBy: string
+}
+
+/**
+ * AUT-01: el alta de un comercio, una sola vez. La usan la pantalla (`createAccount`) y la Sales App (`ingestStore`):
+ * las dos pasan por las mismas reglas de entrada antes de escribir.
+ */
+export async function insertAccountTx(tx: Tx, a: NewAccount): Promise<string> {
+  const broken = accountRule({ name: a.name, phone: a.phone })
+  if (broken) throw intakeError(broken)
+  const id = await newId(tx)
+  await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, lifecycle, parent_id, owner_id, territory_id, phone, locality, region, country, created_by)
+           values (${id}, ${a.market}, ${a.kind}, ${a.accountType}, ${a.name.trim()}, ${a.segment}, ${a.lifecycle}, ${a.parentId}, ${a.ownerId}, ${a.territoryId}, ${a.phone},
+                   ${a.locality}, ${a.region}, ${a.market}, ${a.createdBy})`
+  return id
+}
 
 /** DAT-04: antes de crear, se busca el duplicado en todo el mercado. Si aparece, se devuelve y no se crea. */
 export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>): Promise<{ id?: string; duplicates?: Duplicate[] }> {
@@ -69,11 +89,9 @@ export async function createAccount(ctx: Ctx, input: z.input<typeof createInput>
       } else if (createInput.shape.kind.safeParse(v.accountType).success) kind = v.accountType
       else throw invalid('Ese tipo de cuenta no existe en este mercado.', 'That account type does not exist in this market.')
     }
-    const id = await newId(tx)
     // Sin territorio elegido, la base pone el de quien lo crea cuando tiene uno solo en este mercado (0011_distribution).
-    await tx`insert into crm.accounts (id, market_code, kind, account_type, name, segment, parent_id, owner_id, territory_id, phone, locality, region, country, created_by)
-             values (${id}, ${v.market}, ${kind}, ${accountType}, ${v.name}, ${v.segment}, ${v.parentId || null}, ${ctx.user.id}, ${v.territoryId || null}, ${phone},
-                     ${clean(v.locality)}, ${clean(v.region)}, ${v.market}, ${ctx.user.id})`
+    const id = await insertAccountTx(tx, { market: v.market, kind, accountType, name: v.name, segment: v.segment, lifecycle: 'prospect', parentId: v.parentId || null,
+      ownerId: ctx.user.id, territoryId: v.territoryId || null, phone, locality: clean(v.locality), region: clean(v.region), createdBy: ctx.user.id })
     if (v.parentId) await tx`insert into crm.account_links (child_id, parent_id, created_by) values (${id}, ${v.parentId}, ${ctx.user.id})`
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by) values
       (${id}, ${v.market}, 'origin', 'user', ${ctx.user.id}, ${ctx.user.name}, ${ctx.user.id}),

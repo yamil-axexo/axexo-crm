@@ -96,6 +96,16 @@ export default async function StatusPage() {
       last: t(`${num(s.outbox_pending, locale)} guardados; nadie los recoge todavía`, `${num(s.outbox_pending, locale)} stored; nobody picks them up yet`),
     },
   ]
+  // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
+  rows.push({
+    key: 'jobs',
+    name: t('Tareas programadas', 'Scheduled jobs'),
+    what: t('Disparo externo por horario', 'External scheduled trigger'),
+    state: e.CRON_SECRET ? { tone: 'good', text: t('Encendido', 'On') } : { tone: 'neutral', text: t('Apagado: falta el secreto', 'Off: the secret is missing') },
+    last: e.CRON_SECRET
+      ? t('La plataforma llama a la ruta de tareas con el secreto configurado', 'The platform calls the jobs route with the configured secret')
+      : t('Para encenderlo: configurar CRON_SECRET y que la plataforma llame a la ruta cada minuto. Mientras tanto corren con la app en uso', 'To turn it on: set CRON_SECRET and have the platform call the route every minute. Meanwhile they run while the app is in use'),
+  })
 
   return (
     <>

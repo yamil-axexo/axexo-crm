@@ -1,6 +1,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { after } from 'next/server'
+import { tickJobs } from '@/server/jobs/runner'
 import { Activity, BarChart3, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Rocket, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
@@ -24,6 +26,8 @@ const initials = (name: string) =>
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
+  // Tareas programadas, disparo oportunista: lo que ya toca corre después de responder, sin hacer esperar a nadie.
+  after(() => tickJobs())
   const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
   const showAdmin = ctx.can('config.manage') || ctx.can('audit.read')
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.

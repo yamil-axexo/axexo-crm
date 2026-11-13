@@ -65,6 +65,11 @@ export const CAPABILITIES = {
   // Adopción: conteos de uso por persona. No la ve supervisión ni ventas.
   'adoption.read': ['admin', 'lt', 'market_lead'],
   'config.manage': ['admin'],
+  // Automatizaciones (AUT-03): las crea, cambia y pausa administración. Quien lidera un mercado y leadership las leen, con su bitácora.
+  'automation.manage': ['admin'],
+  'automation.read': ['admin', 'lt', 'market_lead'],
+  // Tareas programadas: "Correr ahora" es de administración. Las corridas las ve también quien responde por los controles (status.read).
+  'job.run': ['admin'],
   'integration.operate': ['admin'],
   // Página de estado: ambiente, versión, frescura de los datos e integraciones. La ven quien administra y quien responde por los controles.
   'status.read': ['admin', 'lt'],
