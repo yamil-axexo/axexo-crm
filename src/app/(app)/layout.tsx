@@ -12,6 +12,8 @@ import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
+import { stopViewAsAction } from '@/app/(app)/admin/seguridad/view-as-actions'
+import { readerTimeZone } from '@/server/timezone'
 
 const initials = (name: string) =>
   name
@@ -25,7 +27,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireCtx()
   const { t, m } = ctx
   const roles = [...new Set(ctx.memberships.map((x) => `${t(ROLE_LABEL[x.role].es, ROLE_LABEL[x.role].en)}${x.market ? ` · ${x.market}` : ''}`))].join(', ')
-  const showAdmin = ctx.can('config.manage') || ctx.can('audit.read')
+  const showAdmin = ctx.can('config.manage') || ctx.can('audit.read') || ctx.can('access.manage') || ctx.can('integration.operate') || ctx.can('security.read')
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
   const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
@@ -51,6 +53,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ]
   // Registrar una visita, una llamada o una nota empieza en el dock: quien trabaja en la calle no abre primero la ficha.
   const canLog = ctx.can('activity.write')
+  const viewAsUntil = ctx.viewAs ? new Intl.DateTimeFormat(ctx.locale === 'en' ? 'en-US' : 'es-MX', { hour: 'numeric', minute: '2-digit', timeZone: await readerTimeZone(ctx) }).format(new Date(ctx.viewAs.until)) : ''
   const menuLink = 'flex h-11 items-center gap-3 rounded-[10px] px-3 text-[15px] font-medium text-strong hover:bg-green-50'
 
   return (
@@ -115,6 +118,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </AccountMenu>
         </div>
       </header>
+      {ctx.viewAs && (
+        <div role="status" className="sticky top-[60px] z-[35] flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-line bg-warn-bg px-4 py-2.5 text-[13.5px] font-medium text-amber-text md:top-[64px] desk:top-[72px]" data-testid="view-as-banner">
+          <span>
+            <Eye size={15} strokeWidth={1.75} aria-hidden className="mr-1.5 inline-block align-[-2px]" />
+            {t(`${ctx.viewAs.actorName}: estás viendo CONTIGO como ${ctx.user.name}. Solo lectura, hasta las ${viewAsUntil}.`, `${ctx.viewAs.actorName}: you are viewing CONTIGO as ${ctx.user.name}. Read-only, until ${viewAsUntil}.`)}
+          </span>
+          <form action={stopViewAsAction}>
+            <button className="inline-flex min-h-11 items-center rounded-full border border-current px-4 text-[13px] font-semibold" data-testid="view-as-stop">{t('Dejar de ver como', 'Stop viewing as')}</button>
+          </form>
+        </div>
+      )}
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
       <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} logLabel={canLog ? t('Registrar actividad', 'Log activity') : undefined} />

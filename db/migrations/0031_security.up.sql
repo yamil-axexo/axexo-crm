@@ -1090,10 +1090,10 @@ begin
   for p in select pol.tablename, pol.policyname, pol.cmd, pol.qual, pol.with_check from pg_policies pol
             where pol.schemaname = 'crm' and (coalesce(pol.qual, '') like '%app.is_admin()%' or coalesce(pol.with_check, '') like '%app.is_admin()%') loop
     v_area := case
-      when p.tablename in ('memberships','users','teams','user_territories') then 'access'
+      when p.tablename in ('memberships','users','teams') then 'access'
       when p.tablename in ('api_clients','inbound_events','ingest_batches','outbox_events','import_runs','import_raw','external_refs') then 'integrations'
       when p.tablename in ('markets','legal_entities','territories','pipelines','stages','loss_reasons','field_definitions','routing_rules','web_forms',
-                           'fx_rates','settings','products','account_types','market_hours','ops_catalog') then 'config'
+                           'fx_rates','settings','products','account_types','market_hours','ops_catalog','user_territories') then 'config'
       else null end;
     if v_area is null then continue; end if;
     execute format('alter policy %I on crm.%I %s %s', p.policyname, p.tablename,
@@ -1101,6 +1101,16 @@ begin
       case when p.with_check is not null then 'with check (' || replace(p.with_check, 'app.is_admin()', format('app.has_area(%L)', v_area)) || ')' else '' end);
   end loop;
 end $$;
+
+-- Quitar un acceso también saca a la persona de los turnos de leads: la parte Accesos puede hacer ese cambio.
+alter policy routing_rules_admin_upd on crm.routing_rules
+  using ((select app.has_area('config')) or (select app.has_area('access')))
+  with check ((select app.has_area('config')) or (select app.has_area('access')));
+-- Dar, cambiar o quitar Administración (completa o por partes) es solo de la administración completa: una parte no se da más poder.
+create policy memberships_admin_grant_ins on crm.memberships as restrictive for insert to contigo_app
+  with check (role <> 'admin' or (select app.is_admin()));
+create policy memberships_admin_grant_upd on crm.memberships as restrictive for update to contigo_app
+  using (role <> 'admin' or (select app.is_admin())) with check (role <> 'admin' or (select app.is_admin()));
 
 create policy agencies_read on crm.agencies for select to contigo_app using ((select app.current_user_id()) is not null);
 create policy agencies_ins on crm.agencies for insert to contigo_app with check ((select app.has_area('access')));

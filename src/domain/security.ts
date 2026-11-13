@@ -20,6 +20,8 @@ const uuid = z.guid()
 /** Deja a una persona administradora con todas las partes (null) o solo con las que se eligen. Siempre queda alguien con todas y sin vencimiento. */
 export async function setAdminAreas(ctx: Ctx, membershipId: string, areas: AdminArea[] | null): Promise<void> {
   ctx.assert('access.manage')
+  // Cambiar las partes de una administración es de la administración completa.
+  if (!ctx.isAdmin) throw forbidden()
   const list = areas === null ? null : [...new Set(z.array(z.enum(ADMIN_AREAS)).min(1).parse(areas))]
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ user_id: string; admin_areas: AdminArea[] | null }[]>`

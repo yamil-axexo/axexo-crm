@@ -10,6 +10,10 @@ begin
   end loop;
 end $$;
 
+drop policy memberships_admin_grant_ins on crm.memberships;
+drop policy memberships_admin_grant_upd on crm.memberships;
+alter policy routing_rules_admin_upd on crm.routing_rules using ((select app.has_area('config'))) with check ((select app.has_area('config')));
+
 -- Administración por partes: las políticas vuelven a preguntar por la administración completa.
 do $$
 declare p record;

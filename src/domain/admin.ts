@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { marketToday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit, newId } from '@/domain/common'
-import { invalid, notFound } from '@/lib/errors'
+import { forbidden, invalid, notFound } from '@/lib/errors'
 import { domainList, emailInDomains } from '@/lib/domains'
 import { assertNoProhibited } from '@/domain/guard'
 
@@ -75,7 +75,7 @@ export async function grantMembership(ctx: Ctx, input: z.input<typeof grant>, al
 
 /** Lo mismo que `grantMembership`, y además dice qué quedó: a quién, si vence y si la supervisión quedó sin equipo. */
 export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowedDomains: readonly string[]): Promise<GrantResult> {
-  ctx.assert('config.manage')
+  ctx.assert('access.manage')
   const parsed = grant.safeParse(input)
   if (!parsed.success) throw invalid('Revisa correo, nombre, rol y fecha de vencimiento.', 'Check the email, name, role and expiry date.')
   const v = parsed.data
@@ -87,6 +87,8 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
       `That domain is not allowed. The person needs a ${domainList(allowedDomains, 'or')} account. To give access to anyone else, whoever administers CONTIGO has to ask the person who manages the company’s Google accounts for that account.`,
     )
   }
+  // Solo la administración completa da Administración: quien administra una parte no se da (ni da) más poder.
+  if (v.role === 'admin' && !ctx.isAdmin) throw forbidden()
   if (v.role === 'admin' && !v.confirmAdmin) {
     throw invalid(
       'Administración ve y cambia todo, en todos los mercados: da y quita accesos, crea llaves de API y cambia la configuración. Marca la casilla para confirmar que se la quieres dar.',
@@ -123,7 +125,7 @@ export async function grantAccess(ctx: Ctx, input: z.input<typeof grant>, allowe
 
 /** Poner, mover o quitar la fecha en que un acceso deja de valer. La última administración sin fecha no puede quedar con vencimiento. */
 export async function setMembershipExpiry(ctx: Ctx, membershipId: string, expires: string | null): Promise<void> {
-  ctx.assert('config.manage')
+  ctx.assert('access.manage')
   const date = expires ? isoDate.safeParse(expires) : null
   if (date && !date.success) throw invalid('Esa fecha no es válida.', 'That date is not valid.')
   await withUser(ctx.user.id, async (tx) => {
@@ -133,6 +135,7 @@ export async function setMembershipExpiry(ctx: Ctx, membershipId: string, expire
         from crm.memberships m where m.id = ${membershipId} and (m.valid_to is null or m.valid_to > now()) for update`
     const m = rows[0]
     if (!m) throw notFound()
+    if (m.role === 'admin' && !ctx.isAdmin) throw forbidden()
     if (expires) {
       await assertFutureDay(tx, expires, m.market_code)
       if (m.role === 'admin') await assertAnotherPermanentAdmin(tx, membershipId)
@@ -145,7 +148,7 @@ export async function setMembershipExpiry(ctx: Ctx, membershipId: string, expire
 /** Siempre queda al menos una persona administradora cuyo acceso no vence: si no, un día nadie podría administrar. */
 async function assertAnotherPermanentAdmin(tx: Tx, exceptMembershipId: string): Promise<void> {
   const others = await tx<{ n: number }[]>`select count(*)::int as n from crm.memberships m join crm.users u on u.id = m.user_id
-    where m.role = 'admin' and m.valid_to is null and u.is_active and not u.is_system and m.id <> ${exceptMembershipId}`
+    where m.role = 'admin' and m.admin_areas is null and m.valid_to is null and u.is_active and not u.is_system and m.id <> ${exceptMembershipId}`
   if ((others[0]?.n ?? 0) === 0) {
     throw invalid('Tiene que quedar al menos una persona administradora sin fecha de vencimiento.', 'At least one admin with no expiry date must remain.')
   }
@@ -159,7 +162,7 @@ const teamInput = z.object({
 
 /** Un equipo agrupa a quienes venden juntos bajo una supervisión. Quien supervisa ve lo de su equipo. */
 export async function createTeam(ctx: Ctx, input: z.input<typeof teamInput>): Promise<string> {
-  ctx.assert('config.manage')
+  ctx.assert('access.manage')
   const parsed = teamInput.safeParse(input)
   if (!parsed.success) throw invalid('Un equipo lleva mercado, nombre y tipo de venta.', 'A team needs a market, a name and a sale type.')
   const v = parsed.data
@@ -198,13 +201,14 @@ export type EndResult = {
  * con la misma cuenta que muestra Mi equipo en "Sin dueño vigente", para mandarlos a repartir.
  */
 export async function endMembership(ctx: Ctx, membershipId: string): Promise<EndResult> {
-  ctx.assert('config.manage')
+  ctx.assert('access.manage')
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ user_id: string; role: string; market_code: string | null; team_id: string | null; full_name: string }[]>`
       select m.user_id, m.role, m.market_code, m.team_id, u.full_name from crm.memberships m join crm.users u on u.id = m.user_id
        where m.id = ${membershipId} and (m.valid_to is null or m.valid_to > now()) for update of m`
     const m = rows[0]
     if (!m) throw notFound()
+    if (m.role === 'admin' && !ctx.isAdmin) throw forbidden()
     if (m.role === 'admin') await assertAnotherPermanentAdmin(tx, membershipId)
     await tx`update crm.memberships set valid_to = now() where id = ${membershipId}`
 
