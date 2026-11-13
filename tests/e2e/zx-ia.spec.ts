@@ -27,12 +27,16 @@ test.describe.serial('Asistencia por reglas', () => {
     const row = page.locator('[data-testid="job-row"][data-key="ia.next_actions"]')
     await expect(row).toBeVisible()
     await row.getByTestId('job-run-btn').click()
-    await expect(page.getByTestId('admin-notice')).toContainText('Tarea corrida')
+    // Al abrir la app el corredor puede haberla empezado ya: cualquiera de los dos avisos sirve.
+    await expect(page.getByTestId('admin-notice')).toContainText(/Tarea corrida|ya está corriendo/)
 
     await loginAs(page, 'marco.pena', { stay: true })
     await page.goto('/asistencia')
     const list = page.getByTestId('rec-list')
-    await expect(list.getByTestId('rec-item').first()).toBeVisible()
+    await expect(async () => {
+      await page.reload()
+      await expect(list.getByTestId('rec-item').first()).toBeVisible({ timeout: 1000 })
+    }).toPass({ timeout: 30_000 })
     await expect(list.getByTestId('rec-reason').first()).toContainText(/^Porque /)
     await expect(list).toContainText('Sugerido por una regla de CONTIGO, no por IA.')
     const count = await list.getByTestId('rec-item').count()
@@ -120,12 +124,16 @@ test.describe.serial('Asistencia por reglas', () => {
     await page.goto('/admin/automatizaciones?v=tareas')
     const row = page.locator('[data-testid="job-row"][data-key="ia.next_actions"]')
     await row.getByTestId('job-run-btn').click()
-    await expect(page.getByTestId('admin-notice')).toContainText('Tarea corrida')
+    // Al abrir la app el corredor puede haberla empezado ya: cualquiera de los dos avisos sirve.
+    await expect(page.getByTestId('admin-notice')).toContainText(/Tarea corrida|ya está corriendo/)
 
     await loginAs(page, 'marco.pena', { stay: true })
     await page.goto('/asistencia?tab=borradores')
     const drafts = page.getByTestId('draft-list').getByTestId('draft-item')
-    await expect(drafts.first()).toBeVisible()
+    await expect(async () => {
+      await page.reload()
+      await expect(drafts.first()).toBeVisible({ timeout: 1000 })
+    }).toPass({ timeout: 30_000 })
     const n = await drafts.count()
     await drafts.first().getByTestId('draft-approve').click()
     await expect(dialog(page).getByTestId('draft-due')).not.toHaveValue('')
