@@ -6,6 +6,7 @@ import type { Ctx } from '@/server/context'
 import { audit, emit, newId } from '@/domain/common'
 import { DomainError, invalid } from '@/lib/errors'
 import { toE164 } from '@/lib/format'
+import { notify } from '@/domain/notify'
 
 // CAMPO-01: contrato de eventos v1 entre la Sales App y CONTIGO (propuesto).
 // Los nombres siguen los campos de VisitResponse de Sales Core. La visita se registra una sola vez, allá;
@@ -267,16 +268,35 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
              where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[])
                and ((a.lifecycle in ('prospect','onboarding') and mm.first_txn_at is not null)
                     or (a.lifecycle in ('at_risk','inactive') and mm.active_days_30d >= ${AT_RISK_BELOW_ACTIVE_DAYS}))`
-    await tx`update crm.accounts a set lifecycle = case when mm.txn_count_30d = 0 then 'inactive' else 'at_risk' end
+    const cooled = await tx<{ id: string; name: string; owner_id: string | null; market_code: string; lifecycle: string }[]>`
+             update crm.accounts a set lifecycle = case when mm.txn_count_30d = 0 then 'inactive' else 'at_risk' end
               from crm.merchant_metrics_daily mm
              where mm.account_id = a.id and mm.as_of = ${file.as_of} and a.id = any(${ids}::uuid[])
                and a.lifecycle in ('active','at_risk') and mm.active_days_30d < ${AT_RISK_BELOW_ACTIVE_DAYS}
                and a.lifecycle <> case when mm.txn_count_30d = 0 then 'inactive' else 'at_risk' end
-               and mm.first_txn_at < now() - interval '14 days'`
+               and mm.first_txn_at < now() - interval '14 days'
+         returning a.id, a.name, a.owner_id, a.market_code, a.lifecycle`
+    // E13.F2 (dealer sin ventas): cuando un comercio activo deja de vender del todo, quien lo lleva se entera.
+    for (const a of cooled.filter((x) => x.lifecycle === 'inactive' && x.owner_id))
+      await notify(tx, sys, {
+        to: a.owner_id!, kind: 'lifecycle', market: a.market_code, template: 'dealer_churned', link: `/comercios/${a.id}`, accountId: a.id, needsAction: false,
+        title: [`${a.name} dejó de vender`, `${a.name} stopped selling`],
+        body: [`No tiene ventas en los últimos 30 días, con corte al ${file.as_of}.`, `It has no sales in the last 30 days, as of ${file.as_of}.`],
+        vars: { comercio: a.name, detalle: `Sin ventas en los últimos 30 días, con corte al ${file.as_of}.`, fecha: file.as_of },
+      })
 
     await tx`update crm.ingest_batches set matched = ${ids.length}, unmatched = ${unmatched} where id = ${batchId}`
     for (const w of won) {
       await audit(tx, sys, 'deal.won_by_transaction', 'deal', w.id, w.market_code, { status: 'open' }, { status: 'won', as_of: file.as_of })
+      // E13.F2 (dealer activo): quien lo vendió se entera de que la primera venta ya llegó.
+      const info = await tx<{ owner_id: string | null; title: string; account: string }[]>`select d.owner_id, d.title, a.name as account from crm.deals d join crm.accounts a on a.id = d.account_id where d.id = ${w.id}`
+      if (info[0]?.owner_id)
+        await notify(tx, sys, {
+          to: info[0].owner_id, kind: 'deal_won', market: w.market_code, template: 'dealer_active', link: `/deals/${w.id}`, accountId: w.account_id, dealId: w.id, needsAction: false,
+          title: [`${info[0].account} ya vende: negocio ganado`, `${info[0].account} is selling: deal won`],
+          body: [`${info[0].title} se ganó con la primera transacción, con corte al ${file.as_of}.`, `${info[0].title} was won by the first transaction, as of ${file.as_of}.`],
+          vars: { comercio: info[0].account, negocio: info[0].title, fecha: file.as_of },
+        })
       await emit(tx, 'deal.won', 'deal', w.id, w.market_code, { account_id: w.account_id, closed_by: 'transaction' })
     }
     await audit(tx, sys, 'integration.metrics_loaded', 'ingest_batch', batchId, null, null,

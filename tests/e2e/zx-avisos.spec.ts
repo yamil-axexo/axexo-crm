@@ -41,7 +41,9 @@ test.describe('avisos: anuncio con acuse, campana, centro y preferencias', () =>
     const errors = pageErrors(page)
     await loginAs(page, 'nora.salas', { stay: true })
     await openMenu(page)
-    await page.getByTestId('nav-announcements').click()
+    await page.getByTestId('nav-notices').click()
+    await expect(page).toHaveURL(/\/avisos$/)
+    await page.getByTestId('notices-announcements-link').click()
     await expect(page).toHaveURL(/\/anuncios$/)
     await expect(page.getByTestId('announcements')).toContainText('No hay anuncios vigentes para ti')
     await page.getByTestId('pill-published').click()
@@ -130,6 +132,17 @@ test.describe('pedido: hoja para imprimir y envío a Operaciones', () => {
   const merchant = `Tienda Avisos ${tag()}`
   const order = `Pedido avisos ${tag()}`
   let dealId = ''
+
+  // El correo espera al horario hábil del mercado. Para que la prueba no dependa de la hora en que corre, US abre todo el día
+  // mientras dura este bloque y al final vuelve a su horario.
+  let hours: { days: number[]; opens: string; closes: string } | undefined
+  test.beforeAll(async () => {
+    hours = (await sql<{ days: number[]; opens: string; closes: string }[]>`select days, opens::text, closes::text from crm.market_hours where market_code = 'US'`)[0]
+    await sql`update crm.market_hours set days = '{1,2,3,4,5,6,7}', opens = '00:00', closes = '23:59:59' where market_code = 'US'`
+  })
+  test.afterAll(async () => {
+    if (hours) await sql`update crm.market_hours set days = ${hours.days}, opens = ${hours.opens}::time, closes = ${hours.closes}::time where market_code = 'US'`
+  })
 
   test('administración configura el buzón de pedidos y el encabezado; los canales de afuera aparecen apagados en Estado', async ({ page }) => {
     await loginAs(page, 'nora.salas', { stay: true })

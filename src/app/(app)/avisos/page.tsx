@@ -28,7 +28,12 @@ export default async function NoticesPage({ searchParams }: { searchParams: Prom
       <PageHeader
         title={t('Avisos', 'Notices')}
         desc={t('Lo que CONTIGO te avisó. Los que piden acción también salen en Hoy.', 'What CONTIGO told you. The ones that need action also show in Today.')}
-        actions={<Link href="/avisos/preferencias" className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="notices-prefs-link">{t('Preferencias de avisos', 'Notice preferences')}</Link>}
+        actions={
+          <span className="flex flex-wrap gap-x-5">
+            <Link href="/anuncios" className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="notices-announcements-link">{ctx.can('announcement.publish') ? t('Anuncios: ver y publicar', 'Announcements: see and publish') : t('Anuncios', 'Announcements')}</Link>
+            <Link href="/avisos/preferencias" className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="notices-prefs-link">{t('Preferencias de avisos', 'Notice preferences')}</Link>
+          </span>
+        }
       />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <Pills label={t('Ver', 'View')} current={only} items={[

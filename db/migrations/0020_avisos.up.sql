@@ -27,7 +27,7 @@ create index notices_lead_idx on crm.notices (lead_id) where lead_id is not null
 
 drop policy notices_ins on crm.notices;
 create policy notices_ins on crm.notices for insert to contigo_app
-  with check (from_user_id = (select app.current_user_id()) and (market_code is null or market_code = any((select app.write_markets())::text[]) or (select app.is_global())));
+  with check (from_user_id = (select app.current_user_id()) and (market_code is null or market_code = any((select app.write_markets())::text[])));
 
 -- 2) Preferencias de cada persona: qué tipos recibe, por qué canal, y si quiere un resumen diario.
 create table crm.notification_prefs (
@@ -366,7 +366,7 @@ insert into crm.message_templates (key, market_code, version, recipient, trigger
   ('dealer_closed', null, 1, 'person', 'deal.lost', false,
    'Negocio cerrado sin alta: {{comercio}}', E'{{negocio}} ({{comercio}}) se cerró como perdido el {{fecha}}. Motivo: {{detalle}}.\n\nÁbrelo en CONTIGO: {{enlace}}',
    'Deal closed without sign-up: {{comercio}}', E'{{negocio}} ({{comercio}}) was closed as lost on {{fecha}}. Reason: {{detalle}}.\n\nOpen it in CONTIGO: {{enlace}}'),
-  ('dealer_churned', null, 1, 'person', 'exception.opened.churn', false,
+  ('dealer_churned', null, 1, 'person', 'account.inactive', false,
    'Comercio sin ventas: {{comercio}}', E'{{comercio}} dejó de vender. {{detalle}}\n\nÁbrelo en CONTIGO: {{enlace}}',
    'Merchant with no sales: {{comercio}}', E'{{comercio}} stopped selling. {{detalle}}\n\nOpen it in CONTIGO: {{enlace}}'),
   ('notice', null, 1, 'person', 'notice', false,

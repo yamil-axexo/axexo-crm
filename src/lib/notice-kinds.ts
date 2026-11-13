@@ -92,7 +92,7 @@ export const TEMPLATE_INFO: Record<string, { name: Pair; to: Pair; when: Pair }>
   owner_changed: { name: ['Cambio de quién lo lleva', 'Owner changed'], to: ['A la persona que lo recibe', 'The person receiving it'], when: ['Al reasignar un comercio', 'When a merchant is reassigned'] },
   approval_visit: { name: ['Aprobación con tarea de visita', 'Approval with a visit task'], to: ['A quien vendió el negocio', 'Whoever sold the deal'], when: ['Al aprobar un proveedor en Operaciones', 'When Operations marks a provider as approved'] },
   dealer_closed: { name: ['Negocio cerrado sin alta', 'Deal closed without sign-up'], to: ['A quien lleva el comercio', 'Whoever owns the merchant'], when: ['Al perderse un negocio que otra persona cerró', 'When someone else closes the deal as lost'] },
-  dealer_churned: { name: ['Comercio sin ventas', 'Merchant with no sales'], to: ['A quien lleva el comercio', 'Whoever owns the merchant'], when: ['Al abrirse el aviso de comercio sin ventas', 'When the no-sales alert opens'] },
+  dealer_churned: { name: ['Comercio sin ventas', 'Merchant with no sales'], to: ['A quien lleva el comercio', 'Whoever owns the merchant'], when: ['Cuando los datos de ventas muestran 30 días sin ventas', 'When the sales data shows 30 days with no sales'] },
   notice: { name: ['Aviso general a una persona', 'General notice to a person'], to: ['A la persona avisada', 'The person notified'], when: ['Cualquier aviso sin plantilla propia', 'Any notice without its own template'] },
   digest: { name: ['Resumen diario', 'Daily summary'], to: ['A quien pidió resumen', 'Whoever asked for a summary'], when: ['Una vez al día, con lo que quedó en espera', 'Once a day, with what was on hold'] },
 }

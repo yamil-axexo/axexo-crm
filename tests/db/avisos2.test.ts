@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { asPersona, attempt, ctxFor, owner, personaId } from './helpers'
+import { asPersona, attempt, ctxFor, owner, personaId, systemContext } from './helpers'
+import { ingestMetricsFile } from '@/domain/integrations'
 import { createAccount } from '@/domain/accounts'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
 import { updateCustom } from '@/domain/custom'
@@ -78,6 +79,33 @@ describe('E13.F1 y E13.F2: Operaciones y quien vende se enteran sin revisar la h
     const won = (await myNotices(jade)).find((x) => x.deal_id === id)
     expect(won?.body).toContain('marked')
     expect(await one(admin<{ kind: string; template_key: string }[]>`select kind, template_key from crm.notifications where notice_id = ${won!.id} and channel = 'email'`)).toEqual({ kind: 'deal_won', template_key: 'dealer_active' })
+  })
+})
+
+describe('E13.F2: los datos de ventas también avisan (dealer activo y dealer sin ventas)', () => {
+  it('la primera transacción gana el negocio y avisa a quien lo vendió; 30 días sin ventas avisa a quien lleva el comercio', async () => {
+    await alwaysOpen()
+    const sys = await systemContext()
+    const { jade, accountId } = await jadeAccount()
+    const dealId = await createDeal(jade, { accountId, pipelineId: await uid('p-us-dealer'), title: `Primera venta ${tag()}`, nextStep: 'Reunir documentos', nextStepDue: today })
+    const ref = `MID-A${tag()}`
+    await admin`insert into crm.account_aliases (account_id, market_code, system, external_id) values (${accountId}, 'US', 's5', ${ref})`
+    const first = new Date(Date.now() - 40 * 86400000).toISOString()
+    const day = (n: number) => isoDay(new Date(Date.now() - n * 86400000), 'UTC')
+    const row = { merchant_ref: ref, first_txn_at: first, last_txn_at: first, currency: 'USD' }
+    const out = await ingestMetricsFile(sys, { as_of: day(2), file_name: `a-${tag()}.json`, mode: 'delta', rows: [{ ...row, txn_count_30d: 12, volume_minor_30d: 90000, active_days_30d: 9 }] })
+    expect(out).toMatchObject({ status: 'loaded', dealsWon: 1 })
+    const won = (await myCenter(jade, 'unread')).find((n) => n.deal_id === dealId && n.kind === 'deal_won')
+    expect(won!.title).toContain('is selling: deal won')
+    expect(await one(admin<{ template_key: string; status: string }[]>`select template_key, status from crm.notifications where notice_id = ${won!.id} and channel = 'email'`)).toEqual({ template_key: 'dealer_active', status: 'queued_off' })
+    // Al día siguiente el archivo dice que ya no vende: el comercio pasa a inactivo y quien lo lleva recibe el aviso, una vez.
+    await ingestMetricsFile(sys, { as_of: day(1), file_name: `b-${tag()}.json`, mode: 'delta', rows: [{ ...row, txn_count_30d: 0, volume_minor_30d: 0, active_days_30d: 0 }] })
+    expect((await one(admin<{ lifecycle: string }[]>`select lifecycle from crm.accounts where id = ${accountId}`)).lifecycle).toBe('inactive')
+    const churn = (await myCenter(jade, 'unread')).filter((n) => n.account_id === accountId && n.title?.includes('stopped selling'))
+    expect(churn).toHaveLength(1)
+    expect(await one(admin<{ template_key: string }[]>`select template_key from crm.notifications where notice_id = ${churn[0]!.id} and channel = 'email'`)).toEqual({ template_key: 'dealer_churned' })
+    await ingestMetricsFile(sys, { as_of: day(0), file_name: `c-${tag()}.json`, mode: 'delta', rows: [{ ...row, txn_count_30d: 0, volume_minor_30d: 0, active_days_30d: 0 }] })
+    expect((await myCenter(jade, 'unread')).filter((n) => n.account_id === accountId && n.title?.includes('stopped selling'))).toHaveLength(1)
   })
 })
 
