@@ -14,7 +14,7 @@ export const OBJECTIVE_LABEL: Record<string, { label: Pair; hint: Pair }> = {
 export const SEVERITY_LABEL: Record<string, Pair> = { high: ['Grave', 'High'], medium: ['Media', 'Medium'], low: ['Leve', 'Low'] }
 export const INCIDENT_STATUS_LABEL: Record<string, Pair> = { open: ['Abierto', 'Open'], mitigated: ['Contenido', 'Mitigated'], closed: ['Cerrado', 'Closed'] }
 export const COMPONENT_LABEL: Record<string, Pair> = {
-  platform: ['Plataforma', 'Platform'], database: ['Base de datos', 'Database'], third_party: ['Terceros', 'Third parties'], ai: ['AI', 'AI'], support: ['Soporte', 'Support'], other: ['Otro', 'Other'],
+  platform: ['Plataforma', 'Platform'], database: ['Base de datos', 'Database'], third_party: ['Terceros', 'Third parties'], ai: ['IA', 'AI'], support: ['Soporte', 'Support'], other: ['Otro', 'Other'],
 }
 export const REQUEST_KIND_LABEL: Record<string, Pair> = {
   field: ['Campo nuevo', 'New field'], option: ['Opciones de una lista', 'Options of a list'], pipeline: ['Embudo o etapa', 'Pipeline or stage'], report: ['Reporte', 'Report'], other: ['Otra cosa', 'Something else'],

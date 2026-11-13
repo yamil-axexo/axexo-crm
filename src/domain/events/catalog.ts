@@ -88,6 +88,10 @@ const SILENT: [prefix: string, why: Pair][] = [
   ['report.', WHY.read], ['export.', WHY.read], ['api_client.', WHY.plumbing], ['event_subscriber.', WHY.plumbing], ['event_delivery.', WHY.plumbing],
   ['inbound.', WHY.plumbing], ['rules.', WHY.rules], ['activity.notice_', WHY.notice],
 ]
+// Paquete gobierno: objetivos de servicio, incidentes, pruebas de restauración, responsables, versiones, despliegues, costos,
+// solicitudes de cambio, motivos, champions y material. Son registros de cómo se opera CONTIGO, no cambios de comercios, leads o negocios.
+const WHY_GOVERNANCE: Pair = ['Es un registro de cómo se opera CONTIGO (servicio, versiones, costos, solicitudes): queda en la bitácora y no cambia comercios, leads ni negocios.', 'It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals.']
+for (const prefix of ['objective.', 'incident.', 'restore_test.', 'component.', 'maintenance.', 'release.', 'deployment.', 'cost.', 'config_request.', 'change.', 'champion.', 'material.']) SILENT.push([prefix, WHY_GOVERNANCE])
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',
   'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.']

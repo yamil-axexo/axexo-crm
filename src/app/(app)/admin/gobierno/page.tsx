@@ -45,7 +45,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
   const tz = await readerTimeZone(ctx)
   const today = isoDay(new Date(), tz)
   const labels: Record<Tab, string> = {
-    servicio: t('Servicio', 'Service'), versiones: t('Versiones y dueños', 'Releases and owners'), costos: t('Costos', 'Costs'),
+    servicio: t('Servicio', 'Service'), versiones: t('Versiones y responsables', 'Releases and owners'), costos: t('Costos', 'Costs'),
     datos: t('Datos de prueba', 'Test data'), cambios: t('Solicitudes y cambios', 'Requests and changes'),
   }
   const pending = <Badge tone="warn">{t('Por definir', 'To be defined')}</Badge>
@@ -293,7 +293,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
     )
   }
 
-  // ------------------------------------------------------------------ Versiones y dueños (GOB-04)
+  // ------------------------------------------------------------------ Versiones y responsables (GOB-04)
   async function Releases() {
     const [comp, windows, rel, deps] = await Promise.all([components(ctx), maintenance(ctx), releases(ctx), deployments(ctx)])
     const deploy = comp.find((c) => c.key === 'deploy')
@@ -301,9 +301,9 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
     return (
       <div className="space-y-8" data-testid="gov-releases">
         <Card pad={false} data-testid="components">
-          <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Quién responde por cada pieza', 'Who answers for each piece')} hint={t('Dueño técnico y suplente por componente: dos personas distintas. Antes de salir a producción, todas las piezas tienen las dos.', 'Technical owner and backup per component: two different people. Before going to production, every piece has both.')} /></div>
+          <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Quién responde por cada pieza', 'Who answers for each piece')} hint={t('Responsable técnico y suplente por componente: dos personas distintas. Antes de salir a producción, todas las piezas tienen las dos.', 'Technical owner and backup per component: two different people. Before going to production, every piece has both.')} /></div>
           {!twoPeople && <p role="status" className="mx-5 mb-4 rounded-[14px] bg-warn-bg px-5 py-3 text-[13.5px] font-medium text-amber-text md:mx-7" data-testid="two-people-warning">{t('Todavía no hay dos personas nombradas para desplegar y volver atrás.', 'There are not yet two people named to deploy and roll back.')}</p>}
-          <Table label={t('Componentes', 'Components')} head={<><th>{t('Componente', 'Component')}</th><th>{t('Dueño técnico', 'Technical owner')}</th><th>{t('Suplente', 'Backup')}</th>{manage && <th><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
+          <Table label={t('Componentes', 'Components')} head={<><th>{t('Componente', 'Component')}</th><th>{t('Responsable técnico', 'Technical owner')}</th><th>{t('Suplente', 'Backup')}</th>{manage && <th><span className="sr-only">{t('Editar', 'Edit')}</span></th>}</>}>
             {comp.map((c) => (
               <tr key={c.key} className="table-row" data-testid={`component-${c.key}`}>
                 <td className="font-semibold text-strong">{t(c.name_es, c.name_en)}</td>
@@ -314,8 +314,8 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
                     <Dialog trigger={t('Editar', 'Edit')} title={t(`Quién responde por: ${c.name_es}`, `Who answers for: ${c.name_en}`)} size="sm" testId="component-edit">
                       <ActionForm action={setComponentOwnersAction} onOk="close" className="space-y-4 text-left">
                         <input type="hidden" name="key" value={c.key} />
-                        <Field label={t('Dueño técnico', 'Technical owner')} hint={t('Nombre completo. Déjalo vacío si todavía no se define.', 'Full name. Leave it empty if it is not defined yet.')}><input name="owner" className="input" maxLength={120} defaultValue={c.owner_name ?? ''} data-testid="component-owner-input" /></Field>
-                        <Field label={t('Suplente', 'Backup')} hint={t('Otra persona: cubre al dueño cuando no está.', 'A different person: covers the owner when they are away.')}><input name="backup" className="input" maxLength={120} defaultValue={c.backup_name ?? ''} data-testid="component-backup-input" /></Field>
+                        <Field label={t('Responsable técnico', 'Technical owner')} hint={t('Nombre completo. Déjalo vacío si todavía no se define.', 'Full name. Leave it empty if it is not defined yet.')}><input name="owner" className="input" maxLength={120} defaultValue={c.owner_name ?? ''} data-testid="component-owner-input" /></Field>
+                        <Field label={t('Suplente', 'Backup')} hint={t('Otra persona: cubre a quien responde cuando no está.', 'A different person: covers the owner when they are away.')}><input name="backup" className="input" maxLength={120} defaultValue={c.backup_name ?? ''} data-testid="component-backup-input" /></Field>
                         <div className="flex justify-end"><Submit testId="component-save">{t('Guardar', 'Save')}</Submit></div>
                       </ActionForm>
                     </Dialog>
@@ -488,7 +488,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
               ))}
             </Table>
           )}
-          <p className="border-t border-line px-5 py-4 text-[13px] text-muted-2 md:px-7">{t('Costo por acción de AI: n/a. CONTIGO no llama a ningún modelo todavía; cuando lo haga, su costo se carga en el componente AI.', 'Cost per AI action: n/a. CONTIGO calls no model yet; when it does, its cost is loaded under the AI component.')}</p>
+          <p className="border-t border-line px-5 py-4 text-[13px] text-muted-2 md:px-7">{t('Costo por acción de IA: n/a. CONTIGO no llama a ningún modelo todavía; cuando lo haga, su costo se carga en el componente IA.', 'Cost per AI action: n/a. CONTIGO calls no model yet; when it does, its cost is loaded under the AI component.')}</p>
         </Card>
 
         <Card data-testid="cost-entries">

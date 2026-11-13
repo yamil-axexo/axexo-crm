@@ -145,7 +145,7 @@ export async function setComponentOwners(ctx: Ctx, raw: { key: string; owner: st
   const owner = clean(raw.owner)
   const backup = clean(raw.backup)
   for (const v of [owner, backup]) if (v && (v.length < 2 || v.length > 120)) throw invalid('Escribe el nombre completo de la persona.', 'Enter the person’s full name.')
-  if (owner && backup && owner.toLowerCase() === backup.toLowerCase()) throw invalid('El suplente cubre al dueño cuando no está: tiene que ser otra persona.', 'The backup covers the owner when they are away: it has to be a different person.')
+  if (owner && backup && owner.toLowerCase() === backup.toLowerCase()) throw invalid('El suplente cubre a quien responde cuando no está: tiene que ser otra persona.', 'The backup covers the owner when they are away: it has to be a different person.')
   assertNoProhibited(owner, backup)
   await withUser(ctx.user.id, async (tx) => {
     const before = (await tx<{ owner_name: string | null; backup_name: string | null }[]>`select owner_name, backup_name from crm.components where key = ${raw.key} for update`)[0]

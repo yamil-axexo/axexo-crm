@@ -8,7 +8,7 @@ export const WHO_DOES_WHAT: { who: Pair; items: Pair[] }[] = [
     items: [
       ['Crea y cambia campos, embudos, etapas, formularios, turnos y catálogos.', 'Creates and changes fields, pipelines, stages, forms, rotations and catalogs.'],
       ['Da y quita accesos, y cuida que nadie que opera sea administrador.', 'Grants and removes access, and makes sure nobody who operates is an administrator.'],
-      ['Cuida la calidad de los datos: duplicados, registros sin dueño, importaciones.', 'Looks after data quality: duplicates, records with no owner, imports.'],
+      ['Cuida la calidad de los datos: duplicados, registros que nadie lleva, importaciones.', 'Looks after data quality: duplicates, records nobody carries, imports.'],
       ['Capacita, mantiene la ayuda al día y revisa cada mes con el champion de cada equipo.', 'Trains, keeps the help up to date and reviews every month with each team’s champion.'],
       ['Anota por qué se hizo cada cambio de configuración, para que el siguiente mercado lo pueda repetir.', 'Records why each configuration change was made, so the next market can repeat it.'],
     ],

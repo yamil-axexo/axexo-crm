@@ -26,7 +26,7 @@ export const RELEASE_CHECKLIST: { key: string; label: Pair; hint: Pair }[] = [
   {
     key: 'two_people',
     label: ['Dos personas pueden desplegar y volver atrás', 'Two people can deploy and roll back'],
-    hint: ['El componente "Despliegue y vuelta atrás" tiene dueño y suplente, y el suplente ya lo hizo al menos una vez.', 'The "Deployment and rollback" component has an owner and a backup, and the backup has done it at least once.'],
+    hint: ['El componente "Despliegue y vuelta atrás" tiene responsable y suplente, y el suplente ya lo hizo al menos una vez.', 'The "Deployment and rollback" component has an owner and a backup, and the backup has done it at least once.'],
   },
   {
     key: 'backup',
