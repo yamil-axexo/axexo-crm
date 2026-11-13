@@ -1,10 +1,19 @@
 # Engineering Standard v1: compliance of this PR
 
-Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on `design-v1` after integration 95-2 (migrations 0001 to 0030: wave 1 of the program plus `mercados` 0026, `seguridad` 0027, `gobierno` 0028, `embudo` 0029 and `us-ficha` 0030). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
+Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on `design-v1` after integration 95-4 (migrations 0001 to 0036: waves 1 to 3 plus `ciclo-cs` 0031, `campo-canal` 0032, `partners-contratos` 0033, `ia` 0034, `integraciones-migracion` 0035 and `integraciones2` 0036). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
 
 **Met** = implemented and covered by a test or a file you can open. **Partial** = part of the rule is in place; the gap is stated. **Not yet** = not built. **Open** = needs a decision or an owner outside this repository. **N/A** = the thing the rule governs does not exist here yet.
 
 Summary: 28 Met, 31 Partial, 6 Not yet, 16 Open, 5 N/A, out of 86 rules (after integration 95-2: AUTHZ-09 moved from Not yet to Partial).
+
+## What integration 95-4 changed (13-Nov-2026)
+| Rule | Change |
+|---|---|
+| AUTHZ-03 | 76 new tables from wave 4, all with RLS forced; the partner user reads only its subtree (DB test `integracion-95-4`: no merchant care alert outside it) |
+| AI-01, AI-02 | One AI adapter (`AI_ADAPTER`, off; egress allowlist `AI_EGRESS_ALLOWLIST`, closed answers, quoted outside text). The account review draft of Merchant care no longer has its own switch. No model calls |
+| OPS (jobs) | One run log: data loads are runs of the job runner (`crm.job_runs` with `load_key`; one running load at a time enforced by a unique index); `crm.load_runs` is only a view |
+| Adapters | Every external adapter of wave 4 is off and listed on CONTIGO status with what is missing to turn it on; one document vault (`CONTIGO_DOCUMENT_VAULT`) for enrollment files and generated documents |
+| DATA (one model per concept) | One balance (view joining the funding feed and care signals) and one low balance rule; one agency create path; one writer of the per-role legal entity limit; one `app.people_with_role`; unused `market_comms` WhatsApp columns dropped |
 
 ## What this pass changed (13-Nov-2026, package `gobierno`)
 The previous version was dated 11-Nov-2026 and had fallen behind the code. Corrected, control by control:
@@ -59,7 +68,7 @@ How it was checked: counts taken from a database migrated from zero on 13-Nov-20
 |---|---|---|---|
 | AUTHZ-01 | MUST | Partial | Google OIDC through the adapter, domain enforced server-side. Needs the OAuth client configured in staging to be exercised end to end; MFA is an IdP policy `[pending: Workspace admin]` |
 | AUTHZ-02 | MUST | Met | `crm.memberships`, `crm.user_territories`, `ancestor_ids`; no claims |
-| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 158 tables of schema `crm` (453 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0030). `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
+| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 234 tables of schema `crm` (661 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0036). The two views added in wave 4 (`crm.account_balance_latest`, `crm.load_runs`) run as the caller (`security_invoker`), so the policies of their tables apply. `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
 | AUTHZ-04 | MUST | Met | `withUser` in `src/server/db.ts`; `app.current_user_id()` |
 | AUTHZ-05 | MUST | Met | `contigo_app` has no BYPASSRLS and owns nothing (DB test; counted again on 13-Nov-2026). It has no `DELETE` on business records; DATA-11 lists the 11 configuration tables where it does |
 | AUTHZ-06 | MUST | Met | Scope functions wrapped in `(select …)`; indexes on `owner_id`, `territory_id`, `market_code`, GIN on `ancestor_ids` |
@@ -146,4 +155,4 @@ How it was checked: counts taken from a database migrated from zero on 13-Nov-20
 | COMP-02 | MUST | Partial | `crm.consents` per contact or lead, channel and purpose, with evidence and date; opt-outs in `crm.contact_suppressions`; every outside send asks `app.may_contact` (DB test). The privacy notice version per market is still empty `[pending: Legal]` |
 | COMP-05 | MUST | Open | SOX scope depends on whether the CRM feeds commissions |
 | COMP-06 | SHOULD | Not yet | |
-| AI-01 | MUST | N/A | No model calls |
+| AI-01 | MUST | N/A | No model calls: the single AI adapter is off and the rules version answers (package `ia`) |
