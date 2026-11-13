@@ -76,8 +76,8 @@ export async function documentDraft(ctx: Ctx, accountId: string, kind: DocKind, 
 }
 
 const input = z.object({
-  accountId: z.string().uuid(),
-  dealId: z.string().uuid().nullable(),
+  accountId: z.guid(),
+  dealId: z.guid().nullable(),
   kind: z.enum(DOC_KINDS),
   title: z.string().trim().min(3).max(160),
   body: z.string().trim().min(1).max(8000),

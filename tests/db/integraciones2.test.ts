@@ -260,7 +260,7 @@ describe('E6.F8 / E18.F7 / E18.F8: recarga de un mercado e importación de la ho
     expect([p.ok, p.errors]).toEqual([2, 2])
     expect(p.rows[2]!.problems[0]![0]).toContain('motivo')
     expect(p.rows[3]!.problems[0]![0]).toContain('catálogo')
-    await expect(previewImport(ana, { ...base, market: 'US' }).then((x) => x.fileProblem)).resolves.toBeTruthy()
+    await expect(previewImport(nora, { ...base, market: 'US' }).then((x) => x.fileProblem)).resolves.toBeTruthy()
     const out = await runImport(ana, { ...base, checksum: p.checksum })
     expect(out).toMatchObject({ created: 2, rejected: 2 })
     const dead = await one(admin<{ status: string; disqualify_code: string }[]>`select status, disqualify_code from crm.leads where business_name = 'Miscelánea Hoja Dos'`)

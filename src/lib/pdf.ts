@@ -7,7 +7,7 @@ const W = 612
 const H = 792
 const M = 72
 
-const latin1 = (s: string) => s.normalize('NFC').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[^\x0a\x20-\x7e\xa0-\xff]/g, '?')
+const latin1 = (s: string) => s.normalize('NFC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[^\x0a\x20-\x7e\xa0-\xff]/g, '?')
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
 
 /** Parte un párrafo en líneas que caben en el ancho (Helvetica: ~0.5 del tamaño por carácter en promedio). */

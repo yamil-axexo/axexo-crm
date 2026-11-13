@@ -18,7 +18,7 @@ import { DomainError, invalid } from '@/lib/errors'
  * La herramienta todavía no está conectada (adaptador `routes`, apagado); el contrato se prueba con estas formas.
  */
 export const routeStoreOut = z.object({
-  account_id: z.string().uuid(),
+  account_id: z.guid(),
   name: z.string(),
   address: z.string().nullable(),
   locality: z.string().nullable(),
@@ -39,7 +39,7 @@ export const routeStoresOut = z.object({ owner_email: z.string(), market: z.stri
 
 export const routeCheckin = z.object({
   checkin_id: z.string().min(8).max(80).regex(/^[A-Za-z0-9._:-]+$/),
-  account_id: z.string().uuid(),
+  account_id: z.guid(),
   owner_email: z.string().email(),
   checked_in_at: z.string().datetime({ offset: true }),
   checked_out_at: z.string().datetime({ offset: true }).nullable().optional(),

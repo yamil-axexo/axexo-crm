@@ -9,7 +9,7 @@ import { LOAD_KEYS } from '@/server/loads'
 /** E5.F3: responsable y hora esperada de una carga. Sin hora, la carga no se vigila por horario. */
 const loadInput = z.object({
   key: z.enum(LOAD_KEYS),
-  owner: z.string().uuid().nullable(),
+  owner: z.guid().nullable(),
   expectedBy: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
   clockMarket: z.string().length(2).nullable(),
 })

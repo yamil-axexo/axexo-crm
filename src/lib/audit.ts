@@ -350,8 +350,8 @@ export const AUDIT_GROUPS = {
   notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported', 'export.%'], not: null },
-  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%'], not: null },
-  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%'], not: null },
+  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%', 'load.%', 'pipedrive.%'], not: null },
+  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.
   saved: { label: ['Reportes, vistas e indicadores', 'Reports, views and metrics'] as Pair, like: ['saved_report.%', 'saved_view.%', 'metric.%', 'goal.%', 'snapshot.%', 'reconciliation.%', 'agency.%'], not: null },

@@ -536,9 +536,11 @@ async function extractPerRecord(runId: string, phase: 'x:deal_flow' | 'x:org_rel
     last = id
   }
   const object = flow ? 'deal_flow' : 'org_relationship'
+  // La misma relación llega al pedirla por la matriz y por la hija: una sola fila por identificador.
+  const unique = [...new Map(rows.map((r) => [r.external_id, r])).values()]
   await withSystem(async (tx) => {
-    if (rows.length) await upsertRaw(tx, object, rows)
-    await bump(tx, runId, ['extracted', object], rows.length)
+    if (unique.length) await upsertRaw(tx, object, unique)
+    await bump(tx, runId, ['extracted', object], unique.length)
     await tx`update crm.import_runs set cursor = cursor || ${tx.json({ after: last } as unknown as Json)}, updated_at = now() where id = ${runId}`
   })
   return { done: false, cursor: { ...cursor, after: last } }

@@ -29,11 +29,12 @@ create index store_sales_lines_market_idx on crm.store_sales_lines (market_code,
 alter table crm.store_sales_lines enable row level security;
 alter table crm.store_sales_lines force row level security;   -- AUTHZ-03
 revoke all on crm.store_sales_lines from contigo_app;
-grant select, insert, update on crm.store_sales_lines to contigo_app;
+grant select, insert, update, delete on crm.store_sales_lines to contigo_app;
 create policy store_sales_lines_read on crm.store_sales_lines for select to contigo_app using (
   exists (select 1 from crm.accounts a where a.id = store_sales_lines.account_id));
 create policy store_sales_lines_sys_ins on crm.store_sales_lines for insert to contigo_app with check ((select app.is_admin()));
 create policy store_sales_lines_sys_upd on crm.store_sales_lines for update to contigo_app using ((select app.is_admin())) with check ((select app.is_admin()));
+create policy store_sales_lines_sys_del on crm.store_sales_lines for delete to contigo_app using ((select app.is_admin()));
 
 
 -- ------------------------------------------------------------------ 2) cargas visibles
