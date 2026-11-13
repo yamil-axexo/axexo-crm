@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { fichaId, fichaTab, loginAs, openMenu } from './helpers'
+import { fichaId, fichaTab, loginAs, openMenu, testDb } from './helpers'
 
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase()
 
@@ -420,6 +420,13 @@ test.describe('cuentas', () => {
   })
 
   test('administración fusiona el duplicado: uno sobrevive y el otro queda archivado', async ({ page }) => {
+    // paquete datos (DAT-04): quien vende ya no crea un segundo comercio con el mismo teléfono (la prueba anterior lo dejaba
+    // creado). El duplicado se prepara directo en la base: un comercio con el teléfono de otro que ya existe.
+    const db = testDb()
+    await db`insert into crm.accounts (market_code, kind, name, segment, owner_id, phone, country, created_by)
+             select market_code, 'store', 'Duplicado de prueba ' || left(md5(id::text), 6), segment, owner_id, phone, country, owner_id
+               from crm.accounts where market_code = 'MX' and kind = 'store' and phone is not null and owner_id is not null and archived_at is null order by created_at, id limit 1`
+    await db.end()
     await loginAs(page, 'nora.salas')
     await page.goto('/supervisor')
     await page.getByTestId('run-rules').click()
