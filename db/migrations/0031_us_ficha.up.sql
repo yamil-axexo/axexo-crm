@@ -220,12 +220,11 @@ begin
                  ('other_retail', 'Otro comercio', 'Other retail', 11)) v(code, es, en, pos)
   on conflict (market_code, code) do nothing;
 
-  -- E9.F6 Zone / Territory: los 15 valores. Los que ya existen con ese nombre se quedan como están.
+  -- E9.F6 Zone / Territory: los 15 valores. Los que ya existen con ese nombre se quedan como están. El código es el mismo
+  -- que arma la importación a partir del nombre, para que lo importado caiga en estas mismas zonas.
   insert into crm.territories (market_code, code, name)
   select p_market, v.code, v.name
-    from (values ('MD', 'Maryland'), ('LA-CA', 'Los Angeles CA'), ('OC-CA', 'Orange County CA'), ('NJ', 'New Jersey'), ('FL', 'Florida'),
-                 ('DC', 'Washington DC'), ('NOVA', 'Northern Virginia'), ('BOS-MA', 'Boston MA'), ('CHI-IL', 'Chicago IL'), ('SAC-CA', 'Sacramento CA'),
-                 ('SD-CA', 'San Diego CA'), ('LV-NV', 'Las Vegas NV'), ('FRES-CA', 'Fresno/Bakersfield CA'), ('AZ', 'Arizona'), ('HOU-TX', 'Houston TX')) v(code, name)
+    from (values ('maryland', 'Maryland'), ('los-angeles-ca', 'Los Angeles CA'), ('orange-county-ca', 'Orange County CA'), ('new-jersey', 'New Jersey'), ('florida', 'Florida'), ('washington-dc', 'Washington DC'), ('northern-virginia', 'Northern Virginia'), ('boston-ma', 'Boston MA'), ('chicago-il', 'Chicago IL'), ('sacramento-ca', 'Sacramento CA'), ('san-diego-ca', 'San Diego CA'), ('las-vegas-nv', 'Las Vegas NV'), ('fresno-bakersfield-ca', 'Fresno/Bakersfield CA'), ('arizona', 'Arizona'), ('houston-tx', 'Houston TX')) v(code, name)
    where not exists (select 1 from crm.territories t where t.market_code = p_market
                       and (t.code = v.code or regexp_replace(lower(t.name), '[^a-z0-9]', '', 'g') = regexp_replace(lower(v.name), '[^a-z0-9]', '', 'g')));
 
@@ -243,4 +242,9 @@ begin
 end $$;
 revoke all on function crm.dealer_record_setup(text, boolean) from public;
 
-select crm.dealer_record_setup('US', true);
+-- Un ambiente que ya tiene tiendas de US (staging) recibe la configuración aquí. Una base nueva la recibe cuando se cargan
+-- sus datos: el seed sintético la llama, y en un ambiente real se corre `select crm.dealer_record_setup('US', true)` una vez.
+do $$
+begin
+  if exists (select 1 from crm.accounts where market_code = 'US') then perform crm.dealer_record_setup('US', true); end if;
+end $$;
