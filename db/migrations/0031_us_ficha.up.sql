@@ -265,8 +265,11 @@ end $$;
 revoke all on function crm.dealer_record_setup(text, boolean) from public;
 
 -- Un ambiente que ya tiene tiendas de US (staging) recibe la configuración aquí. Una base nueva la recibe cuando se cargan
--- sus datos: el seed sintético la llama, y en un ambiente real se corre `select crm.dealer_record_setup('US', true)` una vez.
+-- sus datos: el seed sintético la llama, y en un ambiente real se corre `select crm.dealer_record_setup('US')` una vez.
+-- Los seis carriers vigentes NO se cargan solos: cada proveedor activo del catálogo cuenta como aprobación pendiente en los
+-- negocios que Operaciones tiene abiertos. Se cargan cuando Operaciones lo decida, con `select crm.dealer_record_setup('US', true)`
+-- o uno por uno desde Administración.
 do $$
 begin
-  if exists (select 1 from crm.accounts where market_code = 'US') then perform crm.dealer_record_setup('US', true); end if;
+  if exists (select 1 from crm.accounts where market_code = 'US') then perform crm.dealer_record_setup('US', false); end if;
 end $$;
