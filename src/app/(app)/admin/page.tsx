@@ -59,7 +59,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <PageHeader title={t('Administración', 'Administration')} desc={t('La configuración se hace aquí y queda en la bitácora. Ventas opera; administración configura.', 'Configuration happens here and is logged. Sales operates; administration configures.')} />
       <div className="mb-8"><Pills label={t('Secciones', 'Sections')} current={tab} items={[...allowed.map((k) => ({ key: k as string, href: qs('/admin', { tab: k }), label: labels[k] })),
         // Lo que administración mantiene para Operaciones (pedidos, etapas, productos y catálogos) vive aquí, no en otra entrada del menú.
-        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }] : []),
+        ...(admin ? [{ key: 'operaciones', href: '/admin/operaciones', label: t('Operaciones', 'Operations') }, { key: 'avisos', href: '/admin/avisos', label: t('Avisos y plantillas', 'Notices and templates') }] : []),
         // Automatizaciones, pasos con aprobación, escalamiento de leads y tareas programadas: su propia pantalla.
         ...(ctx.can('automation.read') ? [{ key: 'automatizaciones', href: '/admin/automatizaciones', label: t('Automatizaciones', 'Automations') }] : [])]} /></div>
       {hidden && (

@@ -10,6 +10,7 @@ import { toE164 } from '@/lib/format'
 import { assertNoProhibited } from '@/domain/guard'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { territoryFor, type Territory } from '@/lib/territory'
+import { notify, notifyOutside } from '@/domain/notify'
 
 export const MOTORS = ['d2d', 'b2b', 'dealer'] as const
 
@@ -160,7 +161,26 @@ async function insertLead(
   await emit(tx, 'lead.created', 'lead', id, v.market, { source: opts.source, motor: v.motor })
   // Aviso para otros sistemas: a quién se le asignó. Cuando se conecte un canal (correo, Slack), sale de aquí sin tocar el producto.
   if (opts.ownerId) await emit(tx, 'lead.assigned', 'lead', id, v.market, { owner_id: opts.ownerId, by: opts.source === 'web_form' ? 'routing' : 'creation', motor: v.motor, sla_due: !spoke })
+  // E15.F9: a quien le toca el lead se le avisa al llegar (no a quien lo capturó para sí).
+  if (opts.ownerId && opts.ownerId !== ctx.user.id) await leadArrived(tx, ctx, { id, market: v.market, to: opts.ownerId, name: v.businessName })
+  // E15.F8 / E13.F3: bienvenida (si el mercado la tiene) o acuse al lead web. Con el correo apagado queda en la cola y no sale.
+  if (opts.source === 'web_form') {
+    const welcome = await tx`select 1 from crm.message_templates where key = 'lead_welcome' and is_current and is_active and market_code = ${v.market} limit 1`
+    await notifyOutside(tx, ctx, {
+      kind: 'lead_arrived', template: welcome[0] ? 'lead_welcome' : 'lead_web_ack', market: v.market, recipient: 'lead', address: clean(v.email), locale: market.locale === 'en' ? 'en' : 'es',
+      consent: Boolean(o.consentAt), leadId: id, vars: { comercio: v.businessName, contacto: v.contactName, mercado: market.name },
+    })
+  }
   return id
+}
+
+/** Aviso de que un lead le llegó a una persona. La meta de primer contacto ya corre: va por los canales que eligió. */
+export async function leadArrived(tx: Tx, actor: { user: { id: string; name?: string } }, p: { id: string; market: string; to: string; name: string }): Promise<void> {
+  await notify(tx, actor, {
+    to: p.to, kind: 'lead_arrived', market: p.market, link: `/leads/${p.id}`, leadId: p.id,
+    title: [`Te llegó un lead: ${p.name}`, `A lead arrived: ${p.name}`],
+    body: ['La meta de primer contacto ya está corriendo. Está en Leads y en Hoy.', 'The first-contact goal is already running. It is in Leads and in Today.'],
+  })
 }
 
 export async function createLead(ctx: Ctx, input: LeadInput): Promise<string> {
@@ -303,6 +323,12 @@ async function repeatRequest(
                      ${en ? `Answer the second web request: ${lead.business_name}` : `Responder segunda solicitud web: ${lead.business_name}`}, ${body},
                      ((${marketToday(tx, form.market_code)} + time '15:00') at time zone 'UTC'), ${holder}, ${sys.user.id}, 'rule')`
   }
+  if (holder)
+    await notify(tx, sys, {
+      to: holder, kind: 'lead_repeat', market: form.market_code, link: lead.account_id ? `/comercios/${lead.account_id}` : `/leads/${lead.id}`, leadId: lead.id, accountId: lead.account_id,
+      title: [`Segunda solicitud web: ${lead.business_name}`, `Second web request: ${lead.business_name}`],
+      body: ['La misma empresa volvió a escribir. La tarea para responder está en Hoy.', 'The same business wrote again. The task to answer is in Today.'],
+    })
   await audit(tx, sys, 'lead.repeat_request', 'lead', lead.id, form.market_code, null, { form_id: form.id, person_added: !known, task_for: holder })
   return lead.id
 }
@@ -373,6 +399,7 @@ export async function assignLeadTx(tx: Tx, ctx: Ctx, leadId: string, ownerId: st
     await tx`update crm.leads set owner_id = ${ownerId}, assigned_at = now() where id = ${leadId}`
     await audit(tx, ctx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: ownerId })
     await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: ownerId, previous_owner_id: lead.owner_id, by: 'assignment', motor: lead.motor })
+    if (ownerId && ownerId !== ctx.user.id) await leadArrived(tx, ctx, { id: leadId, market: lead.market_code, to: ownerId, name: lead.business_name })
   }
 }
 
@@ -435,6 +462,7 @@ export async function passLead(ctx: Ctx, leadId: string, toUserId: string, note:
     await audit(tx, ctx, 'lead.passed', 'lead', leadId, lead.market_code, { owner_id: lead.owner_id }, { owner_id: toUserId, note: text.slice(0, 200), clock_restarted: clock })
     await tx`select app.hand_lead(${leadId}, ${toUserId}::uuid)`
     await emit(tx, 'lead.assigned', 'lead', leadId, lead.market_code, { owner_id: toUserId, previous_owner_id: lead.owner_id, by: 'passed', motor: lead.motor })
+    if (toUserId !== ctx.user.id) await leadArrived(tx, ctx, { id: leadId, market: lead.market_code, to: toUserId, name: lead.business_name })
   })
 }
 

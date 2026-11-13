@@ -216,14 +216,17 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
           {notices.map((n) => (
             <div key={n.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3" data-testid="hoy-notice">
               <p className="min-w-[200px] flex-1 text-[14.5px] text-strong">
-                <span className="font-semibold">{n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
+                <span className="font-semibold">{n.title ?? n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
                 <span className="block text-muted-2">{n.body}</span>
               </p>
-              <Link href={n.deal_id ? `/deals/${n.deal_id}` : `/comercios/${n.account_id}`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="hoy-notice-open">{t('Abrir', 'Open')}</Link>
-              <ActionForm action={noticeSeenAction}>
-                <input type="hidden" name="notice_id" value={n.id} />
-                <Submit variant="ghost" size="sm" testId="hoy-notice-seen">{t('Visto', 'Seen')}</Submit>
-              </ActionForm>
+              <Link href={n.link ?? (n.deal_id ? `/deals/${n.deal_id}` : n.account_id ? `/comercios/${n.account_id}` : '/avisos')} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="hoy-notice-open">{t('Abrir', 'Open')}</Link>
+              {/* Un anuncio con acuse se confirma en Anuncios: "Visto" no cuenta como acuse. */}
+              {n.kind !== 'announcement' && (
+                <ActionForm action={noticeSeenAction}>
+                  <input type="hidden" name="notice_id" value={n.id} />
+                  <Submit variant="ghost" size="sm" testId="hoy-notice-seen">{t('Visto', 'Seen')}</Submit>
+                </ActionForm>
+              )}
             </div>
           ))}
         </section>

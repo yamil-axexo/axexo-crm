@@ -1,11 +1,12 @@
 import 'server-only'
 import { z } from 'zod'
-import { marketToday, withUser, type Tx } from '@/server/db'
+import { marketToday, marketWorkday, withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { assertNoProhibited } from '@/domain/guard'
 import { audit, emit, clean } from '@/domain/common'
 import { isoDate, syncDealStep } from '@/domain/deals'
 import { DomainError, invalid, notFound } from '@/lib/errors'
+import { notify } from '@/domain/notify'
 
 /** Estados que Operaciones lleva por proveedor y por documento. */
 export const PROVIDER_STATUS = ['pending', 'sent', 'approved', 'rejected'] as const
@@ -144,8 +145,8 @@ export async function setOpsCheck(ctx: Ctx, dealId: string, catalogId: string, r
   await withUser(ctx.user.id, async (tx) => {
     const d = await loadOpsDeal(tx, dealId)
     ctx.assert('deal.ops', d.market_code)
-    const cats = await tx<{ id: string; kind: string; code: string }[]>`
-      select id, kind, code from crm.ops_catalog where id = ${catalogId} and is_active and kind in ('provider', 'document') and (market_code is null or market_code = ${d.market_code})`
+    const cats = await tx<{ id: string; kind: string; code: string; label_es: string; label_en: string }[]>`
+      select id, kind, code, label_es, label_en from crm.ops_catalog where id = ${catalogId} and is_active and kind in ('provider', 'document') and (market_code is null or market_code = ${d.market_code})`
     const cat = cats[0]
     if (!cat) throw notFound('Ese proveedor o documento no está en el catálogo de este mercado.', 'That provider or document is not in this market’s catalog.')
     const allowed: readonly string[] = cat.kind === 'provider' ? PROVIDER_STATUS : DOCUMENT_STATUS
@@ -160,6 +161,20 @@ export async function setOpsCheck(ctx: Ctx, dealId: string, catalogId: string, r
              values (${dealId}, ${d.market_code}, ${catalogId}, ${v.status}, ${v.onDate || null}, ${v.link || null}, ${ctx.user.id})
              on conflict (deal_id, catalog_id) do update set status = excluded.status, on_date = excluded.on_date, link = excluded.link, updated_by = excluded.updated_by, updated_at = now()`
     await audit(tx, ctx, 'deal.ops_check', 'deal', dealId, d.market_code, before[0] ? { status: before[0].status } : null, { kind: cat.kind, code: cat.code, status: v.status, on: v.onDate || null, link: Boolean(v.link) })
+    // E13.F2: cuando un proveedor aprueba al comercio, quien vendió se entera y le queda una visita por hacer.
+    if (cat.kind === 'provider' && v.status === 'approved' && before[0]?.status !== 'approved' && d.owner_id && d.owner_id !== ctx.user.id) {
+      const acc = (await tx<{ name: string }[]>`select name from crm.accounts where id = ${d.account_id}`)[0]?.name ?? d.title
+      const en = (await tx<{ locale: string }[]>`select locale from crm.users where id = ${d.owner_id}`)[0]?.locale === 'en'
+      await tx`insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, source)
+               values (${d.market_code}, ${d.account_id}, ${dealId}, 'task', ${(en ? `Visit ${acc}: ${cat.label_en} approved it` : `Visitar a ${acc}: ${cat.label_es} lo aprobó`).slice(0, 200)},
+                       ((${marketWorkday(tx, d.market_code, 1)} + time '15:00') at time zone 'UTC'), ${d.owner_id}, ${ctx.user.id}, 'rule')`
+      await notify(tx, ctx, {
+        to: d.owner_id, kind: 'lifecycle', market: d.market_code, template: 'approval_visit', link: `/deals/${dealId}`, accountId: d.account_id, dealId,
+        title: [`${cat.label_es} aprobó a ${acc}`, `${cat.label_en} approved ${acc}`],
+        body: [`Te quedó una tarea de visita en Hoy.`, `A visit task is waiting for you in Today.`],
+        vars: { comercio: acc, negocio: d.title, detalle: en ? cat.label_en : cat.label_es, quien: ctx.user.name },
+      })
+    }
   })
 }
 
@@ -268,15 +283,20 @@ export async function notifiable(tx: Tx, ctx: Ctx, market: string, accountId: st
 export async function notifyFromNote(tx: Tx, ctx: Ctx, p: { market: string; userId: string; accountId: string | null; dealId: string | null; activityId: string; body: string }): Promise<void> {
   const people = await notifiable(tx, ctx, p.market, p.accountId, p.dealId)
   if (!people.some((u) => u.id === p.userId)) throw invalid('Solo puedes avisar a alguien que ve este registro.', 'You can only notify someone who can see this record.')
-  await tx`insert into crm.notices (market_code, user_id, from_user_id, kind, account_id, deal_id, activity_id, body)
-           values (${p.market}, ${p.userId}, ${ctx.user.id}, 'mention', ${p.accountId}, ${p.dealId}, ${p.activityId}, ${p.body.slice(0, 600)})`
+  const text = p.body.slice(0, 600)
+  await notify(tx, ctx, {
+    to: p.userId, kind: 'mention', market: p.market, title: [`${ctx.user.name} te avisó desde una nota`, `${ctx.user.name} notified you from a note`], body: [text, text],
+    link: p.dealId ? `/deals/${p.dealId}` : `/comercios/${p.accountId}`, accountId: p.accountId, dealId: p.dealId, activityId: p.activityId,
+  })
   await audit(tx, ctx, 'activity.notice_sent', 'activity', p.activityId, p.market, null, { to: p.userId })
 }
 
 export async function markNoticeSeen(ctx: Ctx, id: string): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw notFound()
   await withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ market_code: string }[]>`update crm.notices set seen_at = now() where id = ${id} and user_id = ${ctx.user.id} and seen_at is null returning market_code`
+    // Un anuncio que pide acuse no se da por visto desde aquí: se confirma en Anuncios.
+    const rows = await tx<{ market_code: string | null }[]>`update crm.notices set seen_at = now() where id = ${id} and user_id = ${ctx.user.id} and seen_at is null
+      and not (announcement_id is not null and needs_action) returning market_code`
     if (rows[0]) await audit(tx, ctx, 'activity.notice_seen', 'notice', id, rows[0].market_code, null, null)
   })
 }

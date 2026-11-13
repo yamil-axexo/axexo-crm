@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { after } from 'next/server'
 import { tickJobs } from '@/server/jobs/runner'
-import { Activity, CircleHelp, Eye, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
+import { Activity, Bell, CircleHelp, Eye, Megaphone, FileSpreadsheet, LifeBuoy, LineChart, ListChecks, LogOut, Search, Settings, Users } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { dockCounts } from '@/dal/boards'
 import { AccountMenu, Dock, LeadAlertToggle, LeadWatch, OfflineBanner, SearchBox, type DockItem } from '@/ui/shell'
@@ -14,6 +14,11 @@ import { logConfig, opsVoice } from '@/server/sheet'
 import { opsWaiting } from '@/dal/ops'
 import { ROLE_LABEL, homePath, isReadOnly } from '@/domain/policy'
 import { logout, setLocale } from '@/app/session-actions'
+import { unreadNotices } from '@/dal/notices'
+import { HideOn, ScreenHelpFooter } from '@/ui/notices'
+import { pendingAnnouncements } from '@/dal/announcements'
+import { markAnnouncementAction } from '@/app/(app)/anuncios/actions'
+import { ActionForm, Submit } from '@/ui/client'
 
 const initials = (name: string) =>
   name
@@ -33,6 +38,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Quien solo tiene Leadership ve todo y no cambia nada: la barra lo dice siempre, en cualquier pantalla.
   const readOnly = isReadOnly(ctx.memberships)
   const counts = await dockCounts(ctx)
+  // La campana: cuántos avisos sin leer tiene la persona (AUT-05).
+  const unread = ctx.user.isSystem ? 0 : await unreadNotices(ctx)
+  // Anuncios vigentes que la persona no ha leído o que piden acuse: los ve al entrar, en cualquier pantalla (GOB-06).
+  const announcements = ctx.user.isSystem ? [] : await pendingAnnouncements(ctx)
+  const first = announcements[0]
+  const firstText = first ? (first.locale === ctx.locale || !first.title_other || !first.body_other ? { title: first.title, body: first.body } : { title: first.title_other, body: first.body_other }) : null
+  const bellLabel = unread > 0 ? t(`Avisos: ${unread} sin leer`, `Notices: ${unread} unread`) : t('Avisos', 'Notices')
   // Quien trabaja o reparte leads: con la app abierta, el contador se actualiza solo y la pestaña avisa cuando llega uno.
   const watchLeads = !ctx.user.isSystem && (ctx.can('lead.work') || ctx.can('lead.assign'))
 
@@ -74,6 +86,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/buscar" aria-label={m('top.searchLabel')} className="press inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-strong md:hidden" data-testid="search-link">
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
+          <Link href="/avisos" aria-label={bellLabel} title={bellLabel} className={`press relative h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-strong hover:bg-green-50 ${readOnly ? 'hidden md:inline-flex' : 'inline-flex'}`} data-testid="bell">
+            <Bell size={20} strokeWidth={1.75} aria-hidden />
+            {unread > 0 && <span className="num absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="bell-count">{unread > 99 ? '99+' : unread}</span>}
+          </Link>
           <form action={setLocale}>
             <input type="hidden" name="locale" value={ctx.locale === 'es' ? 'en' : 'es'} />
             <button aria-label={`${ctx.locale.toUpperCase()}: ${m('top.language')}`} className="press hidden h-10 min-w-11 items-center justify-center rounded-full border border-line px-3 text-[13px] font-semibold text-strong hover:bg-green-50 md:inline-flex" data-testid="locale-toggle">
@@ -87,6 +103,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {readOnly && <p className="mt-1 text-[12.5px] text-muted-2" data-testid="me-read-only">{t('Solo lectura: ves todo y no cambias nada.', 'Read-only: you see everything and change nothing.')}</p>}
             </div>
             <div className="py-1">
+              {/* Quien solo lee no tiene la campana en la barra del teléfono (ahí va "Solo lectura"): entra a sus avisos desde aquí. */}
+              {readOnly && <Link href="/avisos" role="menuitem" className={menuLink} data-testid="nav-notices"><Bell size={20} strokeWidth={1.75} aria-hidden />{t('Avisos y anuncios', 'Notices and announcements')}{unread > 0 ? ` (${unread})` : ''}</Link>}
               {ctx.can('deal.ops') && <Link href="/operaciones" role="menuitem" className={menuLink} data-testid="nav-ops-queue"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t('Cola de Operaciones', 'Operations queue')}{waiting > 0 ? ` (${waiting})` : ''}</Link>}
               {ctx.can('board.supervisor') ? <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-supervisor"><Users size={20} strokeWidth={1.75} aria-hidden />{m('top.team')}</Link>
                 : ctx.can('exception.read') && <Link href="/supervisor" role="menuitem" className={menuLink} data-testid="nav-alerts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Avisos del mercado', 'Market alerts')}</Link>}
@@ -120,7 +138,26 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
       <OfflineBanner text={m('offline.banner')} tag={m('offline.tag')} blocked={m('offline.blocked')} />
-      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">{children}</main>
+      <main className="content-enter mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[120px] md:px-8 md:pt-9 md:pb-[150px]">
+        {first && firstText && (
+          <HideOn prefixes={['/anuncios']}>
+            <aside aria-label={t('Anuncio', 'Announcement')} className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-l-4 border-l-[#24815f] px-4 py-3.5 md:px-5 print:hidden" data-testid="announce-banner">
+              <p className="min-w-[220px] flex-1 text-[14.5px] text-strong">
+                <span className="mr-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-brand-text"><Megaphone size={16} strokeWidth={1.75} aria-hidden />{first.topic === 'release' ? t('Novedades de CONTIGO', 'What is new in CONTIGO') : t('Anuncio', 'Announcement')}</span>
+                <span className="font-semibold [overflow-wrap:anywhere]" data-testid="announce-banner-title">{firstText.title}</span>
+                <span className="line-clamp-2 block text-[14px] text-muted-2 [overflow-wrap:anywhere]">{firstText.body}</span>
+              </p>
+              <Link href={`/anuncios#${first.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="announce-banner-open">
+                {announcements.length > 1 ? t(`Ver los ${announcements.length} anuncios`, `See all ${announcements.length} announcements`) : t('Leer completo', 'Read in full')}
+              </Link>
+              <ActionForm action={markAnnouncementAction}>
+                <input type="hidden" name="announcement_id" value={first.id} /><input type="hidden" name="ack" value={first.requires_ack ? '1' : '0'} />
+                <Submit variant={first.requires_ack ? 'primary' : 'ghost'} size="sm" testId="announce-banner-ack">{first.requires_ack ? t('Enterado', 'Got it') : t('Marcar leído', 'Mark as read')}</Submit>
+              </ActionForm>
+            </aside>
+          </HideOn>
+        )}
+        {children}<ScreenHelpFooter label={t('¿Cómo se usa esto?', 'How do I use this?')} /></main>
       <Dock items={items} label={m('nav.main')} createLabel={m('nav.create')} create={create} logLabel={canLog ? t('Registrar actividad', 'Log activity') : undefined} />
       {watchLeads && (
         <LeadWatch
