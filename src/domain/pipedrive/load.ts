@@ -4,6 +4,7 @@ import { evaluateRules } from '@/domain/rules'
 import { accountRule, dealRule, leadRule, skipReason } from '@/domain/intake'
 import { missingForStage } from '@/domain/deals'
 import * as M from './mapping'
+import { cutOverMarkets, guardEdits } from './edits'
 import { SRC, accountsByOrg, bump, ensureLossReason, loadRefs, markLoaded, newIds, refMap, saveRefs, sid, type Json, type Raw, type Refs } from './refs'
 
 /**
@@ -118,6 +119,7 @@ const loadOrganizations: Loader = async (tx, runId, sysId) => {
   }
 
   const tally = new Tally()
+  const off = await cutOverMarkets(tx)
   const fresh: Rec[] = []
   const changed: Rec[] = []
   const emida: Rec[] = []
@@ -140,6 +142,10 @@ const loadOrganizations: Loader = async (tx, runId, sysId) => {
     market ??= live(M.countryCode(addr.country)) ?? live(M.marketFromPhone(phoneF?.v)) ?? live(refs.ownerMarket.get(sid(p.owner_id) ?? ''))
     if (!market) {
       tally.skip(r.external_id, 'no_market')
+      continue
+    }
+    if (off.has(market)) {
+      tally.skip(r.external_id, 'market_cut_over')
       continue
     }
     const mk = refs.markets.get(market)!
@@ -234,6 +240,7 @@ const loadOrganizations: Loader = async (tx, runId, sysId) => {
       f.id = nid[i]
       idByExt.set(String(f.ext), nid[i]!)
     })
+    await guardEdits(tx, runId, 'account', [], fresh)
     await tx`
       with d as (
         select * from jsonb_to_recordset(${J(tx, fresh)}) as x(id uuid, ext text, market text, name text, segment text, lifecycle text, owner_id uuid,
@@ -250,6 +257,9 @@ const loadOrganizations: Loader = async (tx, runId, sysId) => {
   }
   if (changed.length) {
     for (const c of changed) idByExt.set(String(c.ext), String(c.id))
+    const g = await guardEdits(tx, runId, 'account', changed, [])
+    await bump(tx, runId, ['kept', 'organization'], g.kept)
+    await bump(tx, runId, ['conflicts', 'organization'], g.conflicts)
     await tx`
       update crm.accounts a set name = d.name, segment = d.segment, owner_id = d.owner_id, territory_id = d.territory_id, phone = d.phone, email = d.email,
              address_line = d.address_line, locality = d.locality, region = d.region, postal_code = d.postal_code, country = d.country,
@@ -283,6 +293,7 @@ const loadPersons: Loader = async (tx, runId, sysId) => {
   const accs = await accountsByOrg(tx, uniq(rows.map((r) => r.parent_ref)))
   const existing = await refMap(tx, 'person', rows.map((r) => r.external_id))
   const tally = new Tally()
+  const off = await cutOverMarkets(tx)
   const fresh: Rec[] = []
   const changed: Rec[] = []
   const links: Rec[] = []
@@ -296,6 +307,10 @@ const loadPersons: Loader = async (tx, runId, sysId) => {
     const market = acc?.market ?? (fieldMarket && refs.markets.has(fieldMarket) ? fieldMarket : null) ?? refs.ownerMarket.get(sid(p.owner_id) ?? '') ?? null
     if (!market) {
       tally.skip(r.external_id, 'no_market')
+      continue
+    }
+    if (off.has(market)) {
+      tally.skip(r.external_id, 'market_cut_over')
       continue
     }
     const mk = refs.markets.get(market)!
@@ -336,8 +351,12 @@ const loadPersons: Loader = async (tx, runId, sysId) => {
              select id, market, full_name, phone, email, owner_id, custom, ${sysId}, coalesce(created_at, now())
                from jsonb_to_recordset(${J(tx, fresh)}) as x(id uuid, market text, full_name text, phone text, email text, owner_id uuid, custom jsonb, created_at timestamptz)`
     await saveRefs(tx, 'person', fresh.map((f) => ({ ext: String(f.ext), id: String(f.id) })))
+    await guardEdits(tx, runId, 'contact', [], fresh)
   }
   if (changed.length) {
+    const g = await guardEdits(tx, runId, 'contact', changed, [])
+    await bump(tx, runId, ['kept', 'person'], g.kept)
+    await bump(tx, runId, ['conflicts', 'person'], g.conflicts)
     await tx`update crm.contacts c set full_name = d.full_name, phone = d.phone, email = d.email, owner_id = d.owner_id, custom = c.custom || d.custom
                from jsonb_to_recordset(${J(tx, changed)}) as d(id uuid, full_name text, phone text, email text, owner_id uuid, custom jsonb)
               where c.id = d.id`
@@ -374,6 +393,7 @@ const loadDeals: Loader = async (tx, runId, sysId) => {
   const placeholders = await refMap(tx, 'deal_account', ids)
   const lossCodes = new Map<string, string>()
   const tally = new Tally()
+  const off = await cutOverMarkets(tx)
   let needsStep = 0
   const fresh: Rec[] = []
   const changed: Rec[] = []
@@ -396,6 +416,10 @@ const loadDeals: Loader = async (tx, runId, sysId) => {
       continue
     }
     const market = pipe.market
+    if (off.has(market)) {
+      tally.skip(r.external_id, 'market_cut_over')
+      continue
+    }
     const mk = refs.markets.get(market)!
     const pdStage = refs.stages.get(sid(p.stage_id) ?? '')
     const pdStageId = pdStage && pdStage.pipelineId === pipe.id ? pdStage.id : null
@@ -477,6 +501,7 @@ const loadDeals: Loader = async (tx, runId, sysId) => {
                     decision_maker_id, coalesce(stage_entered_at, now()), won_at, lost_at, closed_by, custom, ${sysId}, coalesce(created_at, now())
                from jsonb_to_recordset(${J(tx, fresh)}) as ${cols}`
     await saveRefs(tx, 'deal', fresh.map((f) => ({ ext: String(f.ext), id: String(f.id) })))
+    await guardEdits(tx, runId, 'deal', [], fresh)
     // REP-02: la historia de etapas arranca con lo que se sabe: dónde estaba y, si cerró, cuándo.
     await tx`insert into crm.deal_stage_events (deal_id, market_code, from_stage_id, to_stage_id, actor_id, cause, at)
              select x.id, x.market, null, coalesce(x.pd_stage_id, x.stage_id), x.owner_id, 'import', coalesce(x.created_at, now())
@@ -487,6 +512,9 @@ const loadDeals: Loader = async (tx, runId, sysId) => {
               where x.status <> 'open' and x.pd_stage_id is not null and x.pd_stage_id <> x.stage_id`
   }
   if (changed.length) {
+    const g = await guardEdits(tx, runId, 'deal', changed, [])
+    await bump(tx, runId, ['kept', 'deal'], g.kept)
+    await bump(tx, runId, ['conflicts', 'deal'], g.conflicts)
     await tx`
       with d as (select * from jsonb_to_recordset(${J(tx, changed)}) as ${cols}),
       ev as (
@@ -872,6 +900,11 @@ export async function finish(tx: Tx, runId: string, sysId: string): Promise<void
        and not exists (select 1 from crm.account_attributions t where t.account_id = a.id and t.layer = 'owner')`
 
   await evaluateRules(tx)
+  // GOB-05: lo que el equipo armó en Pipedrive (automatizaciones, turno, reportes, tableros, meta y filtros) se vuelve a revisar con los
+  // embudos y campos que acaban de llegar: lo que estaba apagado por falta de un embudo o campo se enciende si ya existe.
+  await tx`select crm.pipedrive_rebuild_apply()`
+  // E6.F3: la carga que corre con un mercado congelado es su última sincronización.
+  await tx`update crm.pipedrive_cutover set last_sync_at = now(), updated_at = now() where frozen_at is not null and pipedrive_off_at is null`
   const run = await tx<{ stats: Json; mode: string | null }[]>`select stats, cursor ->> 'mode' as mode from crm.import_runs where id = ${runId}`
   await tx`insert into crm.audit_events (actor_id, action, object, object_id, after)
            values (${sysId}, 'import.completed', 'import_run', ${runId}, ${tx.json({ source: SRC, mode: run[0]?.mode ?? null, stats: run[0]?.stats ?? {} } as Json)})`

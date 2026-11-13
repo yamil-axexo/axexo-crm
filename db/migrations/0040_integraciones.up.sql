@@ -211,7 +211,7 @@ begin
      'Copia a quien lleva el negocio en el campo "Sales Rep" si está vacío. CONTIGO además fija a quien vendió cuando el negocio llega a Operaciones.',
      'Copies the deal owner into the "Sales Rep" field when it is empty. CONTIGO also fixes the sales rep when the deal reaches Operations.'),
     (3, 'pd_sales_rep_follows_owner', 'Sales Rep - follows owner (updated)', 'Cambia quien lleva el negocio: quien vende lo sigue hasta Operaciones', 'The deal owner changes: the sales rep follows until Operations',
-     'deal', 'deal.reassigned', true, 'dealer', 'sales_rep',
+     'deal', 'deal.owner_changed', true, 'dealer', 'sales_rep',
      'Mientras el negocio no llega a Aprobaciones ni a las etapas de Operaciones, el campo "Sales Rep" sigue a quien lleva el negocio.',
      'While the deal has not reached Approvals or the Operations stages, the "Sales Rep" field follows the deal owner.'),
     (4, 'pd_recruited_by_ace', 'Recruited by - ACE deal (added)', 'Negocio nuevo de ciertas personas: reclutado por ACE', 'New deal from certain people: recruited by ACE',
@@ -225,7 +225,7 @@ begin
      'account', 'account.created', true, null, 'merchant_origin',
      'Pone "New acquisition" en el origen del comercio nuevo si viene vacío.', 'Sets "New acquisition" as the origin of a new merchant when it comes empty.'),
     (7, 'pd_portal_migration_date', 'Stamp Portal Migration Date', 'Migración al portal completada: anota la fecha', 'Portal migration completed: record the date',
-     'account', 'account.updated', true, null, 'portal_migration_date',
+     'account', 'account.custom_updated', true, null, 'portal_migration_date',
      'Cuando el estado de migración al portal queda en "Completed", anota la fecha de ese día.', 'When the portal migration status becomes "Completed", records that day''s date.'),
     (8, 'pd_welcome_vegas_2026', 'Welcome Email - Vegas 2026', 'Las Vegas 2026: correo de bienvenida', 'Las Vegas 2026: welcome email',
      'deal', 'deal.created', false, 'vegas', null,
@@ -446,11 +446,13 @@ begin
             case when r.obj = 'none' then 'pending' when not ok then 'off' when r.note is not null then 'pending' else 'built' end,
             case when r.obj = 'none' or rid is null then 'none' when r.obj = 'report' then 'saved_report' else 'saved_view' end, rid,
             case when rid is null then null when r.obj = 'report' then '/reportes?guardado=' || rid when r.obj = 'account' then '/comercios?cola=' || rid else '/pipelines?cola=' || rid end,
-            coalesce(r.note, case when not ok then 'Se crea cuando exista el embudo de Las Vegas en esta base.'
+            coalesce(r.note, case when not ok and r.pipe = 'dealer' then 'Se crea cuando exista el embudo de alta de dealers de US en esta base.'
+                                  when not ok then 'Se crea cuando exista el embudo de Las Vegas en esta base.'
                                   when r.obj = 'report' then 'Los negocios cerrados no viven en una lista: queda como reporte guardado y compartido "' || r.name || '".'
                                   else 'Vista guardada de fábrica "' || r.name || '".' end),
             case when r.obj = 'none' then 'CONTIGO has no separate people list: contacts live on each merchant page and are found from Search.'
                  when r.note is not null then 'The exact filter condition is not in the inventory: it stays as all US merchants. [pending: filter condition, LuisRo Sanabria]'
+                 when not ok and r.pipe = 'dealer' then 'Created once the US dealer sign-up pipeline exists in this database.'
                  when not ok then 'Created once the Las Vegas pipeline exists in this database.'
                  when r.obj = 'report' then 'Closed deals do not live in a list: it is a saved, shared report.'
                  else 'Factory saved view.' end)

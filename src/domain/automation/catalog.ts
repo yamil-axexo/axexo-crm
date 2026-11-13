@@ -15,7 +15,13 @@ export const SOURCE_LABEL: Record<Source, Pair> = {
 }
 
 export type FieldType = 'number' | 'boolean' | 'choice'
-export type FieldDef = { key: string; type: FieldType; label: Pair; options?: { value: string; label: Pair }[]; /** Las opciones salen de los embudos del mercado (códigos de etapa), no de una lista fija. */ dynamic?: 'stage' }
+export type FieldDef = {
+  key: string; type: FieldType; label: Pair; options?: { value: string; label: Pair }[]
+  /** Las opciones salen de los embudos del mercado (códigos de etapa, embudos o personas), no de una lista fija. */
+  dynamic?: 'stage' | 'pipeline' | 'user'
+  /** Campos que usan las automatizaciones reconstruidas desde Pipedrive; el formulario de Administración no los ofrece. */
+  hidden?: boolean
+}
 
 const yes = (key: string, es: string, en: string): FieldDef => ({ key, type: 'boolean', label: { es, en } })
 const num = (key: string, es: string, en: string): FieldDef => ({ key, type: 'number', label: { es, en } })
@@ -39,6 +45,8 @@ export const FIELDS: Record<Source, FieldDef[]> = {
     yes('has_open_visit', 'Ya hay una visita por hacer en ese comercio', 'A visit is already planned for that merchant'),
     pick('waiting_on', 'A quién se espera', 'Who it is waiting on', [['us', 'a nosotros', 'us'], ['customer', 'al cliente', 'the customer'], ['third_party', 'a un tercero', 'a third party']]),
     num('amount', 'Monto esperado', 'Expected amount'),
+    { key: 'pipeline_id', type: 'choice', label: { es: 'Embudo', en: 'Pipeline' }, dynamic: 'pipeline', hidden: true },
+    { key: 'owner_id', type: 'choice', label: { es: 'Quien lleva el negocio', en: 'Deal owner' }, dynamic: 'user', hidden: true },
   ],
   lead: [
     pick('status', 'Estado del lead', 'Lead status', [['new', 'nuevo', 'new'], ['contacted', 'contactado', 'contacted'], ['qualified', 'calificado', 'qualified']]),
@@ -56,7 +64,7 @@ export const FIELDS: Record<Source, FieldDef[]> = {
   account_pair: [],
 }
 
-export const OPS = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'is_true', 'is_false', 'is_empty', 'not_empty'] as const
+export const OPS = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'is_true', 'is_false', 'is_empty', 'not_empty', 'in'] as const
 export type Op = (typeof OPS)[number]
 export const OP_LABEL: Record<Op, Pair> = {
   eq: { es: 'es', en: 'is' },
@@ -69,6 +77,7 @@ export const OP_LABEL: Record<Op, Pair> = {
   is_false: { es: 'no', en: 'no' },
   is_empty: { es: 'está vacío', en: 'is empty' },
   not_empty: { es: 'tiene valor', en: 'has a value' },
+  in: { es: 'es una de', en: 'is one of' },
 }
 export const OPS_FOR: Record<FieldType, Op[]> = {
   number: ['gt', 'gte', 'lt', 'lte', 'eq'],
@@ -84,9 +93,24 @@ export const EVENTS: Record<string, { source: Source; label: Pair }> = {
   'deal.stage_changed': { source: 'deal', label: { es: 'Un negocio cambia de etapa', en: 'A deal changes stage' } },
   'lead.created': { source: 'lead', label: { es: 'Entra un lead', en: 'A lead comes in' } },
   'account.created': { source: 'account', label: { es: 'Se crea un comercio', en: 'A merchant is created' } },
+  'deal.owner_changed': { source: 'deal', label: { es: 'Cambia quien lleva un negocio', en: 'A deal changes owner' } },
+  'account.updated': { source: 'account', label: { es: 'Se editan los datos de un comercio', en: 'A merchant is edited' } },
+  'account.custom_updated': { source: 'account', label: { es: 'Se edita un campo adicional de un comercio', en: 'An additional merchant field is edited' } },
 }
 
+/**
+ * Campos adicionales (los que vinieron de Pipedrive o se definieron en Administración) como condición: `custom:<clave>`.
+ * Solo se pregunta si está vacío, si tiene valor, o si es igual o distinto a un texto.
+ */
+export const CUSTOM_PREFIX = 'custom:'
+const CUSTOM_RE = /^custom:[a-z][a-z0-9_]{1,40}$/
+export const isCustomField = (field: string) => CUSTOM_RE.test(field)
+const CUSTOM_OPS: Op[] = ['eq', 'ne', 'is_empty', 'not_empty']
+
 export const ACTION_TYPES = ['open_exception', 'create_task', 'notify', 'assign', 'move_stage', 'set_field'] as const
+/** Acciones que nacieron con lo reconstruido desde Pipedrive. El formulario no las ofrece todavía: se encienden, se apagan y se ven en la bitácora. */
+export const REBUILT_ACTION_TYPES = ['set_custom', 'send_email', 'ops_handoff', 'assign_turn'] as const
+export const ALL_ACTION_TYPES = [...ACTION_TYPES, ...REBUILT_ACTION_TYPES] as const
 export type ActionType = (typeof ACTION_TYPES)[number]
 export const ACTION_LABEL: Record<ActionType, Pair> = {
   open_exception: { es: 'Abrir un aviso en la cola de quien supervisa', en: 'Open a notice in the supervisor queue' },
@@ -95,6 +119,12 @@ export const ACTION_LABEL: Record<ActionType, Pair> = {
   assign: { es: 'Asignar el lead', en: 'Assign the lead' },
   move_stage: { es: 'Cambiar de etapa, si el paso lo permite', en: 'Change stage, if the step allows it' },
   set_field: { es: 'Marcar un campo', en: 'Set a field' },
+}
+export const REBUILT_ACTION_LABEL: Record<(typeof REBUILT_ACTION_TYPES)[number], Pair> = {
+  set_custom: { es: 'Llenar un campo adicional', en: 'Fill in an additional field' },
+  send_email: { es: 'Dejar listo un correo al contacto', en: 'Prepare an email to the contact' },
+  ops_handoff: { es: 'Pasar el negocio a Operaciones', en: 'Hand the deal to Operations' },
+  assign_turn: { es: 'Repartir por turno', en: 'Assign in turn' },
 }
 
 /** A quién le toca: quien lleva el registro, un rol del mercado, o una persona. */
@@ -133,6 +163,14 @@ export type Action =
   | { type: 'assign'; to: Target }
   | { type: 'move_stage'; stage_code: string }
   | { type: 'set_field'; field: string; value: string }
+  /** Llena un campo adicional con quien lleva el registro, con un texto fijo o con la fecha de hoy. `keep`: si ya tiene valor, no lo cambia. */
+  | { type: 'set_custom'; field: string; from: 'owner' | 'value' | 'today'; value?: string; keep: boolean }
+  /** Deja listo un correo con una plantilla del servicio de avisos para el contacto del negocio. Con el canal apagado, no sale. */
+  | { type: 'send_email'; template: string }
+  /** El negocio queda con Operaciones: en su cola (`queue`) o con una persona de Operaciones (`user:<id>`). */
+  | { type: 'ops_handoff'; to: 'queue' | `user:${string}` }
+  /** Quien lleva el negocio pasa a ser la siguiente persona del turno indicado. */
+  | { type: 'assign_turn'; rule_id: string }
 
 export type Definition = {
   key: string
@@ -208,8 +246,22 @@ export function problemIn(def: { source: string; trigger: Definition['trigger'];
     if (!ev || ev.source !== source) return { es: 'Ese evento no es de este tipo de registro.', en: 'That event does not belong to this kind of record.' }
   }
   for (const c of def.conditions) {
+    if (isCustomField(c.field)) {
+      if (source !== 'deal' && source !== 'account') return { es: 'Los campos adicionales aplican a negocios y comercios.', en: 'Additional fields apply to deals and merchants.' }
+      if (!CUSTOM_OPS.includes(c.op)) return { es: 'Con un campo adicional solo se pregunta si está vacío o si es igual a un texto.', en: 'With an additional field you can only ask whether it is empty or equal to a text.' }
+      if ((c.op === 'eq' || c.op === 'ne') && !(typeof c.value === 'string' && c.value.length >= 1 && c.value.length <= 60)) return { es: 'Escribe el texto con el que se compara.', en: 'Write the text to compare with.' }
+      continue
+    }
     const f = fieldOf(source, c.field)
     if (!f) return { es: 'Una condición usa un campo que no existe para este tipo de registro.', en: 'A condition uses a field that does not exist for this kind of record.' }
+    if (f.dynamic === 'user') {
+      if (c.op !== 'in' || typeof (c.value ?? '') !== 'string' || !String(c.value ?? '').split(',').filter(Boolean).every((x) => /^[0-9a-f-]{36}$/.test(x))) return { es: 'Elige las personas de la lista.', en: 'Pick the people on the list.' }
+      continue
+    }
+    if (f.dynamic === 'pipeline') {
+      if (c.op !== 'eq' || !/^[0-9a-f-]{36}$/.test(String(c.value ?? ''))) return { es: 'Elige un embudo de este mercado.', en: 'Pick a pipeline in this market.' }
+      continue
+    }
     if (!OPS_FOR[f.type].includes(c.op)) return { es: `La condición sobre "${f.label.es}" usa una comparación que no aplica.`, en: `The condition on "${f.label.en}" uses a comparison that does not apply.` }
     if (f.type === 'number' && !Number.isFinite(Number(c.value))) return { es: `La condición sobre "${f.label.es}" necesita un número.`, en: `The condition on "${f.label.en}" needs a number.` }
     if (f.dynamic === 'stage') {
@@ -238,6 +290,16 @@ export function problemIn(def: { source: string; trigger: Definition['trigger'];
     } else if (a.type === 'set_field') {
       const s = SETTABLE[a.field]
       if (!s || s.source !== source || !s.values.some((v) => v.value === a.value)) return { es: 'Ese campo no se puede marcar desde una automatización.', en: 'That field cannot be set from an automation.' }
+    } else if (a.type === 'set_custom') {
+      if (source !== 'deal' && source !== 'account') return { es: 'Los campos adicionales aplican a negocios y comercios.', en: 'Additional fields apply to deals and merchants.' }
+      if (!/^[a-z][a-z0-9_]{1,40}$/.test(a.field) || !['owner', 'value', 'today'].includes(a.from)) return { es: 'Elige el campo y con qué se llena.', en: 'Choose the field and what fills it.' }
+      if (a.from === 'value' && !(typeof a.value === 'string' && a.value.trim().length >= 1 && a.value.length <= 120)) return { es: 'Escribe el valor con que se llena (1 a 120 letras).', en: 'Write the value it is filled with (1 to 120 characters).' }
+    } else if (a.type === 'send_email') {
+      if (source !== 'deal' || !/^[a-z0-9_]{3,40}$/.test(a.template)) return { es: 'El correo sale de una plantilla y va al contacto de un negocio.', en: 'The email comes from a template and goes to a deal contact.' }
+    } else if (a.type === 'ops_handoff') {
+      if (source !== 'deal' || !(a.to === 'queue' || /^user:[0-9a-f-]{36}$/.test(a.to))) return { es: 'Elige si va a la cola de Operaciones o a una persona.', en: 'Choose whether it goes to the Operations queue or to a person.' }
+    } else if (a.type === 'assign_turn') {
+      if (source !== 'deal' || !/^[0-9a-f-]{36}$/.test(a.rule_id)) return { es: 'Elige el turno.', en: 'Choose the turn.' }
     } else return { es: 'Una acción no es de las que existen.', en: 'An action is not one of the available ones.' }
   }
   return null
@@ -255,11 +317,22 @@ const targetText = (to: string, people: Record<string, string>): Pair => {
 }
 
 /** "Cuando… si… entonces…": la definición dicha como la diría una persona del equipo. */
-export function describe(def: { source: Source; trigger: Definition['trigger']; conditions: Condition[]; actions: Action[] }, people: Record<string, string> = {}, stageNames: Record<string, Pair> = {}): { when: Pair; ifs: Pair[]; then: Pair[] } {
+export function describe(def: { source: Source; trigger: Definition['trigger']; conditions: Condition[]; actions: Action[] }, people: Record<string, string> = {}, stageNames: Record<string, Pair> = {}, pipelineNames: Record<string, Pair> = {}): { when: Pair; ifs: Pair[]; then: Pair[] } {
   const when: Pair = def.trigger.kind === 'event'
     ? { es: `Cuando ${(EVENTS[def.trigger.event]?.label.es ?? def.trigger.event).toLowerCase()}`, en: `When ${(EVENTS[def.trigger.event]?.label.en ?? def.trigger.event).toLowerCase()}` }
     : { es: `Cada vez que corre la revisión por horario, sobre ${SOURCE_LABEL[def.source].es.toLowerCase()}`, en: `Each time the scheduled check runs, over ${SOURCE_LABEL[def.source].en.toLowerCase()}` }
   const ifs = def.conditions.map((c): Pair => {
+    if (isCustomField(c.field)) {
+      const k = c.field.slice(CUSTOM_PREFIX.length)
+      if (c.op === 'is_empty' || c.op === 'not_empty') return { es: `El campo "${k}" ${OP_LABEL[c.op].es}`, en: `The "${k}" field ${OP_LABEL[c.op].en}` }
+      return { es: `El campo "${k}" ${OP_LABEL[c.op].es} "${c.value}"`, en: `The "${k}" field ${OP_LABEL[c.op].en} "${c.value}"` }
+    }
+    if (c.field === 'pipeline_id') return { es: `Embudo: ${pipelineNames[String(c.value)]?.es ?? 'el elegido'}`, en: `Pipeline: ${pipelineNames[String(c.value)]?.en ?? 'the chosen one'}` }
+    if (c.field === 'owner_id') {
+      const ids = String(c.value ?? '').split(',').filter(Boolean)
+      return ids.length ? { es: `Lo lleva una de estas personas: ${ids.map((x) => people[x] ?? 'una persona').join(', ')}`, en: `Owned by one of these people: ${ids.map((x) => people[x] ?? 'a person').join(', ')}` }
+        : { es: 'Lo lleva una de las personas de la lista (la lista está vacía: no aplica a nadie todavía)', en: 'Owned by one of the people on the list (the list is empty: it applies to nobody yet)' }
+    }
     const f = fieldOf(def.source, c.field)
     const label = f?.label ?? { es: c.field, en: c.field }
     if (c.op === 'is_true') return { es: label.es, en: label.en }
@@ -273,6 +346,15 @@ export function describe(def: { source: Source; trigger: Definition['trigger']; 
     if (a.type === 'create_task') return { es: `Crea una tarea para ${targetText(a.to, people).es}: "${a.text_es}", con fecha ${a.due_days === 0 ? 'de hoy' : `a ${a.due_days} ${a.due_days === 1 ? 'día' : 'días'}`}`, en: `Creates a task for ${targetText(a.to, people).en}: "${a.text_en}", due ${a.due_days === 0 ? 'today' : `in ${a.due_days} ${a.due_days === 1 ? 'day' : 'days'}`}` }
     if (a.type === 'notify') return { es: `Avisa a ${targetText(a.to, people).es}: "${a.text_es}"`, en: `Notifies ${targetText(a.to, people).en}: "${a.text_en}"` }
     if (a.type === 'assign') return { es: `Asigna el registro a ${targetText(a.to, people).es}`, en: `Assigns the record to ${targetText(a.to, people).en}` }
+    if (a.type === 'set_custom') {
+      const what: Pair = a.from === 'owner' ? { es: 'quien lleva el registro', en: 'the record owner' } : a.from === 'today' ? { es: 'la fecha de hoy', en: "today's date" } : { es: `"${a.value}"`, en: `"${a.value}"` }
+      return { es: `Llena el campo "${a.field}" con ${what.es}${a.keep ? ', solo si está vacío' : ''}`, en: `Fills the "${a.field}" field with ${what.en}${a.keep ? ', only if it is empty' : ''}` }
+    }
+    if (a.type === 'send_email') return { es: `Deja listo un correo al contacto del negocio con la plantilla "${a.template}" (sale solo cuando el canal de correo esté encendido)`, en: `Prepares an email to the deal contact with the "${a.template}" template (it goes out only once the email channel is on)` }
+    if (a.type === 'ops_handoff') return a.to === 'queue'
+      ? { es: 'Deja el negocio en la cola de Operaciones, con quien lidera Operaciones del embudo; quien lo vendió se conserva', en: 'Leaves the deal in the Operations queue, with the pipeline Operations lead; the seller is kept' }
+      : { es: `Pasa el negocio a ${people[a.to.slice(5)] ?? 'una persona'} en Operaciones`, en: `Hands the deal to ${people[a.to.slice(5)] ?? 'a person'} in Operations` }
+    if (a.type === 'assign_turn') return { es: 'Pasa el negocio a la siguiente persona del turno', en: 'Gives the deal to the next person in the turn' }
     if (a.type === 'move_stage') return { es: `Cambia el negocio a la etapa "${stageNames[a.stage_code]?.es ?? a.stage_code}", si el paso lo permite`, en: `Moves the deal to the "${stageNames[a.stage_code]?.en ?? a.stage_code}" stage, if the step allows it` }
     const s = SETTABLE[a.field]
     const v = s?.values.find((x) => x.value === a.value)?.label

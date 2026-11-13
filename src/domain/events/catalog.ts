@@ -47,6 +47,8 @@ export const EXPLICIT_EVENTS: EventDef[] = [
     example: { from: ID, to: ID2, kind: 'open' } },
   { type: 'deal.reassigned', version: 1, aggregate: 'user', source: 'explicit', about: ['Se pasaron negocios abiertos a otra persona.', 'Open deals were moved to another person.'],
     data: { count: f('integer', 'Cuántos negocios.', 'How many deals.') }, example: { count: 7 } },
+  { type: 'deal.owner_changed', version: 1, aggregate: 'deal', source: 'explicit', about: ['Cambió quien lleva un negocio.', 'A deal changed owner.'],
+    data: { owner_id: f('uuid', 'Quién lo lleva ahora.', 'Who owns it now.') }, example: { owner_id: ID2 } },
   { type: 'deal.won', version: 1, aggregate: 'deal', source: 'explicit', about: ['Un negocio se ganó con la primera transacción del comercio.', 'A deal was won by the merchant’s first transaction.'],
     data: { account_id: f('uuid', 'El comercio.', 'The merchant.'), closed_by: f('string', 'Cómo se cerró: transaction.', 'How it closed: transaction.') }, example: { account_id: ID, closed_by: 'transaction' } },
 ]
@@ -97,7 +99,7 @@ const SILENT: [prefix: string, why: Pair][] = [
   // cargas desde hojas (visitas pegadas, tiendas migradas): cada registro creado emite el suyo:
   ['sheet.', WHY.migration],
   ['duplicate.', WHY.quality], ['quality.', WHY.quality], ['job.', WHY.jobs],
-  ['template.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
+  ['template.', WHY.internal], ['goal.', WHY.internal], ['comms.', WHY.internal], ['help.', WHY.internal], ['metric.', WHY.internal], ['rollout.', WHY.internal],
 ]
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',

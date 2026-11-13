@@ -195,7 +195,7 @@ async function runStep(runId: string, phase: Step, cursor: Cursor, deadline: num
 
 /** jsonb_set no crea niveles intermedios: los conteos se inicializan una vez. */
 async function initStats(tx: Tx, runId: string): Promise<void> {
-  await tx`update crm.import_runs set stats = '{"config":{},"extracted":{},"created":{},"updated":{},"skipped":{}}'::jsonb || stats where id = ${runId}`
+  await tx`update crm.import_runs set stats = '{"config":{},"extracted":{},"created":{},"updated":{},"skipped":{},"kept":{},"conflicts":{}}'::jsonb || stats where id = ${runId}`
 }
 
 // ---------------------------------------------------------------- 1. configuración

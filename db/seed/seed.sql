@@ -675,3 +675,8 @@ update crm.leads l set email = 'contacto' || (pg_temp.h('em' || l.id::text) % 90
        consent_at = l.created_at, consent_text = 'Acepto que axexo me escriba por correo sobre sus productos y novedades.'
  where l.market_code = 'MX' and l.status = 'disqualified' and pg_temp.h('cs' || l.id::text) % 2 = 0;
 alter table crm.leads enable trigger user;
+
+-- integraciones-migracion
+-- Lo que el equipo armó en Pipedrive se reconstruye otra vez con los embudos y campos que el seed acaba de crear
+-- (la migración 0040 corrió antes, cuando la base aún no los tenía).
+select crm.pipedrive_rebuild_apply();
