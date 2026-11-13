@@ -11,6 +11,9 @@ import { toE164 } from '@/lib/format'
 import { notify } from '@/domain/notify'
 import { scrub } from '@/domain/pipedrive/mapping'
 import { markUntrusted, plainText } from '@/domain/untrusted'
+import { applyClosing, closingFileFields, closingRowFields, manifestProblem, recordRestatements } from '@/domain/embudo/closing'
+import { decisionMakerContact, ensureRevisitTask, saveDecisionMaker } from '@/domain/embudo/revisit'
+import { noteUnknownReason } from '@/domain/embudo/reasons'
 
 // CAMPO-01: contrato de eventos v1 entre la Sales App y CONTIGO (propuesto).
 // Los nombres siguen los campos de VisitResponse de Sales Core. La visita se registra una sola vez, allá;
@@ -38,6 +41,9 @@ export const visitEvent = z.object({
     decision_maker_present: z.boolean().nullable().optional(),
     auto_closed: z.boolean().default(false),
     note: z.string().max(500).nullable().optional(),
+    // PIPE-05: quien decide, cuando no estaba en la visita (opcional: el contrato vigente sigue valiendo sin él).
+    decision_maker_contact: decisionMakerContact.nullable().optional(),
+    revisit_due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   }),
 })
 
@@ -215,7 +221,11 @@ async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>, rep
   }
   if (!d.sale && d.rejection_reason) {
     const ok = await tx`select 1 from crm.loss_reasons where code = ${d.rejection_reason} and kind = 'no_sale'`
-    if (!ok[0]) d.rejection_reason = null
+    if (!ok[0]) {
+      // PIPE-04: el código que CONTIGO no conoce no se pierde en silencio: queda contado y a la vista en Administración.
+      await noteUnknownReason(tx, 'sales_app', d.rejection_reason, acc.market_code)
+      d.rejection_reason = null
+    }
   }
   const users = d.salesperson_email ? await tx<{ id: string }[]>`select id from crm.users where email = ${d.salesperson_email} and is_active` : []
   // IA-07 / SEC-08: la nota y el motivo los escribió alguien en otra app: sin datos prohibidos, sin caracteres invisibles y con su marca.
@@ -230,8 +240,13 @@ async function ingestVisit(tx: Tx, sys: Ctx, ev: z.infer<typeof visitEvent>, rep
   if (visit[0] && (note || revisitReason)) await markUntrusted(tx, 'visit', visit[0].id, acc.market_code, 'sales_app', [...(note ? ['note'] : []), ...(revisitReason ? ['revisit_reason'] : [])])
   // PIPE-05: la revisita al decisor queda visible en el embudo, no escondida en una nota.
   if (d.revisit) {
+    // La fecha de la revisita la puede traer la visita; si no, dos días después (lo de siempre).
+    const due = (await tx<{ d: string }[]>`select coalesce(${d.revisit_due ?? null}::date, ${d.business_date}::date + 2)::text as d`)[0]!.d
     await tx`update crm.deals set revisit_needed = true, revisit_reason = ${revisitReason ?? d.rejection_reason ?? 'revisit'},
-              revisit_due = ${d.business_date}::date + 2 where account_id = ${acc.id} and status = 'open'`
+              revisit_due = ${due}::date where account_id = ${acc.id} and status = 'open'`
+    // Quien decide queda como contacto del comercio, y la revisita es una tarea con fecha y dueño aunque no haya negocio abierto.
+    if (d.decision_maker_contact) await saveDecisionMaker(tx, sys, acc, d.decision_maker_contact)
+    await ensureRevisitTask(tx, sys, { accountId: acc.id, market: acc.market_code, visitId: d.visit_id, due, reason: revisitReason, visitorId: users[0]?.id ?? null })
   } else if (d.decision_maker_present) {
     await tx`update crm.deals set revisit_needed = false, decision_maker_met = (decision_maker_id is not null) where account_id = ${acc.id} and status = 'open'`
   }
@@ -356,6 +371,8 @@ const metricRow = z.object({
   // REP-04: el estado del comercio lo define quien es dueño de la métrica (Data y Reportería) y viaja en el archivo.
   // Es opcional mientras el contrato no lo traiga: sin él, CONTIGO usa su regla de respaldo y lo dice en la pantalla.
   status: z.enum(['active', 'at_risk', 'inactive']).nullable().optional(),
+  // PIPE-06: primer fondeo con su método y hábito, cada uno por separado (opcionales mientras el contrato no los traiga).
+  ...closingRowFields,
 })
 export const metricsFile = z
   .object({
@@ -364,13 +381,17 @@ export const metricsFile = z
     // "full" = el archivo trae todos los comercios del corte; "delta" = solo los que cambiaron.
     mode: z.enum(['full', 'delta']).default('full'),
     rows: z.array(metricRow).min(1).max(20000),
+    // PIPE-06: manifiesto del archivo y correcciones compensatorias de hitos ya cargados.
+    ...closingFileFields,
   })
   .superRefine((f, ctx) => {
     // REL-10: llave única dentro del archivo.
     if (new Set(f.rows.map((r) => r.merchant_ref)).size !== f.rows.length) ctx.addIssue({ code: 'custom', message: 'duplicate merchant_ref', path: ['rows'] })
   })
 export type MetricsFile = z.infer<typeof metricsFile>
-export type MetricsResult = { status: 'loaded' | 'duplicate' | 'quarantined'; rows: number; matched: number; unmatched: number; dealsWon: number; batchId?: string }
+export type MetricsResult = { status: 'loaded' | 'duplicate' | 'quarantined'; rows: number; matched: number; unmatched: number; dealsWon: number; batchId?: string
+  /** PIPE-06: negocios que pasaron a esperar la primera venta por el primer fondeo, correcciones aplicadas y cifras de un corte ya cargado que cambiaron. */
+  funded?: number; corrections?: number; restatedRows?: number }
 
 export const AT_RISK_BELOW_ACTIVE_DAYS = 5
 export const MAX_ROW_DELTA = 0.2
@@ -380,6 +401,18 @@ export async function ingestMetricsFile(sys: Ctx, raw: unknown): Promise<Metrics
   if (!parsed.success) throw invalid('El archivo no cumple el formato merchant_metrics_daily v1.', 'The file does not match merchant_metrics_daily v1.')
   const file = parsed.data
   const checksum = createHash('sha256').update(JSON.stringify(file)).digest('hex')
+  // PIPE-06: si el manifiesto dice traer otro número de filas, el archivo llegó incompleto: no se aplica nada.
+  if (manifestProblem(file)) {
+    await withUser(sys.user.id, async (tx) => {
+      await tx`insert into crm.ingest_batches (source, as_of, file_name, checksum, row_count, mode, status, reject_reason, manifest)
+               values ('s5', ${file.as_of}, ${file.file_name}, ${checksum}, ${file.rows.length}, ${file.mode}, 'rejected', 'manifest_mismatch', ${tx.json(file.manifest as never)})
+               on conflict (source, checksum) do nothing`
+      await audit(tx, sys, 'integration.metrics_quarantined', 'ingest_batch', null, null, null, { as_of: file.as_of, rows: file.rows.length, reason: 'manifest_mismatch', manifest_rows: file.manifest!.row_count })
+    })
+    throw new DomainError('manifest_mismatch',
+      'El archivo no trae las filas que dice su manifiesto. No se aplicó nada.',
+      'The file does not carry the rows its manifest declares. Nothing was applied.', 409)
+  }
   const result = await loadMetrics(sys, file, checksum)
   if (result.status === 'quarantined') {
     await withUser(sys.user.id, async (tx) => {
@@ -413,6 +446,9 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
     if (!batch[0]) return { status: 'duplicate', rows: file.rows.length, matched: 0, unmatched: 0, dealsWon: 0 }
     const batchId = batch[0].id
     const rows = tx.json(file.rows as never)
+    if (file.manifest) await tx`update crm.ingest_batches set manifest = ${tx.json(file.manifest as never)} where id = ${batchId}`
+    // PIPE-06: un corte que ya estaba cargado y llega con otras cifras no se sobrescribe en silencio: el antes y el después quedan guardados.
+    const restatedRows = await recordRestatements(tx, file, batchId)
 
     const loaded = await tx<{ account_id: string }[]>`
       with r as (
@@ -490,6 +526,8 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
       })
 
     await tx`update crm.ingest_batches set matched = ${ids.length}, unmatched = ${unmatched} where id = ${batchId}`
+    // PIPE-06: hitos (primer fondeo y método, primera transacción, hábito), correcciones compensatorias y conversiones en cola.
+    const closing = await applyClosing(tx, sys, file, batchId, won)
     for (const w of won) {
       await audit(tx, sys, 'deal.won_by_transaction', 'deal', w.id, w.market_code, { status: 'open' }, { status: 'won', as_of: file.as_of })
       // E13.F2 (dealer activo): quien lo vendió se entera de que la primera venta ya llegó.
@@ -504,7 +542,7 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
       await emit(tx, 'deal.won', 'deal', w.id, w.market_code, { account_id: w.account_id, closed_by: 'transaction' })
     }
     await audit(tx, sys, 'integration.metrics_loaded', 'ingest_batch', batchId, null, null,
-      { as_of: file.as_of, rows: file.rows.length, matched: ids.length, unmatched, deals_won: won.length })
-    return { status: 'loaded', rows: file.rows.length, matched: ids.length, unmatched, dealsWon: won.length, batchId }
+      { as_of: file.as_of, rows: file.rows.length, matched: ids.length, unmatched, deals_won: won.length, funded: closing.funded, corrections: closing.corrections, restated_rows: restatedRows })
+    return { status: 'loaded', rows: file.rows.length, matched: ids.length, unmatched, dealsWon: won.length, batchId, funded: closing.funded, corrections: closing.corrections, restatedRows }
   })
 }
