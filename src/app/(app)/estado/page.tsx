@@ -9,6 +9,7 @@ import { antibotMode } from '@/server/adapters/antibot'
 import { REPORT_ADAPTERS, channelMode } from '@/server/adapters/report-channels'
 import { adapterQueue } from '@/dal/reportes'
 import { routesAdapter } from '@/server/adapters/routes'
+import { protectedDataAdapter } from '@/server/adapters/protected-data'
 import { readerTimeZone } from '@/server/timezone'
 import { Badge, Card, CardTitle, PageHeader, Stat } from '@/ui/kit'
 import { TimezoneSync } from '@/ui/admin'
@@ -36,6 +37,7 @@ export default async function StatusPage() {
   const [config, ruleChanges] = await Promise.all([getConfig(ctx), closeRuleChanges(ctx)])
   const e = env()
   const routes = routesAdapter()
+  const vault = protectedDataAdapter()
   const version = deployedVersion()
   const when = (d: string | null | undefined) => (d ? dayTime(d, locale, tz) : null)
   const envName: Record<string, [string, string]> = {
@@ -103,6 +105,13 @@ export default async function StatusPage() {
       what: t('Tiendas de cada persona para planear su ruta', 'Each person’s stores to plan their route'),
       state: routes.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
       last: t(`La lista de tiendas por persona ya se arma dentro de CONTIGO. Para encenderlo hace falta elegir la herramienta, su aprobación de tecnología y la variable ${routes.envVar}.`, `The store list per person is already built inside CONTIGO. Turning it on needs the tool chosen, its technology approval and the ${routes.envVar} variable.`),
+    },
+    {
+      key: 'protected-data',
+      name: t('Resguardo de datos protegidos', 'Protected data vault'),
+      what: t('Tax ID completo de las tiendas (CONTIGO guarda solo los últimos 4)', 'Full store Tax ID (CONTIGO keeps only the last 4)'),
+      state: vault.mode === 'off' ? { tone: 'neutral', text: t('Adaptador apagado', 'Adapter off') } : { tone: 'warn', text: t('Simulado (solo pruebas)', 'Simulated (tests only)') },
+      last: t(`Los documentos llevan el Tax ID enmascarado con sus últimos 4. Para guardar el número completo hace falta una excepción escrita al estándar de datos, la aprobación de tecnología, un resguardo cifrado y la variable ${vault.envVar}.`, `Documents carry the Tax ID masked with its last 4. Storing the full number needs a written exception to the data standard, technology approval, an encrypted vault and the ${vault.envVar} variable.`),
     },
     {
       key: 'outbox',

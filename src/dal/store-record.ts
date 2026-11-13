@@ -1,6 +1,7 @@
 import 'server-only'
 import { withUser } from '@/server/db'
 import type { Ctx } from '@/server/context'
+import { protectedDataAdapter } from '@/server/adapters/protected-data'
 
 export type Carrier = {
   provider_id: string; label_es: string; label_en: string; ref_label: string | null; is_active: boolean; sla_days: number | null
@@ -77,4 +78,32 @@ export async function agenciesAdmin(ctx: Ctx): Promise<{ agencies: AgencyRow[]; 
        where k.kind = 'provider' and k.is_active order by m.name nulls first, k.position, k.label_en` : []
     return { agencies: [...agencies], providers: [...providers] }
   })
+}
+
+/** Para el alta de una tienda: agencias y socios activos de los mercados con ficha de dealer donde la persona puede crear comercios. */
+export async function recruiterChoices(ctx: Ctx): Promise<{ id: string; market_code: string; kind: string; name: string }[]> {
+  const markets = ctx.markets.filter((m) => m.dealerRecord && ctx.can('account.create', m.code)).map((m) => m.code)
+  if (markets.length === 0) return []
+  return withUser(ctx.user.id, async (tx) => [...await tx<{ id: string; market_code: string; kind: string; name: string }[]>`
+    select id, market_code, kind, name from crm.agencies where is_active and market_code = any(${markets}::text[]) order by market_code, kind, name`])
+}
+
+/** E9.F12: quién reclutó la tienda de un negocio (el negocio lo copia de la tienda y queda fijo). */
+export async function dealRecruiter(ctx: Ctx, dealId: string): Promise<{ recruited_by: string; agency: string | null } | null> {
+  return withUser(ctx.user.id, async (tx) => {
+    const rows = await tx<{ recruited_by: string | null; agency: string | null }[]>`
+      select d.recruited_by, g.name as agency from crm.deals d left join crm.agencies g on g.id = d.recruited_agency_id where d.id = ${dealId}`
+    return rows[0]?.recruited_by ? { recruited_by: rows[0].recruited_by, agency: rows[0].agency } : null
+  })
+}
+
+/**
+ * E9.F13: el Tax ID de una tienda para un documento. Es la única puerta: todo documento que lo necesite lo pide aquí y sale ya
+ * capturado, sin volver a pedirlo. Con el resguardo de datos protegidos apagado (como está), sale enmascarado con sus últimos 4.
+ */
+export async function documentTaxId(ctx: Ctx, accountId: string): Promise<{ text: string; complete: boolean } | null> {
+  const last4 = await withUser(ctx.user.id, async (tx) => (await tx<{ tax_id_last4: string | null }[]>`select tax_id_last4 from crm.accounts where id = ${accountId}`)[0]?.tax_id_last4 ?? null)
+  if (!last4) return null
+  const full = await protectedDataAdapter().readTaxId(accountId)
+  return full ? { text: full, complete: true } : { text: `•••••${last4}`, complete: false }
 }

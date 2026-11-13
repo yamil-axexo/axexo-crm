@@ -7,6 +7,7 @@ import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { ago, day, money, num } from '@/lib/format'
 import { PRODUCT_STATUS, PRODUCT_TONE } from '@/lib/datos-labels'
 import { lab } from '@/lib/labels'
+import { ORIGIN, recruiterText } from '@/lib/store-labels'
 import { setCarrierDetailAction, setMerchantOriginAction, setRecruiterAction, setStoreProfileAction, setTaxIdAction } from './tienda-actions'
 
 // La ficha de dealer (épica E9): lo que el equipo de campo de US lee primero (ventas e identificadores), los datos de la
@@ -14,13 +15,6 @@ import { setCarrierDetailAction, setMerchantOriginAction, setRecruiterAction, se
 
 const section = 'border-t border-line pt-6'
 const h3 = 'text-[15px] leading-6 font-semibold'
-
-export const ORIGIN: Record<string, [string, string]> = {
-  new_acquisition: ['Alta nueva', 'New acquisition'],
-  emida_conversion: ['Conversión de EMIDA', 'EMIDA conversion'],
-}
-export const recruiterText = (t: Ctx['t'], kind: string | null, agency: string | null): string | null =>
-  kind === 'field_team' ? t('Equipo de campo de axexo', 'axexo field team') : kind === 'agency' ? t(`Agencia: ${agency ?? 's/d'}`, `Agency: ${agency ?? 'n/a'}`) : kind === 'partner' ? t(`Socio: ${agency ?? 's/d'}`, `Partner: ${agency ?? 'n/a'}`) : null
 
 type Metrics = { as_of: string; last_txn_at: Date | null; txn_count_30d: number; volume_minor_30d: string; currency: string; prev_txn_count_30d?: number | null } | null | undefined
 
