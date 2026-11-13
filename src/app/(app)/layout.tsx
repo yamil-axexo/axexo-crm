@@ -114,9 +114,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
           {official.length > 0 && (
-            <Link href="/colas" aria-label={t(`Colas del equipo: ${officialTotal} por atender`, `Team queues: ${officialTotal} to work`)} title={t('Colas del equipo', 'Team queues')} className="press relative inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-line px-3 text-[13px] font-semibold text-strong hover:bg-green-50" data-testid="nav-official-queues">
-              <ListChecks size={18} strokeWidth={1.75} aria-hidden />
-              <span className="hidden md:inline">{t('Colas', 'Queues')}</span>
+            <Link href="/colas" className="press relative inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-full border border-line px-1.5 text-[13px] font-semibold text-strong hover:bg-green-50 md:px-3" data-testid="nav-official-queues">
+              <ListChecks size={18} strokeWidth={1.75} aria-hidden className="hidden md:block" />
+              <span className="sr-only md:not-sr-only">{t('Colas', 'Queues')}</span>
               <span className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="nav-official-count">{officialTotal > 99 ? '99+' : officialTotal}</span>
             </Link>
           )}
