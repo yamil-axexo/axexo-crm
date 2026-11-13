@@ -166,10 +166,10 @@ export default async function AssistPage({ searchParams }: { searchParams: Promi
                 <p className="text-[14px] text-muted-2">{t(...QUESTION[answer.key])}</p>
                 <p className="num mt-1 text-[36px] font-semibold text-strong" data-testid="ask-value">{num(answer.value, locale)}</p>
                 <p className="text-[14px] text-strong">
-                  {t(...def.label)} · {marketName(answer.market)}
+                  {t(def.label[0], def.label[1])} · {marketName(answer.market)}
                   {answer.period ? ` · ${t(...PERIOD_LABEL[answer.period.key])} (${day(answer.period.from, locale)} ${t('al', 'to')} ${day(answer.period.to, locale)})` : ''}
                 </p>
-                <p className="mt-3 text-[14px] text-muted-2" data-testid="ask-def"><strong className="text-strong">{t('Cómo se calcula', 'How it is calculated')}:</strong> {t(...def.what)}</p>
+                <p className="mt-3 text-[14px] text-muted-2" data-testid="ask-def"><strong className="text-strong">{t('Cómo se calcula', 'How it is calculated')}:</strong> {t(def.what[0], def.what[1])}</p>
                 <p className="mt-2 text-[13px] text-muted" data-testid="ask-cut">
                   {t('Corte', 'As of')}: {answer.fileAsOf ? t(`archivo de ventas del ${day(answer.fileAsOf, locale)}`, `sales file of ${day(answer.fileAsOf, locale)}`) : dayTime(answer.asOf, locale, tz)}
                   {!PERIODIC.includes(answer.key) ? ` · ${t('foto de este momento', 'snapshot of right now')}` : ''}
