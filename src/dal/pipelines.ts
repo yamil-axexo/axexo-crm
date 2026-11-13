@@ -138,8 +138,8 @@ export async function getDeal(ctx: Ctx, id: string) {
     const activities = await tx<{ id: string; kind: string; subject: string; body: string | null; due_at: Date | null; done_at: Date | null; created_at: Date; author: string | null; outcome: string | null; visited_by: string | null }[]>`
       select a.id, a.kind, ${stepSubject(tx, ctx.locale)} as subject, a.body, a.due_at, a.done_at, a.created_at, u.full_name as author, coalesce(a.ops_outcome, a.outcome) as outcome, a.visited_by
         from crm.activities a left join crm.users u on u.id = a.created_by where a.deal_id = ${id} order by coalesce(a.done_at, a.created_at) desc limit 40`
-    const items = await tx<{ id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null }[]>`
-      select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments from crm.deal_items where deal_id = ${id} order by position, created_at`
+    const items = await tx<{ id: string; name: string; quantity: string; unit_price_minor: string | null; sum_minor: string | null; currency: string; comments: string | null; discount_pct: string }[]>`
+      select id, name, quantity::text, unit_price_minor::text, sum_minor::text, currency, comments, discount_pct::text from crm.deal_items where deal_id = ${id} order by position, created_at`
     const current = stages.find((s) => s.id === deal.stage_id)
     const next = current ? stages.find((s) => s.position === current.position + 1 && s.kind !== 'lost') : undefined
     const missingNext = next && next.kind !== 'won' ? missingForStage({ ...deal, items_count: items.length }, next) : []

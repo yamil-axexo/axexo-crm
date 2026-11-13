@@ -19,7 +19,7 @@ import { moveDealAction, updateDealAction } from '@/app/(app)/pipelines/actions'
 import { gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
 import { GateFields } from '@/ui/ops'
 import { getDealOps, notifyOptions } from '@/dal/ops'
-import { DealItems, DealOpsCard } from './ops'
+import { DealItems, DealOpsCard, OrderDetailsCard } from './ops'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
@@ -279,6 +279,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           )}
 
           {(ops.has_items || items.length > 0) && <DealItems ctx={ctx} dealId={deal.id} open={deal.status === 'open'} items={items} ops={ops} currency={deal.currency} />}
+          {ops.has_items && <OrderDetailsCard ctx={ctx} dealId={deal.id} open={deal.status === 'open'} ops={ops} today={today} />}
 
           {(ops.pipelineHasOps || ops.is_ops || ops.merchant_ref || ctx.can('deal.ops', deal.market_code)) && (
             <DealOpsCard ctx={ctx} dealId={deal.id} open={deal.status === 'open'} title={deal.title} ops={ops} today={today} />
@@ -341,6 +342,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             <dl>
               <KeyVal k={t('Comercio', 'Merchant')}><Link href={`/comercios/${deal.account_id}`} className="text-blue-text underline" data-testid="deal-account">{deal.account_name}</Link></KeyVal>
               <KeyVal k={t('Quién lo lleva', 'Owner')}>{deal.owner_name ?? <NoData locale={locale} />}</KeyVal>
+              {(ops.pipelineHasOps || ops.sales_rep_frozen) && ops.sales_rep && (
+                <KeyVal k={t('Quién lo vendió', 'Sales rep')}><span data-testid="deal-sales-rep" title={ops.sales_rep_frozen ? t('Quedó fijo al entregarlo a Operaciones', 'Fixed when it was handed over to Operations') : t('Sigue a quien lleva el negocio hasta la entrega a Operaciones', 'Follows the owner until the handoff to Operations')}>{ops.sales_rep}{ops.sales_rep_frozen ? t(' (fijo)', ' (fixed)') : ''}</span></KeyVal>
+              )}
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
               <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>

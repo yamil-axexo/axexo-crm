@@ -87,15 +87,20 @@ export async function opsWaiting(ctx: Ctx): Promise<number> {
   })
 }
 
+export type OrderDetails = { carrier: string; customer_number: string | null; due_on: string | null; po_number: string | null; ship_to: string | null; terms: string | null; description: string | null }
 export type OpsCheck = { catalog_id: string; kind: 'provider' | 'document'; label_es: string; label_en: string; status: string | null; on_date: string | null; link: string | null }
 
 /** Lo que Operaciones mantiene de un negocio: proveedores y documentos del catálogo del mercado con su estado, y el próximo paso de Operaciones. */
 export async function getDealOps(ctx: Ctx, dealId: string) {
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string; account_id: string; ops_owner_id: string | null; ops_owner: string | null; ops_next_step: string | null; ops_next_step_due: string | null; training_status: string; training_on: string | null;
-      merchant_ref: string | null; is_ops: boolean; has_items: boolean; multi_open: boolean; checklist: boolean; ops_entered_at: Date | null; return_to: string | null }[]>`
+      merchant_ref: string | null; is_ops: boolean; has_items: boolean; multi_open: boolean; checklist: boolean; ops_entered_at: Date | null; return_to: string | null;
+      sales_rep: string | null; sales_rep_frozen: boolean; ship_to_default: string | null }[]>`
       select d.market_code, d.account_id, d.ops_owner_id, o.full_name as ops_owner, d.ops_next_step, d.ops_next_step_due::text, d.training_status, d.training_on::text,
              a.merchant_ref, s.is_ops, p.has_items, p.multi_open, p.ops_checklist as checklist, d.ops_entered_at,
+             -- E10.F11: quién lo vendió. Sigue a quien lleva el negocio hasta la entrega a Operaciones; desde ahí queda fijo.
+             (select r.full_name from crm.users r where r.id = coalesce(d.sales_rep_id, d.owner_id)) as sales_rep, d.sales_rep_frozen_at is not null as sales_rep_frozen,
+             nullif(concat_ws(', ', a.address_line, a.locality, a.postal_code), '') as ship_to_default,
              (select b.id from crm.stages b where b.pipeline_id = d.pipeline_id and b.kind = 'open' and not b.is_ops and b.position < s.position order by b.position desc limit 1) as return_to
         from crm.deals d join crm.stages s on s.id = d.stage_id join crm.pipelines p on p.id = d.pipeline_id join crm.accounts a on a.id = d.account_id
         left join crm.users o on o.id = d.ops_owner_id where d.id = ${dealId}`
@@ -107,13 +112,19 @@ export async function getDealOps(ctx: Ctx, dealId: string) {
        where c.kind in ('provider', 'document') and (c.is_active or k.id is not null) and (c.market_code is null or c.market_code = ${d.market_code})
          and (${d.checklist} or k.id is not null)
        order by c.kind desc, c.position, c.label_es`
+    // El motivo del mercado manda sobre el general con el mismo código; uno del mercado inactivo esconde ese motivo ahí (E10.F13).
     const reasons = await tx<{ code: string; label_es: string; label_en: string }[]>`
-      select distinct on (code) code, label_es, label_en from crm.ops_catalog
-       where kind = 'return_reason' and is_active and (market_code is null or market_code = ${d.market_code}) order by code, market_code nulls last`
+      select r.code, r.label_es, r.label_en from (
+        select distinct on (code) code, label_es, label_en, is_active, position from crm.ops_catalog
+         where kind = 'return_reason' and (market_code is null or market_code = ${d.market_code}) order by code, market_code nulls last) r
+       where r.is_active order by r.position, r.label_es`
     const products = d.has_items ? await tx<{ id: string; name: string; unit_price_minor: string | null }[]>`
       select id, name, unit_price_minor::text from crm.products where is_active and market_code = ${d.market_code} order by name` : []
     const hasOpsStage = await tx`select 1 from crm.stages s join crm.deals x on x.pipeline_id = s.pipeline_id where x.id = ${dealId} and s.is_ops limit 1`
-    return { ...d, checks: [...checks], reasons: [...reasons], products: [...products], pipelineHasOps: hasOpsStage.length > 0 }
+    // E11.F1: datos de envío del pedido (solo en embudos con líneas de producto).
+    const orders = d.has_items ? await tx<OrderDetails[]>`
+      select carrier, customer_number, due_on::text, po_number, ship_to, terms, description from crm.deal_orders where deal_id = ${dealId}` : []
+    return { ...d, checks: [...checks], reasons: [...reasons], products: [...products], pipelineHasOps: hasOpsStage.length > 0, order: orders[0] ?? null }
   })
 }
 
@@ -168,11 +179,18 @@ export async function getOpsConfig(ctx: Ctx) {
     const catalog = await tx<CatalogRow[]>`select id, market_code, kind, label_es, label_en, is_active from crm.ops_catalog order by kind, market_code nulls first, position, label_es`
     const products = await tx<{ id: string; market_code: string; name: string; unit_price_minor: string | null; is_active: boolean }[]>`
       select id, market_code, name, unit_price_minor::text, is_active from crm.products where market_code is not null order by market_code, name`
-    const pipelines = await tx<{ id: string; market_code: string; name: string; multi_open: boolean; has_items: boolean }[]>`
-      select id, market_code, name, multi_open, has_items from crm.pipelines where is_active order by market_code, position`
+    const pipelines = await tx<{ id: string; market_code: string; name: string; multi_open: boolean; has_items: boolean; ops_lead_id: string | null }[]>`
+      select id, market_code, name, multi_open, has_items, ops_lead_id from crm.pipelines where is_active order by market_code, position`
+    // Personas de Operaciones por mercado: de ahí sale quién lidera Operaciones de un embudo (E10.F10).
+    const opsPeople = await tx<{ id: string; full_name: string; market_code: string }[]>`
+      select distinct u.id, u.full_name, m.market_code from crm.users u join crm.memberships m on m.user_id = u.id
+       where u.is_active and not u.is_system and m.role = 'ops' and m.market_code is not null and m.valid_from <= now() and (m.valid_to is null or m.valid_to > now())
+       order by u.full_name`
+    const visitReasons = await tx<{ id: string; market_code: string | null; label_es: string; label_en: string; is_campaign: boolean; is_active: boolean }[]>`
+      select id, market_code, label_es, label_en, is_campaign, is_active from crm.visit_reasons order by market_code nulls first, position, label_es`
     const stages = await tx<{ id: string; pipeline_id: string; name_es: string; name_en: string; kind: string; is_ops: boolean }[]>`
       select id, pipeline_id, name_es, name_en, kind, is_ops from crm.stages where kind in ('open', 'awaiting_txn') order by pipeline_id, position`
-    return { catalog: [...catalog], products: [...products], pipelines: [...pipelines], stages: [...stages] }
+    return { catalog: [...catalog], products: [...products], pipelines: [...pipelines], stages: [...stages], opsPeople: [...opsPeople], visitReasons: [...visitReasons] }
   })
 }
 
