@@ -342,11 +342,17 @@ test.describe('integraciones', () => {
 
   test('la API exige llave y permiso, y procesar dos veces el mismo evento no duplica nada', async ({ page, request }) => {
     await loginAs(page, 'nora.salas')
-    await page.goto('/admin?tab=integraciones')
-    await page.getByTestId('api-name').fill(`Sales Core staging ${uniq()}`)
-    await page.getByTestId('api-create').click()
+    // Las llaves viven en un solo lugar: Eventos, API y datos. La pestaña de la Sales App ya no tiene su propia tarjeta de llaves.
+    const keyName = `Sales Core staging ${uniq()}`
+    await page.goto('/admin/integraciones?tab=api')
+    await page.getByTestId('key-name').fill(keyName)
+    await page.getByTestId('key-scope-events:write').check()
+    await page.getByTestId('key-create').click()
     const key = (await page.getByTestId('reveal-once').locator('code').innerText()).trim()
     expect(key).toMatch(/^ctg_/)
+    await page.goto('/admin?tab=integraciones')
+    await expect(page.getByTestId('api-clients')).toHaveCount(0)
+    await expect(page.getByTestId('integrations-more')).toContainText('en un solo lugar')
     const alias = (await page.getByTestId('sim-visit-ref').locator('option').nth(1).getAttribute('value'))!
 
     const event = {
@@ -365,11 +371,12 @@ test.describe('integraciones', () => {
     const bad = await request.post('/api/v1/events/sales-app', { data: { ...event, version: 2 }, headers: { authorization: `Bearer ${key}` } })
     expect(bad.status()).toBe(422)
 
-    await page.reload()
+    await page.goto('/admin/integraciones?tab=api')
     // Revocar pide confirmación: la llave deja de servir en ese instante y no se reactiva.
-    await page.getByTestId('api-revoke').first().click()
-    await page.locator('dialog[open]').getByTestId('api-revoke-confirm').click()
-    await expect(page.getByTestId('api-row').first()).toContainText('revocada')
+    const keyRow = page.getByTestId('key-row').filter({ hasText: keyName })
+    await keyRow.getByTestId('key-revoke').click()
+    await page.locator('dialog[open]').getByTestId('key-revoke-confirm').click()
+    await expect(keyRow).toContainText('revocada')
     expect((await request.post('/api/v1/events/sales-app', { data: event, headers: { authorization: `Bearer ${key}` } })).status()).toBe(401)
   })
 })
