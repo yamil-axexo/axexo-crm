@@ -103,9 +103,28 @@ export function ReportFilters({ t, locale, base, params, period, periods = PERIO
   )
 }
 
-/** Enlace de descarga. Es un <a> normal: la descarga la responde una ruta del servidor, que valida el permiso y deja el evento. */
-export function ExportLink({ href, children, testId }: { href: string; children: ReactNode; testId?: string }) {
-  return <a href={href} download className={buttonClass('ghost')} data-testid={testId ?? 'export-csv'}>{children}</a>
+/**
+ * Exportar con motivo (AUT-07). Es un <details> con un formulario GET normal: la descarga la responde una ruta del servidor,
+ * que valida el permiso, exige el motivo, aplica el tope del rol y deja el evento. Funciona sin JavaScript.
+ */
+export function ExportLink({ href, children, testId, t }: { href: string; children: ReactNode; testId?: string; t: T }) {
+  const [path, query = ''] = href.split('?')
+  const params = [...new URLSearchParams(query)]
+  const id = testId ?? 'export-csv'
+  return (
+    <details className="relative" data-testid={`${id}-box`}>
+      <summary className={cx(buttonClass('ghost'), 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')} data-testid={id} data-href={href}>{children}</summary>
+      <form method="get" action={path} className="card absolute right-0 z-30 mt-2 w-[min(22rem,calc(100vw-2.5rem))] space-y-3 p-4 text-left shadow-lg max-md:left-0 max-md:right-auto" data-testid={`${id}-form`}>
+        {params.map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+        <label className="block text-[13px] font-semibold text-muted-2">
+          {t('¿Para qué necesitas el archivo?', 'What do you need the file for?')}
+          <input name="motivo" className="input mt-1.5" required minLength={8} maxLength={300} autoComplete="off" data-testid={`${id}-reason`} />
+        </label>
+        <p className="text-[12.5px] text-muted">{t('El motivo queda en la bitácora con tu nombre, los filtros y el número de filas. El archivo tiene un tope de filas según tu rol.', 'The reason is logged with your name, the filters and the number of rows. The file has a row limit that depends on your role.')}</p>
+        <button type="submit" className={buttonClass('primary', 'sm')} data-testid={`${id}-go`}>{t('Descargar archivo', 'Download file')}</button>
+      </form>
+    </details>
+  )
 }
 
 /** De dónde sale una tasa, en palabras. El valor del ambiente de prueba se dice como lo que es: un ejemplo. */

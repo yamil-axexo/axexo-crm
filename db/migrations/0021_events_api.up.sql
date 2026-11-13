@@ -345,8 +345,8 @@ create policy export_log_ins on crm.export_log for insert to contigo_app
 
 -- ---------------------------------------------------------------- 6) IA-07: texto que llega de fuera
 -- Todo campo de texto libre es no confiable: lo puede haber escrito alguien de fuera. Ninguna función lo interpreta.
-alter table crm.field_definitions add column untrusted boolean not null default false;
-update crm.field_definitions set untrusted = true where data_type = 'text';
+-- La marca se calcula sola: un campo de texto libre nace y queda marcado, también los que se creen después.
+alter table crm.field_definitions add column untrusted boolean generated always as (data_type = 'text') stored;
 
 -- Marca por registro: de dónde llegó el texto y en qué campos. Se muestra como texto plano, con su origen a la vista.
 create table crm.untrusted_marks (
