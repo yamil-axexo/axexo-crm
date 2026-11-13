@@ -436,10 +436,10 @@ from (values
   ('dat-us-agent',  'US', 'dat-us-iso',   'distributor', 'iso_agent', 'Rio Grande Agents',             'dealer', 'active',     'sam.ortiz',  '+12105550141', 'Laredo',      'TX', 150),
   ('dat-us-pdv-1',  'US', 'dat-us-agent', 'store',       'branch',    'Frontera Wireless Laredo',      'dealer', 'active',     'sam.ortiz',  '+19565550142', 'Laredo',      'TX', 90),
   ('dat-us-pdv-2',  'US', 'dat-us-agent', 'store',       'branch',    'Frontera Wireless Eagle Pass',  'dealer', 'onboarding', 'sam.ortiz',  '+18305550143', 'Eagle Pass',  'TX', 30),
-  ('dat-mx-chain',  'MX', null,           'chain',       'chain',     'Abarrotes La Colmena',          'b2b',    'active',     'diana.cruz', '+524775550150', 'León',       'Guanajuato', 220),
-  ('dat-mx-region', 'MX', 'dat-mx-chain', 'chain',       'region',    'La Colmena Región Bajío',       'b2b',    'active',     'diana.cruz', '+524775550151', 'León',       'Guanajuato', 180),
-  ('dat-mx-suc-1',  'MX', 'dat-mx-region','store',       'branch',    'La Colmena Sucursal Centro',    'b2b',    'active',     'diana.cruz', '+524775550152', 'León',       'Guanajuato', 120),
-  ('dat-mx-suc-2',  'MX', 'dat-mx-region','store',       'branch',    'La Colmena Sucursal Irapuato',  'b2b',    'onboarding', 'diana.cruz', '+524625550153', 'Irapuato',   'Guanajuato', 25)
+  ('dat-mx-chain',  'MX', null,           'chain',       'chain',     'Súper La Colmena',          'b2b',    'active',     'diana.cruz', '+524775550150', 'León',       'Guanajuato', 220),
+  ('dat-mx-region', 'MX', 'dat-mx-chain', 'chain',       'region',    'Súper La Colmena Región Bajío',       'b2b',    'active',     'diana.cruz', '+524775550151', 'León',       'Guanajuato', 180),
+  ('dat-mx-suc-1',  'MX', 'dat-mx-region','store',       'branch',    'Súper La Colmena Sucursal Centro',    'b2b',    'active',     'diana.cruz', '+524775550152', 'León',       'Guanajuato', 120),
+  ('dat-mx-suc-2',  'MX', 'dat-mx-region','store',       'branch',    'Súper La Colmena Sucursal Irapuato',  'b2b',    'onboarding', 'diana.cruz', '+524625550153', 'Irapuato',   'Guanajuato', 25)
 ) v(k, m, par, kind, ty, nm, seg, lc, o, ph, loc, reg, age);
 insert into crm.account_links (child_id, parent_id, valid_from)
 select a.id, a.parent_id, a.created_at from crm.accounts a where a.id in (pg_temp.uid('dat-us-agent'), pg_temp.uid('dat-us-pdv-1'), pg_temp.uid('dat-us-pdv-2'), pg_temp.uid('dat-mx-region'), pg_temp.uid('dat-mx-suc-1'), pg_temp.uid('dat-mx-suc-2'));

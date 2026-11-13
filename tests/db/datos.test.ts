@@ -207,7 +207,7 @@ describe('DAT-01 · jerarquía de N niveles con agregados', () => {
     await admin`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, amount_minor) values ('US', ${p.id}, ${p.stage}, ${pdv.id}, ${sam.user.id}, 'Alta de prueba', 'USD', 150000)`
     await admin`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, status, won_at) values ('US', ${p.id}, ${p.won}, ${pdv.id}, ${sam.user.id}, 'Alta ganada', 'USD', 'won', now())`
     expect(await nodeTotals(sam, iso.id)).toMatchObject({ open_deals: 1, open_amount: '150000', won_deals: 1 })
-    const mx = await one(admin<{ ancestor_ids: string[] }[]>`select ancestor_ids from crm.accounts where name = 'La Colmena Sucursal Centro'`)
+    const mx = await one(admin<{ ancestor_ids: string[] }[]>`select ancestor_ids from crm.accounts where name = 'Súper La Colmena Sucursal Centro'`)
     expect(mx.ancestor_ids).toHaveLength(2)
   })
 
