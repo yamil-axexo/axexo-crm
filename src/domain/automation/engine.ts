@@ -305,6 +305,9 @@ async function runScheduled(tx: Tx, sys: Ctx, a: Automation): Promise<number> {
 
 /** Corre todas las automatizaciones por horario. Devuelve cuántos avisos abrió y cerró (lo que antes devolvía `evaluateRules`). */
 export async function runSchedule(tx: Tx, sys: Ctx | null): Promise<{ opened: number; closed: number; acted: number }> {
+  // Una revisión a la vez: la tarea programada y la revisión al abrir un tablero toman el mismo candado antes de tocar
+  // los avisos, para que dos transacciones no se esperen una a la otra.
+  await tx`select 1 from crm.settings where key = 'rules_last_run' for update`
   await ensureDefaults(tx)
   const before = await tx<{ n: number }[]>`select count(*)::int as n from crm.exceptions where resolved_at is null`
   const list = await loadAutomations(tx, 'schedule')
