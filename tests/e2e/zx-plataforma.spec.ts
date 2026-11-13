@@ -97,7 +97,7 @@ test.describe('Plataforma en Administración', () => {
     await expect(card.getByTestId('status-p95-search')).toBeVisible()
     await expect(card.getByTestId('status-p95-phone')).toBeVisible()
     await expect(card.getByTestId('status-pending-value').filter({ hasText: 'Lectura sin señal' })).toContainText('pendiente: Seguridad')
-    await expect(card.getByTestId('status-pending-value').filter({ hasText: 'RPO' })).toContainText('Dan Mulligan')
+    await expect(card.getByTestId('status-pending-value').filter({ hasText: 'Pérdida de datos aceptable' })).toContainText('Dan Mulligan')
     await expect(card.getByTestId('status-realtime')).toContainText('REALTIME_ADAPTER')
     await expect(card.getByTestId('status-egress')).toBeVisible()
     await expect(page.getByTestId('status-real-data')).toHaveCount(0)
@@ -167,7 +167,7 @@ test.describe('Datos reservados del negocio (SEG-02) y acciones rápidas (UX-02)
     const sql = testDb()
     const marco = await uid('marco.pena')
     const title = `Aviso rápido ${tag()}`
-    await sql`insert into crm.notices (market_code, user_id, kind, title, body, needs_action) values ('MX', ${marco}, 'automation', ${title}, 'Revisa el comercio', true)`
+    await sql`insert into crm.notices (market_code, user_id, from_user_id, kind, title, body, needs_action) values ('MX', ${marco}, ${await uid('ana.robles')}, 'automation', ${title}, 'Revisa el comercio', true)`
     await loginAs(page, 'marco.pena')
     await expect(page.getByTestId('live-refresh')).toBeAttached()
     const row = page.getByTestId('hoy-notice').filter({ hasText: title })

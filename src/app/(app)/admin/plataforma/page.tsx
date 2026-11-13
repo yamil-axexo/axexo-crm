@@ -79,7 +79,7 @@ export default async function PlatformPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[14px] font-medium text-strong" data-testid="value-current">{valueText(v)}</span>
-                  {v.proposed ? <Badge tone="warn">{t(`Valor propuesto, pendiente: ${v.owner_label}`, `Proposed value, pending: ${v.owner_label}`)}</Badge> : <Badge tone="good">{t('Confirmado', 'Confirmed')}</Badge>}
+                  {v.proposed ? <span className="inline-flex items-center rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text">{t(`Valor propuesto, pendiente: ${v.owner_label}`, `Proposed value, pending: ${v.owner_label}`)}</span> : <Badge tone="good">{t('Confirmado', 'Confirmed')}</Badge>}
                   {manage && v.kind !== 'text' && (
                     <Dialog trigger={t('Cambiar', 'Change')} title={t(v.label_es, v.label_en)} variant="quiet" size="sm" testId={`value-edit-${v.key}`}>
                       <ActionForm action={A.setValueAction} onOk="close">
@@ -108,7 +108,7 @@ export default async function PlatformPage() {
               <li key={n.code} className={row} data-testid={`privacy-${n.code}`}>
                 <div className="min-w-0 flex-1 basis-[200px]"><p className="text-[15px] font-semibold text-strong">{n.name}</p></div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {n.version ? <Badge tone="good">{t(`Versión ${n.version}`, `Version ${n.version}`)}</Badge> : <Badge tone="warn">{t('Sin aviso vigente, pendiente: Legal', 'No notice in force, pending: Legal')}</Badge>}
+                  {n.version ? <Badge tone="good">{t(`Versión ${n.version}`, `Version ${n.version}`)}</Badge> : <span className="inline-flex items-center rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text">{t('Sin aviso vigente, pendiente: Legal', 'No notice in force, pending: Legal')}</span>}
                   {ctx.can('security.manage') && (
                     <Dialog trigger={t('Cambiar', 'Change')} title={t(`Aviso de privacidad, ${n.name}`, `Privacy notice, ${n.name}`)} variant="quiet" size="sm" testId={`privacy-edit-${n.code}`}>
                       <ActionForm action={A.setPrivacyNoticeAction} onOk="close">

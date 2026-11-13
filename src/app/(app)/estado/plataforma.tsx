@@ -60,7 +60,7 @@ export async function PlatformCard({ ctx, realtime: rt }: { ctx: Ctx; realtime: 
         {pending.map((p) => (
           <li key={p.key} className={row} data-testid="status-pending-value">
             <span className="min-w-0 flex-1 basis-60 text-[14px] font-medium text-strong">{t(p.label_es, p.label_en)}</span>
-            <Badge tone="warn">{t(`Valor propuesto, pendiente: ${p.owner_label}`, `Proposed value, pending: ${p.owner_label}`)}</Badge>
+            <span className="inline-flex items-center rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text">{t(`Valor propuesto, pendiente: ${p.owner_label}`, `Proposed value, pending: ${p.owner_label}`)}</span>
           </li>
         ))}
         <li className={row} data-testid="status-realtime">
