@@ -15,6 +15,10 @@ import { addTicketRef, setTicketStatus } from '@/domain/embudo/tickets'
 import { holdForRetry, retryHeldIntake } from '@/domain/embudo/intake-retry'
 import { embudoJobs } from '@/server/jobs/embudo'
 import { qrMatrix, qrSvg } from '@/lib/qr'
+import { accountChoices, accountEmbudo, dealEmbudo, embudoAdmin, embudoReport, fullThread, leadEmbudo, leadLabelCatalog } from '@/dal/embudo'
+import { listLeads } from '@/dal/leads'
+import { getBoard } from '@/dal/pipelines'
+import { readCatalogs } from '@/dal/api-v1'
 
 const admin = owner()
 afterAll(() => admin.end())
@@ -466,3 +470,68 @@ describe('LEAD-02, LEAD-01, LEAD-05, E3.F3, E3.F8 y ACT-01', () => {
     expect((await one(admin`select status, error from crm.intake_retries where idempotency_key = ${bad}`))).toMatchObject({ status: 'failed', error: 'not_found' })
   })
 })
+
+describe('lecturas de las pantallas del paquete', () => {
+  it('el reporte, la administración, el hilo completo y los paneles leen sin error y respetan el alcance de quien mira', async () => {
+    const nora = await ctxFor('nora.salas')
+    const marco = await ctxFor('marco.pena')
+    const sys = await systemContext()
+    const report = await embudoReport(nora, { days: 365 })
+    expect(Array.isArray(report.lost) && Array.isArray(report.noSale) && Array.isArray(report.attribution) && Array.isArray(report.referrals)).toBe(true)
+    expect(report.revisits.pending).toBeGreaterThan(0)
+    expect(report.visitsPerWin.every((v) => v.wins > 0)).toBe(true)
+    const onlyMx = await embudoReport(nora, { days: 365, market: 'MX' })
+    expect(onlyMx.market).toBe('MX')
+    expect(onlyMx.lost.every((l) => l.market_code === 'MX')).toBe(true)
+    // Un mercado que la persona no tiene se ignora, y quien vende solo ve lo suyo (RLS).
+    expect((await embudoReport(marco, { days: 365, market: 'US' })).market).toBeNull()
+    expect((await embudoReport(marco, { days: 365 })).lost.every((l) => l.market_code === 'MX')).toBe(true)
+
+    const cfg = await embudoAdmin(nora)
+    expect(cfg.stages.length).toBeGreaterThan(10)
+    expect(cfg.version?.version).toBeGreaterThanOrEqual(1)
+    expect(cfg.labels.map((l) => l.code)).toContain('prioridad')
+    expect((await leadLabelCatalog(marco)).length).toBeGreaterThanOrEqual(4)
+
+    // Una cadena con sucursales: el hilo completo trae lo de sus tiendas solo cuando se pide.
+    const parent = await one(admin<{ id: string }[]>`
+      select p.id from crm.accounts p where p.archived_at is null
+         and exists (select 1 from crm.accounts c join crm.visits v on v.account_id = c.id where p.id = any(c.ancestor_ids) and c.archived_at is null) limit 1`)
+    const wide = (await fullThread(nora, parent.id, { withChildren: true }))!
+    const narrow = (await fullThread(nora, parent.id, { withChildren: false }))!
+    expect(wide.items.some((i) => i.account_id !== parent.id)).toBe(true)
+    expect(narrow.items.every((i) => i.account_id === parent.id)).toBe(true)
+    if (wide.next) expect((await fullThread(nora, parent.id, { withChildren: true, before: wide.next }))!.items.every((i) => i.at.getTime() < new Date(wide.next!).getTime())).toBe(true)
+    expect(await fullThread(nora, '00000000-0000-4000-8000-000000000000', { withChildren: true })).toBeNull()
+
+    const deal = await one(admin<{ id: string; account_id: string }[]>`
+      select d.id, d.account_id from crm.deals d join crm.account_milestones m on m.account_id = d.account_id and m.funding_method in ('spei', 'cash')
+       where d.status = 'won' and d.closed_by = 'transaction' and d.market_code = 'MX' limit 1`)
+    const de = (await dealEmbudo(nora, deal.id))!
+    expect(de.milestones?.first_txn_at).toBeTruthy()
+    expect(de.milestones?.funding_method).toMatch(/^(spei|cash)$/)
+    const ae = await accountEmbudo(nora, deal.account_id)
+    expect(ae.milestones?.first_funding_at).toBeTruthy()
+    expect(ae.referral).toBeNull()
+    const lead = await one(admin<{ id: string }[]>`select lead_id as id from crm.source_touches where lead_id is not null limit 1`)
+    const le = (await leadEmbudo(nora, lead.id))!
+    expect(le.touches.length).toBeGreaterThanOrEqual(1)
+    expect(le.labelCatalog.length).toBeGreaterThanOrEqual(4)
+    expect((await accountChoices(marco, 'MX', 'a')).length).toBe(0)
+    expect((await accountChoices(nora, 'MX', 'Tienda')).length).toBeGreaterThan(0)
+
+    // Filtros nuevos de la bandeja y del tablero, y el catálogo de motivos publicado con su versión.
+    const tagged = await listLeads(nora, { status: undefined, etiqueta: 'prioridad' })
+    expect(tagged.items.length).toBeGreaterThanOrEqual(1)
+    expect((await listLeads(nora, { status: undefined, clic: 'tiktok' })).items.length).toBeGreaterThanOrEqual(1)
+    expect((await listLeads(nora, { status: undefined, utm: 'no-existe-esta-campaña' })).items.length).toBe(0)
+    const pipe = await one(admin<{ id: string }[]>`select d.pipeline_id as id from crm.deals d where d.status = 'open' and d.revisit_needed limit 1`)
+    const board = (await getBoard(nora, pipe.id, { revisit: true }))!
+    expect(board.deals.length).toBeGreaterThan(0)
+    expect(board.deals.every((d) => d.revisit_needed)).toBe(true)
+    const cat = await readCatalogs({ id: 'k', scopes: ['catalogs:read'], market: 'MX', mode: 'live', ratePerMinute: 60, createdBy: sys.user.id } as never) as { reason_catalog: { version: number }; loss_reasons: { code: string; is_active: boolean }[] }
+    expect(cat.reason_catalog.version).toBeGreaterThanOrEqual(1)
+    expect(cat.loss_reasons.every((r) => typeof r.is_active === 'boolean')).toBe(true)
+  })
+})
+

@@ -688,3 +688,9 @@ insert into crm.milestone_events (account_id, market_code, kind, action, occurre
 select account_id, market_code, 'first_funding', 'set', first_funding_at, funding_method, 's5' from crm.account_milestones where first_funding_at is not null
 union all
 select account_id, market_code, 'first_txn', 'set', first_txn_at, null, 's5' from crm.account_milestones where first_txn_at is not null;
+-- El primer toque de los leads sintéticos que traen campaña o clic de anuncio (LEAD-02), para que la atribución se pueda filtrar y reportar.
+insert into crm.source_touches (market_code, lead_id, touch, touched_at, source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, gclid, fbclid)
+select l.market_code, l.id, 'first', l.created_at, l.source, l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid
+  from crm.leads l where coalesce(l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content, l.utm_term, l.gclid, l.fbclid) is not null
+   and not exists (select 1 from crm.source_touches t where t.lead_id = l.id);
+
