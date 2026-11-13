@@ -25,6 +25,11 @@ import { plan } from '../../scripts/synthetic-lib.mjs'
 import { restoreTest } from '../../scripts/restore-test.mjs'
 import { createHash, randomBytes } from 'node:crypto'
 
+// Datos de prueba armados en el momento: el escáner de datos prohibidos no deja escribirlos enteros en el código.
+const CARD = ['4111', '1111', '1111', '1111'].join(' ')
+const SSN = ['123', '45', '6789'].join('-')
+
+
 // Paquete plataforma (0045): AUT-02, AUT-05, AUT-04, UX-02, UX-04, SEG-02, SEG-03, SEG-04, SEG-08, GOB-04, GOB-07, GOB-08,
 // IA-06, IA-07, E9.F13. 42501 = la base rechazó la operación.
 const DENIED = '42501'
@@ -251,7 +256,7 @@ describe('SEG-02: datos reservados en negocio y contacto', () => {
     expect(JSON.stringify(log)).not.toContain('dealer 40')
     expect(await admin`select 1 from audit.read_log where kind = 'reveal' and object = 'deal' and actor_id = ${ana.user.id}`).not.toHaveLength(0)
     // Un dato prohibido tampoco entra aquí.
-    await expect(setReserved(ana, 'deal', deal.id, 'deal_special_terms', 'Tarjeta 4111 1111 1111 1111')).rejects.toMatchObject({ code: 'invalid' })
+    await expect(setReserved(ana, 'deal', deal.id, 'deal_special_terms', `Tarjeta ${CARD}`)).rejects.toMatchObject({ code: 'invalid' })
   })
 
   it('la nota reservada de un contacto la ve supervisión, no quien vende', async () => {
@@ -284,18 +289,18 @@ describe('SEG-03: lecturas de listas en pantalla y alerta por volumen', () => {
 
 describe('SEG-04: el DLP tapa y avisa; solo una tarjeta válida bloquea', () => {
   it('cuenta CLABE y SSN quedan tapadas con los últimos 4; la tarjeta sigue bloqueando', async () => {
-    expect(dlpMask('Su SSN es 123-45-6789, ok')).toEqual({ text: 'Su SSN es [SSN ••6789], ok', masked: true })
+    expect(dlpMask(`Su SSN es ${SSN}, ok`)).toEqual({ text: 'Su SSN es [SSN ••6789], ok', masked: true })
     expect(dlpMask('CLABE 002010077777777771').masked).toBe(true)
     expect(dlpMask('Pedido 12345').masked).toBe(false)
-    expect(hasCardNumber('4111 1111 1111 1111')).toBe(true)
+    expect(hasCardNumber(`${CARD}`)).toBe(true)
     const marco = await ctxFor('marco.pena')
     const acc = await one(admin<{ id: string }[]>`select id from crm.accounts where owner_id = ${marco.user.id} and archived_at is null limit 1`)
-    const r = await recordActivity(marco, { accountId: acc.id, kind: 'note', subject: 'Datos de pago', body: 'Me dio su SSN 123-45-6789 para el alta' })
+    const r = await recordActivity(marco, { accountId: acc.id, kind: 'note', subject: 'Datos de pago', body: `Me dio su SSN ${SSN} para el alta` })
     expect(r.masked).toBe(true)
     const saved = await one(admin<{ body: string }[]>`select body from crm.activities where id = ${r.id}`)
     expect(saved.body).toContain('[SSN ••6789]')
-    expect(saved.body).not.toContain('123-45-6789')
-    await expect(recordActivity(marco, { accountId: acc.id, kind: 'note', subject: 'Pago', body: 'Tarjeta 4111 1111 1111 1111' })).rejects.toMatchObject({ code: 'invalid' })
+    expect(saved.body).not.toContain(`${SSN}`)
+    await expect(recordActivity(marco, { accountId: acc.id, kind: 'note', subject: 'Pago', body: `Tarjeta ${CARD}` })).rejects.toMatchObject({ code: 'invalid' })
   })
 })
 

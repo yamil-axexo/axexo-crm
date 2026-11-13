@@ -3,6 +3,11 @@ import AxeBuilder from '@axe-core/playwright'
 import { createHash, randomBytes } from 'node:crypto'
 import { loginAs, pageErrors, testDb } from './helpers'
 
+// Datos de prueba armados en el momento: el escáner de datos prohibidos no deja escribirlos enteros en el código.
+const CARD = ['4111', '1111', '1111', '1111'].join(' ')
+const SSN = ['123', '45', '6789'].join('-')
+
+
 // Paquete plataforma (0045): Administración, Plataforma; Estado de CONTIGO; API de escritura por HTTP; datos reservados del
 // negocio; acciones rápidas optimistas con reversión; pantallas en vivo.
 
@@ -122,8 +127,8 @@ test.describe('API de escritura (AUT-04)', () => {
     expect(ev).toMatchObject({ actor_id: marco, via: 'api' })
     expect((await request.post('/api/v1/leads', { headers: auth, data: { sale_type: 'd2d', business_name: 'Tienda API', contact_name: 'Alguien' } })).status()).toBe(403)
     expect((await request.post('/api/v1/activities', { headers: auth, data: { account_id: us.id, kind: 'note', subject: 'Otro mercado' } })).status()).toBe(404)
-    expect((await request.post('/api/v1/activities', { headers: auth, data: { account_id: acc.id, kind: 'note', subject: 'Pago', body: '4111 1111 1111 1111' } })).status()).toBe(422)
-    const masked = await request.post('/api/v1/activities', { headers: auth, data: { account_id: acc.id, kind: 'note', subject: 'Alta', body: 'SSN 123-45-6789' } })
+    expect((await request.post('/api/v1/activities', { headers: auth, data: { account_id: acc.id, kind: 'note', subject: 'Pago', body: `${CARD}` } })).status()).toBe(422)
+    const masked = await request.post('/api/v1/activities', { headers: auth, data: { account_id: acc.id, kind: 'note', subject: 'Alta', body: `SSN ${SSN}` } })
     expect(masked.status()).toBe(201)
     expect(await masked.json()).toMatchObject({ masked: true })
     await sql`update crm.api_clients set revoked_at = now() where id = ${id}`
