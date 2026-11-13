@@ -256,6 +256,57 @@
                   "type": "null"
                 }
               ]
+            },
+            "trust_score": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "trust_flags": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{2,40}$"
+              }
+            },
+            "manager_change": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "new_name": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 120
+                    },
+                    "note": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "new_name"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -473,6 +524,61 @@
                 "boolean",
                 "null"
               ]
+            },
+            "person_type": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "individual",
+                    "company"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "funding": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "prepaid",
+                    "ach_credit"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documents": {
+              "maxItems": 30,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "requirement": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_]{2,40}$"
+                  },
+                  "link": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "requirement"
+                ]
+              }
             }
           },
           "required": [
@@ -535,6 +641,127 @@
             "customer_id",
             "merchant_ref",
             "approved_at"
+          ]
+        }
+      },
+      "required": [
+        "event_id",
+        "type",
+        "version",
+        "occurred_at",
+        "data"
+      ]
+    },
+    "equipment.changed": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 80
+        },
+        "type": {
+          "type": "string",
+          "const": "equipment.changed"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "customer_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "installed",
+                "retired"
+              ]
+            },
+            "equipment_type": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{2,30}$"
+            },
+            "equipment_ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "visit_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "salesperson_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "salesperson_email": {
+              "type": "string",
+              "format": "email",
+              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "trust_score": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "customer_id",
+            "action",
+            "equipment_type"
           ]
         }
       },

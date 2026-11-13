@@ -23,7 +23,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 - Any 2xx is success. Anything else is retried after 1, 5, 30 and 120 minutes; the fifth failure moves the delivery to dead letters, where an administrator can resend it.
 - At-least-once: a subscriber can receive the same event twice and must discard repeats by `id`.
 
-## Catalog (229 events)
+## Catalog (234 events)
 
 | Event | Version | About | Data |
 | --- | --- | --- | --- |
@@ -75,6 +75,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `alias.added` | 1 | Added an ID from another system to a merchant. | `changed` (string[]), `actor_id` (uuid) |
 | `alias.closed` | 1 | Closed a merchant’s ID from another system. | `changed` (string[]), `actor_id` (uuid) |
 | `attribution.corrected` | 1 | Corrected a merchant’s attribution (new row). | `changed` (string[]), `actor_id` (uuid) |
+| `attribution.reclassified` | 1 | Classified a market’s pending origins and recruiting teams. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.created` | 1 | Created an automation. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.paused` | 1 | Paused an automation. | `changed` (string[]), `actor_id` (uuid) |
 | `automation.resumed` | 1 | Turned an automation on. | `changed` (string[]), `actor_id` (uuid) |
@@ -83,6 +84,8 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `claim.extended` | 1 | Extended a channel registration with evidence. | `changed` (string[]), `actor_id` (uuid) |
 | `claim.registered` | 1 | Registered a store for a channel. | `changed` (string[]), `actor_id` (uuid) |
 | `claim.rejected` | 1 | Rejected a channel registration with a reason. | `changed` (string[]), `actor_id` (uuid) |
+| `commission_statement.estimated` | 1 | Calculated a market’s estimated commission statements. | `changed` (string[]), `actor_id` (uuid) |
+| `commission_statement.published` | 1 | Published a commission statement under its written rules. | `changed` (string[]), `actor_id` (uuid) |
 | `competitor.added` | 1 | Added a competitor to the list. | `changed` (string[]), `actor_id` (uuid) |
 | `competitor.observed` | 1 | Recorded competition at a store. | `changed` (string[]), `actor_id` (uuid) |
 | `contact.added` | 1 | Added a contact. | `changed` (string[]), `actor_id` (uuid) |
@@ -133,6 +136,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `entity.updated` | 1 | Edited a legal entity. | `changed` (string[]), `actor_id` (uuid) |
 | `exception.dismissed` | 1 | Dismissed an alert. | `changed` (string[]), `actor_id` (uuid) |
 | `exception.scheduled` | 1 | Handled an alert with a next step. | `changed` (string[]), `actor_id` (uuid) |
+| `feedback.digest_sent` | 1 | Got the weekly feedback digest ready for P&T. | `changed` (string[]), `actor_id` (uuid) |
 | `field.approved` | 1 | Approved a proposed field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.created` | 1 | Created a field. | `changed` (string[]), `actor_id` (uuid) |
 | `field.proposed` | 1 | Proposed a new field. | `changed` (string[]), `actor_id` (uuid) |
@@ -180,6 +184,7 @@ Status: **built, delivery channel off**. Every domain change writes its event in
 | `onboarding.auto_approved` | 1 | Prepaid enrollment file approved by rule. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.document_received` | 1 | Marked an enrollment document as received. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.document_reviewed` | 1 | Validated or rejected an enrollment document. | `changed` (string[]), `actor_id` (uuid) |
+| `onboarding.link_created` | 1 | Created a capture link for an onboarding file. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.opened` | 1 | Opened an enrollment file. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.returned` | 1 | Returned an enrollment file with a reason. | `changed` (string[]), `actor_id` (uuid) |
 | `onboarding.submitted` | 1 | Sent an enrollment file to the control desk. | `changed` (string[]), `actor_id` (uuid) |
@@ -515,6 +520,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `champion.reviewed` | Recorded the monthly review with a champion | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `champion.set` | Changed a team’s champion | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `change.reason_added` | Recorded why a configuration change was made | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
+| `channel_policy.changed` | Saved a version of the reversal policy | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `comms.saved` | Changed a market’s notice settings | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `component.owners_set` | Changed who answers for a component | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `config_request.created` | Asked for a configuration change | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
@@ -534,6 +540,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `duplicate.bypassed` | Created a merchant despite a duplicate warning, with a reason | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `duplicate.dismissed` | Dismissed a pair of possible duplicates | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
 | `duplicate.scanned` | Scanned a market for duplicates | It is internal data-quality work (queues, measurements, duplicate reviews): when it ends in a change to the record, such as a merge or an edit, that change emits its own event. |
+| `enablement.progress_recorded` | Recorded a partner’s training progress | It is internal CONTIGO setup (metrics, notice templates, help, a market rollout): it changes no merchants, leads or deals. |
 | `event_delivery.resent` | Resent an event to a subscriber | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `event_subscriber.created` | Added an event subscriber | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
 | `event_subscriber.secret_rotated` | Rotated an event subscriber’s secret | It is the integrations’ own plumbing (keys, subscribers, resends): publishing it would be an event about events. |
@@ -571,6 +578,7 @@ One explicit event and one audit-driven event, in full. Every other event follow
 | `incident.opened` | Opened an incident | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `incident.updated` | Updated an incident | It is a record of how CONTIGO is run (service, releases, costs, requests): it is logged and changes no merchants, leads or deals. |
 | `integration.dead_letter` | A Sales App message went to dead letters | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
+| `integration.equipment_received` | An equipment install or removal arrived from the Sales App | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.intake_held` | Held a form submission that could not be saved | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.intake_retried` | Retried a held form submission by hand | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
 | `integration.merchant_approved` | A merchant’s approval arrived | It is data arriving from another system: the sender already knows. The change it causes (for instance, a deal won) does emit its own event. |
