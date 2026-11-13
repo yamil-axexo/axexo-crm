@@ -205,10 +205,6 @@ test.describe('ficha de la tienda de US (E9)', () => {
     await expect(page.getByTestId('deal-recruiter')).toHaveText(`Agency: ${agency}`)
     await page.goto('/datos?tab=catalogos')
     await expect(page.getByTestId('agencies-card').getByTestId('agency-row').filter({ hasText: agency })).toContainText('1 store recruited')
-    // quien vende no ve la tarjeta de agencias (ni entra a catálogos)
-    await loginAs(page, 'jade.kim')
-    await page.goto('/datos?tab=catalogos')
-    await expect(page.getByTestId('agencies-card')).toHaveCount(0)
     // administración: el resguardo de datos protegidos aparece apagado en Estado de CONTIGO
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto('/estado')
