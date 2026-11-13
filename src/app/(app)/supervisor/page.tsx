@@ -9,6 +9,7 @@ import { getRepartoSources } from '@/dal/reparto'
 import { getReportOptions, getWeeklyResults } from '@/dal/reports'
 import { ensureRulesFresh, EXCEPTION_KINDS } from '@/domain/rules'
 import { Badge, Card, CardTitle, Empty, LinkButton, PageHeader, Pills, NoData, shown } from '@/ui/kit'
+import { Def } from '@/ui/report'
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { RepartoForm } from '@/ui/reparto'
 import { NavSelect } from '@/ui/board'
@@ -216,6 +217,12 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                 )}
               </section>
             ))}
+          </div>
+        )}
+        {/* Las cifras de la tabla usan las mismas definiciones del Panel y de Reportes (lib/metric-defs.ts). */}
+        {board.reps.length > 0 && (
+          <div className="grid gap-x-6 border-t border-line px-5 py-3 sm:grid-cols-2 md:px-7" data-testid="team-defs">
+            {(['attempt', 'reached', 'open', 'noNextStep', 'revisits', 'awaiting'] as const).map((k) => <Def key={k} t={t} k={k} named testId={`team-def-${k}`} />)}
           </div>
         )}
         {sources && sources.markets.length > 0 && (

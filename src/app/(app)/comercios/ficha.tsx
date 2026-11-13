@@ -1,5 +1,6 @@
 import { AccountDataPanel, AccountThreadPanel } from '@/app/(app)/embudo-panels'
 import Link from 'next/link'
+import { Def } from '@/ui/report'
 import { CalendarPlus, MapPinCheck, MessageCircle, MessageSquareText, Navigation, Phone, StickyNote, X } from 'lucide-react'
 import type { Ctx } from '@/server/context'
 import { untrustedMark } from '@/dal/untrusted'
@@ -503,6 +504,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               {a.segment && <KeyVal k={t('Canal', 'Channel')}>{lab(t, MOTOR[a.segment])}</KeyVal>}
             </dl>
             {metrics && <p className="mt-2 text-[13px] text-muted" data-testid="metrics-asof">{t(`Datos de ventas con corte al ${day(metrics.as_of, locale)}.`, `Sales data as of ${day(metrics.as_of, locale)}.`)}</p>}
+            {/* Estado y volumen del comercio: la misma definición que usan el Panel y Reportes. */}
+            {metrics && <div data-testid="ficha-defs"><Def t={t} k="active" named /><Def t={t} k="volume" named /></div>}
           </section>
 
           {deals.length > 0 && (
