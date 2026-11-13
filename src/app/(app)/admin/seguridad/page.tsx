@@ -513,7 +513,7 @@ async function Privacy({ ctx, tz }: P) {
       </Card>
 
       <Card data-testid="requests-card">
-        <CardTitle title={t('Solicitudes de titulares', 'Data subject requests')} hint={t('Cuando una persona pide ver, corregir o eliminar sus datos. Cada solicitud lleva país, plazo, quién la atiende y cómo se cerró. Eliminar anonimiza: se va el dato personal y se conservan los IDs, los montos y quién hizo qué.', 'When a person asks to see, correct or erase their data. Each request has a country, a deadline, who handles it and how it was closed. Erasing anonymizes: the personal data goes and the IDs, amounts and who did what stay.')} />
+        <CardTitle title={t('Solicitudes de personas sobre sus datos', 'People’s requests about their data')} hint={t('Cuando una persona pide ver, corregir o eliminar sus datos. Cada solicitud lleva país, plazo, quién la atiende y cómo se cerró. Eliminar anonimiza: se va el dato personal y se conservan los IDs, los montos y quién hizo qué.', 'When a person asks to see, correct or erase their data. Each request has a country, a deadline, who handles it and how it was closed. Erasing anonymizes: the personal data goes and the IDs, amounts and who did what stay.')} />
         {manage && (
           <>
             <div className="mb-5 flex flex-wrap gap-3" data-testid="due-days">
