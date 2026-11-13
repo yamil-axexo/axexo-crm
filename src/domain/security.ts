@@ -539,12 +539,13 @@ export async function setSecretMeta(ctx: Ctx, key: string, input: z.input<typeof
 }
 
 // ------------------------------------------------------------ SEG-03: alertas, umbrales y copia
-export const THRESHOLD_KEYS = ['exports_per_day', 'export_rows_per_day', 'searches_per_hour', 'reveals_per_day', 'api_calls_per_hour', 'api_rows_per_day', 'key_unused_days', 'key_expiring_days'] as const
+export const THRESHOLD_KEYS = ['exports_per_day', 'export_rows_per_day', 'searches_per_hour', 'reveals_per_day', 'api_calls_per_hour', 'api_rows_per_day', 'key_unused_days', 'key_expiring_days', 'list_rows_per_day'] as const
 export type Thresholds = Record<(typeof THRESHOLD_KEYS)[number], number>
 
 export async function setThresholds(ctx: Ctx, input: Record<string, number>): Promise<void> {
   ctx.assert('security.manage')
-  const shape = Object.fromEntries(THRESHOLD_KEYS.map((k) => [k, z.number().int().min(1).max(1_000_000)])) as Record<(typeof THRESHOLD_KEYS)[number], z.ZodNumber>
+  // SEG-03 (plataforma): list_rows_per_day es opcional para no romper a quien guarda los umbrales sin ese campo.
+  const shape = Object.fromEntries(THRESHOLD_KEYS.map((k) => [k, k === 'list_rows_per_day' ? z.number().int().min(1).max(1_000_000).optional() : z.number().int().min(1).max(1_000_000)])) as Record<(typeof THRESHOLD_KEYS)[number], z.ZodNumber>
   const p = z.object(shape).safeParse(input)
   if (!p.success) throw invalid('Cada umbral es un número entero mayor que cero.', 'Each threshold is a whole number greater than zero.')
   await withUser(ctx.user.id, async (tx) => {
@@ -598,6 +599,7 @@ const ALERT_TEXT: Record<string, [string, string]> = {
   exports_per_day: ['muchas exportaciones en un día', 'many exports in one day'],
   export_rows_per_day: ['muchas filas exportadas en un día', 'many rows exported in one day'],
   searches_per_hour: ['muchas búsquedas en una hora', 'many searches in one hour'],
+  list_rows_per_day: ['muchas filas vistas en listas en un día', 'many rows viewed in lists in one day'],
   reveals_per_day: ['muchos datos reservados revelados en un día', 'many restricted values revealed in one day'],
   api_calls_per_hour: ['muchas llamadas con una llave en una hora', 'many calls with one key in an hour'],
   api_rows_per_day: ['muchas filas leídas con una llave en un día', 'many rows read with one key in one day'],

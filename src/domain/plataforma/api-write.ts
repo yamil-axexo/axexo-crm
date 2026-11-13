@@ -11,7 +11,7 @@ import { DomainError, notFound } from '@/lib/errors'
 /**
  * AUT-04: API de escritura general sobre el dominio. Cada operación llama al MISMO comando que usa la pantalla (mismas
  * reglas, permisos y bitácora), como la persona que creó la llave y acotada al mercado de la llave. Nada se escribe por
- * fuera del dominio. Contrato: docs/contracts/api-v1-write.md y docs/contracts/api-v1.openapi.json.
+ * fuera del dominio. Contrato: docs/contracts/api-v1-write.md y docs/contracts/api-v1-write.openapi.json.
  */
 export { WRITE_SCOPES, type WriteScope } from './scopes'
 

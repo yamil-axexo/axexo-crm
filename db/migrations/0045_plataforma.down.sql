@@ -1,4 +1,10 @@
 -- 0045_plataforma (down)
+drop function if exists app.security_scan_lists();
+delete from crm.security_alerts where kind = 'list_rows_per_day';
+alter table crm.security_alerts drop constraint if exists security_alerts_kind_check;
+alter table crm.security_alerts add constraint security_alerts_kind_check check (kind in ('exports_per_day','export_rows_per_day','searches_per_hour','reveals_per_day',
+  'api_calls_per_hour','key_expiring','key_unused','secret_rotation_due','direct_sql_change','api_rows_per_day'));
+update crm.settings set value = value - 'list_rows_per_day' where key = 'security.thresholds';
 drop table if exists crm.agent_redteam_reviews;
 drop function if exists app.mcp_oauth_user(text);
 drop function if exists app.mcp_oauth_store_token(text, text, uuid, text, int);

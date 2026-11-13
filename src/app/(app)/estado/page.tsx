@@ -38,6 +38,7 @@ import { partnersAdapterStatus } from '@/server/adapters/partners'
 import { externalQueueCounts } from '@/dal/partners'
 import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
+import { PlatformCard, StagingBanner } from './plataforma'
 
 export const dynamic = 'force-dynamic'
 
@@ -289,6 +290,7 @@ export default async function StatusPage() {
         title={t('Estado de CONTIGO', 'CONTIGO status')}
         desc={t('Qué está corriendo, qué tan al día están los datos y qué falta. Se arma con datos de la propia herramienta cada vez que abres esta página.', 'What is running, how fresh the data is and what is missing. It is built from the tool’s own data every time you open this page.')}
       />
+      <StagingBanner ctx={ctx} />
       <div className="grid grid-cols-2 gap-4 desk:grid-cols-4" data-testid="status-top">
         <Stat testId="status-env" label={t('Ambiente', 'Environment')} value={<span className="text-[18px] leading-7 md:text-[20px]">{t(...(envName[e.APP_ENV] ?? [e.APP_ENV, e.APP_ENV]))}</span>} />
         <Stat
@@ -347,6 +349,7 @@ export default async function StatusPage() {
           </ul>
         </Card>
         <LoadsCard ctx={ctx} tz={tz} />
+        <PlatformCard ctx={ctx} />
         <Card pad={false} data-testid="status-integrations">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Datos e integraciones', 'Data and integrations')} hint={t('De dónde llegan los datos, si la conexión está viva y cuándo llegó lo último.', 'Where the data comes from, whether the connection is live and when the latest arrived.')} /></div>
           <ul className="border-t border-line">

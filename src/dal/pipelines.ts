@@ -108,6 +108,8 @@ export async function getBoard(ctx: Ctx, pipelineId: string, f: { owner?: string
       select count(*) filter (where d.status = 'won' and d.won_at > now() - interval '30 days')::int as won,
              count(*) filter (where d.status = 'lost' and d.lost_at > now() - interval '30 days')::int as lost
         from crm.deals d where d.pipeline_id = ${pipelineId} ${owner}`
+    // SEG-03: el tablero de negocios en pantalla queda en el registro de lecturas (cuántas filas).
+    await tx`select app.log_read('list', 'deals', ${deals.length}, ${pipeline.market_code ?? null})`
     return { pipeline, stages: [...stages], deals: [...deals], totals: [...totals], shown: shown ? [...shown] : null, amounts: [...amounts], closed: closed[0] ?? { won: 0, lost: 0 } }
   })
 }

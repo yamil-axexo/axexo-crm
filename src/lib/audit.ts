@@ -408,6 +408,15 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'access_review.closed': ['Cerró una revisión de accesos', 'Closed an access review'],
   'api_client.updated': ['Cambió quién responde por una llave de API o su vencimiento', 'Changed the owner or expiry of an API key'],
   'secret.updated': ['Actualizó el inventario de una conexión', 'Updated a connection’s inventory entry'],
+  // Paquete plataforma (0045)
+  'secret.backup_set': ['Cambió el suplente de una conexión', 'Changed a connection’s backup owner'],
+  'flag.changed': ['Cambió a quién le aplica una función', 'Changed who a feature applies to'],
+  'platform_value.changed': ['Cambió un valor de la plataforma', 'Changed a platform value'],
+  'notice_rule.changed': ['Encendió o apagó un aviso por evento', 'Turned an event notice on or off'],
+  'redteam.reviewed': ['Registró la revisión de red-team de un agente', 'Recorded an agent’s red-team review'],
+  'mcp_oauth.client_created': ['Registró un agente que puede pedir permiso para leer', 'Registered an agent that can ask for read permission'],
+  'mcp_oauth.authorized': ['Le dio permiso a un agente para leer como esta persona', 'Allowed an agent to read as this person'],
+  'mcp_oauth.revoked': ['Retiró el acceso de un agente', 'Removed an agent’s access'],
   'security.thresholds_changed': ['Cambió los umbrales de alerta', 'Changed the alert thresholds'],
   'security.due_days_changed': ['Cambió el plazo de respuesta a solicitudes de datos', 'Changed the response period for data requests'],
   'security.alert_acknowledged': ['Revisó una alerta de seguridad', 'Reviewed a security alert'],
@@ -474,6 +483,11 @@ export const isAuditGroup = (v: string | undefined): v is AuditGroup => v !== un
 
 /** Tipos de registro por los que se filtra, con su nombre. */
 export const AUDIT_OBJECT: Record<string, Pair> = {
+  feature_flag: ['Función por rol', 'Feature by role'],
+  platform_value: ['Valor de la plataforma', 'Platform value'],
+  event_notice_rule: ['Aviso por evento', 'Event notice'],
+  mcp_oauth_client: ['Agente con permiso de lectura', 'Agent with read permission'],
+  agent: ['Agente', 'Agent'],
   onboarding_file: ['Expediente de alta', 'Enrollment file'],
   threshold: ['Umbral', 'Threshold'],
   reassignment_plan: ['Plan de reparto', 'Reassignment plan'],

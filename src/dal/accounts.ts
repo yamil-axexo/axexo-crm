@@ -65,6 +65,8 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters, pageSize: number
     const items = rows.slice(0, pageSize)
     const last = items[items.length - 1]
     const total = f.ver === 'riesgo' ? c.risk : f.ver === 'sin-transaccionar' ? c.idle : f.ver === 'sin-paso' ? c.nostep : c.all
+    // SEG-03: la lectura de una lista en pantalla también queda en el registro de lecturas (cuántas filas, sin cuáles).
+    await tx`select app.log_read('list', 'accounts', ${items.length}, ${f.market || null})`
     return { items, next: rows.length > pageSize && last ? `${last.name_norm}|${last.id}` : null, total, counts: c }
   })
 }

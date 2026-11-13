@@ -31,6 +31,18 @@ export const plataformaJobs: Job[] = [
     },
   },
   {
+    key: 'plataforma.lecturas',
+    everyMinutes: 60,
+    description: {
+      es: 'Revisa cuántas filas vio cada persona en listas de la pantalla y abre una alerta de seguridad si pasa el umbral del día.',
+      en: 'Checks how many rows each person viewed in on-screen lists and opens a security alert if it goes over the daily threshold.',
+    },
+    run: async (tx) => {
+      const rows = await tx<{ n: number }[]>`select app.security_scan_lists() as n`
+      return { done: rows[0]?.n ?? 0 }
+    },
+  },
+  {
     key: 'plataforma.rotacion',
     everyMinutes: 1440,
     description: {

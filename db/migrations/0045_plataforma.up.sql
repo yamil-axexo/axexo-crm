@@ -292,7 +292,7 @@ begin
   end if;
   -- El valor nunca entra a la bitácora: solo qué campo y si ya tenía valor.
   insert into crm.audit_events (actor_id, action, object, object_id, market_code, before, after)
-  values (app.current_user_id(), 'sensitive.set', p_object, p_id, v_market, jsonb_build_object('field', p_key, 'had_value', coalesce(v_had, false)),
+  values (app.current_user_id(), 'sensitive.updated', p_object, p_id, v_market, jsonb_build_object('field', p_key, 'had_value', coalesce(v_had, false)),
           jsonb_build_object('field', p_key, 'has_value', not (p_value is null or btrim(p_value) = '')));
 end $$;
 revoke all on function app.record_scope(text, uuid), app.record_sensitive_can(text, uuid, text, text), app.record_sensitive_list(text, uuid),
@@ -488,5 +488,33 @@ revoke all on crm.agent_redteam_reviews from contigo_app;
 grant select, insert on crm.agent_redteam_reviews to contigo_app;
 create policy agent_redteam_read on crm.agent_redteam_reviews for select to contigo_app using ((select app.is_global()) or (select app.is_admin()));
 create policy agent_redteam_ins on crm.agent_redteam_reviews for insert to contigo_app with check ((select app.is_admin()) and reviewed_by = (select app.current_user_id()));
+
+-- ------------------------------------------------------------------ 9) SEG-03: lecturas de listas en pantalla con alerta por volumen
+alter table crm.security_alerts drop constraint if exists security_alerts_kind_check;
+alter table crm.security_alerts add constraint security_alerts_kind_check check (kind in ('exports_per_day','export_rows_per_day','searches_per_hour','reveals_per_day',
+  'api_calls_per_hour','key_expiring','key_unused','secret_rotation_due','direct_sql_change','api_rows_per_day','list_rows_per_day'));
+-- Umbral propuesto (decisión por defecto, reversible en Seguridad): filas vistas en listas por persona al día.
+update crm.settings set value = value || '{"list_rows_per_day":20000}'::jsonb where key = 'security.thresholds' and not (value ? 'list_rows_per_day');
+
+/** Alerta cuando una persona ve en listas más filas al día que el umbral (las listas en pantalla ya quedan en audit.read_log). */
+create or replace function app.security_scan_lists() returns int
+language plpgsql security definer set search_path = audit, crm, app, pg_catalog as $$
+declare th int; n int;
+begin
+  if app.current_user_id() is distinct from app.system_user_id() and not app.is_admin() then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  select (value ->> 'list_rows_per_day')::int into th from crm.settings where key = 'security.thresholds';
+  if th is null then return 0; end if;
+  insert into crm.security_alerts (kind, subject_key, actor_id, period, observed, threshold)
+  select 'list_rows_per_day', r.actor_id::text, r.actor_id, to_char(r.at, 'YYYY-MM-DD'), sum(r.row_count)::int, th
+    from audit.read_log r where r.kind = 'list' and r.actor_id is not null and r.at > now() - interval '2 days'
+   group by r.actor_id, to_char(r.at, 'YYYY-MM-DD') having sum(r.row_count) > th
+  on conflict (kind, subject_key, period) do update set observed = excluded.observed where crm.security_alerts.status = 'open';
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function app.security_scan_lists() from public;
+grant execute on function app.security_scan_lists() to contigo_app;
 
 select audit.attach_all();

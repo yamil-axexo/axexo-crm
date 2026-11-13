@@ -1,0 +1,346 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CONTIGO API v1, write",
+    "version": "1.0.0",
+    "description": "Each operation calls the same domain command as the screen, as the person who created the key, limited to the key's market. See api-v1-write.md."
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/activities": {
+      "post": {
+        "summary": "Log an activity (note, call, meeting, task, visit).",
+        "security": [
+          {
+            "bearer": [
+              "activities:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "note",
+                      "call",
+                      "meeting",
+                      "task",
+                      "visit"
+                    ]
+                  },
+                  "account_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "deal_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "lead_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "due_at": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created: {id, masked?}"
+          },
+          "400": {
+            "description": "invalid_json"
+          },
+          "401": {
+            "description": "unauthorized"
+          },
+          "403": {
+            "description": "forbidden (scope, test key or key without market)"
+          },
+          "404": {
+            "description": "not_found (also for records in another market)"
+          },
+          "422": {
+            "description": "invalid"
+          },
+          "429": {
+            "description": "rate_limited"
+          }
+        }
+      }
+    },
+    "/api/v1/leads": {
+      "post": {
+        "summary": "Create a lead (assignment, first-contact clock and log as on screen).",
+        "security": [
+          {
+            "bearer": [
+              "leads:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "sale_type",
+                  "business_name",
+                  "contact_name"
+                ],
+                "properties": {
+                  "sale_type": {
+                    "type": "string"
+                  },
+                  "business_name": {
+                    "type": "string"
+                  },
+                  "contact_name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "locality": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created: {id}"
+          },
+          "400": {
+            "description": "invalid_json"
+          },
+          "401": {
+            "description": "unauthorized"
+          },
+          "403": {
+            "description": "forbidden (scope, test key or key without market)"
+          },
+          "404": {
+            "description": "not_found (also for records in another market)"
+          },
+          "422": {
+            "description": "invalid"
+          },
+          "429": {
+            "description": "rate_limited"
+          }
+        }
+      }
+    },
+    "/api/v1/deals/{id}": {
+      "patch": {
+        "summary": "Move a deal to another stage.",
+        "security": [
+          {
+            "bearer": [
+              "deals:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "stage_id"
+                ],
+                "properties": {
+                  "stage_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "loss_reason_code": {
+                    "type": "string"
+                  },
+                  "loss_note": {
+                    "type": "string"
+                  },
+                  "next_step": {
+                    "type": "object",
+                    "required": [
+                      "step",
+                      "due"
+                    ],
+                    "properties": {
+                      "step": {
+                        "type": "string"
+                      },
+                      "due": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{id, status: moved | pending}"
+          },
+          "400": {
+            "description": "invalid_json"
+          },
+          "401": {
+            "description": "unauthorized"
+          },
+          "403": {
+            "description": "forbidden (scope, test key or key without market)"
+          },
+          "404": {
+            "description": "not_found (also for records in another market)"
+          },
+          "422": {
+            "description": "invalid"
+          },
+          "429": {
+            "description": "rate_limited"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{id}": {
+      "patch": {
+        "summary": "Correct a merchant's contact data and address.",
+        "security": [
+          {
+            "bearer": [
+              "accounts:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "address_line": {
+                    "type": "string"
+                  },
+                  "locality": {
+                    "type": "string"
+                  },
+                  "region": {
+                    "type": "string"
+                  },
+                  "postal_code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{id}"
+          },
+          "400": {
+            "description": "invalid_json"
+          },
+          "401": {
+            "description": "unauthorized"
+          },
+          "403": {
+            "description": "forbidden (scope, test key or key without market)"
+          },
+          "404": {
+            "description": "not_found (also for records in another market)"
+          },
+          "422": {
+            "description": "invalid"
+          },
+          "429": {
+            "description": "rate_limited"
+          }
+        }
+      }
+    }
+  }
+}

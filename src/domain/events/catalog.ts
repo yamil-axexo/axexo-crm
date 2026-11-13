@@ -126,6 +126,9 @@ for (const prefix of ['objective.', 'incident.', 'restore_test.', 'component.', 
 // aceptar una sugerencia o aprobar un borrador sí emite su propio evento (activity.added).
 const WHY_IA: Pair = ['Es trabajo interno de la asistencia (sugerencias, borradores, pesos, evaluación): la tarea que resulta, si la hay, emite su propio evento.', 'It is internal assistance work (suggestions, drafts, weights, evaluation): the resulting task, if any, emits its own event.']
 for (const prefix of ['ia.', 'recommendation.']) SILENT.push([prefix, WHY_IA])
+// Paquete plataforma (0045): funciones por rol, valores propuestos, reglas de aviso, red-team y permisos de agentes (MCP) son
+// configuración de cómo opera CONTIGO; no cambian comercios, leads ni negocios.
+for (const prefix of ['flag.', 'platform_value.', 'notice_rule.', 'redteam.', 'mcp_oauth.']) SILENT.push([prefix, WHY_GOVERNANCE])
 /** Prefijos de registros y configuración del negocio: todo cambio emite. */
 const DOMAIN = ['account.', 'contact.', 'deal.', 'lead.', 'activity.', 'exception.', 'territory.', 'membership.', 'team.', 'user.', 'pipeline.', 'stage.',
   'routing.', 'field.', 'account_type.', 'loss_reason.', 'form.', 'street_seller.', 'fx.',
