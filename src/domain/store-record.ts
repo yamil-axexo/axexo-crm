@@ -112,7 +112,7 @@ export async function setRecruiter(ctx: Ctx, accountId: string, value: string): 
  * el número completo, se le dice que se guardaron los últimos 4: el completo pasa al resguardo de datos protegidos, que está
  * apagado (no se guarda ni sale a ningún lado). Vacío lo borra.
  */
-export async function setTaxId(ctx: Ctx, accountId: string, raw: string): Promise<{ last4: string | null; full: boolean; vault: 'off' | 'simulated' | null }> {
+export async function setTaxId(ctx: Ctx, accountId: string, raw: string): Promise<{ last4: string | null; full: boolean; vault: 'off' | 'simulated' | 'live' | null }> {
   const value = raw.replace(/[\s.-]/g, '').toUpperCase()
   if (value && !/^[A-Z0-9]{4,20}$/.test(value)) throw invalid('Tax ID: escribe al menos los últimos 4 caracteres (letras y números).', 'Tax ID: enter at least the last 4 characters (letters and numbers).')
   const last4 = value ? value.slice(-4) : null

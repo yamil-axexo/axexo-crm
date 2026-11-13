@@ -3,7 +3,7 @@ import { tracesAdapter } from '@/server/adapters/traces'
 import { billingAdapter } from '@/server/adapters/billing'
 
 /** Para "Estado de CONTIGO": los adaptadores del paquete gobierno, si están apagados y qué falta para encenderlos. */
-export function gobiernoAdapterStatus(traces = tracesAdapter(), billing = billingAdapter()): { key: 'traces' | 'billing' | 'backup'; name: [es: string, en: string]; mode: 'off' | 'simulated'; envVar: string | null; needs: [es: string, en: string] }[] {
+export function gobiernoAdapterStatus(traces = tracesAdapter(), billing = billingAdapter()): { key: 'traces' | 'billing' | 'backup'; name: [es: string, en: string]; mode: 'off' | 'simulated' | 'live'; envVar: string | null; needs: [es: string, en: string] }[] {
   return [
     {
       key: 'traces', name: ['Trazas hacia una herramienta de observabilidad', 'Traces to an observability tool'], mode: traces.mode, envVar: traces.envVar,

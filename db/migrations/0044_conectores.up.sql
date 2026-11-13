@@ -20,6 +20,11 @@ alter table crm.document_reads drop constraint document_reads_outcome_check;
 alter table crm.document_reads add constraint document_reads_outcome_check check (outcome in ('vault_off','simulated','link','signed'));
 alter table crm.activities drop constraint activities_source_check;
 alter table crm.activities add constraint activities_source_check check (source in ('user','rule','sales_app','s5','import','capture'));
+-- La llamada al modelo de AI y la evaluación anotan también el modo encendido.
+alter table crm.ia_calls drop constraint ia_calls_mode_check;
+alter table crm.ia_calls add constraint ia_calls_mode_check check (mode in ('off','simulated','rules','live'));
+alter table crm.ia_eval_runs drop constraint ia_eval_runs_adapter_mode_check;
+alter table crm.ia_eval_runs add constraint ia_eval_runs_adapter_mode_check check (adapter_mode in ('off','simulated','live'));
 -- El valor cifrado ocupa más que el texto: AES-256-GCM en base64 de hasta 1,500 caracteres de texto.
 alter table crm.account_sensitive drop constraint account_sensitive_value_check;
 alter table crm.account_sensitive add constraint account_sensitive_value_check check (length(value) between 1 and 8000);

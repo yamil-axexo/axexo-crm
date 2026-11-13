@@ -38,3 +38,9 @@ alter table crm.cs_messages add constraint cs_messages_status_check check (statu
 update crm.notifications set status = 'queued_off' where status in ('sent','failed');
 alter table crm.notifications drop constraint notifications_status_check;
 alter table crm.notifications add constraint notifications_status_check check (status in ('delivered','queued_off','simulated','held_hours','held_digest','held_limit','digested','skipped_consent','skipped_no_address','blocked_template'));
+update crm.ia_calls set mode = 'rules' where mode = 'live';
+alter table crm.ia_calls drop constraint ia_calls_mode_check;
+alter table crm.ia_calls add constraint ia_calls_mode_check check (mode in ('off','simulated','rules'));
+update crm.ia_eval_runs set adapter_mode = 'off' where adapter_mode = 'live';
+alter table crm.ia_eval_runs drop constraint ia_eval_runs_adapter_mode_check;
+alter table crm.ia_eval_runs add constraint ia_eval_runs_adapter_mode_check check (adapter_mode in ('off','simulated'));
