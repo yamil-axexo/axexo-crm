@@ -122,7 +122,7 @@ test.describe('leads', () => {
     await page.getByTestId('lead-convert').click()
     await expect(page).toHaveURL(/\/deals\//)
     await expect(page.locator('h1')).toHaveText(`Alta: ${name}`)
-    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Tienda visitada')
+    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Prospecto')
     // ola 2: la tarea que el lead ya traía es el próximo paso del negocio; no se crea otra para lo mismo
     await expect(page.getByTestId('next-step')).toHaveValue(`Enviar propuesta a ${name}`)
     await page.getByTestId('deal-account').click()
@@ -218,15 +218,34 @@ test.describe('embudo', () => {
     await page.getByTestId('decision-maker-met').check()
     await page.getByTestId('deal-save').click()
     await expect(page.getByTestId('deal-edit').getByTestId('form-ok')).toBeVisible()
-    await page.getByTestId('deal-advance').click()
-    await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText('Negociación')
-
-    // El embudo B2B de México trae las etapas del proceso corporativo después de negociar (paquete b2b, 12-nov-2026).
-    for (const stage of ['Integración', 'Pruebas', 'Certificación', 'Alta y capacitación', 'Contrato firmado, esperando primera venta']) {
+    const step = page.locator('[data-testid=stage-path] [aria-current=step]')
+    const advance = async (stage: string) => {
       await page.waitForTimeout(800)
       await page.getByTestId('deal-advance').click()
-      await expect(page.locator('[data-testid=stage-path] [aria-current=step]')).toHaveText(stage)
+      await expect(step).toHaveText(stage)
     }
+    // Lo que falta para entrar a una etapa (la fecha del NDA, la del contrato) se completa en la hoja y el negocio avanza.
+    const advanceWith = async (stage: string, field: string) => {
+      await page.waitForTimeout(800)
+      await page.getByTestId('gate-open').click()
+      const sheet = page.locator('dialog[open]')
+      await sheet.getByTestId(`gate-field-${field}`).fill(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date()))
+      await sheet.getByTestId('gate-save').click()
+      await expect(step).toHaveText(stage)
+    }
+    // El embudo B2B/ISO de México sigue el proceso corporativo (paquetes b2b y mx): propuesta, NDA, negociación, integración,
+    // pruebas, contrato, certificación, alta y capacitación, y espera de la primera venta.
+    await page.getByTestId('deal-advance').click()
+    await expect(step).toHaveText('Acuerdo de confidencialidad (NDA)')
+    await advance('Negociación')
+    await expect(page.getByTestId('gate-missing')).toContainText('NDA firmado el')
+    await advanceWith('Integración', 'b2b_nda_signed_on')
+    await advance('Pruebas')
+    await advance('Contrato')
+    await expect(page.getByTestId('gate-missing')).toContainText('Contrato firmado el')
+    await advanceWith('Certificación', 'b2b_contract_signed_on')
+    await advance('Alta y capacitación')
+    await advance('Contrato firmado, esperando primera venta')
     await expect(page.getByTestId('deal-move')).toContainText('nadie lo marca a mano')
     await expect(page.getByTestId('deal-advance')).toHaveCount(0)
   })

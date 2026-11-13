@@ -32,7 +32,7 @@ describe('criterios de etapa (PIPE-01, ACT-02)', () => {
 describe('matriz de capacidades (AUT-01)', () => {
   const m = (role: Role, market: string | null = 'MX'): Membership[] => [{ role, market, teamId: null }]
   it('el LT lee tableros y auditoría pero no escribe nada', () => {
-    const writes = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((c) => !['board.supervisor', 'board.lt', 'audit.read', 'status.read', 'report.view', 'report.export', 'adoption.read', 'exception.read', 'automation.read',
+    const writes = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((c) => !['board.supervisor', 'board.lt', 'audit.read', 'status.read', 'report.view', 'report.export', 'adoption.read', 'exception.read', 'automation.read', 'rollout.read',
       // Paquete reportes: leadership lee la galería, Finanzas, la conciliación y la adopción por equipo. Guardar un reporte o una vista es
       // una preferencia de la persona (como reportar un problema): no cambia datos del negocio.
       'report.gallery', 'report.finance', 'report.reconcile', 'adoption.team', 'report.save', 'view.save'].includes(c))

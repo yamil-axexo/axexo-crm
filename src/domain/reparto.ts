@@ -1,4 +1,5 @@
 import 'server-only'
+import { applyTerritoryOwners } from '@/domain/mx-config'
 import { z } from 'zod'
 import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
@@ -196,7 +197,11 @@ export async function setTerritory(ctx: Ctx, accountIds: string[], territoryId: 
     const market = markets[0]!
     ctx.assert('account.territory', market)
     const name = await assertTerritory(tx, market, territoryId)
-    return applyTerritory(tx, ctx, market, accs.filter((a) => a.territory_id !== territoryId).map((a) => a.id), territoryId, name)
+    const changed = accs.filter((a) => a.territory_id !== territoryId).map((a) => a.id)
+    const done = await applyTerritory(tx, ctx, market, changed, territoryId, name)
+    // E16.F2: al cambiar de territorio, la tienda de venta puerta a puerta pasa al gerente del territorio nuevo (si tiene).
+    await applyTerritoryOwners(tx, changed)
+    return done
   })
 }
 
@@ -212,6 +217,7 @@ export async function setTerritoryByFilter(ctx: Ctx, f: AccountFilters, territor
     const pending = tx`${where} and a.territory_id is distinct from ${territoryId}`
     const rows = await tx<{ id: string }[]>`select a.id from crm.accounts a where ${pending} order by a.name_norm, a.id limit ${size} for update of a`
     const moved = await applyTerritory(tx, ctx, market, rows.map((r) => r.id), territoryId, name)
+    await applyTerritoryOwners(tx, rows.map((r) => r.id))
     const left = await tx<{ n: number }[]>`select count(*)::int as n from crm.accounts a where ${pending}`
     return { moved, left: left[0]?.n ?? 0 }
   })

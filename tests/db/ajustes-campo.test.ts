@@ -105,7 +105,7 @@ describe('catálogo de vendedores de calle (P1 parcial de Carlos y Beatriz)', ()
 })
 
 describe('ganar a mano no se queda a medias', () => {
-  /** Un negocio de Marco en "Tienda visitada" (primera etapa), en el embudo de tiendas de MX puesto a ganar a mano. */
+  /** Un negocio de Marco en "Prospecto" (primera etapa), en el embudo de tiendas de MX puesto a ganar a mano. */
   async function d2dDeal() {
     await admin`update crm.pipelines set close_by_transaction = false where id = ${await uid('p-mx-d2d')}`
     const marco = await ctxFor('marco.pena')

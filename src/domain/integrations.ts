@@ -438,7 +438,7 @@ async function loadMetrics(sys: Ctx, file: MetricsFile, checksum: string): Promi
         select d.id, d.stage_id as from_stage, w.id as to_stage, d.market_code, d.account_id, mm.first_txn_at
           from crm.deals d
           join crm.merchant_metrics_daily mm on mm.account_id = d.account_id and mm.as_of = ${file.as_of} and mm.first_txn_at is not null
-          join crm.pipelines p on p.id = d.pipeline_id and p.close_by_transaction
+          join crm.pipelines p on p.id = d.pipeline_id and (p.close_by_transaction or p.txn_also_wins)   -- E14.F8: contrato firmado, o primera transacción
           join lateral (select s.id from crm.stages s where s.pipeline_id = d.pipeline_id and s.kind = 'won' limit 1) w on true
          where d.status = 'open' and d.account_id = any(${ids}::uuid[])
       ), ev as (
