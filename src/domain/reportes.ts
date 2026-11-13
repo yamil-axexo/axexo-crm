@@ -11,7 +11,7 @@ import { isMetricKey } from '@/lib/metric-defs'
 import { REPORT_PARAMS, VIEW_FILTERS, reportByKey, type ViewObject } from '@/lib/report-catalog'
 import { marketPeriods, type MarketPeriods } from '@/dal/reports'
 import { getAgencyReport, getFieldKpis, getFinanceReport, getForecast, getHistory, getLeadsReport, getNodeReport, getReconciliation, getStagesReport, stageRate, wideScope, type Filters } from '@/dal/reportes'
-import { queueOutbound } from '@/server/adapters/report-channels'
+import { outboundStatus, type ChannelKey } from '@/server/adapters/report-channels'
 import { exportCap, exportReason, governExport } from '@/domain/exports'
 import { notify } from '@/domain/notify'
 import { SOURCE } from '@/lib/labels'
@@ -253,6 +253,14 @@ export async function pinView(ctx: Ctx, id: string, on: boolean): Promise<void> 
 }
 
 // ------------------------------------------------------------------ tareas programadas (las llama src/server/jobs/reportes.ts)
+/** Deja en la cola del canal (crm.report_outbox) lo que habría salido. Nunca envía. Devuelve el estado con el que quedó. */
+async function queueOutbound(tx: Tx, key: ChannelKey, item: { ref: string; title: string; rows: number; detail?: Record<string, string | number> }): Promise<'channel_off' | 'simulated'> {
+  const status = outboundStatus(key)
+  await tx`insert into crm.report_outbox (channel, ref, title, row_count, status, detail)
+           values (${key}, ${item.ref}, ${item.title.slice(0, 200)}, ${item.rows}, ${status}, ${tx.json(item.detail ?? {})})
+           on conflict (channel, ref) do nothing`
+  return status
+}
 /** Foto diaria: la toma la función de la base con identidad propia, y deja el archivo de salida en la cola del canal (apagado). */
 export async function takeSnapshot(tx: Tx): Promise<{ done: number; note?: string }> {
   const rows = await tx<{ n: number }[]>`select app.take_report_snapshots() as n`

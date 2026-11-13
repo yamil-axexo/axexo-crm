@@ -131,7 +131,7 @@ describe('E10.F7: campos destacados por etapa, sin exigirlos', () => {
     const before = await one(admin<{ name_es: string; name_en: string; rot_days: number }[]>`select name_es, name_en, rot_days from crm.stages where id = ${contacted}`)
     const base = { nameEs: before.name_es, nameEn: before.name_en, rotDays: before.rot_days, requiredFields: [] as never[] }
     // un campo nuevo de opción múltiple, creado desde la pantalla
-    const fieldId = await createField(nora, { object: 'deal', market: 'US', motor: 'dealer', labelEs: `Idiomas ${tag()}`, labelEn: `Languages ${tag()}`, dataType: 'multiselect', options: ['English', 'Spanish'] })
+    const fieldId = await createField(nora, { object: 'deal', market: 'US', motor: 'dealer', labelEs: `Idiomas ${tag()}`, labelEn: `Languages ${tag()}`, dataType: 'multiselect', options: ['English', 'Spanish'], decision: 'Decide en qué idioma se da la capacitación' })
     const key = (await one(admin<{ key: string; data_type: string }[]>`select key, data_type from crm.field_definitions where id = ${fieldId}`))
     expect(key.data_type).toBe('multiselect')
     await updateStage(nora, contacted, { ...base, requiredCustom: [key.key], highlight: ['decision_maker', 'field:store_hours', `field:${key.key}`] })

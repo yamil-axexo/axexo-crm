@@ -1,6 +1,4 @@
 import 'server-only'
-import type { Tx } from '@/server/db'
-import type postgres from 'postgres'
 
 /**
  * Canal de salida de Reportes (el archivo de la foto diaria; el correo de un reporte programado sale por el servicio de avisos). Está APAGADO por defecto: nada sale de CONTIGO sin aprobación de
@@ -25,11 +23,7 @@ export function channelMode(key: ChannelKey): ChannelMode {
   return process.env[def.env] === 'simulated' && process.env.APP_ENV === 'test' ? 'simulated' : 'off'
 }
 
-/** Deja en la cola lo que habría salido. Nunca envía. Devuelve el estado con el que quedó. */
-export async function queueOutbound(tx: Tx, key: ChannelKey, item: { ref: string; title: string; rows: number; detail?: Record<string, unknown> }): Promise<'channel_off' | 'simulated'> {
-  const status = channelMode(key) === 'simulated' ? 'simulated' : 'channel_off'
-  await tx`insert into crm.report_outbox (channel, ref, title, row_count, status, detail)
-           values (${key}, ${item.ref}, ${item.title.slice(0, 200)}, ${item.rows}, ${status}, ${tx.json((item.detail ?? {}) as postgres.JSONValue)})
-           on conflict (channel, ref) do nothing`
-  return status
+/** Con qué estado queda en la cola lo que habría salido. El adaptador nunca envía ni escribe: la cola la lleva el dominio (src/domain/reportes.ts). */
+export function outboundStatus(key: ChannelKey): 'channel_off' | 'simulated' {
+  return channelMode(key) === 'simulated' ? 'simulated' : 'channel_off'
 }

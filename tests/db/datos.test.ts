@@ -12,6 +12,7 @@ import { fieldDefs } from '@/dal/fields'
 import { JOBS } from '@/server/jobs/registry'
 import { CAPABILITIES } from '@/domain/policy'
 import { AUDIT_ACTION } from '@/lib/audit'
+import { fillEnrollment } from '../support/us-enrollment'
 
 // Paquete datos (0023_datos): DAT-04, DAT-01, DAT-02, DAT-03, DAT-05, GOB-01, GOB-02 y DAT-07.
 const admin = owner()
@@ -206,7 +207,8 @@ describe('DAT-01 · jerarquía de N niveles con agregados', () => {
              (select s.id from crm.stages s where s.pipeline_id = p.id and s.kind = 'won' limit 1) as won from crm.pipelines p where p.market_code = 'US' and p.motor = 'dealer'`)
     await admin`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, amount_minor) values ('US', ${p.id}, ${p.stage}, ${pdv.id}, ${sam.user.id}, 'Alta de prueba', 'USD', 150000)`
     await admin`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, owner_id, title, currency, status, won_at) values ('US', ${p.id}, ${p.won}, ${pdv.id}, ${sam.user.id}, 'Alta ganada', 'USD', 'won', now())`
-    expect(await nodeTotals(sam, iso.id)).toMatchObject({ open_deals: 1, open_amount: '150000', won_deals: 1 })
+    // el seed ya trae altas ganadas bajo este ISO (paquete us-embudo): se cuenta la que se suma aquí
+    expect(await nodeTotals(sam, iso.id)).toMatchObject({ open_deals: 1, open_amount: '150000', won_deals: before.won_deals + 1 })
     const mx = await one(admin<{ ancestor_ids: string[] }[]>`select ancestor_ids from crm.accounts where name = 'Súper La Colmena Sucursal Centro'`)
     expect(mx.ancestor_ids).toHaveLength(2)
   })
@@ -559,7 +561,9 @@ describe('GOB-02 · tablero de calidad de datos', () => {
     const deal = (await one(admin<{ id: string }[]>`insert into crm.deals (market_code, pipeline_id, stage_id, account_id, title, currency, next_step, next_step_due)
       values ('US', ${stage.pipeline_id}, ${stage.id}, ${us}, 'Alta sin campo de etapa', 'USD', 'Llamar', now()::date + 2) returning id`)).id
     expect((await qualityQueue(nora, 'stage_fields', 'US')).map((q) => q.id)).toContain(deal)
+    // con solo uno de los campos que pide la etapa sigue en la cola; con todos (los del alta de dealers de US), sale
     await admin`update crm.deals set custom = '{"account_funding":"ACH"}'::jsonb where id = ${deal}`
+    await fillEnrollment(admin, deal)
     expect((await qualityQueue(nora, 'stage_fields', 'US')).map((q) => q.id)).not.toContain(deal)
     const cells = (await qualityBoard(nora)).cells
     for (const rule of ['stage_fields', 'attribution_gap', 'sales_unmatched']) expect(cells.some((c) => c.rule_code === rule)).toBe(true)
