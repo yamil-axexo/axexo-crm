@@ -1,6 +1,8 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { asPersona, ctxFor, owner, personaId } from './helpers'
 import { withUser, marketWorkday } from '@/server/db'
+import { ingestSalesAppEvent } from '@/domain/integrations'
+import { systemContext } from '@/server/context'
 import { createAccount, addContact } from '@/domain/accounts'
 import { searchAll, getAccount } from '@/dal/accounts'
 import { fieldDefs } from '@/dal/fields'
@@ -436,6 +438,23 @@ describe('MULTI-04: dirección con el formato del país, ubicación, distancia y
     // La bitácora no guarda la coordenada exacta.
     const ev = (await db<{ after: { lat: number; source: string } }[]>`select after from crm.audit_events where action = 'account.located' and object_id = ${b.id}`)[0]!
     expect(ev.after).toMatchObject({ lat: 20.67, source: 'device', near: 1 })
+  })
+  it('la Sales App puede mandar la ubicación del punto de venta: llena el hueco y no pisa la que ya estaba', async () => {
+    const sys = await systemContext()
+    const customer = `SC-MX-${Math.floor(100000 + Math.random() * 899999)}`
+    const ev = (lat: number, lon: number) => ({ event_id: `ev-merc-${Math.random().toString(36).slice(2, 12)}`, type: 'store.created', version: 1, occurred_at: new Date().toISOString(),
+      data: { customer_id: customer, market: 'MX', name: 'Abarrotes Ubicación De Prueba', latitude: lat, longitude: lon, location_accuracy_m: 12 } })
+    const first = await ingestSalesAppEvent(sys, ev(20.67359, -103.34421))
+    expect(first.status).toBe('processed')
+    const id = (first as { accountId: string }).accountId
+    const geo = async () => (await db<{ latitude: string; longitude: string; geo_source: string; geo_accuracy_m: number }[]>`select latitude::text, longitude::text, geo_source, geo_accuracy_m from crm.accounts where id = ${id}`)[0]!
+    expect(await geo()).toMatchObject({ geo_source: 'sales_app', geo_accuracy_m: 12 })
+    expect(Number((await geo()).latitude)).toBeCloseTo(20.67359, 4)
+    // Otro evento de la misma tienda con otra ubicación no la mueve: manda lo que ya está en CONTIGO.
+    await ingestSalesAppEvent(sys, ev(19.5, -99.1))
+    expect(Number((await geo()).latitude)).toBeCloseTo(20.67359, 4)
+    // Una latitud imposible no entra.
+    expect((await ingestSalesAppEvent(sys, ev(120, -99.1))).status).not.toBe('processed')
   })
 })
 

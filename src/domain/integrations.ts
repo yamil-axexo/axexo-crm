@@ -54,6 +54,10 @@ export const storeEvent = z.object({
     locality: z.string().max(120).nullable().optional(),
     region: z.string().max(120).nullable().optional(),
     salesperson_email: z.string().email().optional(),
+    // MULTI-04: dónde está el punto de venta, tomado por el teléfono de quien lo dio de alta. Opcional; van las dos o ninguna.
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    location_accuracy_m: z.number().int().min(0).max(100000).optional(),
   }),
 })
 
@@ -286,8 +290,13 @@ async function ingestStore(tx: Tx, sys: Ctx, ev: z.infer<typeof storeEvent>, rep
     await tx`update crm.inbound_events set status = 'rejected', error = ${out.error}, processed_at = now() where id = ${eventId}`
     return { status: 'unmatched', detail: out.error }
   }
+  // La ubicación que trae el evento llena el hueco; nunca pisa la que alguien ya guardó en CONTIGO.
+  const located = d.latitude !== undefined && d.longitude !== undefined
+    ? (await tx`update crm.accounts set latitude = ${d.latitude}, longitude = ${d.longitude}, geo_source = 'sales_app', geo_accuracy_m = ${d.location_accuracy_m ?? null}, geo_at = ${ev.occurred_at}, geo_by = null
+                 where id = ${out.accountId} and latitude is null returning id`).length > 0
+    : false
   await tx`update crm.inbound_events set status = 'processed', processed_at = now() where id = ${eventId}`
-  await audit(tx, sys, 'integration.store_received', 'account', out.accountId, d.market, null, { customer_id: d.customer_id })
+  await audit(tx, sys, 'integration.store_received', 'account', out.accountId, d.market, null, { customer_id: d.customer_id, ...(located ? { located: true } : {}) })
   return { status: 'processed', accountId: out.accountId }
 }
 
