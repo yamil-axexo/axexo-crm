@@ -184,7 +184,8 @@ describe('CANAL-03 atribución completa en el alta y corrida auditada', () => {
   })
   it('el alta desde la pantalla y desde la Sales App nace con origen clasificado, equipo reclutador y quien lo lleva', async () => {
     const marco = await ctxFor('marco.pena')
-    const { id } = await createAccount(marco, { market: 'MX', kind: 'store', name: `Abarrotes Atribución ${tag()}`, segment: 'd2d', phone: '', locality: '', region: '' } as never)
+    const created = await createAccount(marco, { market: 'MX', kind: 'store', name: `Abarrotes Atribución ${tag()}`, segment: 'd2d' })
+    const id = created.id!
     const rows = await admin<{ layer: string; party_kind: string; party_label: string; origin_kind: string | null }[]>`select layer, party_kind, party_label, origin_kind from crm.account_attributions where account_id = ${id} and effective_to is null order by layer`
     expect(rows.find((r) => r.layer === 'origin')!.origin_kind).toBe('new_acquisition')
     const ch = rows.find((r) => r.layer === 'channel')!

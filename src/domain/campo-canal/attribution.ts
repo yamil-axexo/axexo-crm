@@ -92,7 +92,8 @@ export async function reclassifyAttributionTx(tx: Tx, actor: Ctx, market: string
     const f = await facts(tx, p.account_id)
     if (!f) continue
     const o = classifyOrigin(f)
-    const res = await tx`update crm.account_attributions set origin_kind = ${o.kind}, reason = coalesce(reason, ${EVIDENCE_TEXT[o.evidence]})
+    const res = await tx`update crm.account_attributions set origin_kind = ${o.kind},
+                                 reason = case when reason is null or reason like 'Clasificado por regla:%' then ${EVIDENCE_TEXT[o.evidence]} else reason end
                           where account_id = ${p.account_id} and layer = 'origin' and effective_to is null and origin_kind is null`
     if (res.count) o.kind === 'network_conversion' ? network++ : acquisition++
   }

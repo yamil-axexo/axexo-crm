@@ -1,7 +1,7 @@
 import 'server-only'
 import { z } from 'zod'
-import { marketToday, withUser, type Tx } from '@/server/db'
-import type { Ctx } from '@/server/context'
+import { marketToday, withSystem, withUser, type Tx } from '@/server/db'
+import { systemCtx, type Ctx } from '@/server/context'
 import { audit, clean } from '@/domain/common'
 import { assertNoProhibited } from '@/domain/guard'
 import { notifyMany, peopleWithRole } from '@/domain/notify'
@@ -25,7 +25,7 @@ export async function partnerRegisterClaim(ctx: Ctx, raw: Record<string, string>
   if (!p.success) throw invalid('Escribe el nombre de la tienda y su ciudad.', 'Write the store name and its city.')
   const d = p.data
   assertNoProhibited(d.storeName, d.city)
-  return withUser(ctx.user.id, async (tx) => {
+  const out = await withUser(ctx.user.id, async (tx): Promise<PartnerClaimOutcome & { market?: string; node?: string }> => {
     const root = (await tx<{ id: string; name: string; market_code: string }[]>`
       select id, name, market_code from crm.accounts where id = ${d.root} and id = any(app.partner_root_ids())`)[0]
     if (!root) throw notFound('Ese nodo no es tuyo.', 'That node is not yours.')
@@ -54,12 +54,16 @@ export async function partnerRegisterClaim(ctx: Ctx, raw: Record<string, string>
       values (${root.market_code}, ${d.storeName}, ${key}, ${root.id}, ${root.name}, 'partner', now() + make_interval(days => ${win.value}), ${ctx.user.id}, 'partner')
       returning id, expires_at`
     await audit(tx, ctx, 'claim.registered', 'channel_claim', rows[0]!.id, root.market_code, null, { node: root.name, channel: 'partner', window_days: win.value, window_version: win.version, via: 'partner' })
-    await notifyMany(tx, ctx, await peopleWithRole(tx, root.market_code, ['market_lead']), {
-      kind: 'lifecycle', market: root.market_code, link: '/campo?tab=registros', needsAction: false,
-      title: ['Un aliado registró una tienda', 'A partner registered a store'], body: [`${root.name}: ${d.storeName}.`, `${root.name}: ${d.storeName}.`],
-    })
-    return { status: 'registered', id: rows[0]!.id, until: rows[0]!.expires_at }
+    return { status: 'registered', id: rows[0]!.id, until: rows[0]!.expires_at, market: root.market_code, node: root.name }
   })
+  // Quien lidera el mercado se entera. El aviso lo deja el sistema: el aliado no escribe avisos a personas de axexo.
+  if (out.status === 'registered' && out.market && out.node) {
+    const sys = await systemCtx()
+    await withSystem(async (tx) => notifyMany(tx, sys, await peopleWithRole(tx, out.market!, ['market_lead']), { kind: 'lifecycle', market: out.market!, link: '/campo?tab=registros', needsAction: false,
+      title: ['Un aliado registró una tienda', 'A partner registered a store'], body: [`${out.node}: ${d.storeName}.`, `${out.node}: ${d.storeName}.`] }))
+  }
+  if (out.status === 'registered') return { status: 'registered', id: out.id, until: out.until }
+  return out
 }
 
 // ------------------------------------------------------------------------------------------------ CANAL-05 estado de comisión
@@ -137,9 +141,11 @@ export async function publishStatement(ctx: Ctx, id: string, rawRules: string): 
   if (!rules || rules.length < 3) throw invalid('Escribe dónde están las reglas escritas con que se publica (enlace o nombre del documento aprobado).', 'Write where the written rules it is published under are (link or name of the approved document).')
   assertNoProhibited(rules)
   await withUser(ctx.user.id, async (tx) => {
+    const seen = (await tx<{ market_code: string }[]>`select market_code from crm.commission_statements where id = ${id}`)[0]
+    if (!seen) throw notFound()
+    ctx.assert('statement.manage', seen.market_code)
     const s = (await tx<{ market_code: string; status: string; party_label: string }[]>`select market_code, status, party_label from crm.commission_statements where id = ${id} for update`)[0]
     if (!s) throw notFound()
-    ctx.assert('statement.manage', s.market_code)
     if (s.status !== 'estimate') throw invalid('Ya está publicado.', 'It is already published.')
     await tx`update crm.commission_statements set status = 'published', rules_ref = ${rules.slice(0, 200)}, published_by = ${ctx.user.id}, published_at = now(), updated_at = now() where id = ${id}`
     await audit(tx, ctx, 'commission_statement.published', 'commission_statement', id, s.market_code, { status: 'estimate' }, { status: 'published', party: s.party_label, rules: rules.slice(0, 200) })
@@ -172,8 +178,7 @@ export async function setChannelPolicy(ctx: Ctx, raw: Record<string, string>): P
   const approved = d.financeBy.length >= 2 && d.salesBy.length >= 2
   return withUser(ctx.user.id, async (tx) => {
     if (d.arbiterId) {
-      const ok = await tx`select 1 from crm.memberships m where m.user_id = ${d.arbiterId} and (m.market_code = ${d.market} or m.role = 'admin') and m.role in ('admin', 'market_lead') and (m.valid_to is null or m.valid_to > now())`
-      if (!ok[0]) throw invalid('Quien arbitra tiene que liderar este mercado o administrar.', 'The arbiter must lead this market or be an administrator.')
+      if (!(await peopleWithRole(tx, d.market, ['market_lead', 'admin'])).includes(d.arbiterId)) throw invalid('Quien arbitra tiene que liderar este mercado o administrar.', 'The arbiter must lead this market or be an administrator.')
     }
     const cur = (await tx<{ id: string; version: number; clawback_days: number; status: string }[]>`
       select id, version, clawback_days, status from crm.channel_policies where market_code = ${d.market} and valid_to is null for update`)[0]

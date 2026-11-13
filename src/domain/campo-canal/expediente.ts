@@ -202,7 +202,7 @@ export async function onboardingLinkView(sys: Ctx, token: string): Promise<LinkV
     const l = await liveLink(tx, token)
     if (!l) return null
     const f = (await tx<{ name: string; status: string; locale: 'es' | 'en' }[]>`
-      select a.name, f.status, mk.locale from crm.onboarding_files f join crm.accounts a on a.id = f.account_id join crm.markets mk on mk.code = f.market_code where f.id = ${l.file_id}`)[0]
+      select a.name, f.status, mk.default_locale as locale from crm.onboarding_files f join crm.accounts a on a.id = f.account_id join crm.markets mk on mk.code = f.market_code where f.id = ${l.file_id}`)[0]
     if (!f) return null
     const docs = await tx<LinkView['docs']>`
       select d.id, coalesce(r.label_es, d.requirement) as label_es, coalesce(r.label_en, d.requirement) as label_en, d.status, d.link is not null as has_link

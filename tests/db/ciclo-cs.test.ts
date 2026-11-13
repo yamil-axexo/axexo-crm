@@ -490,7 +490,8 @@ describe('CS-02 · puntaje de salud explicable y validado', () => {
     // solo hay dato de ventas: 50 contra 100 de línea base = la mitad de su peso; los otros grupos dicen que no cuentan
     expect(s.score).toBe(50)
     expect(s.groups.find((g) => g.grp === 'transactions')).toMatchObject({ weight: 50, points: 25, basis: 'vs_baseline', baseline: 100 })
-    expect(s.groups.filter((g) => g.points === null).map((g) => g.grp).sort()).toEqual(['balance', 'mix', 'tickets'])
+    // campo2: el punto de venta perfecto es un grupo más; sin puntaje de la Sales App tampoco cuenta.
+    expect(s.groups.filter((g) => g.points === null).map((g) => g.grp).sort()).toEqual(['balance', 'mix', 'perfect_store', 'tickets'])
     // llegan saldo, productos y solicitudes (la conexión real está apagada; aquí entran por la entrada única)
     await admin`update crm.cs_settings set low_balance_minor = 10000 where market_code = 'MX'`
     const sys = await systemContext()

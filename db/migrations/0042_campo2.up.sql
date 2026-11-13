@@ -314,6 +314,6 @@ create policy onboarding_links_upd on crm.onboarding_links for update to contigo
 
 grant select, insert on crm.onboarding_links, crm.equipment_events, crm.commission_statements, crm.enablement_progress, crm.channel_policies to contigo_app;
 grant update (used_at, revoked_at) on crm.onboarding_links to contigo_app;
-grant update (status, counts, rules_ref, published_by, published_at, updated_at) on crm.commission_statements to contigo_app;
+grant update (status, counts, party_label, rules_ref, published_by, published_at, updated_at) on crm.commission_statements to contigo_app;
 grant update (valid_to) on crm.channel_policies to contigo_app;
 grant update (delivery_status, delivered_at) on crm.feedback_digests to contigo_app;
