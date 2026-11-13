@@ -83,47 +83,53 @@ export async function stampAttributionTx(tx: Tx, actorId: string | null, account
  * reclutador (la anterior se cierra, no se edita). Deja un evento en la bitácora con los conteos.
  */
 export async function reclassifyAttributionTx(tx: Tx, actor: Ctx, market: string): Promise<{ classified: number; network: number; acquisition: number; channels: number }> {
-  const pending = await tx<{ account_id: string }[]>`
-    select t.account_id from crm.account_attributions t join crm.accounts a on a.id = t.account_id
+  // Hechos de todos los pendientes en una sola lectura; la regla es la misma función del alta (classifyOrigin).
+  const pending = await tx<{ account_id: string; merchant_origin: string | null; network_alias: boolean }[]>`
+    select t.account_id, a.merchant_origin,
+           exists (select 1 from crm.account_aliases x where x.account_id = a.id and x.system = any(${[...NETWORK_SYSTEMS]}::text[])) as network_alias
+      from crm.account_attributions t join crm.accounts a on a.id = t.account_id
      where t.market_code = ${market} and t.layer = 'origin' and t.effective_to is null and t.origin_kind is null and a.archived_at is null`
+  const groups = new Map<string, { kind: OriginKind; evidence: OriginEvidence; ids: string[] }>()
+  for (const p of pending) {
+    const o = classifyOrigin(p)
+    const k = `${o.kind}:${o.evidence}`
+    if (!groups.has(k)) groups.set(k, { ...o, ids: [] })
+    groups.get(k)!.ids.push(p.account_id)
+  }
   let network = 0
   let acquisition = 0
-  for (const p of pending) {
-    const f = await facts(tx, p.account_id)
-    if (!f) continue
-    const o = classifyOrigin(f)
-    const res = await tx`update crm.account_attributions set origin_kind = ${o.kind},
-                                 reason = case when reason is null or reason like 'Clasificado por regla:%' then ${EVIDENCE_TEXT[o.evidence]} else reason end
-                          where account_id = ${p.account_id} and layer = 'origin' and effective_to is null and origin_kind is null`
-    if (res.count) o.kind === 'network_conversion' ? network++ : acquisition++
+  for (const g of groups.values()) {
+    const res = await tx`update crm.account_attributions set origin_kind = ${g.kind},
+                                 reason = case when reason is null or reason like 'Clasificado por regla:%' then ${EVIDENCE_TEXT[g.evidence]} else reason end
+                          where account_id = any(${g.ids}::uuid[]) and layer = 'origin' and effective_to is null and origin_kind is null`
+    if (g.kind === 'network_conversion') network += res.count
+    else acquisition += res.count
   }
-  // Capa de canal heredada (guardaba el tipo de venta): se reemplaza por el equipo reclutador, como fila nueva.
-  const legacy = await tx<{ id: string; account_id: string }[]>`
-    select t.id, t.account_id from crm.account_attributions t join crm.accounts a on a.id = t.account_id
-     where t.market_code = ${market} and t.layer = 'channel' and t.effective_to is null and t.party_kind = 'team'
-       and t.party_ref <> 'field_team' and not exists (select 1 from crm.teams tm where tm.id::text = t.party_ref) and a.archived_at is null`
-  let channels = 0
-  for (const l of legacy) {
-    const r = await recruiterParty(tx, l.account_id)
-    if (!r) continue
-    await tx`update crm.account_attributions set effective_to = now() where id = ${l.id}`
+  // Capa de canal heredada (guardaba el tipo de venta) o ausente: el equipo reclutador, como fila nueva (la anterior se cierra, no se edita).
+  const rows = await tx<{ account_id: string; legacy_id: string | null; agency_id: string | null; agency: string | null; team_id: string | null; team: string | null }[]>`
+    select a.id as account_id, l.id as legacy_id, g.id as agency_id, g.name as agency, tm.id as team_id, tm.name as team
+      from crm.accounts a
+      left join lateral (select t.id from crm.account_attributions t where t.account_id = a.id and t.layer = 'channel' and t.effective_to is null limit 1) cur on true
+      left join crm.account_attributions l on l.id = cur.id and l.party_kind = 'team' and l.party_ref <> 'field_team'
+                                          and not exists (select 1 from crm.teams x where x.id::text = l.party_ref)
+      left join crm.agencies g on g.id = a.recruited_agency_id
+      left join lateral (select t2.id, t2.name from crm.memberships mm join crm.teams t2 on t2.id = mm.team_id
+                          where mm.user_id = coalesce(a.owner_id, a.created_by) and mm.market_code = a.market_code and mm.valid_from <= now() and (mm.valid_to is null or mm.valid_to > now())
+                          order by mm.valid_from desc limit 1) tm on true
+     where a.market_code = ${market} and a.archived_at is null and a.merged_into is null
+       and (l.id is not null or (cur.id is null and exists (select 1 from crm.account_attributions o where o.account_id = a.id and o.layer = 'origin')))`
+  const legacy = rows.filter((r) => r.legacy_id).map((r) => r.legacy_id!)
+  if (legacy.length) await tx`update crm.account_attributions set effective_to = now() where id = any(${legacy}::uuid[])`
+  // Misma regla que recruiterParty: aliado si lo hay; si no, el equipo de quien lo trajo; si no, el equipo propio.
+  const party = rows.map((r) => (r.agency_id ? { kind: 'partner', ref: r.agency_id, label: r.agency! } : r.team_id ? { kind: 'team', ref: r.team_id, label: r.team! } : { kind: 'team', ref: 'field_team', label: 'Equipo propio' }))
+  if (rows.length) {
     await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by, reason, correction_of)
-             values (${l.account_id}, ${market}, 'channel', ${r.kind}, ${r.ref}, ${r.label}, ${actor.user.id}, 'Corrida de clasificación: equipo reclutador en vez del tipo de venta', ${l.id})`
-    channels++
+             select x.account_id, ${market}, 'channel', x.kind, x.ref, x.label, ${actor.user.id},
+                    case when x.legacy is null then 'Corrida de clasificación: equipo reclutador' else 'Corrida de clasificación: equipo reclutador en vez del tipo de venta' end, x.legacy
+               from unnest(${rows.map((r) => r.account_id)}::uuid[], ${party.map((p) => p.kind)}::text[], ${party.map((p) => p.ref)}::text[], ${party.map((p) => p.label)}::text[], ${rows.map((r) => r.legacy_id)}::uuid[])
+                    as x(account_id, kind, ref, label, legacy)`
   }
-  // Comercios sin capa de canal: la reciben.
-  const missing = await tx<{ id: string }[]>`
-    select a.id from crm.accounts a where a.market_code = ${market} and a.archived_at is null and a.merged_into is null
-       and not exists (select 1 from crm.account_attributions t where t.account_id = a.id and t.layer = 'channel' and t.effective_to is null)
-       and exists (select 1 from crm.account_attributions t where t.account_id = a.id and t.layer = 'origin')`
-  for (const m of missing) {
-    const r = await recruiterParty(tx, m.id)
-    if (!r) continue
-    await tx`insert into crm.account_attributions (account_id, market_code, layer, party_kind, party_ref, party_label, created_by, reason)
-             values (${m.id}, ${market}, 'channel', ${r.kind}, ${r.ref}, ${r.label}, ${actor.user.id}, 'Corrida de clasificación: equipo reclutador')`
-    channels++
-  }
-  const out = { classified: network + acquisition, network, acquisition, channels }
+  const out = { classified: network + acquisition, network, acquisition, channels: rows.length }
   await audit(tx, actor, 'attribution.reclassified', 'market', null, market, null, out)
   return out
 }
