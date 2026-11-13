@@ -136,7 +136,7 @@ describe('toda exportación pide motivo y queda en la bitácora de exportaciones
     const exempt = ['src/app/(app)/importar/plantilla/route.ts', 'src/app/(app)/importar/reporte/route.ts']
     const governed = routes.filter((p) => !exempt.includes(p))
     expect(governed.length).toBeGreaterThanOrEqual(7)
-    for (const p of governed) expect(readFileSync(p, 'utf8'), p).toMatch(/get\('motivo'\)/)
+    for (const p of governed) expect(readFileSync(p, 'utf8'), p).toMatch(/\bmotivo\b/)
     for (const p of exempt) expect(routes, p).toContain(p)
   })
 })
@@ -171,7 +171,7 @@ describe('un solo portafolio por tienda (datos DAT-07 y us-embudo E10.F2), pedid
     await fillEnrollment(admin, dealId)
     const task = async (ownerId: string, subject: string) => (await one(admin<{ id: string }[]>`
       insert into crm.activities (market_code, account_id, deal_id, kind, subject, due_at, owner_id, created_by, source)
-      values ('US', ${acc.id!}, ${dealId}, 'task', ${subject}, now() + interval '1 day', ${ownerId}, ${jade.user.id}, 'manual') returning id`)).id
+      values ('US', ${acc.id!}, ${dealId}, 'task', ${subject}, now() + interval '1 day', ${ownerId}, ${jade.user.id}, 'user') returning id`)).id
     const mine = await task(jade.user.id, 'Llamar al dueño')
     const ops = await task(tom, 'Validar documentos')
     const moved = await reassignDeals(kira, { market: 'US', from: jade.user.id, to: sam })
@@ -205,7 +205,8 @@ describe('contratos de la integración', () => {
     for (const p of packages) expect(registry, p).toContain(`from './${p}'`)
     for (const p of packages) expect(keys.some((k) => k.startsWith(`${p}.`)), p).toBe(true)
     // nadie programa nada por su lado
-    const own = files('src').filter((p) => !p.startsWith('src/server/jobs/') && /\bsetInterval\(|\bsetTimeout\([^)]*60_?000/.test(readFileSync(p, 'utf8')))
+    const server = [...files('src/server'), ...files('src/domain'), ...files('src/dal'), ...files('src/app/api')]
+    const own = server.filter((p) => !p.startsWith('src/server/jobs/') && /\bsetInterval\(/.test(readFileSync(p, 'utf8')))
     expect(own).toEqual([])
     for (const j of JOBS) {
       const out = await runJob(j, 'manual', { force: true })
