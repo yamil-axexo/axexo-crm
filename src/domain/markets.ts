@@ -538,7 +538,7 @@ export async function openWhatsappWindow(ctx: Ctx, accountId: string, kind: 'ser
     ctx.assert('activity.write', a.market_code)
     const hours = kind === 'ad_72h' ? 72 : 24
     await tx`insert into crm.whatsapp_windows (account_id, market_code, kind, expires_at, source, opened_by) values (${accountId}, ${a.market_code}, ${kind}, now() + make_interval(hours => ${hours}), 'manual', ${ctx.user.id})`
-    await audit(tx, ctx, 'whatsapp.window_opened', 'account', accountId, a.market_code, null, { kind, hours })
+    await audit(tx, ctx, 'account.whatsapp_window', 'account', accountId, a.market_code, null, { kind, hours })
   })
 }
 

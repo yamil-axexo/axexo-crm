@@ -71,7 +71,7 @@ const EIN_PREFIXES = new Set(
     '71', '72', '73', '74', '75', '76', '77', '80', '81', '82', '83', '84', '85', '86', '87', '88', '90', '91', '92', '93', '94', '95', '98', '99'],
 )
 function checkEin(raw: string, n: string): TaxIdCheck {
-  // Un SSN (123-45-6789) nunca se captura como identificador fiscal: el estándar lo prohíbe. Se pide el EIN.
+  // Un SSN (tres, dos y cuatro números) nunca se captura como identificador fiscal: el estándar lo prohíbe. Se pide el EIN.
   if (/^\s*\d{3}[-\s]\d{2}[-\s]\d{4}\s*$/.test(raw)) return { normalized: '', formatOk: false, checksumOk: null, problem: 'ssn' }
   if (!/^\d{9}$/.test(n)) return { normalized: n, formatOk: false, checksumOk: null, problem: 'format' }
   if (!EIN_PREFIXES.has(n.slice(0, 2))) return { normalized: n, formatOk: false, checksumOk: null, problem: 'prefix' }

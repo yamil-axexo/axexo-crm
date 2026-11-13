@@ -36,7 +36,7 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'whatsapp.template_saved': ['Guardó una plantilla de WhatsApp', 'Saved a WhatsApp template'],
   'whatsapp.template_status': ['Cambió el estado de una plantilla de WhatsApp', 'Changed a WhatsApp template’s status'],
   'whatsapp.rate_saved': ['Cargó un costo por mensaje de WhatsApp', 'Loaded a WhatsApp cost per message'],
-  'whatsapp.window_opened': ['Anotó que el comercio escribió por WhatsApp', 'Noted that the merchant wrote on WhatsApp'],
+  'account.whatsapp_window': ['Anotó que el comercio escribió por WhatsApp', 'Noted that the merchant wrote on WhatsApp'],
   'ficha.layout_set': ['Cambió los datos de arriba de la ficha para un rol', 'Changed the top facts of the merchant page for a role'],
   'field_section.created': ['Agregó una sección de campos', 'Added a field section'],
   'field.section_set': ['Movió un campo de sección', 'Moved a field to another section'],
@@ -139,11 +139,11 @@ export const AUDIT_ACTION: Record<string, Pair> = {
 export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
-  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%'], not: null },
+  config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'api_client.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'market.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported'], not: null },
   integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%'], not: null },
-  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%'], not: null },
+  records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'taxid.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered'], not: null },
   sessions: { label: ['Inicios y cierres de sesión', 'Sign-ins and sign-outs'] as Pair, like: ['session.%'], not: null },
   all: { label: ['Todo', 'Everything'] as Pair, like: null, not: null },
@@ -182,6 +182,12 @@ export const AUDIT_OBJECT: Record<string, Pair> = {
   notice: ['Aviso de una nota', 'Notice from a note'],
   ops_catalog: ['Catálogo de Operaciones', 'Operations catalog'],
   product: ['Producto', 'Product'],
+  legal_entity: ['Entidad legal', 'Legal entity'],
+  whatsapp_account: ['Número de WhatsApp', 'WhatsApp number'],
+  whatsapp_template: ['Plantilla de WhatsApp', 'WhatsApp template'],
+  whatsapp_rate: ['Costo de WhatsApp', 'WhatsApp cost'],
+  ficha_layout: ['Datos de arriba de la ficha', 'Top facts of the merchant page'],
+  field_section: ['Sección de campos', 'Field section'],
 }
 
 /** Los reportes que se pueden exportar, con su nombre. */
