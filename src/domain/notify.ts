@@ -57,8 +57,8 @@ async function unitCost(tx: Tx, market: string | null, channel: Channel): Promis
     // Un solo modelo de WhatsApp por mercado (0026_markets): el costo vigente de la categoría "utility" (los avisos lo son) y el
     // límite diario de la cuenta activa del mercado. Se cargan en Administración, Mercados.
     const rows = await tx<{ cost: string | null; currency: string | null; daily_limit: number | null }[]>`
-      select (select r.cost::text from crm.whatsapp_rates r where r.market_code = ${market} and r.category = 'utility' and r.effective_from <= current_date order by r.effective_from desc limit 1) as cost,
-             (select trim(r.currency) from crm.whatsapp_rates r where r.market_code = ${market} and r.category = 'utility' and r.effective_from <= current_date order by r.effective_from desc limit 1) as currency,
+      select (select r.cost::text from crm.whatsapp_rates r where r.market_code = ${market} and r.category = 'utility' and r.effective_from <= (now() at time zone coalesce((select k.timezone from crm.markets k where k.code = ${market}), 'UTC'))::date order by r.effective_from desc limit 1) as cost,
+             (select trim(r.currency) from crm.whatsapp_rates r where r.market_code = ${market} and r.category = 'utility' and r.effective_from <= (now() at time zone coalesce((select k.timezone from crm.markets k where k.code = ${market}), 'UTC'))::date order by r.effective_from desc limit 1) as currency,
              (select min(a.daily_limit) from crm.whatsapp_accounts a where a.market_code = ${market} and a.is_active) as daily_limit`
     const r = rows[0]
     return { cost: r?.cost ?? null, currency: r?.currency ?? null, limit: r?.daily_limit ?? null }
