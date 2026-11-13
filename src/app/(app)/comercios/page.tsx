@@ -174,6 +174,8 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
               <span className="sr-only">: {m('merchants.view.mapSoon')}</span>
             </span>
           </nav>
+          {/* MULTI-04: los comercios por distancia, con la ubicación del teléfono. No necesita mapa. */}
+          <Link href="/comercios/cerca" className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-4 text-[13px] font-medium text-strong hover:bg-green-50" data-testid="view-near">{t('Cerca de mí', 'Near me')}</Link>
         </div>
 
         {!tree && (

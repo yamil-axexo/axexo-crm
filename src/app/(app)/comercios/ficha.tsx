@@ -24,6 +24,9 @@ import { moveInTreeAction } from '@/app/(app)/datos/actions'
 import { accountIdentity, nodeTotals } from '@/dal/datos'
 import { contactRolesFor } from '@/lib/datos-labels'
 import { AliasSection, ContactHistory, ContactTools, MergeSection, ProcessSection, ProductsSection, TreeTotals } from './datos-ficha'
+import { FichaFacts, FichaMercados } from './ficha-mercados'
+import { fichaRole, readerTeam } from '@/lib/markets'
+import { rolesIn } from '@/domain/policy'
 import { addActivityAction } from '@/app/(app)/actividades/actions'
 import { reassignOneAction, takeAccountAction } from '@/app/(app)/actividades/log-actions'
 import { AccountOrders, LastOrderLine } from './pedidos'
@@ -253,6 +256,8 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
             )}
           </p>
         </div>
+        {/* UX-01: los datos de arriba dependen del rol de quien abre la ficha (crm.ficha_layouts). */}
+        <FichaFacts ctx={ctx} id={a.id} treeHref={href(a.id, 'arbol')} />
         <LastOrderLine ctx={ctx} accountId={a.id} timezone={market.timezone} hasOrderPipeline={pipelines.some((p) => p.has_items)} />
       </div>
 
@@ -578,9 +583,11 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
               <h3 className={cx(h3, 'mb-2')}>{t('Campos adicionales', 'Additional fields')}</h3>
               <CustomFields defs={defs.filter((d) => !d.section)} values={a.custom} t={t} locale={locale}
                 action={canEdit ? <LinkButton href={`/comercios/${a.id}/campos`} size="sm" testId="custom-edit">{t('Editar campos', 'Edit fields')}</LinkButton> : undefined} />
-              <div className="mt-5"><FieldSections defs={defs} values={a.custom} t={t} locale={locale} /></div>
+              <div className="mt-5"><FieldSections defs={defs} values={a.custom} t={t} locale={locale} team={readerTeam(fichaRole(rolesIn(ctx.memberships, a.market_code)))} /></div>
             </section>
           )}
+
+          <FichaMercados ctx={ctx} id={a.id} market={a.market_code} archived={!!a.archived_at} name={a.name} />
 
           {canEdit && (
             <section className={section}>
@@ -590,11 +597,10 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref }: { ctx: Ct
                 <Field label={t('Nombre', 'Name')}><input name="name" className="input" defaultValue={a.name} required data-testid="edit-name" /></Field>
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" defaultValue={a.phone ?? ''} data-testid="edit-phone" /></Field>
                 <Field label={t('Correo', 'Email')}><input name="email" className="input" defaultValue={a.email ?? ''} /></Field>
-                <Field label={t('Dirección', 'Address')}><input name="address_line" className="input" defaultValue={a.address_line ?? ''} /></Field>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label={t('Ciudad', 'City')}><input name="locality" className="input" defaultValue={a.locality ?? ''} /></Field>
-                  <Field label={t('Estado o región', 'State or region')}><input name="region" className="input" defaultValue={a.region ?? ''} /></Field>
-                </div>
+                {/* La dirección se edita arriba, en "Dirección y ubicación", con el formato del país; este formulario la conserva como está. */}
+                <input type="hidden" name="address_line" value={a.address_line ?? ''} />
+                <input type="hidden" name="locality" value={a.locality ?? ''} />
+                <input type="hidden" name="region" value={a.region ?? ''} />
                 <input type="hidden" name="postal_code" value={a.postal_code ?? ''} />
                 <div className="flex justify-end"><Submit variant="ghost" testId="edit-save">{t('Guardar', 'Save')}</Submit></div>
               </ActionForm>

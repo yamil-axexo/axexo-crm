@@ -3,6 +3,7 @@ import { requireCtx } from '@/server/context'
 import { deployedVersion, env, ssoEnabled } from '@/env'
 import { getStatus, getConfig } from '@/dal/admin'
 import { closeRuleChanges } from '@/dal/b2b'
+import { marketAdapterStatus } from '@/server/adapters/markets'
 import { pipedriveConfigured } from '@/server/adapters/pipedrive'
 import { deliveryMode } from '@/server/adapters/event-delivery'
 import { antibotMode } from '@/server/adapters/antibot'
@@ -137,6 +138,14 @@ export default async function StatusPage() {
         last: t(`${num(q?.n ?? 0, locale)} en cola sin salir. Para encenderlo: ${a.needs[0]}`, `${num(q?.n ?? 0, locale)} queued, not sent. To turn it on: ${a.needs[1]}`),
       }
     }),
+    // Adaptadores del paquete de mercados: construidos y apagados. Cada uno dice qué falta para encenderlo.
+    ...marketAdapterStatus().map((a) => ({
+      key: `adapter_${a.key}`,
+      name: t(...a.name),
+      what: t(...a.what),
+      state: a.mode === 'ready' ? { tone: 'good' as const, text: t('Lista', 'Ready') } : a.mode === 'simulated' ? { tone: 'warn' as const, text: t('Simulado (pruebas)', 'Simulated (tests)') } : { tone: 'neutral' as const, text: a.mode === 'missing' ? t('Apagada: falta la llave', 'Off: the key is missing') : t('Apagado', 'Off') },
+      last: a.mode === 'ready' ? t('La llave está en el ambiente.', 'The key is in the environment.') : `${t(...a.needs)} ${t(`Se enciende con la variable ${a.envVar}, después de la aprobación.`, `It is turned on with the ${a.envVar} variable, after approval.`)}`,
+    })),
   ]
   // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
   rows.push({

@@ -22,6 +22,7 @@ import { AuditTab, type AuditParams } from './audit'
 import { TerritoriosTab } from './territorios'
 import { ReportesTab, reportFilter } from './reportes'
 import { FxCard } from './fx'
+import { MercadosTab } from './mercados'
 import { CampaignConfig, TerritoryManagers, WinRules } from './mx'
 import { targetText } from '@/lib/response-target'
 import { mergeAction } from '@/app/(app)/comercios/actions'
@@ -31,7 +32,7 @@ import { readerTimeZone } from '@/server/timezone'
 // La importación corre por pasos cortos; aun así se le da margen a cada llamada.
 export const maxDuration = 60
 
-const TABS = ['personas', 'territorios', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'reportes', 'auditoria'] as const
+const TABS = ['personas', 'territorios', 'mercados', 'embudos', 'entrada', 'integraciones', 'pipedrive', 'calidad', 'reportes', 'auditoria'] as const
 type Tab = (typeof TABS)[number]
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ tab?: string; acceso?: string; reportes?: string } & AuditParams> }) {
@@ -47,6 +48,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const labels: Record<Tab, string> = {
     personas: t('Personas y acceso', 'People and access'),
     territorios: t('Territorios', 'Territories'),
+    mercados: t('Mercados y entidades', 'Markets and entities'),
     embudos: t('Embudos y campos', 'Pipelines and fields'),
     entrada: t('Formularios y turnos', 'Forms and rotation'),
     // Lo que llega de la Sales App y del archivo de ventas, con sus pruebas. Las llaves, los eventos y la API viven en "Eventos, API y datos".
@@ -78,6 +80,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           // Datos (duplicados, registro de campos, productos y tablero de calidad): quien administra entra por aquí, no por el menú de la cuenta.
           ...(admin && (ctx.can('data.quality') || ctx.isGlobal) ? [{ key: 'datos', href: '/datos', label: t('Datos', 'Data') }] : [])] },
         { key: 'mercados', label: t('Mercados', 'Markets'), items: admin ? [
+          // Entidades legales, festivos, WhatsApp por mercado, datos de arriba de la ficha y secciones de campos (paquete mercados).
+          tabItem('mercados'),
           { key: 'mercado', href: '/reportes/mercado', label: t('Reporte del mercado', 'Market report') }, { key: 'arranque', href: '/arranque', label: t('Arranque y hojas', 'Rollout and sheets') }] : [] },
         { key: 'control', label: t('Control', 'Oversight'), items: [tabItem('auditoria'),
           ...(ctx.can('status.read') ? [{ key: 'estado', href: '/estado', label: t('Estado de CONTIGO', 'CONTIGO status') }] : [])] },
@@ -89,6 +93,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       )}
       {tab === 'personas' && <PeopleTab ctx={ctx} access={accessFilter(sp.acceso)} today={isoDay(new Date(), await readerTimeZone(ctx))} />}
       {tab === 'territorios' && <><TerritoriosTab ctx={ctx} /><TerritoryManagers ctx={ctx} /></>}
+      {tab === 'mercados' && <MercadosTab ctx={ctx} />}
       {tab === 'embudos' && <><Config />{admin && <WinRules ctx={ctx} />}</>}
       {tab === 'entrada' && <Intake />}
       {tab === 'integraciones' && <Integrations />}

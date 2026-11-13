@@ -85,6 +85,7 @@ export function accountFilter(tx: Tx, ctx: Ctx, f: AccountFilters) {
     ${visito ? tx`and exists (select 1 from crm.activities xv where xv.account_id = a.id and xv.market_code = a.market_code and xv.kind = 'visit' and xv.done_at is not null and lower(btrim(xv.visited_by)) = lower(${visito}))` : tx``}
     ${q ? tx`and (a.name_norm like ${'%'} || app.norm(${q}) || ${'%'}
                   or a.place_norm like ${'%'} || app.norm(${q}) || ${'%'}
+                  ${q.length >= 4 ? tx`or a.address_norm like ${'%'} || app.norm(${q}) || ${'%'}` : tx``}
                   ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
                   or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) like ${'%' + q.toUpperCase() + '%'}))` : tx``}`
   const where = tx`${base} ${f.ver === 'riesgo' ? tx`and ${risk}` : f.ver === 'sin-transaccionar' ? tx`and ${idle}` : f.ver === 'sin-paso' ? tx`and ${nostep}` : tx``}`

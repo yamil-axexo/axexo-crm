@@ -123,6 +123,12 @@ export const CAPABILITIES = {
   // Los leads descartados como base de correo: la descarga lleva correos, así que es de quien lidera el mercado y de
   // administración, y solo trae a quien dio su consentimiento (domain/mx-reports.ts).
   'lead.mailing_export': ['admin', 'market_lead'],
+  // Paquete de mercados. Capturar el identificador fiscal lo hace quien lleva la cuenta u Operaciones; revisarlo contra el
+  // documento (la capa humana) es de quien lidera el mercado, Operaciones o administración. Cambiar la entidad legal de un
+  // comercio es de quien lidera el mercado o de administración. El consolidado en USD lo lee quien ya lee el panel.
+  'taxid.capture': [...SELLERS, 'ops'],
+  'taxid.review': ['admin', 'market_lead', 'ops'],
+  'account.entity': ['admin', 'market_lead'],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Capability = keyof typeof CAPABILITIES

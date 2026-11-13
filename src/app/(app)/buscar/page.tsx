@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { Search } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { searchAll } from '@/dal/accounts'
+import { TaxSearch } from '@/ui/tax-search'
+import { taxSearchAction } from '@/app/(app)/comercios/mercados-actions'
 import { Empty } from '@/ui/kit'
 import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { LEAD_STATUS, lab } from '@/lib/labels'
@@ -108,6 +110,13 @@ export default async function BuscarPage({ searchParams }: { searchParams: Promi
           )}
         </div>
       )}
+      <TaxSearch action={taxSearchAction} showMarket={ctx.markets.length > 1} labels={{
+        title: t('Buscar por identificador fiscal', 'Search by tax ID'),
+        hint: t('Escribe el RFC, EIN o NIT completo. Solo encuentra coincidencias exactas. No queda en la dirección de la página ni se guarda.', 'Enter the full RFC, EIN or NIT. It only finds exact matches. It does not stay in the page address and is not stored.'),
+        field: t('Identificador fiscal completo', 'Full tax ID'), search: t('Buscar', 'Search'), searching: t('Buscando', 'Searching'),
+        none: t('Ningún comercio de tu alcance tiene ese identificador.', 'No merchant in your scope has that identifier.'),
+        match: t('coincide el identificador fiscal completo', 'the full tax ID matches'), failed: t('No pudimos buscar. Intenta otra vez.', 'We could not search. Try again.'),
+      }} />
     </div>
   )
 }

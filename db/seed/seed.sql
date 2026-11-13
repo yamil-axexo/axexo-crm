@@ -675,3 +675,21 @@ update crm.leads l set email = 'contacto' || (pg_temp.h('em' || l.id::text) % 90
        consent_at = l.created_at, consent_text = 'Acepto que axexo me escriba por correo sobre sus productos y novedades.'
  where l.market_code = 'MX' and l.status = 'disqualified' and pg_temp.h('cs' || l.id::text) % 2 = 0;
 alter table crm.leads enable trigger user;
+-- mercados
+-- Las entidades sintéticas quedan como las de por defecto de su mercado; la provisional que crea la migración 0026 para
+-- MX y US se retira (El Salvador conserva la suya, "por confirmar", para que se vea ese caso). Una tasa MXN antigua deja
+-- convertir los negocios que cerraron antes de ayer, y los comercios con dirección reciben una ubicación sintética.
+update crm.legal_entities set is_default = false where market_code in ('MX', 'US') and needs_review;
+update crm.legal_entities set is_default = true, tax_country = market_code where id in (pg_temp.uid('le-mx'), pg_temp.uid('le-us'));
+update crm.accounts a set legal_entity_id = case a.market_code when 'MX' then pg_temp.uid('le-mx') else pg_temp.uid('le-us') end
+ where a.market_code in ('MX', 'US') and a.legal_entity_id in (select id from crm.legal_entities where needs_review);
+update crm.deals d set legal_entity_id = a.legal_entity_id from crm.accounts a where a.id = d.account_id and d.legal_entity_id <> a.legal_entity_id;
+delete from crm.legal_entities e where e.needs_review and e.market_code in ('MX', 'US')
+   and not exists (select 1 from crm.accounts a where a.legal_entity_id = e.id) and not exists (select 1 from crm.deals d where d.legal_entity_id = e.id);
+insert into crm.fx_rates (currency, as_of, usd_rate, source) values ('MXN', current_date - 400, 0.05, 'synthetic') on conflict do nothing;
+select app.fx_restamp();
+update crm.accounts a set latitude = 25.6714 + (pg_temp.h(a.id::text) % 40) / 100000.0, longitude = -100.3090 - (pg_temp.h(a.name) % 40) / 100000.0,
+       geo_source = 'import', geo_at = now(), sublocality = 'Centro', locality = coalesce(a.locality, 'Monterrey'), region = coalesce(a.region, 'Nuevo León')
+ where a.address_line = 'Av. Principal 120, Centro';
+update crm.accounts set business_unit = 'mexico' where market_code = 'MX' and kind <> 'store';
+update crm.accounts set business_unit = 'usa' where market_code = 'US' and kind <> 'store';

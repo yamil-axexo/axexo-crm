@@ -261,6 +261,8 @@ export async function searchAll(ctx: Ctx, q: string) {
         from crm.accounts a
        where a.archived_at is null and a.market_code = any(${ctx.markets.map((m) => m.code)}::text[])
          and (a.name_norm like ${'%'} || app.norm(${term}) || ${'%'} or a.name_norm % app.norm(${term})
+             -- E2.F1: también por dirección (calle, colonia o código postal).
+             ${term.length >= 4 ? tx`or a.address_norm like ${'%'} || app.norm(${term}) || ${'%'}` : tx``}
              ${digits.length >= 4 ? tx`or a.phone like ${'%' + digits + '%'}` : tx``}
              ${/^[0-9a-f]{8}(-[0-9a-f-]{0,28})?$/i.test(term) ? tx`or a.id::text like ${term.toLowerCase() + '%'}` : tx``}
              or exists (select 1 from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
