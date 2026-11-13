@@ -60,9 +60,9 @@ describe('rol de Finanzas (E8.F5, E12.F6)', () => {
   })
   it('Administración da el rol de Finanzas y el de KAM como cualquier rol de mercado', async () => {
     const nora = await ctxFor('nora.salas')
-    const r = await grantAccess(nora, { email: `fin-${tag()}@contigo.test`, fullName: 'Persona de Finanzas', role: 'finance', market: 'MX' }, ['contigo.test'])
+    const r = await grantAccess(nora, { email: `fin-${tag()}@contigo.test`, fullName: 'Persona de Finanzas', role: 'finance', market: 'MX', seatApprover: 'Dueña del presupuesto', seatApprovedOn: new Date().toISOString().slice(0, 10) }, ['contigo.test'])
     expect(r.userId).toBeTruthy()
-    const k = await grantAccess(nora, { email: `kam-${tag()}@contigo.test`, fullName: 'Persona KAM', role: 'kam', market: 'MX' }, ['contigo.test'])
+    const k = await grantAccess(nora, { email: `kam-${tag()}@contigo.test`, fullName: 'Persona KAM', role: 'kam', market: 'MX', seatApprover: 'Dueña del presupuesto', seatApprovedOn: new Date().toISOString().slice(0, 10) }, ['contigo.test'])
     expect((await one(admin<{ role: string }[]>`select role from crm.memberships where user_id = ${k.userId}`)).role).toBe('kam')
   })
 })
