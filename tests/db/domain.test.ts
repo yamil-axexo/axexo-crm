@@ -260,6 +260,12 @@ describe('reglas (CAMPO-04, CS-03)', () => {
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     const after = await admin`select kind, resolution from crm.exceptions where deal_id = ${dealId} order by kind`
     expect(after.find((e) => e.kind === 'no_next_step')).toMatchObject({ resolution: 'auto' })
-    expect(after.find((e) => e.kind === 'stalled_deal')!.resolution).toBeNull()
+    // embudo2 (PIPE-03): un próximo paso con fecha por venir también saca al negocio de "estancado" (valor propuesto
+    // rot_respects_next_step); con el valor apagado, el aviso de estancado sigue abierto como antes.
+    expect(after.find((e) => e.kind === 'stalled_deal')).toMatchObject({ resolution: 'auto' })
+    await admin`update crm.funnel_settings set value = 'false' where key = 'rot_respects_next_step' and market_code is null`
+    await withUser(sys.user.id, (tx) => evaluateRules(tx))
+    expect(await admin`select 1 from crm.exceptions where deal_id = ${dealId} and kind = 'stalled_deal' and resolved_at is null`).toHaveLength(1)
+    await admin`update crm.funnel_settings set value = 'true' where key = 'rot_respects_next_step' and market_code is null`
   })
 })

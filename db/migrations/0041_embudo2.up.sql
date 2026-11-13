@@ -58,7 +58,8 @@ create or replace function app.deals_next_step_cap() returns trigger
 language plpgsql security definer set search_path = crm, app, pg_catalog as $$
 declare cap int; today date;
 begin
-  if new.next_step_due is null or new.status <> 'open' or session_user <> 'contigo_app' then return new; end if;
+  -- Las cargas de otro sistema (Pipedrive) traen la fecha que tenía allá: se respeta y se ve en el reporte de fechas lejanas.
+  if new.next_step_due is null or new.status <> 'open' or session_user <> 'contigo_app' or coalesce(current_setting('app.bulk_load', true), '') = 'on' then return new; end if;
   if tg_op = 'UPDATE' and new.next_step_due is not distinct from old.next_step_due then return new; end if;
   cap := (app.funnel_setting(new.market_code, 'next_step_max_days') #>> '{}')::int;
   if cap is null then return new; end if;
@@ -89,27 +90,8 @@ update crm.automations set conditions = conditions - (select (i - 1)::int from j
 alter table crm.loss_reasons add column retired_at timestamptz, add column retired_by uuid references crm.users(id);
 -- Un motivo usado nunca se borra: se marca inactivo.
 revoke delete on crm.loss_reasons from contigo_app;
-create or replace function app.loss_reasons_cap() returns trigger
-language plpgsql security definer set search_path = crm, app, pg_catalog as $$
-declare cap int; n int;
-begin
-  -- El tope aplica a los cambios que se hacen desde CONTIGO; lo que ya traía la base (migraciones, datos de ejemplo) no se toca.
-  if not new.is_active or session_user <> 'contigo_app' then return new; end if;
-  if tg_op = 'UPDATE' and old.is_active and old.market_code is not distinct from new.market_code then return new; end if;
-  if new.market_code is null then
-    cap := (app.funnel_setting(null, 'reason_core_max') #>> '{}')::int;
-    select count(*) into n from crm.loss_reasons where market_code is null and kind = new.kind and is_active and code <> new.code;
-  else
-    cap := (app.funnel_setting(new.market_code, 'reason_max_extensions') #>> '{}')::int;
-    select count(*) into n from crm.loss_reasons where market_code = new.market_code and kind = new.kind and is_active and code <> new.code;
-  end if;
-  if cap is not null and n >= cap then
-    raise exception 'reason catalog full: % max', cap using errcode = '22023', hint = 'reason_cap';
-  end if;
-  return new;
-end $$;
-create trigger loss_reasons_cap before insert or update of is_active, market_code on crm.loss_reasons
-  for each row execute function app.loss_reasons_cap();
+-- El tope de motivos (base y propios de cada mercado) lo aplica la custodia en el dominio (createLossReason / updateLossReason):
+-- la importación de Pipedrive sigue pudiendo reflejar los motivos que traía, que quedan contados contra el tope en Administración.
 
 -- ------------------------------------------------------------ PIPE-02
 alter table crm.deal_evidence alter column url drop not null,

@@ -92,8 +92,6 @@ delete from crm.deal_evidence where url is null;
 alter table crm.deal_evidence drop constraint if exists deal_evidence_what, drop column if exists storage_ref, drop column if exists content_hash, drop column if exists document_id;
 alter table crm.deal_evidence alter column url set not null;
 
-drop trigger if exists loss_reasons_cap on crm.loss_reasons;
-drop function if exists app.loss_reasons_cap();
 alter table crm.loss_reasons drop column if exists retired_by, drop column if exists retired_at;
 grant delete on crm.loss_reasons to contigo_app;
 

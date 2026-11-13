@@ -946,7 +946,9 @@ export async function finish(tx: Tx, runId: string, sysId: string): Promise<void
                           and (m.valid_to is null or m.valid_to > now()))`
   await bump(tx, runId, ['created', 'membership'], members.count)
 
-  // ACT-02: el próximo paso de un deal abierto es su actividad pendiente más cercana.
+  // ACT-02: el próximo paso de un deal abierto es su actividad pendiente más cercana. La fecha es la de Pipedrive aunque pase
+  // el tope de CONTIGO (embudo2): queda a la vista en el reporte de fechas lejanas, no rompe la carga.
+  await tx`select set_config('app.bulk_load', 'on', true)`
   await tx`
     update crm.deals d set next_step = x.subject, next_step_due = x.due
       from (select distinct on (a.deal_id) a.deal_id, left(a.subject, 200) as subject, coalesce(a.due_at, a.created_at)::date as due
