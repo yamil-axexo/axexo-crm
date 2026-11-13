@@ -216,7 +216,7 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
                 <p className="text-[13.5px] text-muted" data-testid="alert-owner">
                   {al.in_holdout ? t('Grupo de control: queda anotada y sin tarea, para medir si la guía sirve.', 'Control group: it is recorded with no task, to measure whether the playbook works.')
                     : al.digital_only ? t('Va primero por mensaje. Si sigue abierta, pasa a una persona.', 'It goes by message first. If it stays open, it goes to a person.')
-                    : al.owner_name ? t(`Tarea para ${al.owner_name}${al.task_done ? ' (hecha)' : ''}.`, `Task for ${al.owner_name}${al.task_done ? ' (done)' : ''}.`) : t('Sin dueño: el comercio no tiene quién lo lleve.', 'No owner: nobody carries this merchant.')}
+                    : al.owner_name ? t(`Tarea para ${al.owner_name}${al.task_done ? ' (hecha)' : ''}.`, `Task for ${al.owner_name}${al.task_done ? ' (done)' : ''}.`) : t('Sin asignar: nadie lleva este comercio.', 'Unassigned: nobody carries this merchant.')}
                   {al.message_status ? ` ${t('Mensaje al comercio:', 'Message to the merchant:')} ${lab(t, MESSAGE_STATUS[al.message_status], al.message_status)}.` : ''}
                 </p>
                 {al.steps_es && al.status === 'open' && !al.in_holdout && (
@@ -314,7 +314,7 @@ export default async function AccountCarePage({ params }: { params: Promise<{ id
             {hidden}
             <Field label={t('Quién terminó el curso', 'Who finished the course')}><input name="personName" required minLength={2} maxLength={120} className="input" data-testid="completion-person" /></Field>
             <Field label={t('Curso', 'Course')}><input name="courseTitle" required minLength={2} maxLength={160} className="input" data-testid="completion-title" /></Field>
-            <Field label={t('Clave del curso en Kore Academy', 'Course key in Kore Academy')} hint={t('En minúsculas, sin espacios. Ejemplo: intro-ventas', 'Lowercase, no spaces. Example: intro-ventas')}><input name="courseKey" required pattern="[a-z0-9][a-z0-9_.\-]{1,59}" className="input" data-testid="completion-key" /></Field>
+            <Field label={t('Clave del curso en Kore Academy', 'Course key in Kore Academy')} hint={t('En minúsculas, sin espacios. Ejemplo: primeros-pasos', 'Lowercase, no spaces. Example: first-steps')}><input name="courseKey" required pattern="[a-z0-9][a-z0-9_.\-]{1,59}" className="input" data-testid="completion-key" /></Field>
             <Field label={t('Fecha en que lo terminó', 'Date completed')}><input type="date" name="completedOn" required max={today} defaultValue={today} className="input" data-testid="completion-date" /></Field>
             <div className="sm:col-span-2 flex justify-end"><Submit variant="ghost" testId="completion-save">{t('Registrar constancia', 'Record completion')}</Submit></div>
           </ActionForm>

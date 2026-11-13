@@ -14,14 +14,14 @@
 
 -- ================================================================ 1) ciclo de vida
 create table crm.account_care (
-  account_id          uuid primary key references crm.accounts(id),
+  account_id          uuid primary key references crm.accounts(id) on delete cascade,
   market_code         text not null references crm.markets(code),
   stage               text not null check (stage in ('prospect','onboarding','active','habit','at_risk','inactive','reactivated','churned')),
   stage_at            timestamptz not null default now(),
   stage_source        text not null default 'rules' check (stage_source in ('sales_file','rules','manual','import')),
   stage_reason        text check (stage_reason is null or char_length(stage_reason) <= 200),
   product_line        text not null default 'general' check (product_line in ('general','topups','remittances','bill_pay')),
-  care_owner_id       uuid references crm.users(id),
+  care_owner_id       uuid references crm.users(id) on delete set null,
   care_role           text check (care_role in ('ops','cs','am')),
   service_tier        text check (service_tier in ('high','pooled','low','tech')),
   service_tier_at     timestamptz,
@@ -33,13 +33,13 @@ create index account_care_owner_idx on crm.account_care (care_owner_id) where ca
 
 create table crm.lifecycle_events (
   id           uuid primary key default app.uuid_v7(),
-  account_id   uuid not null references crm.accounts(id),
+  account_id   uuid not null references crm.accounts(id) on delete cascade,
   market_code  text not null references crm.markets(code),
   from_stage   text,
   to_stage     text not null,
   source       text not null check (source in ('sales_file','rules','manual','import')),
   reason       text check (reason is null or char_length(reason) <= 200),
-  actor_id     uuid references crm.users(id),
+  actor_id     uuid references crm.users(id) on delete set null,
   at           timestamptz not null default now()
 );
 create index lifecycle_events_account_idx on crm.lifecycle_events (account_id, at desc);
@@ -56,7 +56,7 @@ create table crm.lifecycle_windows (
   min_days_in_stage  int not null default 3 check (min_days_in_stage between 0 and 30),
   calibrated_from    text not null default 'default' check (calibrated_from in ('default','manual','backtest')),
   sample             int,
-  updated_by         uuid references crm.users(id),
+  updated_by         uuid references crm.users(id) on delete set null,
   updated_at         timestamptz not null default now(),
   primary key (market_code, product_line),
   check (recover_at > risk_below and habit_below >= recover_at and habit_at > habit_below)
@@ -133,7 +133,7 @@ select a.id, a.market_code, a.lifecycle, a.lifecycle_at, 'import' from crm.accou
 -- Señales que el archivo de ventas v1 no trae (saldo, comisión, cuántos productos usa). Llegan por su propia conexión,
 -- que nace apagada. Sin ellas, las reglas que las usan lo dicen y no inventan el dato.
 create table crm.care_signals (
-  account_id            uuid not null references crm.accounts(id),
+  account_id            uuid not null references crm.accounts(id) on delete cascade,
   as_of                 date not null,
   market_code           text not null references crm.markets(code),
   balance_minor         bigint check (balance_minor is null or balance_minor >= 0),
@@ -267,23 +267,23 @@ grant execute on function app.lifecycle_backtest(text, text) to contigo_app;
 -- ---------------------------------------------------------------- entregas con dueño, fecha, lista y acuse
 create table crm.handoffs (
   id            uuid primary key default app.uuid_v7(),
-  account_id    uuid not null references crm.accounts(id),
+  account_id    uuid not null references crm.accounts(id) on delete cascade,
   market_code   text not null references crm.markets(code),
-  deal_id       uuid references crm.deals(id),
+  deal_id       uuid references crm.deals(id) on delete set null,
   from_role     text not null check (from_role in ('sales','ops','cs','am')),
   to_role       text not null check (to_role in ('sales','ops','cs','am')),
-  from_user_id  uuid references crm.users(id),
-  to_user_id    uuid not null references crm.users(id),
+  from_user_id  uuid references crm.users(id) on delete set null,
+  to_user_id    uuid not null references crm.users(id) on delete cascade,
   due_on        date not null,
   checklist     jsonb not null default '[]'::jsonb check (jsonb_typeof(checklist) = 'array'),
   note          text check (note is null or char_length(note) <= 500),
   status        text not null default 'pending' check (status in ('pending','acknowledged','returned')),
   ack_at        timestamptz,
-  ack_by        uuid references crm.users(id),
+  ack_by        uuid references crm.users(id) on delete set null,
   ack_note      text check (ack_note is null or char_length(ack_note) <= 500),
-  activity_id   uuid references crm.activities(id),
+  activity_id   uuid references crm.activities(id) on delete set null,
   source        text not null default 'user' check (source in ('user','rule')),
-  created_by    uuid references crm.users(id),
+  created_by    uuid references crm.users(id) on delete set null,
   created_at    timestamptz not null default now(),
   check (from_role <> to_role),
   check ((status = 'pending') = (ack_at is null))
@@ -312,7 +312,7 @@ create table crm.cs_settings (
   tier_low_commission       bigint not null default 2000 check (tier_low_commission > 0),
   tier_commission_rate_bp   int not null default 100 check (tier_commission_rate_bp between 1 and 1000),
   tier_hysteresis_pct       int not null default 20 check (tier_hysteresis_pct between 0 and 50),
-  updated_by                uuid references crm.users(id),
+  updated_by                uuid references crm.users(id) on delete set null,
   updated_at                timestamptz not null default now(),
   check (tier_high_commission > tier_pooled_commission and tier_pooled_commission > tier_low_commission)
 );
@@ -331,7 +331,7 @@ create table crm.playbooks (
   message_en   text check (message_en is null or char_length(message_en) <= 600),
   due_days     int not null default 2 check (due_days between 0 and 14),
   is_active    boolean not null default true,
-  updated_by   uuid references crm.users(id),
+  updated_by   uuid references crm.users(id) on delete set null,
   updated_at   timestamptz not null default now()
 );
 create unique index playbooks_uq on crm.playbooks (coalesce(market_code, ''), alert_kind, tier);
@@ -360,12 +360,12 @@ insert into crm.playbooks (alert_kind, title_es, title_en, steps_es, steps_en, m
 
 create table crm.cs_alerts (
   id            uuid primary key default app.uuid_v7(),
-  account_id    uuid not null references crm.accounts(id),
+  account_id    uuid not null references crm.accounts(id) on delete cascade,
   market_code   text not null references crm.markets(code),
   kind          text not null check (kind in ('no_first_sale','drop_vs_baseline','low_balance','inactive','manager_change')),
   status        text not null default 'open' check (status in ('open','closed')),
-  owner_id      uuid references crm.users(id),
-  activity_id   uuid references crm.activities(id),
+  owner_id      uuid references crm.users(id) on delete set null,
+  activity_id   uuid references crm.activities(id) on delete set null,
   playbook_id   uuid references crm.playbooks(id),
   in_holdout    boolean not null default false,
   digital_only  boolean not null default false,
@@ -373,7 +373,7 @@ create table crm.cs_alerts (
   opened_at     timestamptz not null default now(),
   closed_at     timestamptz,
   close_reason  text check (close_reason in ('recovered','done','dismissed')),
-  closed_by     uuid references crm.users(id),
+  closed_by     uuid references crm.users(id) on delete set null,
   close_note    text check (close_note is null or char_length(close_note) <= 300),
   returned_14d  boolean,
   returned_30d  boolean,
@@ -385,8 +385,8 @@ create index cs_alerts_owner_idx on crm.cs_alerts (owner_id) where status = 'ope
 
 create table crm.cs_messages (
   id           uuid primary key default app.uuid_v7(),
-  alert_id     uuid references crm.cs_alerts(id),
-  account_id   uuid not null references crm.accounts(id),
+  alert_id     uuid references crm.cs_alerts(id) on delete cascade,
+  account_id   uuid not null references crm.accounts(id) on delete cascade,
   market_code  text not null references crm.markets(code),
   channel      text not null default 'whatsapp' check (channel in ('whatsapp')),
   body         text not null check (char_length(body) <= 600),
@@ -409,14 +409,14 @@ create table crm.health_config (
   grp          text not null check (grp in ('transactions','mix','tickets','balance')),
   weight       int not null check (weight between 0 and 100),
   is_active    boolean not null default true,
-  updated_by   uuid references crm.users(id),
+  updated_by   uuid references crm.users(id) on delete set null,
   updated_at   timestamptz not null default now()
 );
 create unique index health_config_uq on crm.health_config (coalesce(market_code, ''), grp);
 insert into crm.health_config (grp, weight) values ('transactions', 50), ('mix', 15), ('tickets', 15), ('balance', 20);
 
 create table crm.health_snapshots (
-  account_id   uuid not null references crm.accounts(id),
+  account_id   uuid not null references crm.accounts(id) on delete cascade,
   as_of        date not null,
   market_code  text not null references crm.markets(code),
   score        int not null check (score between 0 and 100),
@@ -439,7 +439,7 @@ create table crm.health_validations (
   positives     int not null,
   hit_precision numeric(5,3),
   hit_recall    numeric(5,3),
-  run_by        uuid references crm.users(id),
+  run_by        uuid references crm.users(id) on delete set null,
   run_at        timestamptz not null default now()
 );
 create index health_validations_market_idx on crm.health_validations (market_code, run_at desc);
@@ -545,7 +545,7 @@ grant execute on function app.health_backtest(text, int) to contigo_app;
 -- ================================================================ 4) modelo de atención
 create table crm.service_tier_events (
   id           uuid primary key default app.uuid_v7(),
-  account_id   uuid not null references crm.accounts(id),
+  account_id   uuid not null references crm.accounts(id) on delete cascade,
   market_code  text not null references crm.markets(code),
   from_tier    text,
   to_tier      text not null,
@@ -615,7 +615,7 @@ grant execute on function app.service_tier_recalc(text) to contigo_app;
 -- ================================================================ 5) capacitación del comercio y cambio de encargado
 create table crm.training_completions (
   id            uuid primary key default app.uuid_v7(),
-  account_id    uuid not null references crm.accounts(id),
+  account_id    uuid not null references crm.accounts(id) on delete cascade,
   market_code   text not null references crm.markets(code),
   person_name   text not null check (char_length(person_name) between 2 and 120),
   course_key    text not null check (course_key ~ '^[a-z0-9][a-z0-9_.-]{1,59}$'),
@@ -623,21 +623,21 @@ create table crm.training_completions (
   completed_on  date not null,
   source        text not null check (source in ('kore_academy','manual')),
   external_id   text unique check (external_id is null or char_length(external_id) between 4 and 80),
-  recorded_by   uuid references crm.users(id),
+  recorded_by   uuid references crm.users(id) on delete set null,
   created_at    timestamptz not null default now()
 );
 create index training_completions_account_idx on crm.training_completions (account_id, completed_on desc);
 
 create table crm.manager_changes (
   id           uuid primary key default app.uuid_v7(),
-  account_id   uuid not null references crm.accounts(id),
+  account_id   uuid not null references crm.accounts(id) on delete cascade,
   market_code  text not null references crm.markets(code),
   changed_on   date not null,
   new_name     text not null check (char_length(new_name) between 2 and 120),
   note         text check (note is null or char_length(note) <= 300),
   source       text not null default 'visit' check (source in ('visit','call','other')),
   trained_at   timestamptz,
-  recorded_by  uuid references crm.users(id),
+  recorded_by  uuid references crm.users(id) on delete set null,
   created_at   timestamptz not null default now()
 );
 create index manager_changes_account_idx on crm.manager_changes (account_id, changed_on desc);
@@ -652,25 +652,25 @@ create table crm.expansion_rules (
   min_days_since_first  int not null default 60 check (min_days_since_first between 0 and 720),
   min_txn_30d           int not null default 20 check (min_txn_30d >= 0),
   is_active             boolean not null default true,
-  updated_by            uuid references crm.users(id),
+  updated_by            uuid references crm.users(id) on delete set null,
   updated_at            timestamptz not null default now()
 );
 create unique index expansion_rules_uq on crm.expansion_rules (market_code, lower(product_label));
 
 create table crm.expansion_opportunities (
   id             uuid primary key default app.uuid_v7(),
-  account_id     uuid not null references crm.accounts(id),
+  account_id     uuid not null references crm.accounts(id) on delete cascade,
   market_code    text not null references crm.markets(code),
   rule_id        uuid not null references crm.expansion_rules(id),
   product_label  text not null,
   status         text not null default 'open' check (status in ('open','working','won','lost','dismissed')),
-  owner_id       uuid references crm.users(id),
-  activity_id    uuid references crm.activities(id),
+  owner_id       uuid references crm.users(id) on delete set null,
+  activity_id    uuid references crm.activities(id) on delete set null,
   evidence       jsonb not null default '{}'::jsonb,
   close_note     text check (close_note is null or char_length(close_note) <= 300),
   created_at     timestamptz not null default now(),
   closed_at      timestamptz,
-  closed_by      uuid references crm.users(id)
+  closed_by      uuid references crm.users(id) on delete set null
 );
 create unique index expansion_open_uq on crm.expansion_opportunities (account_id, rule_id) where status in ('open','working');
 create index expansion_market_idx on crm.expansion_opportunities (market_code, status);
@@ -708,37 +708,37 @@ grant execute on function app.expansion_run(text) to contigo_app;
 
 -- ================================================================ 7) cuentas corporativas y de integración
 create table crm.account_plans (
-  account_id         uuid primary key references crm.accounts(id),
+  account_id         uuid primary key references crm.accounts(id) on delete cascade,
   market_code        text not null references crm.markets(code),
   goals              text check (goals is null or char_length(goals) <= 2000),
   risks              text check (risks is null or char_length(risks) <= 2000),
   next_steps         text check (next_steps is null or char_length(next_steps) <= 2000),
   review_every_days  int not null default 90 check (review_every_days between 7 and 365),
   next_review_on     date,
-  updated_by         uuid references crm.users(id),
+  updated_by         uuid references crm.users(id) on delete set null,
   updated_at         timestamptz not null default now()
 );
 create table crm.account_relationships (
   id             uuid primary key default app.uuid_v7(),
-  account_id     uuid not null references crm.accounts(id),
+  account_id     uuid not null references crm.accounts(id) on delete cascade,
   market_code    text not null references crm.markets(code),
   product_label  text not null check (char_length(product_label) between 2 and 80),
   health         text not null check (health in ('good','watch','risk')),
   note           text check (note is null or char_length(note) <= 300),
-  updated_by     uuid references crm.users(id),
+  updated_by     uuid references crm.users(id) on delete set null,
   updated_at     timestamptz not null default now()
 );
 create unique index account_relationships_uq on crm.account_relationships (account_id, lower(product_label));
 create table crm.account_reviews (
   id            uuid primary key default app.uuid_v7(),
-  account_id    uuid not null references crm.accounts(id),
+  account_id    uuid not null references crm.accounts(id) on delete cascade,
   market_code   text not null references crm.markets(code),
   held_on       date not null,
   attendees     text check (attendees is null or char_length(attendees) <= 300),
   minutes       text not null check (char_length(minutes) between 3 and 4000),
   agreements    text check (agreements is null or char_length(agreements) <= 2000),
   draft_source  text not null default 'manual' check (draft_source in ('manual','data','ai')),
-  created_by    uuid references crm.users(id),
+  created_by    uuid references crm.users(id) on delete set null,
   created_at    timestamptz not null default now()
 );
 create index account_reviews_account_idx on crm.account_reviews (account_id, held_on desc);
@@ -763,16 +763,16 @@ insert into crm.feedback_topics (code, label_es, label_en, sort) values
 
 create table crm.product_feedback (
   id           uuid primary key default app.uuid_v7(),
-  account_id   uuid not null references crm.accounts(id),
+  account_id   uuid not null references crm.accounts(id) on delete cascade,
   market_code  text not null references crm.markets(code),
   topic        text not null references crm.feedback_topics(code),
   kind         text not null check (kind in ('friction','request')),
   note         text check (note is null or char_length(note) <= 500),
   status       text not null default 'new' check (status in ('new','seen','planned','done','declined')),
   response     text check (response is null or char_length(response) <= 500),
-  created_by   uuid references crm.users(id),
+  created_by   uuid references crm.users(id) on delete set null,
   created_at   timestamptz not null default now(),
-  updated_by   uuid references crm.users(id),
+  updated_by   uuid references crm.users(id) on delete set null,
   updated_at   timestamptz not null default now()
 );
 create index product_feedback_market_idx on crm.product_feedback (market_code, created_at desc);
