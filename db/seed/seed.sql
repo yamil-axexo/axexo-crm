@@ -675,3 +675,11 @@ update crm.leads l set email = 'contacto' || (pg_temp.h('em' || l.id::text) % 90
        consent_at = l.created_at, consent_text = 'Acepto que axexo me escriba por correo sobre sus productos y novedades.'
  where l.market_code = 'MX' and l.status = 'disqualified' and pg_temp.h('cs' || l.id::text) % 2 = 0;
 alter table crm.leads enable trigger user;
+-- us-ficha
+-- La ficha de dealer de US (épica E9): tipos de cuenta, tipos de negocio y zonas. Los carriers reales no se cargan en los datos
+-- sintéticos (aquí los proveedores son inventados); una agencia y un socio inventados para "Reclutado por".
+select crm.dealer_record_setup('US', false);
+update crm.ops_catalog set ref_label = 'North dealer code' where market_code = 'US' and kind = 'provider' and code = 'carrier_north';
+insert into crm.agencies (id, market_code, kind, name) values
+  (pg_temp.uid('ag-us-1'), 'US', 'agency', 'Agencia Ejemplo Uno (sintética)'),
+  (pg_temp.uid('ag-us-2'), 'US', 'partner', 'Socio Ejemplo (sintético)');
