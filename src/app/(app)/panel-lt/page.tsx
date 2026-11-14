@@ -1,5 +1,4 @@
 import { metricOwners } from '@/dal/reportes'
-import { motorSlices } from '@/dal/reportes2'
 import { MOTOR } from '@/lib/labels'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -81,7 +80,15 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
     </>
   )
 
-  const motors = await motorSlices(ctx)
+  // Por tipo de venta: la misma cuenta que "Por embudo" (mismo periodo, mismo mercado, "Abiertos" incluye lo que espera
+  // la primera venta), agrupada por tipo. Los leads ya vienen por tipo de venta y mercado: se cuentan una vez por mercado.
+  const motors = [...new Set(data.pipelines.map((p) => p.motor ?? ''))].filter(Boolean).sort().map((motor) => {
+    const rows = data.pipelines.filter((p) => p.motor === motor)
+    const leadsBy = new Map<string, number>()
+    for (const r of rows) leadsBy.set(r.market_code, Math.max(leadsBy.get(r.market_code) ?? 0, r.leads))
+    const add = (k: 'deals_open' | 'awaiting_txn' | 'won' | 'lost') => rows.reduce((s, r) => s + r[k], 0)
+    return { motor, leads: [...leadsBy.values()].reduce((a, b) => a + b, 0), open: add('deals_open'), awaiting: add('awaiting_txn'), won: add('won'), lost: add('lost') }
+  })
   return (
     <>
       <PageHeader
@@ -192,12 +199,12 @@ export default async function PanelLtPage({ searchParams }: { searchParams: Prom
       </div>
 
       <Card className="mt-6 @container" pad={false} data-testid="lt-by-pipeline">
-        <div className="px-5 pt-5 @2xl:px-7 @2xl:pt-6"><CardTitle title={t('Por embudo', 'By pipeline')} hint={t(`Cada tipo de venta en su línea. Leads, ganados y perdidos: ${when}. Abiertos y esperando venta: hoy.`, `Each sale type on its own line. Leads, won and lost: ${when}. Open and awaiting sale: today.`)} /></div>
+        <div className="px-5 pt-5 @2xl:px-7 @2xl:pt-6"><CardTitle title={t('Por embudo', 'By pipeline')} hint={t(`Cada tipo de venta en su línea. Leads, ganados y perdidos: ${when}. Abiertos (incluye los que esperan venta) y esperando venta: hoy.`, `Each sale type on its own line. Leads, won and lost: ${when}. Open (includes those awaiting a sale) and awaiting sale: today.`)} /></div>
         {slices(data.pipelines, 'embudo')}
       </Card>
       {/* reportes2 (REP-01): el panel también corta por los tipos de venta (motores), sumando los mercados. */}
       <Card className="mt-6" data-testid="lt-by-motor">
-        <CardTitle title={t('Por tipo de venta', 'By sale type')} hint={t('Todos los mercados juntos. Leads, ganados y perdidos: últimos 30 días. Abiertos y esperando venta: hoy.', 'All markets together. Leads, won and lost: last 30 days. Open and awaiting sale: today.')} />
+        <CardTitle title={t('Por tipo de venta', 'By sale type')} hint={t(`${multi ? 'Todos los mercados juntos. ' : ''}Leads, ganados y perdidos: ${when}. Abiertos (incluye los que esperan venta) y esperando venta: hoy.`, `${multi ? 'All markets together. ' : ''}Leads, won and lost: ${when}. Open (includes those awaiting a sale) and awaiting sale: today.`)} />
         {motors.length === 0 ? <Empty title={t('Sin tipos de venta', 'No sale types')} /> : (
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t('Por tipo de venta', 'By sale type')}>
             <table className="w-full min-w-[520px] text-[14px]">

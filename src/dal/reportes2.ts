@@ -122,7 +122,7 @@ export async function motorSlices(ctx: Ctx, market?: string): Promise<MotorSlice
     with m as (select distinct motor from crm.pipelines ${market ? tx`where market_code = ${market}` : tx``})
     select m.motor,
            (select count(*)::int from crm.leads l where l.motor = m.motor and l.created_at > now() - interval '30 days' ${market ? tx`and l.market_code = ${market}` : tx``}) as leads,
-           (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.stages s on s.id = d.stage_id where p.motor = m.motor and d.status = 'open' and s.kind = 'open' ${market ? tx`and d.market_code = ${market}` : tx``}) as open,
+           (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.stages s on s.id = d.stage_id where p.motor = m.motor and d.status = 'open' ${market ? tx`and d.market_code = ${market}` : tx``}) as open,
            (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.stages s on s.id = d.stage_id where p.motor = m.motor and d.status = 'open' and s.kind = 'awaiting_txn' ${market ? tx`and d.market_code = ${market}` : tx``}) as awaiting,
            (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where p.motor = m.motor and d.status = 'won' and d.won_at > now() - interval '30 days' ${market ? tx`and d.market_code = ${market}` : tx``}) as won,
            (select count(*)::int from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where p.motor = m.motor and d.status = 'lost' and d.lost_at > now() - interval '30 days' ${market ? tx`and d.market_code = ${market}` : tx``}) as lost

@@ -24,7 +24,35 @@ const OWNER_EN: Record<string, string> = {
   'Mesa de control': 'Control desk', Operaciones: 'Operations', Finanzas: 'Finance', Liderazgo: 'Leadership', 'Liderazgo comercial': 'Sales leadership',
   'Ventas US': 'US Sales', 'por definir': 'to be defined',
 }
-export const ownerEn = (o: string) => OWNER_EN[o] ?? o
+// Dueños escritos en español en la base o en el código: se traducen por partes para que la versión en inglés no
+// muestre "Legal y Seguridad" ni "Yamil (C1) con ventas".
+const OWNER_WORDS: [RegExp, string][] = [
+  [/\bquienes lideran los mercados\b/g, 'the market leads'], [/\bquien lidera el mercado\b/g, 'the market lead'], [/\bquien lidera\b/g, 'the lead'],
+  [/\bcon ventas\b/g, 'with sales'], [/\bSeguridad\b/g, 'Security'], [/\bVentas\b/g, 'Sales'], [/\bFinanzas\b/g, 'Finance'],
+  [/\bOperaciones\b/g, 'Operations'], [/\bLiderazgo\b/g, 'Leadership'], [/\bAdministración\b/g, 'Administration'], [/\bpor definir\b/g, 'to be defined'],
+  [/ y /g, ' and '], [/ o /g, ' or '],
+]
+export const ownerEn = (o: string) => OWNER_EN[o] ?? OWNER_WORDS.reduce((s, [re, en]) => s.replace(re, en), o)
+
+/**
+ * ¿Puede esta persona abrir la pantalla donde se cambia el valor? Estado lo leen Leadership y Administración; un enlace
+ * a una pantalla que la persona no puede ver terminaba en "Esa página no existe" (tercera vuelta del comité). Sin
+ * permiso, la fila dice quién lo cambia en lugar del enlace.
+ */
+export function canOpen(ctx: Ctx, href: string): boolean {
+  const path = href.split('?')[0]!
+  const tab = new URLSearchParams(href.split('?')[1] ?? '').get('tab')
+  switch (path) {
+    case '/admin/embudo': return ctx.can('config.manage')
+    case '/admin/tableros': return ctx.can('metric.owner') || ctx.can('config.manage') || ctx.can('user_alias.manage')
+    case '/admin/decisiones': return ctx.can('config.manage') || ctx.can('status.read')
+    case '/admin/automatizaciones': return ctx.can('automation.read') || ctx.can('status.read')
+    case '/admin/plataforma': return ctx.can('platform.manage') || ctx.can('gov.read')
+    case '/admin/gobierno': return ctx.can('gov.read')
+    case '/campo': return tab === 'umbrales' ? ctx.can('threshold.manage') || ctx.can('plan.set') : true
+    default: return true
+  }
+}
 
 /**
  * Una sola lista de valores propuestos para Estado de CONTIGO (ola 6). Cada paquete guarda los suyos donde los usa

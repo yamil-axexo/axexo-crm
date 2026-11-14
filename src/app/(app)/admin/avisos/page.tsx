@@ -6,7 +6,7 @@ import { channelStatus } from '@/server/adapters/channels'
 import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { CHANNEL_LABEL, DELIVERY_STATUS, TEMPLATE_INFO, TEMPLATE_VARS, isPendingText, renderTemplate, type Channel, type TemplateVars } from '@/lib/notice-kinds'
-import { dayTime } from '@/lib/format'
+import { dayTime, marketTime, zoneName } from '@/lib/format'
 import { qs } from '@/lib/labels'
 import { flat } from '@/server/params'
 import { readerTimeZone } from '@/server/timezone'
@@ -86,6 +86,7 @@ export default async function NoticeAdminPage({ searchParams }: { searchParams: 
           { key: '', href: qs('/admin/avisos', { ver: 'cola' }), label: t('Todos', 'All') },
           ...(['email', 'slack', 'whatsapp'] as Channel[]).map((c) => ({ key: c as string, href: qs('/admin/avisos', { ver: 'cola', canal: c }), label: t(...CHANNEL_LABEL[c]) })),
         ]} /></div>
+        <p className="mb-3 text-[13px] text-muted-2" data-testid="queue-zone">{t(`Las horas están en ${zoneName(tz, 'es')}. Lo que sale en horario hábil dice también la hora del mercado.`, `Times are in ${zoneName(tz, 'en', undefined, true)}. What goes out in business hours also shows the market time.`)}</p>
         {rows.length === 0 ? (
           <Empty title={t('No hay nada en la cola', 'Nothing in the queue')} hint={t('Cuando un aviso tenga que salir por correo, Slack o WhatsApp, aparece aquí con su estado. Con el canal apagado no sale nada.', 'When a notice has to go out by email, Slack or WhatsApp, it shows here with its status. With the channel off nothing is sent.')} />
         ) : (
@@ -95,7 +96,11 @@ export default async function NoticeAdminPage({ searchParams }: { searchParams: 
                 <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted-2">
                   <Badge tone={r.status === 'queued_off' ? 'warn' : r.status === 'simulated' ? 'good' : 'neutral'}>{t(...(DELIVERY_STATUS[r.status] ?? [r.status, r.status]))}</Badge>
                   <span>{t(...CHANNEL_LABEL[r.channel as Channel])}{r.market_code ? ` · ${r.market_code}` : ''} · {dayTime(r.created_at, locale, tz)}</span>
-                  {r.release_at && <span>{t(`sale el ${dayTime(r.release_at, locale, tz)}`, `goes out ${dayTime(r.release_at, locale, tz)}`)}</span>}
+                  {r.release_at && (() => {
+                    const mk = ctx.markets.find((x) => x.code === r.market_code)
+                    const when = mk ? marketTime(r.release_at, locale, mk, tz) : dayTime(r.release_at, locale, tz)
+                    return <span data-testid="queue-release">{t(`sale el ${when}`, `goes out ${when}`)}</span>
+                  })()}
                 </p>
                 <p className="mt-1 text-[15px] font-semibold text-strong [overflow-wrap:anywhere]">{r.subject}</p>
                 <p className="text-[13.5px] text-muted-2 [overflow-wrap:anywhere]">

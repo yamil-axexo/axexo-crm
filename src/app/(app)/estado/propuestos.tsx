@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Ctx } from '@/server/context'
-import { allProposed, ownerEn } from '@/dal/proposed'
+import { allProposed, canOpen, ownerEn } from '@/dal/proposed'
 import { Card, CardTitle } from '@/ui/kit'
 import { ProposedTag } from '@/ui/role-board'
 
@@ -31,7 +31,9 @@ export async function ProposedCard({ ctx }: { ctx: Ctx }) {
               <span className="min-w-0 flex-1 basis-48">
                 <span className="block text-[14px] font-medium text-strong">{t(...u.label)}</span>
                 <span className="block text-[12.5px] text-muted-2">{t(...SOURCE[u.source]!)}{u.detail ? ` · ${locale === 'en' ? u.detail[1] : u.detail[0]}` : ''}</span>
-                {ctx.can('status.read') && <Link href={u.href} className="inline-flex min-h-11 items-center text-[13px] font-medium text-blue-text underline" data-testid="status-proposed-open">{t('Dónde se cambia', 'Where to change it')}</Link>}
+                {ctx.can('status.read') && (canOpen(ctx, u.href)
+                  ? <Link href={u.href} className="inline-flex min-h-11 items-center text-[13px] font-medium text-blue-text underline" data-testid="status-proposed-open">{t('Dónde se cambia', 'Where to change it')}</Link>
+                  : <span className="block pt-1 text-[13px] text-muted-2" data-testid="status-proposed-admin">{t('Lo cambia Administración cuando quien decide lo fija.', 'Administration changes it once the decision owner sets it.')}</span>)}
               </span>
               <ProposedTag>{t(`Valor propuesto, [pendiente: ${u.owner}]`, `Proposed value, [pending: ${ownerEn(u.owner)}]`)}</ProposedTag>
             </li>
