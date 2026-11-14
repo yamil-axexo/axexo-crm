@@ -34,3 +34,10 @@ update crm.activities a
    end)
   from fix f
  where a.id = f.id;
+
+-- D2D de México: "Contactada" es "ya se habló con alguien de la tienda" (Ayuda y salida de Prospecto). Pedir quien decide
+-- para entrar ahí obligaba a llenar al decisor sin serlo. Quien decide se pide al entrar a "Comprometida" ("quien decide
+-- aceptó"). Solo en etapas que nadie editó desde Administración.
+update crm.stages s set required_fields = array_remove(s.required_fields, 'decision_maker')
+  from crm.pipelines p
+ where p.id = s.pipeline_id and p.market_code = 'MX' and p.motor = 'd2d' and s.code = 'interes' and s.edited_at is null;

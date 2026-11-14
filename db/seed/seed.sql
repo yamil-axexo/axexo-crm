@@ -794,3 +794,6 @@ values (pg_temp.uid('kam-mx-deal'), 'MX', pg_temp.uid('p-mx-b2b'), pg_temp.uid('
         'Ampliación: Cadena Ejemplo Sol (sintética)', 18000000, 'MXN', 'open', 'Revisar propuesta con quien decide', current_date + 5, now() - interval '6 days', now() - interval '20 days');
 insert into crm.deal_forecast (deal_id, market_code, category, set_by, set_at)
 values (pg_temp.uid('kam-mx-deal'), 'MX', 'best_case', pg_temp.uid('elena.duarte'), now() - interval '2 days');
+
+-- ajustes3: "Contactada" (D2D México) ya no pide quien decide para entrar; se pide en "Comprometida" (misma regla que 0043).
+update crm.stages set required_fields = array_remove(required_fields, 'decision_maker') where id = pg_temp.uid('s-mx-d2d-interes');

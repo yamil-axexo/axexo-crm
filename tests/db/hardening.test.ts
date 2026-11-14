@@ -138,9 +138,10 @@ describe('hallazgos de QA', () => {
        where d.owner_id = ${marco.user.id} and d.status = 'open' and s.code = 'visitada' order by d.id limit 1`)
     await admin`update crm.deals set decision_maker_met = false, next_step = 'Volver', next_step_due = current_date + 1 where id = ${d.id}`
     const stage = async (code: string) => (await one(admin<{ id: string }[]>`select id from crm.stages where pipeline_id = ${d.pipeline_id} and code = ${code}`)).id
-    // "Esperando primera venta" no pide nada por sí misma, pero para llegar hay que pasar por dos etapas que piden al decisor
+    // "Esperando primera venta" no pide nada por sí misma, pero para llegar hay que pasar por "Comprometida", que pide al decisor
+    // (ajustes3: "Contactada" ya no lo pide, es "se habló con alguien de la tienda").
     await expect(moveDeal(marco, d.id, await stage('espera'))).rejects.toMatchObject({ code: 'stage_gate' })
-    await expect(moveDeal(marco, d.id, await stage('interes'))).rejects.toMatchObject({ code: 'stage_gate' })
+    await expect(moveDeal(marco, d.id, await stage('alta'))).rejects.toMatchObject({ code: 'stage_gate' })
     expect((await one(admin`select stage_id from crm.deals where id = ${d.id}`)).stage_id).toBe(d.stage_id)
   })
 
