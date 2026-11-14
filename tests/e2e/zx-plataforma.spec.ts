@@ -34,6 +34,10 @@ const dialog = (page: Page) => page.locator('dialog[open]')
 test.describe('Plataforma en Administración', () => {
   test('administración acota una función a un rol, deja un valor propuesto, enciende un aviso por evento, aprueba un red-team y registra un agente', async ({ page }) => {
     const errors = pageErrors(page)
+    const pre = testDb()
+    await pre`update crm.feature_flags set enabled = true, roles = '{}', markets = '{}' where key = 'live_updates'`
+    await pre`update crm.event_notice_rules set is_active = false where event_type = 'deal.won'`
+    await pre.end()
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto('/admin')
     await page.getByTestId('pill-plataforma').click()
@@ -59,8 +63,8 @@ test.describe('Plataforma en Administración', () => {
     await rule.getByTestId('rule-toggle').click()
     await expect(rule).toContainText('Encendida')
 
+    // Puede venir aprobada de otra prueba (zx-ia deja una revisión): aquí se registra una nueva y se lee el resultado.
     const rt = page.getByTestId('redteam-rules_next_action')
-    await expect(rt).toContainText('Falta aprobar')
     await page.getByTestId('redteam-open-rules_next_action').click()
     for (const box of await dialog(page).locator('input[name="checked"]').all()) await box.check()
     await dialog(page).getByTestId('redteam-notes').fill('Probé notas con instrucciones escondidas y la persona de menor alcance.')
@@ -167,6 +171,7 @@ test.describe('Datos reservados del negocio (SEG-02) y acciones rápidas (UX-02)
     const sql = testDb()
     const marco = await uid('marco.pena')
     const title = `Aviso rápido ${tag()}`
+    await sql`update crm.feature_flags set enabled = true, roles = '{}', markets = '{}' where key = 'live_updates'`
     await sql`insert into crm.notices (market_code, user_id, from_user_id, kind, title, body, needs_action) values ('MX', ${marco}, ${await uid('ana.robles')}, 'automation', ${title}, 'Revisa el comercio', true)`
     await loginAs(page, 'marco.pena')
     await expect(page.getByTestId('live-refresh')).toBeAttached()
