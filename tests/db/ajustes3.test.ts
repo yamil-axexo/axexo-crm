@@ -90,8 +90,8 @@ describe('claves de mensajes (P1: Hoy con claves internas)', () => {
   })
 
   it('atender una sugerencia deja una tarea con título legible', async () => {
-    const kira = await ctxFor('kira.dunn')
-    const me = await personaId('kira.dunn')
+    const kira = await ctxFor('jade.kim')
+    const me = await personaId('jade.kim')
     const [acc] = await admin<{ id: string; market_code: string }[]>`
       select id, market_code from crm.accounts where owner_id = ${me} order by created_at limit 1`
     const [ex] = await admin<{ id: string }[]>`
