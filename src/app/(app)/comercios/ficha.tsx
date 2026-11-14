@@ -84,7 +84,10 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
   const openDeal = deals.find((d) => d.status === 'open')
   // Con un negocio abierto solo se ofrecen los embudos que admiten varios por comercio (pedidos, recompra).
   // El embudo que se propone es el del tipo de venta de la cuenta (una cuenta B2B o ISO no empieza en el embudo de tiendas); los demás quedan en la lista.
-  const offered = pipelines.filter((p) => p.stages.length > 0 && (!openDeal || p.multi_open)).sort((x, y) => Number(y.motor === a.segment) - Number(x.motor === a.segment))
+  // Se ofrece cada embudo donde el comercio no tiene ya un negocio abierto; en los que admiten varios (pedidos) y en la
+  // venta a cadenas y distribuidores (varias oportunidades por cuenta) se ofrece siempre. Mismo criterio que el dominio.
+  const openIn = new Set(deals.filter((d) => d.status === 'open').map((d) => d.pipeline_id))
+  const offered = pipelines.filter((p) => p.stages.length > 0 && (p.multi_open || p.motor === 'b2b' || !openIn.has(p.id))).sort((x, y) => Number(y.motor === a.segment) - Number(x.motor === a.segment))
   // En el árbol cada cuenta lleva su tipo real (ISO, Agente de ISO, Distribuidor), no el nivel.
   const typeOf = (x: { kind: string; type_es: string | null; type_en: string | null }) => (x.type_es ? t(x.type_es, x.type_en ?? x.type_es) : lab(t, KIND[x.kind]))
   const lastDeal = deals[0]
@@ -335,12 +338,12 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
       {callee?.who && <p className="-mt-2 text-[13px] text-muted" data-testid="callee">{m('record.callee', { name: callee.who })}</p>}
 
       {canSell && offered.length > 0 && (
-        <Dialog trigger={openDeal ? t('Nuevo pedido', 'New order') : t('Nuevo negocio', 'New deal')} title={t('Nuevo negocio', 'New deal')} variant="ghost" testId="new-deal">
+        <Dialog trigger={openDeal && offered.every((p) => p.has_items) ? t('Nuevo pedido', 'New order') : t('Nuevo negocio', 'New deal')} title={t('Nuevo negocio', 'New deal')} variant="ghost" testId="new-deal">
           <ActionForm action={createDealAction} className="grid grid-cols-2 gap-4">
             <input type="hidden" name="account_id" value={a.id} />
             <StagePicker pipelines={offered.map((p) => ({ id: p.id, name: p.name, stages: p.stages.map((s) => ({ id: s.id, name: t(s.name_es, s.name_en) })) }))}
               labels={{ pipeline: t('Embudo', 'Pipeline'), stage: t('Etapa en la que empieza', 'Stage it starts in'), hint: t('Si ya va avanzado, elige su etapa: se pide lo mismo que para llegar ahí.', 'If it is already under way, pick its stage: it asks for the same as getting there.') }} />
-            <Field label={t('Título', 'Title')} className="col-span-2"><input name="title" className="input" required defaultValue={`${openDeal ? t('Pedido', 'Order') : t('Alta', 'Onboarding')}: ${a.name}`} data-testid="new-deal-title" /></Field>
+            <Field label={t('Título', 'Title')} className="col-span-2"><input name="title" className="input" required defaultValue={`${openDeal && offered[0]?.has_items ? t('Pedido', 'Order') : openDeal || ['active', 'at_risk', 'inactive'].includes(a.lifecycle) ? t('Ampliación', 'Expansion') : t('Alta', 'Onboarding')}: ${a.name}`} data-testid="new-deal-title" /></Field>
             <Field label={t('Próximo paso', 'Next step')} className="col-span-2"><input name="next_step" className="input" required minLength={2} data-testid="new-deal-step" /></Field>
             <Field label={t('Fecha', 'Date')}><input name="next_step_due" type="date" className="input" required defaultValue={today} /></Field>
             <Field label={t(`Monto (${market.currency}), opcional`, `Amount (${market.currency}), optional`)} hint={t('En un pedido, el monto sale de sus líneas.', 'On an order, the amount comes from its lines.')}><input name="amount" className="input" inputMode="decimal" /></Field>

@@ -470,8 +470,8 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
     const acc = accs[0]
     if (!acc) throw notFound('No encontramos ese comercio.', 'We could not find that merchant.')
     ctx.assert('deal.create', acc.market_code)
-    const all = await tx<{ id: string; position: number; kind: StageKind; required_fields: string[]; is_ops: boolean; name_es: string; name_en: string; multi_open: boolean }[]>`
-      select s.id, s.position, s.kind, s.required_fields, s.is_ops, s.name_es, s.name_en, p.multi_open from crm.stages s join crm.pipelines p on p.id = s.pipeline_id
+    const all = await tx<{ id: string; position: number; kind: StageKind; required_fields: string[]; is_ops: boolean; name_es: string; name_en: string; multi_open: boolean; motor: string }[]>`
+      select s.id, s.position, s.kind, s.required_fields, s.is_ops, s.name_es, s.name_en, p.multi_open, p.motor from crm.stages s join crm.pipelines p on p.id = s.pipeline_id
       where p.id = ${v.pipelineId} and p.market_code = ${acc.market_code} and s.archived_at is null order by s.position`
     if (!all[0]) throw invalid('Ese embudo no es de este mercado.', 'That pipeline does not belong to this market.')
     const first = v.stageId ? all.find((x) => x.id === v.stageId) : all[0]
@@ -496,8 +496,9 @@ export async function createDeal(ctx: Ctx, input: z.input<typeof createInput>): 
         `Para empezar en "${first.name_es}" falta: ${missing.map((m) => FIELD_LABEL[m]?.es ?? m).join(', ')}. Créalo en una etapa anterior y avánzalo cuando lo tengas.`,
         `To start in "${first.name_en}" you still need: ${missing.map((m) => FIELD_LABEL[m]?.en ?? m).join(', ')}. Create it in an earlier stage and move it once you have that.`)
     }
-    // Un comercio lleva un negocio abierto por embudo, salvo en los embudos que admiten varios (pedidos, recompra).
-    const open = all[0].multi_open ? [] : await tx`select 1 from crm.deals where account_id = ${v.accountId} and pipeline_id = ${v.pipelineId} and status = 'open'`
+    // Un comercio lleva un negocio abierto por embudo, salvo en los embudos que admiten varios (pedidos, recompra) y en la
+    // venta a cadenas, distribuidores e ISO, donde una cuenta lleva varias oportunidades a la vez (ampliación, otra línea).
+    const open = all[0].multi_open || all[0].motor === 'b2b' ? [] : await tx`select 1 from crm.deals where account_id = ${v.accountId} and pipeline_id = ${v.pipelineId} and status = 'open'`
     if (open[0]) throw invalid('Este comercio ya tiene un negocio abierto en ese embudo.', 'This merchant already has an open deal in that pipeline.')
     const id = await newId(tx)
     const ownerId = acc.owner_id ?? ctx.user.id
