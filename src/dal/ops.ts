@@ -101,7 +101,7 @@ export function pendingOps(ops: { checklist: boolean; training_status: string; c
   if (!ops.checklist) return []
   const out = ops.checks
     .filter((c) => (c.kind === 'document' ? c.status !== 'validated' : c.status !== 'approved'))
-    .map((c) => ({ es: `${c.label_es}: ${c.kind === 'document' ? (c.status === 'received' ? 'recibido, sin validar' : 'falta') : 'sin aprobar'}`, en: `${c.label_en}: ${c.kind === 'document' ? (c.status === 'received' ? 'received, not validated' : 'missing') : 'not approved'}` }))
+    .map((c) => ({ es: `${c.label_es}: ${c.kind === 'document' ? (c.status === 'received' ? 'recibido, sin validar' : c.status === 'expired' ? 'vencido' : 'falta') : 'sin aprobar'}`, en: `${c.label_en}: ${c.kind === 'document' ? (c.status === 'received' ? 'received, not validated' : c.status === 'expired' ? 'expired' : 'missing') : 'not approved'}` }))
   if (ops.training_status !== 'done') out.push({ es: 'Capacitación: sin hacer', en: 'Training: not done' })
   return out
 }

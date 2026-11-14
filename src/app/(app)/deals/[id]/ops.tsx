@@ -113,7 +113,7 @@ export function OrderDetailsCard({ ctx, dealId, open, ops, today }: { ctx: Ctx; 
   )
 }
 
-const tone = (s: string | null) => (s === 'approved' || s === 'validated' || s === 'done' ? 'good' : s === 'rejected' ? 'bad' : s === 'sent' || s === 'received' || s === 'scheduled' ? 'accent' : 'neutral') as 'good' | 'bad' | 'accent' | 'neutral'
+const tone = (s: string | null) => (s === 'approved' || s === 'validated' || s === 'done' ? 'good' : s === 'rejected' || s === 'expired' ? 'bad' : s === 'sent' || s === 'received' || s === 'scheduled' ? 'accent' : 'neutral') as 'good' | 'bad' | 'accent' | 'neutral'
 
 /** Lo que Operaciones lleva del negocio: quién lo tiene, su próximo paso, Merchant ID, proveedores, documentos y capacitación. */
 export function DealOpsCard({ ctx, dealId, open, title, ops, today }: { ctx: Ctx; dealId: string; open: boolean; title: string; ops: Ops; today: string }) {

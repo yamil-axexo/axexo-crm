@@ -10,7 +10,7 @@ import { notify } from '@/domain/notify'
 
 /** Estados que Operaciones lleva por proveedor y por documento. */
 export const PROVIDER_STATUS = ['pending', 'sent', 'approved', 'rejected'] as const
-export const DOCUMENT_STATUS = ['missing', 'received', 'validated'] as const
+export const DOCUMENT_STATUS = ['missing', 'received', 'validated', 'expired'] as const
 export const TRAINING_STATUS = ['pending', 'scheduled', 'done'] as const
 export const OPS_LABEL: Record<string, { es: string; en: string }> = {
   pending: { es: 'Pendiente', en: 'Pending' },
@@ -20,6 +20,7 @@ export const OPS_LABEL: Record<string, { es: string; en: string }> = {
   missing: { es: 'Falta', en: 'Missing' },
   received: { es: 'Recibido', en: 'Received' },
   validated: { es: 'Validado', en: 'Validated' },
+  expired: { es: 'Vencido', en: 'Expired' },
   scheduled: { es: 'Agendada', en: 'Scheduled' },
   done: { es: 'Hecha', en: 'Done' },
 }

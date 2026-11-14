@@ -19,3 +19,7 @@ end $$;
 drop function if exists app.exception_record_motor(uuid, uuid, uuid);
 drop function if exists app.exception_fallback_owner_motor(text, uuid, text);
 drop function if exists app.last_contact_at(uuid);
+update crm.deal_ops_checks set status = 'missing' where status = 'expired';
+alter table crm.deal_ops_checks drop constraint if exists deal_ops_checks_status_check;
+alter table crm.deal_ops_checks add constraint deal_ops_checks_status_check
+  check (status in ('pending','sent','approved','rejected','missing','received','validated'));

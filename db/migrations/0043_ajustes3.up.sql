@@ -104,3 +104,9 @@ language sql stable set search_path = crm, app, pg_catalog as $$
     coalesce((select max(v.checked_in_at) from crm.visits v where v.account_id = p_account), '-infinity'::timestamptz)), '-infinity'::timestamptz)
 $$;
 grant execute on function app.last_contact_at(uuid) to contigo_app;
+
+-- Documentos de Operaciones: "Vencido" además de Falta, Recibido y Validado ("Documentos vencidos" ya era motivo de
+-- devolución, pero no se podía marcar un documento así).
+alter table crm.deal_ops_checks drop constraint if exists deal_ops_checks_status_check;
+alter table crm.deal_ops_checks add constraint deal_ops_checks_status_check
+  check (status in ('pending','sent','approved','rejected','missing','received','validated','expired'));
