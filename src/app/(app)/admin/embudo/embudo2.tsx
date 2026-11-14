@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import type { Ctx } from '@/server/context'
 import { withUser } from '@/server/db'
 import { FUNNEL_SETTINGS, listFunnelSettings } from '@/domain/embudo2/settings'
@@ -25,7 +26,7 @@ export async function FunnelSettingsCard({ ctx }: { ctx: Ctx }) {
               <span className="min-w-[220px] flex-1">
                 <span className="block text-[14.5px] font-medium text-strong">{def.label[locale]}{r.market_code ? ` · ${r.market_code}` : ''}</span>
                 <span className="block text-[12.5px] text-muted-2">{def.help[locale]}</span>
-                {r.proposed && <span className="block text-[12.5px] font-medium text-strong" data-testid="funnel-setting-proposed">{t(`Valor propuesto, [pendiente: ${r.pending_owner ?? 'por definir'}]`, `Proposed value, [pending: ${r.pending_owner ?? 'to be defined'}]`)}</span>}
+                {r.proposed && <span className="block text-[12.5px] font-medium text-strong" data-testid="funnel-setting-proposed">{t(`Valor propuesto, [pendiente: ${r.pending_owner ?? 'por definir'}]`, `Proposed value, [pending: ${ownerEn(r.pending_owner ?? 'por definir')}]`)}</span>}
               </span>
               <Badge tone={r.proposed ? 'warn' : 'good'}><span data-testid="funnel-setting-value">{value}</span></Badge>
               {canEdit && (
@@ -114,7 +115,7 @@ export async function VisitPurposesProposal({ ctx }: { ctx: Ctx }) {
     <div className="mb-3 space-y-2" data-testid="visit-purposes-proposed">
       {rows.map((r) => (
         <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-[10px] bg-surface-3 px-3 py-2 text-[13.5px] text-strong">
-          <span className="flex-1">{t(`${r.market_code ?? ''}: la lista de propósitos es un valor propuesto, [pendiente: ${r.pending_owner ?? 'Ventas'}]. Se usa así mientras ventas confirma la lista del sistema anterior.`, `${r.market_code ?? ''}: the purpose list is a proposed value, [pending: ${r.pending_owner ?? 'Sales'}]. It is used as is while sales confirms the list from the previous system.`)}</span>
+          <span className="flex-1">{t(`${r.market_code ?? ''}: la lista de propósitos es un valor propuesto, [pendiente: ${r.pending_owner ?? 'Ventas'}]. Se usa así mientras ventas confirma la lista del sistema anterior.`, `${r.market_code ?? ''}: the purpose list is a proposed value, [pending: ${ownerEn(r.pending_owner ?? 'Ventas')}]. It is used as is while sales confirms the list from the previous system.`)}</span>
           {ctx.can('config.manage') && (
             <ActionForm action={saveFunnelSettingAction} testId="visit-purposes-confirm">
               <input type="hidden" name="key" value="visit_purposes_confirmed" /><input type="hidden" name="market" value={r.market_code ?? ''} />

@@ -1,5 +1,5 @@
 import type { Ctx } from '@/server/context'
-import { connectorStatus } from '@/server/adapters/registry'
+import { connectorStatus, providerEn } from '@/server/adapters/registry'
 import { lastConnectorTests } from '@/dal/conectores'
 import { Badge, Card, CardTitle } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
@@ -32,7 +32,7 @@ export async function ConnectorsCard({ ctx, tz }: { ctx: Ctx; tz: string }) {
             <li key={def.key} className="grid grid-cols-1 gap-x-6 gap-y-2 border-t border-line py-4 first:border-t-0 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_auto] md:items-start" data-testid={`connector-${def.key}`}>
               <span className="min-w-0">
                 <span className="block text-[15px] font-semibold text-strong">{t(...def.name)}</span>
-                <span className="block text-[12.5px] text-muted-2 [overflow-wrap:anywhere]">{def.provider}</span>
+                <span className="block text-[12.5px] text-muted-2 [overflow-wrap:anywhere]">{ctx.locale === 'en' ? providerEn(def.provider) : def.provider}</span>
                 <span className="mt-1.5 inline-block" data-testid="connector-mode">
                   {mode === 'live' ? <Badge tone="good">{t('Encendido', 'On')}</Badge> : mode === 'simulated' ? <Badge tone="warn">{t('Simulado (pruebas)', 'Simulated (tests)')}</Badge> : <Badge>{t('Apagado', 'Off')}</Badge>}
                 </span>

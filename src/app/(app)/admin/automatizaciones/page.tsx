@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
@@ -220,7 +221,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                     {steps.map((s) => (
                       <tr key={s.id} className="table-row" data-testid="step-row">
                         <td><span className="font-semibold text-strong">{stageName(s.from_stage_id)} → {stageName(s.to_stage_id)}</span>{!s.is_active && <span className="ml-2"><Badge tone="warn">{t('sin efecto', 'off')}</Badge></span>}
-                          {s.pending_owner && <span className="mt-1 block text-[12.5px] text-muted-2" data-testid="step-proposed">{t(`Valor propuesto, [pendiente: ${s.pending_owner}]`, `Proposed value, [pending: ${s.pending_owner}]`)}</span>}
+                          {s.pending_owner && <span className="mt-1 block text-[12.5px] text-muted-2" data-testid="step-proposed">{t(`Valor propuesto, [pendiente: ${s.pending_owner}]`, `Proposed value, [pending: ${ownerEn(String(s.pending_owner))}]`)}</span>}
                           {s.pending_owner && !s.is_active && (
                             <NoticeForm action={setTransitionActiveAction} testId="step-activate">
                               <input type="hidden" name="id" value={s.id} /><input type="hidden" name="active" value="true" />

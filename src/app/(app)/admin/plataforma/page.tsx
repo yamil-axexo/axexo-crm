@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { flags, platformValues, privacyNotices, redteamReviews, REDTEAM_CHECKLIST } from '@/domain/plataforma/admin'
@@ -79,7 +80,7 @@ export default async function PlatformPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[14px] font-medium text-strong" data-testid="value-current">{valueText(v)}</span>
-                  {v.proposed ? <span className="inline-flex items-center rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text">{t(`Valor propuesto, pendiente: ${v.owner_label}`, `Proposed value, pending: ${v.owner_label}`)}</span> : <Badge tone="good">{t('Confirmado', 'Confirmed')}</Badge>}
+                  {v.proposed ? <span className="inline-flex items-center rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text">{t(`Valor propuesto, pendiente: ${v.owner_label}`, `Proposed value, pending: ${ownerEn(v.owner_label)}`)}</span> : <Badge tone="good">{t('Confirmado', 'Confirmed')}</Badge>}
                   {manage && v.kind !== 'text' && (
                     <Dialog trigger={t('Cambiar', 'Change')} title={t(v.label_es, v.label_en)} variant="quiet" size="sm" testId={`value-edit-${v.key}`}>
                       <ActionForm action={A.setValueAction} onOk="close">
@@ -90,7 +91,7 @@ export default async function PlatformPage() {
                         ) : (
                           <Field label={t('Días', 'Days')} hint={t('Entre 30 y 3650. Vacío: sin plazo.', 'Between 30 and 3650. Empty: no period.')}><input name="value" type="number" min={30} max={3650} defaultValue={typeof v.value === 'number' ? v.value : ''} className="input" /></Field>
                         )}
-                        <label className="mt-3 flex min-h-11 items-center gap-3 text-[14px]"><input type="checkbox" name="confirmed" className="size-5" data-testid="value-confirmed" />{t(`Lo confirmó ${v.owner_label}`, `Confirmed by ${v.owner_label}`)}</label>
+                        <label className="mt-3 flex min-h-11 items-center gap-3 text-[14px]"><input type="checkbox" name="confirmed" className="size-5" data-testid="value-confirmed" />{t(`Lo confirmó ${v.owner_label}`, `Confirmed by ${ownerEn(v.owner_label)}`)}</label>
                         <div className="mt-4"><Submit testId="value-save">{t('Guardar', 'Save')}</Submit></div>
                       </ActionForm>
                     </Dialog>

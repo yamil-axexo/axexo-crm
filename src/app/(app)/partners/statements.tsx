@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import type { Statement } from '@/dal/partners'
 import type { T, Locale } from '@/lib/format'
 import { num } from '@/lib/format'
@@ -29,7 +30,7 @@ export function StatementList({ t, locale, rows, testId = 'statements' }: { t: T
               <p className="mt-1 text-[13.5px] text-strong" data-testid="statement-goal">
                 {n('active_90') >= goal ? t(`Premio por umbral: alcanzado (${num(goal, locale)} activas a 90 días).`, `Threshold award: reached (${num(goal, locale)} active at 90 days).`) : t(`Premio por umbral: faltan ${num(goal - n('active_90'), locale)} activas a 90 días.`, `Threshold award: ${num(goal - n('active_90'), locale)} more active at 90 days to go.`)}
                 {c.team_active_90 !== undefined ? t(` Tu equipo: ${num(n('team_active_90'), locale)}.`, ` Your team: ${num(n('team_active_90'), locale)}.`) : ''}
-                {c.threshold_pending ? <span className="ml-1 text-amber-text">{t(`Valor propuesto, [pendiente: ${String(c.threshold_pending)}]`, `Proposed value, [pending: ${String(c.threshold_pending) === 'Ventas y Finanzas' ? 'Sales and Finance' : String(c.threshold_pending)}]`)}</span> : null}
+                {c.threshold_pending ? <span className="ml-1 text-amber-text">{t(`Valor propuesto, [pendiente: ${String(c.threshold_pending)}]`, `Proposed value, [pending: ${ownerEn(String(c.threshold_pending))}]`)}</span> : null}
               </p>
             )}
             <p className="mt-1 text-[12.5px] text-muted-2">{s.status === 'published' ? t(`Publicado con las reglas: ${s.rules_ref}`, `Published under the rules: ${s.rules_ref}`) : t('Estimado: puede cambiar hasta que se publique con las reglas escritas.', 'Estimate: it can change until it is published under the written rules.')}</p>

@@ -283,7 +283,10 @@ export async function searchAll(ctx: Ctx, q: string) {
              or exists (select 1 from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
                          where ac.account_id = a.id and ac.valid_to is null
                            and (app.norm(c.full_name) like ${'%'} || app.norm(${term}) || ${'%'} ${phone ? tx`or c.phone = any(${phones}::text[])` : tx``}))
-             or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) = ${alias}))
+             or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) = ${alias})
+             -- La búsqueda promete "dirección": la ciudad exacta y, con 4 letras o más (no solo números), la calle.
+             or (a.locality is not null and app.norm(a.locality) = app.norm(${term}))
+             ${term.length >= 4 && /[a-záéíóúñ]/i.test(term) ? tx`or app.norm(coalesce(a.address_line, '')) like ${'%'} || app.norm(${term}) || ${'%'}` : tx``})
        order by ${qn ? tx`ts_rank(a.search_tsv, to_tsquery('simple', ${qn})) desc,` : tx``} similarity(a.name_norm, app.norm(${term})) desc limit 12`
     const leads = await tx<{ id: string; business_name: string; market_code: string; status: string }[]>`
       select id, business_name, market_code, status from crm.leads

@@ -210,3 +210,20 @@ export function connectorStatus(): ConnectorStatus[] {
   })
 }
 export { GOOGLE_SA, SUPABASE_ADMIN }
+
+// Proveedor de cada conector en inglés (Estado de CONTIGO). Los nombres de producto no se traducen; las aclaraciones sí.
+const PROVIDER_EN: [RegExp, string][] = [
+  [/con llave por variable de entorno y versión \(servicio de llaves final \[pendiente: Dan Mulligan\]\)/, 'with a key from an environment variable and its version (final key service [pending: Dan Mulligan])'],
+  [/herramienta \[pendiente: Ventas US\]/, 'tool [pending: US Sales]'], [/proveedor lo elige Compliance/, 'Compliance picks the provider'],
+  [/Contrato genérico/g, 'Generic contract'], [/Contrato propio de Kore Academy/, 'Kore Academy own contract'], [/Contrato propio/, 'Own contract'],
+  [/propuesta/g, 'proposal'], [/Endpoint HTTP de P&T/, 'P&T HTTP endpoint'], [/solo metadatos/, 'metadata only'], [/solo lectura/, 'read only'],
+  [/HTTPS a la dirección de cada suscriptor, firmado/, 'HTTPS to each subscriber address, signed'],
+  [/Interfaz genérica; referencia Dropbox Sign \(proveedor final \[pendiente: Dan Mulligan o Michael Essiet\]\)/, 'Generic interface; Dropbox Sign as reference (final provider [pending: Dan Mulligan or Michael Essiet])'],
+  [/\(X se queda en cola\)/, '(X stays queued)'], [/cualquier destino compatible/, 'any compatible destination'],
+  [/el mismo bot de los avisos/, 'the same bot as notices'], [/bucket de Datos y Reportería con manifiesto/, 'Data & Reporting bucket with a manifest'],
+  [/bucket de Datos y Reportería, carpeta/, 'Data & Reporting bucket, folder'], [/bucket privado/, 'private bucket'], [/\+ cifrado/, '+ encryption'],
+  [/canales privados/, 'private channels'], [/servicio de push del navegador/, 'browser push service'], [/webhook entrante/, 'inbound webhook'],
+  [/solo arma el enlace/, 'only builds the link'], [/\(referencia\)/, '(reference)'],
+]
+export const providerEn = (p: string) => PROVIDER_EN.reduce((s, [re, en]) => s.replace(re, en), p)
+

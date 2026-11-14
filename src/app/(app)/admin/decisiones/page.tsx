@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
@@ -48,7 +49,7 @@ export default async function DecisionsPage() {
                           {r.updatedAt && <span className="block text-[12.5px] text-muted">{[r.updatedBy, day(r.updatedAt, locale)].filter(Boolean).join(' · ')}{r.note ? ` · ${r.note}` : ''}</span>}
                         </span>
                         {r.proposed
-                          ? <span className="inline-block max-w-full rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text" data-testid="decision-pending">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${d.owner}`)}</span>
+                          ? <span className="inline-block max-w-full rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text" data-testid="decision-pending">{t(`Valor propuesto, pendiente: ${d.owner}`, `Proposed value, pending: ${ownerEn(String(d.owner))}`)}</span>
                           : <Badge tone="good">{t('Decidido', 'Decided')}</Badge>}
                       </div>
                       {edit && !d.locked && (

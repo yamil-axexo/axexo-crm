@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import { ProposedTag } from '@/ui/role-board'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
@@ -93,7 +94,7 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
       )}
 
       <Card className="mt-6" data-testid="usage-rollout-rule">
-        <CardTitle title={t('Regla de paso a despliegue', 'Rollout readiness rule')} right={rule.proposed ? <ProposedTag>{t(`Valor propuesto, [pendiente: ${rule.pending}]`, `Proposed value, [pending: ${rule.pending}]`)}</ProposedTag> : <Badge tone="good">{t('Fijada', 'Set')}</Badge>}
+        <CardTitle title={t('Regla de paso a despliegue', 'Rollout readiness rule')} right={rule.proposed ? <ProposedTag>{t(`Valor propuesto, [pendiente: ${rule.pending}]`, `Proposed value, [pending: ${ownerEn(rule.pending)}]`)}</ProposedTag> : <Badge tone="good">{t('Fijada', 'Set')}</Badge>}
           hint={t(`Quien supervisa abre el tablero ${rule.supervisor_weeks} semanas seguidas, hace al menos ${rule.one_on_ones_min} 1:1 con el tablero en 30 días y el equipo tiene ${rule.result === 'active_30d' ? 'comercios activos a 30 días' : 'visitas por alta'}. Entrar a CONTIGO no cuenta.`, `The supervisor opens the board ${rule.supervisor_weeks} weeks in a row, holds at least ${rule.one_on_ones_min} 1:1 with the board in 30 days and the team has ${rule.result === 'active_30d' ? 'merchants active at 30 days' : 'visits per enrollment'}. Signing in does not count.`)} />
         {oooPeople.length > 0 && (
           <ActionForm action={oneOnOneAction} className="flex flex-wrap items-end gap-3" onOk="reset" testId="one-on-one-form">

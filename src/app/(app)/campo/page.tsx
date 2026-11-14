@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import { notFound } from 'next/navigation'
 import { requireCtx, type Ctx } from '@/server/context'
 import { flat } from '@/server/params'
@@ -483,7 +484,7 @@ async function Disputes({ ctx, market, tz }: { ctx: Ctx; market: string; tz: str
             <p className="mt-2 text-[13px] text-muted-2">{t(`Ventana: ${policy.clawback_days} días. Arbitra: ${policy.arbiter ?? 'quien lidera el mercado (distinto de quien levantó la disputa) o administración'}.`, `Window: ${policy.clawback_days} days. Arbiter: ${policy.arbiter ?? 'the market lead (someone other than whoever raised it) or administration'}.`)}</p>
             {policy.status === 'approved'
               ? <p className="mt-1 text-[13px] text-muted-2">{t(`Aprobada por Finanzas (${policy.approved_finance_by}) y por Ventas (${policy.approved_sales_by}).`, `Approved by Finance (${policy.approved_finance_by}) and by Sales (${policy.approved_sales_by}).`)}</p>
-              : <p className="mt-1 text-[13px] text-amber-text" data-testid="policy-pending">{t(`Valor propuesto, [pendiente: ${policy.pending_owner ?? 'Finanzas y Ventas'}]`, `Proposed value, [pending: ${policy.pending_owner === 'Finanzas y Ventas' || !policy.pending_owner ? 'Finance and Sales' : policy.pending_owner}]`)}</p>}
+              : <p className="mt-1 text-[13px] text-amber-text" data-testid="policy-pending">{t(`Valor propuesto, [pendiente: ${policy.pending_owner ?? 'Finanzas y Ventas'}]`, `Proposed value, [pending: ${ownerEn(policy.pending_owner ?? 'Finanzas y Ventas')}]`)}</p>}
           </>
         ) : <Empty title={t('Este mercado todavía no tiene política', 'This market has no policy yet')} />}
         {ctx.can('channel_policy.manage', market) && (
@@ -772,7 +773,7 @@ async function Thresholds({ ctx, market, tz }: { ctx: Ctx; market: string; tz: s
             return (
               <li key={r.key} className="flex flex-col gap-2 border-t border-line py-3 first:border-t-0 md:flex-row md:items-center md:justify-between" data-testid="threshold-row" data-key={r.key}>
                 <span className="text-[14.5px]"><span className="font-semibold">{t(def.es, def.en)}</span>: <span className="num">{Number.isNaN(r.value) ? shown(num(null, locale)) : num(r.value, locale)}</span> <span className="text-[12.5px] text-muted">{t(`versión ${r.version}`, `version ${r.version}`)}{r.by ? ` · ${r.by}` : ''}{r.valid_from ? ` · ${day(r.valid_from, locale, tz)}` : ''}</span>
-                  {r.pending_owner && <span className="mt-1 block text-[12.5px] text-amber-text" data-testid="threshold-proposed">{t(`Valor propuesto, [pendiente: ${r.pending_owner}]`, `Proposed value, [pending: ${r.pending_owner}]`)}</span>}
+                  {r.pending_owner && <span className="mt-1 block text-[12.5px] text-amber-text" data-testid="threshold-proposed">{t(`Valor propuesto, [pendiente: ${r.pending_owner}]`, `Proposed value, [pending: ${ownerEn(String(r.pending_owner))}]`)}</span>}
                   {r.review_due && <span className={`mt-1 block text-[12.5px] ${r.review_late ? 'font-medium text-red-text' : 'text-muted'}`} data-testid="threshold-review">{r.review_late ? t(`Calibración vencida: tocaba revisarlo el ${day(r.review_due, locale)}`, `Calibration overdue: it was due for review on ${day(r.review_due, locale)}`) : t(`Próxima calibración: ${day(r.review_due, locale)}`, `Next calibration: ${day(r.review_due, locale)}`)}</span>}</span>
                 <ActionForm action={A.setThresholdAction} className="flex flex-wrap gap-2"><input type="hidden" name="market" value={market} /><input type="hidden" name="key" value={r.key} />
                   <input name="value" type="number" step="any" min={def.min} max={def.max} className="input w-[120px]" aria-label={t('Valor nuevo', 'New value')} required />

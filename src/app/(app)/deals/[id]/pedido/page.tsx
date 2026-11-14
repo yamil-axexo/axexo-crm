@@ -1,3 +1,4 @@
+import { ownerEn } from '@/lib/owner-en'
 import { ProposedTag } from '@/ui/role-board'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -38,7 +39,7 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
       <div className="mb-6 flex flex-wrap items-center gap-3 print:hidden">
         <Link href={`/deals/${o.id}`} className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline" data-testid="order-back">{t('Volver al pedido', 'Back to the order')}</Link>
         <span className="ml-auto flex flex-wrap items-center gap-3">
-          {brand.proposed && <span data-testid="order-brand-proposed"><ProposedTag>{t(`Plantilla de marca: valor propuesto, [pendiente: ${brand.pending}]`, `Brand template: proposed value, [pending: ${brand.pending}]`)}</ProposedTag></span>}
+          {brand.proposed && <span data-testid="order-brand-proposed"><ProposedTag>{t(`Plantilla de marca: valor propuesto, [pendiente: ${brand.pending}]`, `Brand template: proposed value, [pending: ${ownerEn(String(brand.pending))}]`)}</ProposedTag></span>}
           <a href={`/deals/${o.id}/pedido/pdf`} className={buttonClass('primary')} data-testid="order-pdf">{t('Descargar PDF', 'Download PDF')}</a>
           <PrintButton label={t('Imprimir o guardar como PDF', 'Print or save as PDF')} />
           {canSend && !waiting && o.items.length > 0 && (
