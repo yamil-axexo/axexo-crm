@@ -1,4 +1,6 @@
 import type { Job } from './types'
+import { env } from '@/env'
+import { emailInDomains } from '@/lib/domains'
 import { archiveBatchStatus, auditArchiveMode } from '@/server/adapters/audit-archive'
 import { directoryGone, directoryMode } from '@/server/adapters/directory'
 import { endAccessByDirectoryTx, notifyNewAlertsTx } from '@/domain/security'
@@ -40,7 +42,11 @@ export const seguridadJobs: Job[] = [
     everyMinutes: 60,
     description: { es: 'Quita el acceso a quien ya no tiene cuenta en el directorio de Google. Apagado hasta su revisión técnica.', en: 'Removes access from people who no longer have an account in the Google directory. Off until its technical review.' },
     run: async (tx) => {
-      const gone = await directoryGone()
+      // Solo las cuentas de los dominios de la organización: las de afuera (partners) no viven en el directorio.
+      const known = directoryMode() === 'live'
+        ? (await tx<{ email: string }[]>`select lower(email::text) as email from crm.users where is_active and not is_system`).map((r) => r.email).filter((e) => emailInDomains(e, env().AUTH_ALLOWED_DOMAINS))
+        : []
+      const gone = await directoryGone(known)
       if (gone === null) return { done: 0, note: 'Canal apagado' }
       if (gone.length === 0) return { done: 0, note: directoryMode() }
       const done = await endAccessByDirectoryTx(tx, gone)

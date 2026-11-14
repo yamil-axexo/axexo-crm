@@ -156,7 +156,7 @@ export async function pullFxFeed(tx: Tx, currencies: string[]): Promise<{ loaded
   // El día lo da la base (UTC, como la fecha de las tasas cargadas a mano), no el servidor de la app.
   const day = (await tx<{ d: string }[]>`select (now() at time zone 'UTC')::date::text as d`)[0]!.d
   const res = await fxFeedAdapter().fetch(currencies, day)
-  if (res.status === 'off') return { loaded: 0, off: true }
+  if (res.status !== 'ok') return { loaded: 0, off: res.status === 'off' }
   for (const r of res.rates) {
     await tx`insert into crm.fx_rates (currency, as_of, usd_rate, source) values (${r.currency}, ${r.asOf}::date, ${r.usdRate}, ${r.source})
              on conflict (currency, as_of) do update set usd_rate = excluded.usd_rate, source = excluded.source, loaded_at = now()`

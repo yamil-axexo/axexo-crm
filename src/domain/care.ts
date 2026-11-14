@@ -8,6 +8,7 @@ import { notify } from '@/domain/notify'
 import { DomainError, forbidden, invalid, notFound } from '@/lib/errors'
 import { isUuid } from '@/lib/ids'
 import { whatsappAdapter } from '@/server/adapters/whatsapp'
+import { waTemplateFor } from '@/domain/conectores/whatsapp'
 import { pullCareSignals, pullTicketCounts } from '@/server/adapters/care'
 import { ALERT, ALERT_KINDS, HANDOFF_ROLE, HANDOFF_ROLES, HEALTH_GROUPS, HEALTH_MIN_SAMPLE, PRODUCT_LINES, STAGE, TIERS, defaultChecklist, type AlertKind, type CheckItem, type HandoffRole } from '@/lib/care'
 
@@ -450,8 +451,8 @@ export async function runAlerts(tx: Tx, actor: Actor, scope: { market?: string; 
       if (!c.consent) status = 'skipped_consent'
       else {
         const today = await tx<{ n: number }[]>`select count(*)::int as n from crm.cs_messages m join crm.cs_alerts x on x.id = m.alert_id
-           where x.owner_id is not distinct from ${owner} and m.market_code = ${c.market_code} and m.status in ('queued_off','simulated') and m.created_at > now() - interval '24 hours'`
-        status = (today[0]?.n ?? 0) >= c.cap ? 'held_limit' : (await wa.send({ to: c.wa_phone ?? '', subject: ALERT[c.kind].label[0], body })).status
+           where x.owner_id is not distinct from ${owner} and m.market_code = ${c.market_code} and m.status in ('queued_off','simulated','sent') and m.created_at > now() - interval '24 hours'`
+        status = (today[0]?.n ?? 0) >= c.cap ? 'held_limit' : (await wa.send({ to: c.wa_phone ?? '', subject: ALERT[c.kind].label[0], body, ...(await waTemplateFor(tx, c.market_code, `cs_${c.kind}`, c.locale, [c.name])) })).status
       }
       await tx`insert into crm.cs_messages (alert_id, account_id, market_code, body, status) values (${ins[0].id}, ${c.account_id}, ${c.market_code}, ${body}, ${status})`
       messages++

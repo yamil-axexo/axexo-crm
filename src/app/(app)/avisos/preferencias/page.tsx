@@ -6,6 +6,11 @@ import { Card, CardTitle, PageHeader } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { CHANNELS, CHANNEL_LABEL, KIND_KEYS, NOTICE_KINDS, wants, type KindDef } from '@/lib/notice-kinds'
 import { savePrefsAction } from '../actions'
+import { removePushAction, saveCaptureAction, savePushAction } from '../conectores-actions'
+import { vapidPublicKey } from '@/server/adapters/web-push'
+import { calendarCaptureAdapter, gmailCaptureAdapter } from '@/server/adapters/partners'
+import { myCapture, myPushCount } from '@/dal/conectores'
+import { PushToggle } from '@/ui/push-toggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +20,11 @@ export default async function PrefsPage() {
   const { t } = ctx
   const mine = await myPrefs(ctx)
   const off = new Set(channelStatus().filter((c) => c.mode === 'off').map((c) => c.channel as string))
+  // Paquete conectores: push del navegador y captura de correo y calendario, solo cuando su conector está encendido.
+  const vapid = vapidPublicKey()
+  const pushCount = vapid ? await myPushCount(ctx) : 0
+  const captureOn = { gmail: gmailCaptureAdapter().mode !== 'off', calendar: calendarCaptureAdapter().mode !== 'off' }
+  const capture = captureOn.gmail || captureOn.calendar ? await myCapture(ctx) : null
   return (
     <div data-testid="notice-prefs">
       <p className="mb-3"><Link href="/avisos" className="inline-flex min-h-11 items-center text-[14px] font-medium text-blue-text underline">{t('Volver a Avisos', 'Back to Notices')}</Link></p>
@@ -58,6 +68,23 @@ export default async function PrefsPage() {
         </Card>
         <div className="mt-6 flex justify-end"><Submit testId="prefs-save">{t('Guardar preferencias', 'Save preferences')}</Submit></div>
       </ActionForm>
+      {vapid && (
+        <Card className="mt-6" data-testid="prefs-push">
+          <CardTitle title={t('Avisos del navegador', 'Browser notices')} hint={t('Los avisos de CONTIGO también llegan a este navegador, aunque no tengas la pestaña abierta.', 'CONTIGO notices also reach this browser, even when the tab is closed.')} />
+          <PushToggle vapidKey={vapid} active={pushCount > 0} save={savePushAction} remove={removePushAction}
+            labels={{ on: t('Activar en este navegador', 'Turn on in this browser'), off: t('Apagar en mis navegadores', 'Turn off in my browsers'), done: t('Listo.', 'Done.'), denied: t('El navegador no dio permiso. Puedes darlo en la configuración del sitio.', 'The browser did not grant permission. You can grant it in the site settings.'), unsupported: t('Este navegador no recibe avisos.', 'This browser does not receive notices.'), failed: t('No se pudo. Inténtalo de nuevo.', 'It did not work. Try again.') }} />
+        </Card>
+      )}
+      {capture && (
+        <ActionForm action={saveCaptureAction} testId="prefs-capture">
+          <Card className="mt-6">
+            <CardTitle title={t('Captura de mi correo y mi calendario', 'Capture of my email and calendar')} hint={t('CONTIGO lee solo quién, cuándo y el asunto, nunca el texto, y solo guarda lo que es con contactos de comercios que ya conoce. Lo demás se descarta.', 'CONTIGO reads only who, when and the subject, never the text, and only keeps what involves contacts of merchants it already knows. The rest is discarded.')} />
+            {captureOn.gmail && <label className="flex min-h-11 items-center gap-2 text-[14.5px] text-strong"><input type="checkbox" name="gmail" defaultChecked={capture.gmail} className="h-5 w-5" />{t('Mis correos', 'My emails')}</label>}
+            {captureOn.calendar && <label className="flex min-h-11 items-center gap-2 text-[14.5px] text-strong"><input type="checkbox" name="calendar" defaultChecked={capture.calendar} className="h-5 w-5" />{t('Mis reuniones', 'My meetings')}</label>}
+            <div className="mt-4"><Submit size="sm">{t('Guardar captura', 'Save capture')}</Submit></div>
+          </Card>
+        </ActionForm>
+      )}
     </div>
   )
 }

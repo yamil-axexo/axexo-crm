@@ -1,6 +1,10 @@
 import 'server-only'
 import { createHmac } from 'node:crypto'
 import type { TaxIdType } from '@/lib/tax-id'
+import { gate, type ConnectorMode, type GateSpec } from './live/gate'
+import { geocode as googleGeocode } from './live/google'
+import { aesSeal, taxRegistryVerify } from './live/providers'
+import { SUPABASE_ADMIN, s5Manifest, s5Read, storagePut } from './live/supabase'
 
 /**
  * Adaptadores del paquete de mercados. Cada uno tiene dos implementaciones:
@@ -8,8 +12,19 @@ import type { TaxIdType } from '@/lib/tax-id'
  * `simulated` (solo con APP_ENV=test y la variable en "simulated"): responde algo fijo y anota lo que habría salido.
  * No hay implementación real: conectar un proveedor pasa primero por la revisión de tecnología.
  */
-type Mode = 'off' | 'simulated'
-const modeOf = (envVar: string): Mode => (process.env.APP_ENV === 'test' && process.env[envVar] === 'simulated' ? 'simulated' : 'off')
+type Mode = ConnectorMode
+/** Cada adaptador: su variable y las credenciales que pide para salir (`live`). */
+export const MARKET_GATES: Record<'tax_registry' | 'protected_data' | 'geocoding' | 'fx_feed' | 'whatsapp', GateSpec> = {
+  tax_registry: { envVar: 'TAX_REGISTRY_ADAPTER', credentials: ['TAX_REGISTRY_URL', 'TAX_REGISTRY_TOKEN'] },
+  protected_data: { envVar: 'PROTECTED_DATA_ADAPTER', credentials: [...SUPABASE_ADMIN, 'PROTECTED_DATA_BUCKET', 'FIELD_CRYPTO_KEYS', 'FIELD_CRYPTO_ACTIVE'] },
+  geocoding: { envVar: 'GEOCODING_ADAPTER', credentials: ['GOOGLE_MAPS_API_KEY'] },
+  fx_feed: { envVar: 'FX_FEED_ADAPTER', credentials: [...SUPABASE_ADMIN, 'S5_BUCKET'] },
+  whatsapp: { envVar: 'WHATSAPP_ADAPTER', credentials: ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'] },
+}
+const modeOf = (envVar: string): Mode => {
+  const spec = Object.values(MARKET_GATES).find((x) => x.envVar === envVar)
+  return gate(spec ?? { envVar, credentials: [] }).mode
+}
 
 const g = globalThis as unknown as { __contigoMarketSims?: { adapter: string; payload: Record<string, unknown> }[] }
 /** Lo que los adaptadores simulados habrían mandado en este proceso (solo pruebas). Nunca guarda el identificador completo. */
@@ -31,6 +46,15 @@ export function taxRegistryAdapter(): TaxRegistryAdapter {
     envVar,
     verify: async (input) => {
       if (mode === 'off') return { status: 'queued_off' }
+      if (mode === 'live') {
+        // El identificador completo viaja SOLO al registro y en la misma llamada; CONTIGO no lo guarda.
+        try {
+          return await taxRegistryVerify({ type: input.type, country: input.country, id: input.normalized, legalName: input.legalName, postalCode: input.postalCode })
+        } catch {
+          // Sin respuesta del registro: la verificación queda pendiente ("en cola") y una persona revisa.
+          return { status: 'queued_off' }
+        }
+      }
       simulatedMarketCalls().push({ adapter: 'tax_registry', payload: { type: input.type, country: input.country, last4: input.normalized.slice(-4) } })
       // En la simulación, un identificador que termina en 0 no coincide con el registro.
       return { status: input.normalized.endsWith('0') ? 'mismatch' : 'match', provider: 'simulated' }
@@ -55,6 +79,16 @@ export function protectedDataAdapter(): ProtectedDataAdapter {
     envVar,
     store: async (input) => {
       if (mode === 'off') return { stored: false }
+      if (mode === 'live') {
+        // Cifrado antes de salir (AES-256-GCM con la llave activa) y guardado en un bucket privado aparte.
+        try {
+          const sealed = aesSeal(input.value)
+          await storagePut('protected_data', process.env.PROTECTED_DATA_BUCKET ?? '', `${input.kind}/${input.accountId}/${Date.now()}.json`, JSON.stringify(sealed), 'application/json')
+          return { stored: true }
+        } catch {
+          return { stored: false }
+        }
+      }
       simulatedMarketCalls().push({ adapter: 'protected_data', payload: { kind: input.kind, accountId: input.accountId, length: input.value.length } })
       return { stored: true }
     },
@@ -67,7 +101,7 @@ export type GeocodingAdapter = {
   mode: Mode
   envVar: string
   /** Convierte una dirección en coordenadas. Apagado: las coordenadas se capturan a mano o desde el teléfono. */
-  geocode: (address: { line: string; locality: string | null; region: string | null; postalCode: string | null; country: string }) => Promise<{ status: 'off' } | { status: 'found'; latitude: number; longitude: number }>
+  geocode: (address: { line: string; locality: string | null; region: string | null; postalCode: string | null; country: string }) => Promise<{ status: 'off' } | { status: 'not_found' } | { status: 'failed' } | { status: 'found'; latitude: number; longitude: number }>
 }
 export function geocodingAdapter(): GeocodingAdapter {
   const envVar = 'GEOCODING_ADAPTER'
@@ -77,6 +111,13 @@ export function geocodingAdapter(): GeocodingAdapter {
     envVar,
     geocode: async (address) => {
       if (mode === 'off') return { status: 'off' }
+      if (mode === 'live') {
+        try {
+          return await googleGeocode([address.line, address.locality, address.region, address.postalCode].filter(Boolean).join(', '), address.country)
+        } catch {
+          return { status: 'failed' }
+        }
+      }
       simulatedMarketCalls().push({ adapter: 'geocoding', payload: { country: address.country, postalCode: address.postalCode } })
       return { status: 'found', latitude: 19.4326, longitude: -99.1332 }
     },
@@ -88,7 +129,7 @@ export type FxFeedAdapter = {
   mode: Mode
   envVar: string
   /** Trae las tasas fechadas del día. Apagado: administración las carga a mano, con fecha y fuente. */
-  fetch: (currencies: string[], asOf: string) => Promise<{ status: 'off' } | { status: 'ok'; rates: { currency: string; asOf: string; usdRate: number; source: string }[] }>
+  fetch: (currencies: string[], asOf: string) => Promise<{ status: 'off' } | { status: 'failed' } | { status: 'ok'; rates: { currency: string; asOf: string; usdRate: number; source: string }[] }>
 }
 export function fxFeedAdapter(): FxFeedAdapter {
   const envVar = 'FX_FEED_ADAPTER'
@@ -98,6 +139,19 @@ export function fxFeedAdapter(): FxFeedAdapter {
     envVar,
     fetch: async (currencies, asOf) => {
       if (mode === 'off') return { status: 'off' }
+      if (mode === 'live') {
+        // Archivo "fx_rates" de S5 con fecha igual o anterior a asOf: el más reciente. Formato: { rates: [{ currency, usd_rate, as_of }] }.
+        try {
+          const f = (await s5Manifest('fx_feed')).filter((x) => x.kind === 'fx_rates' && x.as_of <= asOf).sort((a, b) => b.as_of.localeCompare(a.as_of))[0]
+          if (!f) return { status: 'ok', rates: [] }
+          const body = (await s5Read('fx_feed', f)) as { rates?: { currency?: string; usd_rate?: number; as_of?: string }[] }
+          const rates = (body.rates ?? []).filter((r) => typeof r.currency === 'string' && currencies.includes(r.currency) && r.currency !== 'USD' && typeof r.usd_rate === 'number' && r.usd_rate > 0)
+            .map((r) => ({ currency: r.currency!, asOf: r.as_of && /^\d{4}-\d{2}-\d{2}$/.test(r.as_of) ? r.as_of : f.as_of, usdRate: r.usd_rate!, source: `S5 ${f.path}`.slice(0, 120) }))
+          return { status: 'ok', rates }
+        } catch {
+          return { status: 'failed' }
+        }
+      }
       simulatedMarketCalls().push({ adapter: 'fx_feed', payload: { currencies, asOf } })
       return { status: 'ok', rates: currencies.filter((c) => c !== 'USD').map((c) => ({ currency: c, asOf, usdRate: 0.05, source: 'simulated feed' })) }
     },

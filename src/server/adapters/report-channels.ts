@@ -7,7 +7,11 @@ import 'server-only'
  * Encender un canal es escribir aquí su implementación real, con sus credenciales en variables de entorno, y aprobarla.
  * No hay llamadas de red en este archivo.
  */
-export type ChannelMode = 'off' | 'simulated'
+import { gate, type ConnectorMode } from './live/gate'
+import { SUPABASE_ADMIN, storagePut } from './live/supabase'
+import { slackPost } from './live/messaging'
+
+export type ChannelMode = ConnectorMode
 export type ChannelKey = 'snapshot_file' | 'scheduled_slack'
 
 export const REPORT_ADAPTERS: { key: ChannelKey; env: string; name: [string, string]; what: [string, string]; needs: [string, string] }[] = [
@@ -24,9 +28,29 @@ export const REPORT_ADAPTERS: { key: ChannelKey; env: string; name: [string, str
   },
 ]
 
+/** `live`: SNAPSHOT_FILE_ADAPTER=live, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, S5_BUCKET y la aprobación. El archivo va a
+ * la carpeta from-contigo/ del bucket de S5, con su huella SHA-256. */
+export const SNAPSHOT_GATE = { envVar: 'SNAPSHOT_FILE_ADAPTER', credentials: [...SUPABASE_ADMIN, 'S5_BUCKET'] } as const
+/** `live` (integración ola 7): REPORT_SLACK_ADAPTER=live, SLACK_BOT_TOKEN, REPORT_SLACK_CHANNEL y la aprobación. Usa el mismo
+ * conector de Slack (chat.postMessage) que los avisos. */
+export const REPORT_SLACK_GATE = { envVar: 'REPORT_SLACK_ADAPTER', credentials: ['SLACK_BOT_TOKEN', 'REPORT_SLACK_CHANNEL'] } as const
+export const REPORT_GATES: Record<ChannelKey, { envVar: string; credentials: readonly string[] }> = { snapshot_file: SNAPSHOT_GATE, scheduled_slack: REPORT_SLACK_GATE }
 export function channelMode(key: ChannelKey): ChannelMode {
-  const def = REPORT_ADAPTERS.find((a) => a.key === key)!
-  return process.env[def.env] === 'simulated' && process.env.APP_ENV === 'test' ? 'simulated' : 'off'
+  return gate(REPORT_GATES[key]).mode
+}
+
+/** Publica el resumen de un reporte programado en el canal de Slack del equipo. */
+export async function postScheduledToSlack(text: string): Promise<{ ts: string }> {
+  return slackPost(process.env.REPORT_SLACK_CHANNEL ?? '', text)
+}
+
+/** Encendido: la foto diaria sale al bucket de S5 al tomarla. */
+export const snapshotLive = (): boolean => channelMode('snapshot_file') === 'live'
+
+/** Sube el archivo de la foto diaria al bucket de S5. */
+export async function uploadSnapshotFile(name: string, csv: string): Promise<{ ref: string; sha256: string }> {
+  const out = await storagePut('snapshot_file', process.env.S5_BUCKET ?? '', `from-contigo/${name}`, csv, 'text/csv; charset=utf-8')
+  return { ref: out.ref, sha256: out.sha256 }
 }
 
 /** Con qué estado queda en la cola lo que habría salido. El adaptador nunca envía ni escribe: la cola la lleva el dominio (src/domain/reportes.ts). */

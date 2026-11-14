@@ -413,6 +413,12 @@ export const AUDIT_ACTION: Record<string, Pair> = {
   'contract.signed': ['Marcó un contrato como firmado', 'Marked a contract as signed'],
   'contract.renewal_noticed': ['Avisó que un contrato está por renovarse', 'Gave notice that a contract is due for renewal'],
   'partner.registered': ['Registró una cuenta como partner', 'Registered an account as a partner'],
+  // Paquete conectores (0041)
+  'connector.tested': ['Probó la conexión de un conector', 'Tested a connector’s connection'],
+  'push.subscribed': ['Activó los avisos del navegador', 'Turned on browser notices'],
+  'push.unsubscribed': ['Apagó los avisos del navegador', 'Turned off browser notices'],
+  'capture.optin_changed': ['Cambió la captura de su correo y calendario', 'Changed the capture of their email and calendar'],
+  'capture.ingested': ['Ligó correos, reuniones o mensajes capturados a comercios', 'Linked captured emails, meetings or messages to merchants'],
   'partner.invite_queued': ['Dejó en cola la invitación de un usuario externo', 'Queued an external user invitation'],
   'partner.crossmatch_run': ['Corrió el cruce de bases de partners', 'Ran the partner base cross-match'],
   'partner_token.created': ['Creó un token de lectura de partner', 'Created a partner read token'],
@@ -498,10 +504,10 @@ export const AUDIT_GROUPS = {
   '': { label: ['Cambios (sin inicios de sesión)', 'Changes (no sign-ins)'] as Pair, like: null, not: ['session.%'] },
   access: { label: ['Accesos y equipos', 'Access and teams'] as Pair, like: ['membership.%', 'team.%', 'user.%', 'street_seller.%'], not: null },
   config: { label: ['Configuración', 'Configuration'] as Pair, like: ['pipeline.%', 'stage.%', 'routing.%', 'funnel.%', 'transition.%', 'api_client.%', 'event_subscriber.%', 'territory.%', 'field.%', 'account_type.%', 'loss_reason.%', 'form.%', 'fx.%', 'template.%', 'comms.%', 'help.%', 'market.%', 'alias_system.%', 'process.list_%', 'quality.%', 'provider.%', 'product.%', 'rollout.%', 'entity.%', 'whatsapp.%', 'ficha.%', 'field_section.%', 'decision.%'], not: null },
-  notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%'], not: null },
+  notices: { label: ['Avisos y anuncios', 'Notices and announcements'] as Pair, like: ['announcement.%', 'notice.%', 'push.%'], not: null },
   // 'report.' lo comparten dos cosas distintas: lo que alguien exporta (liderazgo) y lo que el equipo reporta (contenido).
   exports: { label: ['Exportaciones', 'Exports'] as Pair, like: ['report.exported', 'export.%'], not: null },
-  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%', 'load.%', 'pipedrive.%'], not: null },
+  integrations: { label: ['Integraciones y reglas', 'Integrations and rules'] as Pair, like: ['integration.%', 'import.%', 'rules.%', 'automation.%', 'job.%', 'csv_import.%', 'inbound.%', 'event_delivery.%', 'sheet.%', 'load.%', 'pipedrive.%', 'connector.%', 'capture.%'], not: null },
   records: { label: ['Comercios, negocios y leads', 'Merchants, deals and leads'] as Pair, like: ['account.%', 'document.%', 'contact.%', 'deal.%', 'lead.%', 'activity.%', 'exception.%', 'order.%', 'training.%', 'duplicate.%', 'alias.%', 'process.enrolled', 'process.status_changed', 'taxid.%', 'care.%', 'terms.%', 'contract.%', 'plan.created', 'plan.milestone_%', 'plan.shared', 'partner.%', 'partner_token.%', 'partner_tier.%', 'network_load.%', 'expansion.deal_opened', 'feedback.%'], not: null },
   reports: { label: ['Problemas reportados', 'Reported problems'] as Pair, like: ['report.created', 'report.answered', 'report.taken'], not: null },
   // Paquete reportes: reportes y vistas guardadas, responsables de indicadores, foto diaria y conciliación.

@@ -1,9 +1,12 @@
 import 'server-only'
+import { gate, type ConnectorMode, type GateSpec } from './live/gate'
+import { http } from './live/http'
+import { SUPABASE_ADMIN, s5Manifest, s5Read } from './live/supabase'
 
 /**
- * Conexiones del paquete campo2. Las tres están construidas y APAGADAS: ninguna llama a nada fuera de CONTIGO.
- * `off` (por defecto) deja lo que saldría en su cola con "Canal apagado" y no trae nada; `simulated` solo vale con
- * APP_ENV=test y registra lo que habría pasado, para las pruebas. Sin credenciales, sin URLs y sin llamadas de red.
+ * Conexiones del paquete campo2. Las tres están construidas y APAGADAS. `off` (por defecto) deja lo que saldría en su cola
+ * con "Canal apagado" y no trae nada; `simulated` solo vale con APP_ENV=test. `live` (integración ola 7) sigue la regla
+ * única de encendido (live/gate.ts): variable en "live", credenciales y la referencia del sign-off escrito.
  */
 export type Campo2AdapterKey = 'feedback_to_pt' | 'academy_progress' | 'lakehouse_crossmatch'
 type Pair = [es: string, en: string]
@@ -28,22 +31,50 @@ export const CAMPO2_ADAPTERS: Record<Campo2AdapterKey, { envVar: string; name: P
   },
 }
 
-export const campo2Mode = (key: Campo2AdapterKey): 'off' | 'simulated' =>
-  process.env.APP_ENV === 'test' && process.env[CAMPO2_ADAPTERS[key].envVar] === 'simulated' ? 'simulated' : 'off'
+/** Credenciales de cada conexión: P&T recibe el resumen en un endpoint propio; el avance sale del contrato de Kore Academy; el
+ * cruce lo publica Data y Reportería como archivo en el bucket con manifiesto. */
+export const CAMPO2_GATES: Record<Campo2AdapterKey, GateSpec> = {
+  feedback_to_pt: { envVar: 'FEEDBACK_TO_PT_ADAPTER', credentials: ['FEEDBACK_TO_PT_URL', 'FEEDBACK_TO_PT_TOKEN'] },
+  academy_progress: { envVar: 'ACADEMY_PROGRESS_ADAPTER', credentials: ['KORE_ACADEMY_URL', 'KORE_ACADEMY_TOKEN'] },
+  lakehouse_crossmatch: { envVar: 'LAKEHOUSE_CROSSMATCH_ADAPTER', credentials: [...SUPABASE_ADMIN, 'S5_BUCKET'] },
+}
+export const campo2Mode = (key: Campo2AdapterKey): ConnectorMode => gate(CAMPO2_GATES[key]).mode
+const urlOf = (raw: string | undefined) => { const u = new URL(raw ?? ''); return { origin: u.origin, host: u.host } }
 
-export function campo2AdapterStatus(): { key: Campo2AdapterKey; mode: 'off' | 'simulated'; envVar: string; name: Pair; what: Pair; needs: Pair }[] {
+export function campo2AdapterStatus(): { key: Campo2AdapterKey; mode: ConnectorMode; envVar: string; name: Pair; what: Pair; needs: Pair }[] {
   return (Object.keys(CAMPO2_ADAPTERS) as Campo2AdapterKey[]).map((key) => ({ key, mode: campo2Mode(key), ...CAMPO2_ADAPTERS[key] }))
 }
 
 /** CS-08: entrega del resumen. Apagado: queda en cola. Simulado: se da por entregado (solo pruebas). */
-export async function deliverFeedbackDigest(_digest: { id: string; total: number }): Promise<'queued_off' | 'simulated'> {
-  return campo2Mode('feedback_to_pt') === 'simulated' ? 'simulated' : 'queued_off'
+export async function deliverFeedbackDigest(digest: { id: string; total: number }): Promise<'queued_off' | 'simulated' | 'sent'> {
+  const mode = campo2Mode('feedback_to_pt')
+  if (mode !== 'live') return mode === 'simulated' ? 'simulated' : 'queued_off'
+  const u = urlOf(process.env.FEEDBACK_TO_PT_URL)
+  await http({ connector: 'feedback_to_pt', url: `${u.origin}${new URL(process.env.FEEDBACK_TO_PT_URL!).pathname}`, method: 'POST', allowHosts: [u.host],
+    headers: { authorization: `Bearer ${process.env.FEEDBACK_TO_PT_TOKEN ?? ''}`, 'content-type': 'application/json' }, json: { digest_id: digest.id, total: digest.total } })
+  return 'sent'
 }
 
 export type AcademyProgress = { externalId: string; partnerAccountId: string; materialId: string; learnerRef: string; progressPct: number; completedOn: string | null }
 /** CANAL-06: avance por aliado y material. Apagado: no trae nada. Simulado: avance fijo por par, siempre el mismo. */
 export async function pullAcademyProgress(pairs: { partnerAccountId: string; materialId: string; today: string }[]): Promise<AcademyProgress[] | null> {
-  if (campo2Mode('academy_progress') === 'off') return null
+  const mode = campo2Mode('academy_progress')
+  if (mode === 'off') return null
+  if (mode === 'live') {
+    // Contrato de Kore Academy (docs/contracts/kore-academy-completions.md): GET /v1/progress por aliado y material.
+    const k = urlOf(process.env.KORE_ACADEMY_URL)
+    const out: AcademyProgress[] = []
+    for (let i = 0; i < pairs.length; i += 100) {
+      const q = new URLSearchParams({ pairs: pairs.slice(i, i + 100).map((p) => `${p.partnerAccountId}:${p.materialId}`).join(',') })
+      const j = (await http({ connector: 'academy_progress', url: `${k.origin}/v1/progress?${q}`, allowHosts: [k.host], headers: { authorization: `Bearer ${process.env.KORE_ACADEMY_TOKEN ?? ''}` } }))
+        .json<{ progress?: { id?: string; partner_ref?: string; material_ref?: string; learner_ref?: string; pct?: number; completed_on?: string | null }[] }>()
+      for (const r of j.progress ?? []) {
+        if (!r.id || !r.partner_ref || !r.material_ref || typeof r.pct !== 'number') continue
+        out.push({ externalId: r.id.slice(0, 120), partnerAccountId: r.partner_ref, materialId: r.material_ref, learnerRef: (r.learner_ref ?? '').slice(0, 120), progressPct: Math.max(0, Math.min(100, Math.round(r.pct))), completedOn: r.completed_on && /^\d{4}-\d{2}-\d{2}$/.test(r.completed_on) ? r.completed_on : null })
+      }
+    }
+    return out
+  }
   return pairs.map((p, i) => {
     const pct = [40, 100, 70][i % 3]!
     return { externalId: `sim-${p.partnerAccountId.slice(0, 8)}-${p.materialId.slice(0, 8)}`, partnerAccountId: p.partnerAccountId, materialId: p.materialId, learnerRef: 'aliado-1', progressPct: pct, completedOn: pct === 100 ? p.today : null }
@@ -51,6 +82,12 @@ export async function pullAcademyProgress(pairs: { partnerAccountId: string; mat
 }
 
 /** CANAL-06: el cruce en el lakehouse. Apagado: null (el cruce corre en CONTIGO). */
-export async function lakehouseCrossmatch(_market: string): Promise<number | null> {
-  return campo2Mode('lakehouse_crossmatch') === 'simulated' ? 0 : null
+export async function lakehouseCrossmatch(market: string): Promise<number | null> {
+  const mode = campo2Mode('lakehouse_crossmatch')
+  if (mode !== 'live') return mode === 'simulated' ? 0 : null
+  // Data y Reportería publica el cruce como archivo "partner_crossmatch" en el manifiesto; se cuentan las coincidencias del mercado.
+  const file = (await s5Manifest('lakehouse_crossmatch')).find((f) => f.kind === 'partner_crossmatch')
+  if (!file) return null
+  const rows = await s5Read('lakehouse_crossmatch', file)
+  return Array.isArray(rows) ? rows.filter((r) => (r as { market?: string }).market === market).length : null
 }

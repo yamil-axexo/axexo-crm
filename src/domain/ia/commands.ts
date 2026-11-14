@@ -19,7 +19,7 @@ export const EXPIRES_DAYS = 7
 export const MEASURE_DAYS = 14
 
 // ================================================================ registro de cada llamada (IA-07)
-export async function logCall(tx: Tx, c: { feature: AiFeature | 'agent_draft' | 'eval'; mode: 'off' | 'simulated' | 'rules'; input: unknown; untrusted?: boolean; tool?: Record<string, unknown> | null; diff?: Record<string, unknown> | null; outcome: 'not_sent' | 'answered' | 'refused'; via?: 'screen' | 'job' | 'mcp' | 'eval'; costUsd?: number }) {
+export async function logCall(tx: Tx, c: { feature: AiFeature | 'agent_draft' | 'eval'; mode: 'off' | 'simulated' | 'rules' | 'live'; input: unknown; untrusted?: boolean; tool?: Record<string, unknown> | null; diff?: Record<string, unknown> | null; outcome: 'not_sent' | 'answered' | 'refused'; via?: 'screen' | 'job' | 'mcp' | 'eval'; costUsd?: number }) {
   const version = c.feature in PROMPT_VERSION ? PROMPT_VERSION[c.feature as AiFeature] : 'rules-1'
   await tx`insert into crm.ia_calls (feature, mode, prompt_version, input_digest, untrusted_input, tool_call, diff, outcome, cost_usd, actor_id, via)
            values (${c.feature}, ${c.mode}, ${version}, ${digest(c.input)}, ${c.untrusted ?? false}, ${c.tool ? tx.json(c.tool as never) : null},

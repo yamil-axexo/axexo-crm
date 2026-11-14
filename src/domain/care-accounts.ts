@@ -363,8 +363,8 @@ export async function feedbackDigest(tx: Tx): Promise<{ done: number; note: stri
   // CS-08: el resumen sale hacia P&T. Con el canal apagado queda en cola a la vista; además sale como evento de dominio.
   const d = rows[0]
   if (d) {
-    const status = await deliverFeedbackDigest(d)
-    await tx`update crm.feedback_digests set delivery_status = ${status}, delivered_at = ${status === 'simulated' ? new Date() : null} where id = ${d.id}`
+    const status = await deliverFeedbackDigest(d).catch(() => 'failed' as const)
+    await tx`update crm.feedback_digests set delivery_status = ${status}, delivered_at = ${status === 'simulated' || status === 'sent' ? new Date() : null} where id = ${d.id}`
     const sys = await systemCtx()
     await audit(tx, sys, 'feedback.digest_sent', 'feedback_digest', d.id, null, null, { total: d.total, delivery: status })
   }

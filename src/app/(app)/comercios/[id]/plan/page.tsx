@@ -6,6 +6,7 @@ import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader } from '@/
 import { ActionForm, Dialog, Submit } from '@/ui/client'
 import { day, num } from '@/lib/format'
 import * as A from '@/app/(app)/partners/actions'
+import { externalIdentityAdapter } from '@/server/adapters/partners'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ const TONE = { pending: 'neutral', in_progress: 'info', done: 'good', blocked: '
 export default async function PlanPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
+  const externalLive = externalIdentityAdapter().mode === 'live'
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const d = await accountPlans(ctx, id)
@@ -111,6 +113,7 @@ export default async function PlanPage({ params }: { params: Promise<{ id: strin
                 {p.client_access === 'off' ? (
                   <ActionForm action={A.sharePlanAction}>
                     <input type="hidden" name="id" value={p.id} /><input type="hidden" name="account_id" value={id} />
+                    {externalLive && <div className="mb-3"><Field label={t('Correo de la persona del cliente', 'Client person’s email')}><input name="email" type="email" className="input" required maxLength={160} /></Field></div>}
                     <Submit variant="ghost" testId="plan-share">{t('Compartir con el cliente', 'Share with the client')}</Submit>
                   </ActionForm>
                 ) : (

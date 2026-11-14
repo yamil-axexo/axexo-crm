@@ -128,6 +128,9 @@ const SILENT: [prefix: string, why: Pair][] = [
   // integraciones2: la bitácora de cargas y su horario, los documentos generados, el respaldo de Pipedrive y el borrado de un
   // mercado de prueba. Lo que una carga cambia emite lo suyo; un documento o un respaldo no cambian registros.
   ['load.', WHY.jobs], ['document.', WHY.read], ['pipedrive.', WHY.read], ['market.reset_test', WHY.migration],
+  // Paquete conectores: probar una conexión es una lectura; la suscripción de push y la captura son preferencias de cada persona;
+  // lo capturado entra como actividad (cada una ya es un registro del hilo).
+  ['connector.', WHY.read], ['push.', WHY.internal], ['capture.', WHY.internal],
   // Paquete datos2: las decisiones de negocio son configuración interna; un intento bloqueado de borrar un mercado en
   // producción es un control.
   ['decision.', WHY.internal], ['market.reset_blocked', WHY.security],

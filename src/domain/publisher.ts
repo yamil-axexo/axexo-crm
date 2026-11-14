@@ -88,7 +88,7 @@ export const envelope = (e: Pick<Due, 'event_id' | 'event_type' | 'version' | 'a
   aggregate: { type: e.aggregate, id: e.aggregate_id }, data: e.payload,
 })
 
-export type PublishResult = { queued: number; delivered: number; failed: number; dead: number; waiting: number; mode: 'off' | 'simulated' }
+export type PublishResult = { queued: number; delivered: number; failed: number; dead: number; waiting: number; mode: 'off' | 'simulated' | 'live' }
 
 /**
  * Una pasada del publicador dentro de la transacción que recibe. Es seguro correrla dos veces: la fila de entrega es

@@ -231,8 +231,11 @@ describe('contratos de la integración', () => {
     const status = readFileSync('src/app/(app)/estado/page.tsx', 'utf8')
     const channels = readFileSync('src/server/adapters/channels.ts', 'utf8')
     // channel.ts es la base común de los canales; identidad y Pipedrive ya tenían su renglón propio en Estado.
-    for (const f of readdirSync('src/server/adapters').map((x) => x.replace('.ts', '')).filter((x) => x !== 'channel')) {
-      const shown = status.includes(`@/server/adapters/${f}'`) || channels.includes(`./${f}'`) || channels.includes(`/adapters/${f}'`) || (f === 'identity' && status.includes('ssoEnabled'))
+    // Paquete conectores: la tarjeta "Conectores" (estado/conectores.tsx) lee el registro único, que importa cada adaptador.
+    const registry = readFileSync('src/server/adapters/registry.ts', 'utf8')
+    const card = readFileSync('src/app/(app)/estado/conectores.tsx', 'utf8').includes("@/server/adapters/registry'") && status.includes("from './conectores'")
+    for (const f of readdirSync('src/server/adapters').filter((x) => x.endsWith('.ts')).map((x) => x.replace('.ts', '')).filter((x) => x !== 'channel' && x !== 'registry')) {
+      const shown = status.includes(`@/server/adapters/${f}'`) || channels.includes(`./${f}'`) || channels.includes(`/adapters/${f}'`) || (f === 'identity' && status.includes('ssoEnabled')) || (card && registry.includes(`from './${f}'`))
       expect(shown, `adaptador ${f}`).toBe(true)
     }
   })

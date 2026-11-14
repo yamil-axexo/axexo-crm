@@ -4,6 +4,7 @@ import { retryHeldIntake } from '@/domain/embudo/intake-retry'
 import { salesFileAdapter } from '@/server/adapters/sales-file'
 import { ingestMetricsFile } from '@/domain/integrations'
 import { systemCtx } from '@/server/context'
+import { loadedPaths, markLoaded } from '@/domain/conectores/files'
 
 /**
  * Tareas programadas del paquete embudo. Las tres son seguras de correr dos veces: el archivo de ventas es idempotente por
@@ -18,9 +19,19 @@ export const embudoJobs: Job[] = [
       es: 'Va por el archivo diario de ventas (primer fondeo, primera transacción, hábito y correcciones) y lo carga. Con la conexión apagada no va a ningún lado: el archivo entra solo cuando alguien lo entrega por la API.',
       en: 'Fetches the daily sales file (first funding, first transaction, habit and corrections) and loads it. With the connection off it goes nowhere: the file only comes in when someone delivers it through the API.',
     },
-    run: async () => {
+    run: async (tx) => {
       const adapter = salesFileAdapter()
       if (adapter.mode === 'off') return { done: 0, note: 'Canal apagado' }
+      if (adapter.mode === 'live') {
+        // Encendido: los archivos del manifiesto de S5 que faltan, con su huella revisada, del más viejo al más nuevo.
+        let n = 0
+        for (const f of await adapter.pending('merchant_metrics_daily', await loadedPaths(tx, 'sales_file'))) {
+          await ingestMetricsFile(await systemCtx(), await adapter.read(f))
+          await markLoaded(tx, 'sales_file', f, 0)
+          n += 1
+        }
+        return { done: n, note: `Encendido: ${n} archivos` }
+      }
       let n = 0
       for (let file = await adapter.next(); file; file = await adapter.next()) {
         await ingestMetricsFile(await systemCtx(), file)

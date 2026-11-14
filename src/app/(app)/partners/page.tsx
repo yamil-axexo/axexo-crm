@@ -13,6 +13,7 @@ import { ActionForm, RevealOnce, Submit } from '@/ui/client'
 import { day, num } from '@/lib/format'
 import { flat } from '@/server/params'
 import * as A from './actions'
+import { externalIdentityAdapter } from '@/server/adapters/partners'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,7 @@ const MATCH: Record<string, Pair> = { phone: ['Teléfono', 'Phone'], alias: ['ID
 export default async function PartnersPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const ctx = await requireCtx()
   const { t, locale } = ctx
+  const externalLive = externalIdentityAdapter().mode === 'live'
   const lc = (k: string) => (LIFECYCLE[k] ? t(...LIFECYCLE[k].label) : k)
 
   if (ctx.can('partner.portal') && !ctx.can('partner.manage')) {
@@ -227,6 +229,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
               </ActionForm>
               <ActionForm action={A.invitePartnerAction} testId="partner-invite">
                 <Field label={t('Invitar a alguien de afuera a un portal', 'Invite an outside person to a portal')}><select name="account_id" className="input" required defaultValue=""><option value="" disabled>{t('Elige la cuenta', 'Choose the account')}</option>{d.profiles.map((p) => <option key={p.account_id} value={p.account_id}>{p.name}</option>)}</select></Field>
+                {externalLive && <div className="mt-3"><Field label={t('Correo de la persona', 'Person’s email')}><input name="email" type="email" className="input" required maxLength={160} data-testid="partner-invite-email" /></Field></div>}
                 <div className="mt-4"><Submit size="sm" variant="ghost" testId="partner-invite-save">{t('Invitar', 'Invite')}</Submit></div>
               </ActionForm>
             </div>

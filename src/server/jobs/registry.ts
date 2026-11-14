@@ -16,6 +16,7 @@ import { iaJobs } from './ia'
 import { integraciones2Jobs } from './integraciones2'
 import { campo2Jobs } from './campo2'
 import { reportes2Jobs } from './reportes2'
+import { conectoresJobs } from './conectores'
 
 /** Every scheduled job of the app. One line per package: `...packageJobs`. */
 export const JOBS: Job[] = [
@@ -36,4 +37,5 @@ export const JOBS: Job[] = [
   ...integraciones2Jobs,
   ...campo2Jobs,
   ...reportes2Jobs,
+  ...conectoresJobs,
 ]

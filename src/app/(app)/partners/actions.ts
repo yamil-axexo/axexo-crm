@@ -35,8 +35,8 @@ export async function createContractAction(_: R | null, fd: FormData): Promise<R
 }
 export async function sendContractAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    const s = await sendContract(ctx, str(fd, 'id'))
-    return { message: s === 'channel_off' ? offMsg : ['Enviado (simulado).', 'Sent (simulated).'], revalidate: acc(fd) }
+    const s = await sendContract(ctx, str(fd, 'id'), { signerEmail: str(fd, 'signer_email'), signerName: str(fd, 'signer_name'), documentUrl: str(fd, 'document_url') })
+    return { message: s === 'channel_off' ? offMsg : s === 'sent' ? ['Enviado a firmar.', 'Sent for signature.'] : s === 'failed' ? ['No se pudo mandar a firmar. Quedó en la cola; inténtalo de nuevo más tarde.', 'It could not be sent for signature. It is queued; try again later.'] : ['Enviado (simulado).', 'Sent (simulated).'], revalidate: acc(fd) }
   })
 }
 export async function markSignedAction(_: R | null, fd: FormData): Promise<R> {
@@ -79,8 +79,8 @@ export async function updateMilestoneAction(_: R | null, fd: FormData): Promise<
 }
 export async function sharePlanAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    const s = await sharePlan(ctx, str(fd, 'id'))
-    return { message: s === 'channel_off' ? ['El acceso de clientes está apagado: el pedido quedó en la cola. Mientras tanto comparte el avance por tu medio.', 'Client access is off: the request is queued. Meanwhile share progress your usual way.'] : ['Compartido (simulado).', 'Shared (simulated).'], revalidate: acc(fd) }
+    const s = await sharePlan(ctx, str(fd, 'id'), str(fd, 'email'))
+    return { message: s === 'sent' ? ['Invitación enviada al cliente.', 'Invitation sent to the client.'] : s === 'failed' ? ['No se pudo mandar la invitación. Quedó en la cola.', 'The invitation could not be sent. It is queued.'] : s === 'channel_off' ? ['El acceso de clientes está apagado: el pedido quedó en la cola. Mientras tanto comparte el avance por tu medio.', 'Client access is off: the request is queued. Meanwhile share progress your usual way.'] : ['Compartido (simulado).', 'Shared (simulated).'], revalidate: acc(fd) }
   })
 }
 
@@ -111,8 +111,8 @@ export async function grantPartnerAction(_: R | null, fd: FormData): Promise<R> 
 }
 export async function invitePartnerAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    const s = await invitePartnerUser(ctx, str(fd, 'account_id'))
-    return { message: s === 'channel_off' ? ['La entrada de usuarios externos está apagada: la invitación quedó en la cola.', 'External user sign-in is off: the invitation is queued.'] : ['Invitación simulada.', 'Invitation simulated.'], revalidate: here }
+    const s = await invitePartnerUser(ctx, str(fd, 'account_id'), str(fd, 'email'))
+    return { message: s === 'sent' ? ['Invitación enviada por correo.', 'Invitation sent by email.'] : s === 'failed' ? ['No se pudo mandar la invitación. Quedó en la cola.', 'The invitation could not be sent. It is queued.'] : s === 'channel_off' ? ['La entrada de usuarios externos está apagada: la invitación quedó en la cola.', 'External user sign-in is off: the invitation is queued.'] : ['Invitación simulada.', 'Invitation simulated.'], revalidate: here }
   })
 }
 export async function createTokenAction(_: R | null, fd: FormData): Promise<R> {

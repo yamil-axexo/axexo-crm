@@ -4,6 +4,7 @@ import { ingestStoreSales } from '@/domain/store-sales'
 import { systemCtx } from '@/server/context'
 import { watchLateLoads } from '@/domain/loads'
 import { systemUserId } from '@/server/db'
+import { loadedPaths, markLoaded } from '@/domain/conectores/files'
 
 /**
  * Tareas programadas del paquete integraciones2.
@@ -20,9 +21,18 @@ export const integraciones2Jobs: Job[] = [
       es: 'Cada noche va por el archivo de cifras de ventas por tienda (activaciones por carrier y volumen de pago) y lo carga. Con la conexión apagada no va a ningún lado: el archivo entra solo cuando alguien lo entrega por la API.',
       en: 'Every night it fetches the store sales figures file (activations by carrier and payment volume) and loads it. With the connection off it goes nowhere: the file only comes in when someone delivers it through the API.',
     },
-    run: async () => {
+    run: async (tx) => {
       const adapter = salesFileAdapter()
       if (adapter.mode === 'off') return { done: 0, note: 'Canal apagado' }
+      if (adapter.mode === 'live') {
+        let n = 0
+        for (const f of await adapter.pending('store_sales_daily', await loadedPaths(tx, 'store_sales'))) {
+          const r = await ingestStoreSales(await systemCtx(), await adapter.read(f))
+          await markLoaded(tx, 'store_sales', f, r.matched)
+          n += r.matched
+        }
+        return { done: n, note: 'Encendido' }
+      }
       let n = 0
       for (let file = await adapter.nextStoreSales(); file; file = await adapter.nextStoreSales()) {
         const r = await ingestStoreSales(await systemCtx(), file)
