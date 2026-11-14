@@ -95,8 +95,8 @@ export const CONTACT_ROLE: Record<string, Pair> = {
 }
 
 export const ATTRIBUTION_LAYER: Record<string, Pair> = {
-  origin: ['Origen', 'Origin'],
-  channel: ['Canal', 'Channel'],
+  origin: ['Quién lo trajo', 'Who brought it in'],
+  channel: ['Equipo o canal por el que llegó', 'Team or channel it came through'],
   owner: ['Quién lo lleva', 'Owner'],
 }
 

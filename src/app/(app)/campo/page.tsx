@@ -415,7 +415,7 @@ async function Attribution({ ctx, market, acc, tz, month }: { ctx: Ctx; market: 
     <div className="flex flex-col gap-6">
       {acc && (
         <Card data-testid="attr-history">
-          <CardTitle title={`${t('Atribución de', 'Attribution for')} ${acc.name}`} hint={t('Tres capas, cada una con vigencia. Una corrección es una fila nueva que apunta a la anterior; el pasado no se edita.', 'Three layers, each with dates. A correction is a new row pointing to the previous one; the past is not edited.')} />
+          <CardTitle title={`${t('Atribución de', 'Attribution for')} ${acc.name}`} hint={t('Quién lo trajo, por qué equipo o canal llegó y quién lo lleva, cada uno con sus fechas. Una corrección es una fila nueva que apunta a la anterior; el pasado no se edita.', 'Who brought it in, which team or channel it came through and who owns it, each with its dates. A correction is a new row pointing to the previous one; the past is not edited.')} />
           <Table label={t('Historia', 'History')} head={<><th className={th}>{t('Capa', 'Layer')}</th><th className={th}>{t('A quién', 'Who')}</th><th className={th}>{t('Vigencia', 'Valid')}</th><th className={th}>{t('Motivo', 'Reason')}</th></>}>
             {hist.map((h) => (
               <tr key={h.id} data-testid="attr-row" data-layer={h.layer} data-live={h.effective_to ? 'no' : 'yes'}>

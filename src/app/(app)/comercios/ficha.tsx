@@ -642,7 +642,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
 
           <section className={section} data-testid="account-attribution">
             <h3 className={h3}>{t('Atribución', 'Attribution')}</h3>
-            <p className="text-[13px] text-muted">{t('Tres capas, cada una con fecha. Lo anterior no se borra.', 'Three layers, each one dated. Nothing earlier is erased.')}</p>
+            <p className="text-[13px] text-muted">{t('Quién trajo el comercio, por qué equipo o canal llegó y quién lo lleva, cada uno con su fecha. Lo anterior no se borra.', 'Who brought the merchant in, which team or channel it came through and who owns it, each with its date. Nothing earlier is erased.')}</p>
             <ul className="mt-3 space-y-3">
               {attributions.map((at, i) => (
                 <li key={i} className={at.effective_to ? 'text-muted' : ''}>
