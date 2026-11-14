@@ -15,8 +15,10 @@ async function enter(page: Page, persona: string, locale?: Locale) {
   await page.context().clearCookies()
   await page.goto('/login')
   await page.getByTestId(`persona-${persona}`).click()
-  await expect(page).toHaveURL(/\/(hoy|operaciones|supervisor|panel-lt|admin)$/)
-  if (locale) await page.context().addCookies([{ name: 'contigo_locale', value: locale, url: page.url() }])
+  // Finanzas aterriza en su reporte; quien entra por primera vez, en Primeros pasos.
+  await expect(page).toHaveURL(/\/(hoy|operaciones|supervisor|panel-lt|admin|reportes\/finanzas|bienvenida)$/)
+  // La cookie va a todo el sitio: quien aterriza en una ruta anidada (Finanzas, /reportes/finanzas) la lleva también a las demás.
+  if (locale) await page.context().addCookies([{ name: 'contigo_locale', value: locale, url: new URL(page.url()).origin }])
 }
 
 /** Texto a la vista y el que leen los lectores de pantalla: contenido, opciones de listas, etiquetas, placeholders y títulos. */
@@ -83,15 +85,20 @@ function findings(lines: string[], locale: Locale): string[] {
 // La ayuda y los primeros pasos van en el recorrido de cada rol: la guía usa el mismo vocabulario que las pantallas de trabajo.
 const GUIDE = ['/ayuda', '/bienvenida']
 const COMMON = ['/hoy', '/leads', '/pipelines', '/comercios', '/actividades', '/buscar?q=tienda', ...GUIDE]
+// Programa "los 95": las pantallas nuevas de cada rol (avisos, anuncios, Asistencia, campo y canales, cuidado, colas, reportes,
+// datos, partners, Administración completa) entran al mismo recorrido, y Finanzas y Cuentas clave tienen el suyo.
+const NEW = ['/avisos', '/avisos/preferencias', '/anuncios', '/asistencia', '/campo', '/cuidado', '/colas', '/reportes', '/personas', '/solicitudes', '/reportar', '/comercios/cerca', '/como-se-usa']
 const ROLES: { persona: string; role: string; paths: string[] }[] = [
-  { persona: 'marco.pena', role: 'ventas MX', paths: [...COMMON, '/pipelines?vista=lista'] },
-  { persona: 'fernando.ibarra', role: 'supervisión MX', paths: [...COMMON, '/supervisor', '/hoy?vista=equipo', '/reportes/campo'] },
-  { persona: 'ana.robles', role: 'líder de mercado MX', paths: [...COMMON, '/supervisor', '/reportes/cerrados', '/reportes/adopcion'] },
-  { persona: 'valeria.soto', role: 'operaciones MX', paths: ['/operaciones', '/comercios', '/pipelines', '/actividades', ...GUIDE] },
-  { persona: 'luis.tovar', role: 'leadership', paths: ['/panel-lt', '/pipelines', '/comercios', '/estado', ...GUIDE] },
-  { persona: 'nora.salas', role: 'administración', paths: ['/admin?tab=personas', '/admin?tab=territorios', '/admin?tab=embudos', '/admin?tab=entrada', '/admin?tab=integraciones', '/admin?tab=calidad', '/admin?tab=reportes', '/admin?tab=auditoria', '/admin/operaciones', '/estado', '/supervisor', ...GUIDE] },
-  { persona: 'jade.kim', role: 'ventas US', paths: COMMON },
-  { persona: 'tom.reyes', role: 'operaciones US', paths: ['/operaciones', '/pipelines'] },
+  { persona: 'marco.pena', role: 'ventas MX', paths: [...COMMON, '/pipelines?vista=lista', ...NEW, '/reportes/lo-que-llevo', '/reportes/leads'] },
+  { persona: 'fernando.ibarra', role: 'supervisión MX', paths: [...COMMON, '/supervisor', '/hoy?vista=equipo', '/reportes/campo', ...NEW, '/reportes/indicadores-campo', '/reportes/etapas', '/arranque', '/datos'] },
+  { persona: 'ana.robles', role: 'líder de mercado MX', paths: [...COMMON, '/supervisor', '/reportes/cerrados', '/reportes/adopcion', '/reportes/mercado', '/reportes/embudo', '/reportes/pronostico', '/reportes/historico', '/reportes/indicadores', '/partners', '/partners/redes', '/importar', '/datos', '/arranque'] },
+  { persona: 'valeria.soto', role: 'operaciones MX', paths: ['/operaciones', '/comercios', '/pipelines', '/actividades', '/campo', '/colas', '/reportes/operaciones', '/cuidado', ...GUIDE] },
+  { persona: 'elena.duarte', role: 'cuentas clave MX', paths: ['/hoy', '/reportes/kam', '/reportes/cuentas', '/reportes/lo-que-llevo', '/asistencia', '/comercios', ...GUIDE] },
+  { persona: 'luis.tovar', role: 'leadership', paths: ['/panel-lt', '/pipelines', '/comercios', '/estado', '/reportes/consolidado', '/reportes/conciliacion', '/reportes/finanzas', '/reportes/agencias', '/avisos', ...GUIDE] },
+  { persona: 'marta.ibanez', role: 'finanzas MX', paths: ['/reportes/finanzas', '/reportes/conciliacion', '/reportes', '/cuidado', '/avisos', ...GUIDE] },
+  { persona: 'nora.salas', role: 'administración', paths: ['/admin?tab=personas', '/admin?tab=territorios', '/admin?tab=mercados', '/admin?tab=embudos', '/admin?tab=entrada', '/admin?tab=integraciones', '/admin?tab=pipedrive', '/admin?tab=calidad', '/admin?tab=reportes', '/admin?tab=auditoria', '/admin/operaciones', '/admin/automatizaciones', '/admin/avisos', '/admin/cuidado', '/admin/decisiones', '/admin/embudo', '/admin/gobierno', '/admin/ia', '/admin/integraciones', '/admin/plataforma', '/admin/seguridad', '/admin/tableros', '/estado', '/supervisor', ...GUIDE] },
+  { persona: 'jade.kim', role: 'ventas US', paths: [...COMMON, '/campo', '/reportes'] },
+  { persona: 'tom.reyes', role: 'operaciones US', paths: ['/operaciones', '/pipelines', '/campo'] },
 ]
 
 /** Recorre las pantallas de un rol en un idioma y devuelve lo que no cumple. También revisa html[lang] en cada una. */
@@ -127,7 +134,7 @@ for (const locale of ['es', 'en'] as const) {
   test.describe(`vocabulario en ${locale === 'es' ? 'español' : 'inglés'} (1440 px)`, () => {
     for (const r of ROLES) {
       test(`${r.role} (${r.persona}): pantallas principales, ficha y negocio`, async ({ page }) => {
-        test.setTimeout(120_000)
+        test.setTimeout(300_000)
         expect(await sweep(page, r, locale)).toEqual([])
       })
     }
@@ -137,7 +144,7 @@ for (const locale of ['es', 'en'] as const) {
     test.use({ viewport: { width: 390, height: 844 } })
     for (const r of ROLES.filter((x) => ['marco.pena', 'fernando.ibarra', 'jade.kim'].includes(x.persona))) {
       test(`${r.role} (${r.persona}) en el teléfono`, async ({ page }) => {
-        test.setTimeout(120_000)
+        test.setTimeout(300_000)
         expect(await sweep(page, r, locale)).toEqual([])
       })
     }

@@ -153,7 +153,7 @@ export async function CamposTab({ ctx, view }: { ctx: Ctx; view: View }) {
                     : f.review_on ? <span className={f.review_due ? 'font-medium text-amber-text' : undefined}>{day(f.review_on, locale)}{f.review_due ? ` · ${t('vencida', 'overdue')}` : ''}</span> : <span className="text-amber-text">{t('Sin fecha', 'No date')}</span>}
                 </td>
                 <td className="num text-[13.5px] whitespace-nowrap" data-testid="registry-usage">
-                  {f.status !== 'approved' ? <span className="text-muted">{t('n/a', 'n/a')}</span> : f.total === 0 ? <span className="text-muted">{t('s/d', 'n/a')}</span> : f.filled === 0 ? <Badge tone="warn">{t('Sin uso', 'Unused')}</Badge> : <>{pct(f.filled, f.total, locale)} <span className="text-muted">({f.filled})</span></>}
+                  {f.status !== 'approved' ? <span className="text-muted">{t('No aplica', 'n/a')}</span> : f.total === 0 ? <span className="text-muted">{t('s/d', 'n/a')}</span> : f.filled === 0 ? <Badge tone="warn">{t('Sin uso', 'Unused')}</Badge> : <>{pct(f.filled, f.total, locale)} <span className="text-muted">({f.filled})</span></>}
                 </td>
                 <td className="text-right">
                   <div className="flex flex-wrap justify-end gap-2">

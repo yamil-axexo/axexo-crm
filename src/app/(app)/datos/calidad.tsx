@@ -69,7 +69,7 @@ export async function CalidadTab({ ctx, market, team, rule }: { ctx: Ctx; market
                   {s.failing > 0 ? <Link href={queueHref(r.code)} className="inline-flex min-h-11 items-center font-semibold text-blue-text underline" data-testid="quality-open">{num(s.failing, locale)}</Link> : <span className="text-muted">0</span>}
                   <span className="text-[13px] text-muted"> {t('de', 'of')} {num(s.total, locale)}</span>
                 </td>
-                <td><div className="flex items-center gap-3"><Bar value={s.total - s.failing} max={s.total} tone={s.failing === 0 ? 'good' : 'accent'} /><span className="num w-11 shrink-0 text-right text-[13px] text-muted-2">{s.total > 0 ? `${Math.round(((s.total - s.failing) / s.total) * 100)}%` : t('n/a', 'n/a')}</span></div></td>
+                <td><div className="flex items-center gap-3"><Bar value={s.total - s.failing} max={s.total} tone={s.failing === 0 ? 'good' : 'accent'} /><span className="num w-11 shrink-0 text-right text-[13px] text-muted-2">{s.total > 0 ? `${Math.round(((s.total - s.failing) / s.total) * 100)}%` : t('s/d', 'n/a')}</span></div></td>
                 <td className="text-[13.5px]" data-testid="quality-trend">
                   {delta === null ? <span className="text-muted">{teamKey === '' ? t('Sin corte anterior', 'No earlier snapshot') : t('Solo por mercado', 'Market level only')}</span>
                     : delta === 0 ? <span className="text-muted-2">{t('Igual que el', 'Same as on')} {day(f!.as_of, locale)}</span>

@@ -1,3 +1,4 @@
+import { screenLabel } from '@/lib/screens'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
@@ -126,7 +127,8 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
             <Table label={t('Tiempo por pantalla', 'Time per screen')} head={<><th>{t('Pantalla', 'Screen')}</th><th>{t('Veces', 'Times')}</th><th>{t('Promedio', 'Average')}</th><th>{t('95% de las veces', '95% of the time')}</th></>}>
               {board.screens.map((s) => (
                 <tr key={s.screen} className="table-row" data-testid="slo-screen-row">
-                  <td><code className="text-[13px] text-strong">{s.screen}</code></td>
+                  {/* El nombre con el que el equipo conoce la pantalla; la ruta técnica queda en data-route para quien la busque. */}
+                  <td className="text-[13.5px] text-strong" data-route={s.screen}>{screenLabel(t, s.screen.split(': ').pop())}</td>
                   <td className="num">{num(s.n, locale)}</td>
                   <td className="num">{num(s.avg_ms, locale)} ms</td>
                   <td className="num">{msText(t, s.p95)}</td>
