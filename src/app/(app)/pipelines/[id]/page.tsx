@@ -273,6 +273,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
                 rule: t('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.', 'During the pilot a deal is won by hand; when the first transaction arrives it will be confirmed on its own.'),
                 date: t('Fecha real de cierre', 'Actual close date'), hint: t('Hoy o un día anterior, nunca futura.', 'Today or an earlier day, never in the future.'), confirm: t('Marcar como ganado', 'Mark as won'),
                 needs: t('Para ganarlo falta %s.', 'To win it you still need to %s.'), and: t('y', 'and'),
+                ack: t('Si Operaciones tiene documentos, proveedores o capacitación pendientes, confirmo que se gana así. Sin marcarlo, CONTIGO dice qué falta.', 'If Operations has documents, providers or training pending, I confirm it is won this way. Without it, CONTIGO says what is missing.'),
                 plain: Object.fromEntries(Object.entries(PLAIN_MISSING).map(([k, v]) => [k, t(v.es, v.en)])),
               },
               stages: m('deals.stages'), stage: m('deals.stage'), moveTo: m('deals.moveTo', { name: '%s' }), moved: m('deals.moved', { name: '%n', stage: '%s' }), empty: m('deals.empty'),

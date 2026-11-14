@@ -147,6 +147,15 @@ test('Administración: la columna de etapas dice "Para avanzar" y las etapas sem
 
 test('Hoy de quien supervisa: con pendientes en el equipo no titula "Todo al día"', async ({ page }) => {
   // La segunda vuelta de aceptación: el cuerpo ya decía cuántos tiene el equipo, pero el título seguía diciendo "Todo al día".
+  // ajustes3: los avisos sin dueño ya caen a la supervisión del mismo tipo de venta, así que Fernando tiene los de tiendas.
+  // La prueba deja a Fernando sin pendientes propios (cambiado a propósito) para ver el caso que importa.
+  const prep = testDb()
+  try {
+    await prep`update crm.exceptions set resolved_at = now(), resolution = 'dismissed' where owner_id = md5('contigo:fernando.ibarra')::uuid and resolved_at is null`
+    await prep`update crm.activities set done_at = now(), outcome = 'done' where owner_id = md5('contigo:fernando.ibarra')::uuid and done_at is null`
+  } finally {
+    await prep.end()
+  }
   let checked = 0
   for (const [persona, own, team] of [
     ['fernando.ibarra', 'No tienes pendientes propios', /Tu equipo tiene \d+ pendientes? abiertos?/],

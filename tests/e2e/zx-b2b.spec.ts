@@ -22,7 +22,8 @@ async function newB2bAccount(page: Page, name: string, type: string, pointsOfSal
   const dialog = page.locator('dialog[open]')
   await dialog.getByTestId('account-type').selectOption(type)
   await dialog.getByTestId('account-name').fill(name)
-  // lo mínimo para calificar solo se pide cuando el canal es B2B
+  // lo mínimo para calificar solo se pide cuando el canal es B2B (ajustes3: quien vende B2B ya abre en B2B; se prueba el cambio)
+  await dialog.locator('select[name=segment]').selectOption('d2d')
   await expect(dialog.getByTestId('intake-field')).toHaveCount(0)
   await dialog.locator('select[name=segment]').selectOption('b2b')
   await expect(dialog.getByTestId('intake-field')).toHaveCount(4)

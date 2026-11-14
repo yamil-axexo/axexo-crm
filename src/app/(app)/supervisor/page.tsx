@@ -169,7 +169,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
                     <span className="mt-0.5 block text-[13px] text-muted-2">{[l.owner_name ?? t('Sin asignar: lo puede tomar cualquiera que venda', 'No owner: anyone who sells can take it'), lab(t, MOTOR[l.motor]) || null, live.length > 1 ? l.market_code : null, t(`llegó ${ago(l.created_at, locale)}`, `arrived ${ago(l.created_at, locale)}`)].filter(Boolean).join(' · ')}</span>
                   </Link>
                   {l.escalation_level > 0 && <span className={`${CHIP} bg-surface-3 text-strong`} data-testid="watch-escalated" data-level={l.escalation_level}>{l.escalation_level === 1 ? t('Avisado a supervisión', 'Supervisor notified') : t('Avisado a quien lidera', 'Market lead notified')}</span>}
-                  <span className={`${CHIP} ${l.late ? 'bg-risk-bg text-red-text' : 'bg-warn-bg text-amber-text'}`} data-testid="watch-left">{l.late ? t('Pasó la meta', 'Past the goal') : `${left(l.minutes_left)} · ${t('vence el', 'due')} ${marketTime(l.sla_due_at, locale, ctx.market(l.market_code))}`}</span>
+                  <span className={`${CHIP} ${l.late ? 'bg-risk-bg text-red-text' : 'bg-warn-bg text-amber-text'}`} data-testid="watch-left">{l.late ? t('Pasó la meta', 'Past the goal') : left(l.minutes_left)}</span>
+                  {!l.late && <span className="w-full text-[12.5px] text-muted-2 md:w-auto" data-testid="watch-due">{t('Vence el', 'Due')} {marketTime(l.sla_due_at, locale, ctx.market(l.market_code))}</span>}
                 </li>
               ))}
             </ul>

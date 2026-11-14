@@ -186,6 +186,8 @@ test.describe('pedido, entrega a Operaciones, cola, devolución y ganar a mano',
     await expect(page.getByTestId('win-rule')).toContainText('En el piloto se gana a mano')
     const max = await page.getByTestId('win-date').getAttribute('max')
     expect(await page.getByTestId('win-date').inputValue()).toBe(max) // hoy, en la zona del mercado; no admite futuro
+    // ajustes3 (cambiado a propósito): con el proveedor enviado y el documento sin validar, ganar pide confirmarlo.
+    await page.getByTestId('win-ops-ack').check()
     await page.getByTestId('win-confirm').click()
     await expect(page.locator(`[data-card="${dealId}"]`)).toHaveCount(0)
     const d = await sql<{ status: string; closed_by: string }[]>`select status, closed_by from crm.deals where id = ${dealId}`

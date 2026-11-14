@@ -24,7 +24,7 @@ export type BoardCard = {
   /** Etapa "ganado" a la que esta persona puede llevarlo a mano; nulo si no le toca o el embudo cierra por transacción. */
   winTo?: string | null
 }
-export type BoardLabels = { stages: string; stage: string; moveTo: string; moved: string; empty: string; nextTitle: string; nextBody: string; nextStep: string; nextDue: string; nextSave: string; cancel: string; gate: GateLabels; win: { button: string; title: string; rule: string; date: string; hint: string; confirm: string; needs: string; and: string; plain: Record<string, string> } }
+export type BoardLabels = { stages: string; stage: string; moveTo: string; moved: string; empty: string; nextTitle: string; nextBody: string; nextStep: string; nextDue: string; nextSave: string; cancel: string; gate: GateLabels; win: { button: string; title: string; rule: string; date: string; hint: string; confirm: string; needs: string; and: string; plain: Record<string, string>; ack?: string } }
 type MoveAction = (prev: ActionResult<unknown> | null, data: FormData) => Promise<ActionResult<unknown>>
 export type BoardOps = { gateInfo: (dealId: string, stageId: string) => Promise<GateInfo | null>; gateMove: MoveAction; win: MoveAction }
 
@@ -269,6 +269,9 @@ export function Board({ id, cols, cards: initial, labels, minDate, action, ops }
               <input name="won_on" type="date" required max={minDate} defaultValue={minDate} className="input mt-1.5" data-testid="win-date" />
               <span className="mt-1 block text-[13px] font-normal text-muted">{labels.win.hint}</span>
             </label>
+            {labels.win.ack && (
+              <label className="mt-4 flex min-h-11 items-center gap-3 text-[14px]"><input type="checkbox" name="ops_ack" className="h-5 w-5 shrink-0" data-testid="win-ops-ack" />{labels.win.ack}</label>
+            )}
             {winInfo && (
               <div className="mt-5 border-t border-line pt-1" data-testid="win-gate">
                 <p className="mt-4 text-[14px] font-medium text-strong" data-testid="win-needs">{winNeeds(winInfo)}</p>

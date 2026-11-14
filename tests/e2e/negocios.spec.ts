@@ -113,7 +113,8 @@ for (const w of WIDTHS) {
       await expect(moved.getByTestId('deal-chip')).toContainText('Volver con la dueña')
       await expect(moved).not.toHaveAttribute('data-warn', '')
 
-      // "Contactada" exige haber hablado con quien decide: el tablero no lo deja pasar y explica qué falta
+      // "Comprometida" exige haber hablado con quien decide: el tablero no lo deja pasar y explica qué falta
+      // (ajustes3, cambiado a propósito: "Contactada" ya no lo pide, es "se habló con alguien de la tienda").
       const gated = await dealWithoutDecisionMaker()
       await page.reload()
       if (w.name === 'movil') await page.getByTestId('stage-tab-visitada').click()
@@ -122,12 +123,12 @@ for (const w of WIDTHS) {
       // Integración ola 7: con la suite completa la columna es larga y el arrastre a veces no cae en la columna; se reintenta.
       if (w.name === 'desktop') {
         await expect(async () => {
-          await drag(page, other, 'interes')
+          await drag(page, other, 'alta')
           await expect(page.getByTestId('gate-dialog')).toBeVisible({ timeout: 2000 })
         }).toPass({ timeout: 20_000 })
-      } else await other.getByTestId('deal-stage-select').selectOption({ label: 'Contactada' })
+      } else await other.getByTestId('deal-stage-select').selectOption({ label: 'Comprometida' })
       await expect(page.getByTestId('gate-dialog')).toBeVisible()
-      await expect(page.getByTestId('gate-dialog')).toContainText('Contactada')
+      await expect(page.getByTestId('gate-dialog')).toContainText('Comprometida')
       await expect(page.getByTestId('gate-fields')).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(page.getByTestId('gate-dialog')).toBeHidden()
