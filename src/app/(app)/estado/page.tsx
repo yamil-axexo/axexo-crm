@@ -40,7 +40,6 @@ import { aiStatus } from '@/server/adapters/ai'
 import { LoadsCard } from './cargas'
 import { PlatformCard, StagingBanner } from './plataforma'
 import { realtimeMissing, realtimeMode } from '@/server/adapters/realtime'
-import { campo2AdapterStatus } from '@/server/adapters/campo2'
 import { ProposedCard } from './propuestos'
 import { ConnectorsCard } from './conectores'
 
@@ -234,7 +233,8 @@ export default async function StatusPage() {
       }
     }),
     // Adaptadores del paquete de mercados: construidos y apagados. Cada uno dice qué falta para encenderlo.
-    ...marketAdapterStatus().map((a) => ({
+    // El resguardo del identificador completo vive en la tarjeta de conectores (un solo resguardo, ola 7).
+    ...marketAdapterStatus().filter((a) => a.key !== 'protected_data').map((a) => ({
       key: `adapter_${a.key}`,
       name: t(...a.name),
       what: t(...a.what),
@@ -276,14 +276,7 @@ export default async function StatusPage() {
     state: offOr(a.mode),
     last: `${t(...a.needs)} ${t(`${num(partnerQueue[a.key] ?? 0, locale)} en cola sin salir. Se enciende con la variable ${a.envVar}, después de la aprobación.`, `${num(partnerQueue[a.key] ?? 0, locale)} queued, not sent. It is turned on with the ${a.envVar} variable, after approval.`)}`,
   })))
-  // Paquete campo2: resumen de comentarios hacia P&T, avance de Kore Academy de aliados y cruce en el lakehouse. Construidos y apagados.
-  rows.push(...campo2AdapterStatus().map((a) => ({
-    key: `campo2_${a.key}`,
-    name: t(...a.name),
-    what: t(...a.what),
-    state: offOr(a.mode),
-    last: `${t(...a.needs)} ${t(`Se enciende con la variable ${a.envVar}, después de la aprobación.`, `It is turned on with the ${a.envVar} variable, after approval.`)}`,
-  })))
+  // Paquete campo2: sus tres conexiones están en la tarjeta de conectores (regla única de encendido, ola 7), no se repiten aquí.
   // Tareas programadas: corren con la app en uso; el disparo externo por horario solo existe si el ambiente trae su secreto.
   rows.push({
     key: 'jobs',

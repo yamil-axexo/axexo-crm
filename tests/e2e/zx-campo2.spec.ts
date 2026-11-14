@@ -136,7 +136,8 @@ test.describe('campo2', () => {
     await page.goto('/estado')
     await expect(page.locator('[data-testid="status-proposed-row"][data-key="trust_min_score"]')).toContainText('pendiente: Ventas')
     await expect(page.locator('[data-testid="status-proposed-row"][data-key="clawback_policy"]')).toBeVisible()
-    await expect(page.getByText('Resumen semanal de comentarios hacia P&T')).toBeVisible()
+    // Integración ola 7 (cambiado a propósito): las conexiones de campo2 están en la tarjeta de conectores.
+    await expect(page.getByTestId('connector-feedback_to_pt').getByText('Resumen semanal de comentarios hacia P&T')).toBeVisible()
     await both(page, 'estado')
   })
 })

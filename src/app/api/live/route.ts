@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: NextRequest) {
   const ctx = await getCtx()
-  if (!ctx) return NextResponse.json({ marks: {} }, { status: 401 })
+  // Sin sesión (por ejemplo, justo después de cerrarla con la pantalla abierta) no hay temas que mirar: respuesta vacía, sin
+  // datos de nadie y sin un error en la consola del navegador que sigue preguntando.
+  if (!ctx) return NextResponse.json({ marks: {} }, { headers: { 'cache-control': 'no-store' } })
   const topics = (request.nextUrl.searchParams.get('t') ?? '').split(',').map((t) => t.trim()).filter((t) => /^[A-Za-z]{2,3}:[a-z_]{2,30}$/.test(t)).slice(0, 20)
   if (topics.length === 0) return NextResponse.json({ marks: {} })
   const rows = await withUser(ctx.user.id, (tx) => tx<{ topic: string; last_at: Date }[]>`select topic, last_at from crm.live_signals where topic = any(${topics}::text[])`)

@@ -39,7 +39,10 @@ async function dealWithoutDecisionMaker(): Promise<string> {
     with pick as (
       select d.id from crm.deals d join crm.stages s on s.id = d.stage_id join crm.pipelines p on p.id = d.pipeline_id join crm.users u on u.id = d.owner_id
        where p.name = 'Alta de tiendas (D2D)' and s.code = 'visitada' and d.status = 'open' and u.full_name = 'Marco Peña' order by d.id limit 1)
-    update crm.deals d set decision_maker_met = false, next_step = coalesce(d.next_step, 'Volver a visitar'), next_step_due = coalesce(d.next_step_due, current_date + 1)
+    -- Integración ola 6: que quede arriba de su columna (sin revisita y con la entrada más antigua) y con un próximo paso válido
+    -- dentro del tope de embudo2; con la suite completa otras pruebas dejan negocios de Marco en la misma columna.
+    update crm.deals d set decision_maker_met = false, next_step = coalesce(d.next_step, 'Volver a visitar'), next_step_due = current_date + 1,
+           revisit_needed = false, stage_entered_at = now() - interval '400 days'
       from pick where d.id = pick.id returning d.id`
   await sql.end()
   if (!d) throw new Error('el seed no dejó un negocio de Marco en "Prospecto"')
