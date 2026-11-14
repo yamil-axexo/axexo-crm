@@ -64,6 +64,7 @@ export const EXCEPTION: Record<string, { label: Pair; action: Pair }> = {
   onboarding_no_next_step: { label: ['Comercio en alta sin tarea siguiente', 'Onboarding merchant with no next task'], action: ['Agendar la siguiente tarea', 'Schedule the next task'] },
   competitor_share_loss: { label: ['La competencia gana espacio en el punto de venta', 'A competitor is gaining ground at the store'], action: ['Visitar y ver qué le ofrecen', 'Visit and find out what they are offered'] },
   indirect_route: { label: ['Con competencia y sin venta: proponer a un aliado', 'Competitor present and no sale: offer it to a partner'], action: ['Decidir en Campo, Cartera por canal', 'Decide in Field, Book by channel'] },
+  data_quality: { label: ['Datos incompletos', 'Missing data'], action: ['Completar los datos que faltan', 'Fill in the missing data'] },
 }
 
 export const ACTIVITY: Record<string, Pair> = {
