@@ -149,9 +149,9 @@ test('Hoy de quien supervisa: con pendientes en el equipo no titula "Todo al dí
   // La segunda vuelta de aceptación: el cuerpo ya decía cuántos tiene el equipo, pero el título seguía diciendo "Todo al día".
   let checked = 0
   for (const [persona, own, team] of [
-    ['fernando.ibarra', 'No tienes pendientes propios', /Tu equipo tiene \d+ pendientes? abiertos?\./],
-    ['paula.mendez', 'No tienes pendientes propios', /Tu equipo tiene \d+ pendientes? abiertos?\./],
-    ['kira.dunn', 'Nothing of your own to do', /Your team has \d+ open alerts?\./],
+    ['fernando.ibarra', 'No tienes pendientes propios', /Tu equipo tiene \d+ pendientes? abiertos?/],
+    ['paula.mendez', 'No tienes pendientes propios', /Tu equipo tiene \d+ pendientes? abiertos?/],
+    ['kira.dunn', 'Nothing of your own to do', /Your team has \d+ open alerts?/],
   ] as const) {
     await loginAs(page, persona)
     await page.goto('/hoy')
@@ -159,10 +159,11 @@ test('Hoy de quien supervisa: con pendientes en el equipo no titula "Todo al dí
     // Solo aplica a quien no tiene nada propio y sí tiene equipo con pendientes: ahí están la tarjeta vacía y su enlace.
     if (!(await page.getByTestId('queue-empty-team').count())) continue
     checked++
-    await expect(page.getByTestId('today-title'), persona).toContainText(own)
+    // ajustes3 (cambiado a propósito): el título dice lo del equipo y la tarjeta lo propio, sin repetir la misma frase tres veces.
+    await expect(page.getByTestId('today-title'), persona).toContainText(team)
     await expect(page.getByTestId('today-title'), persona).not.toContainText(/Todo al día|All caught up/)
     await expect(page.getByTestId('queue-empty'), persona).toContainText(own)
-    await expect(page.getByTestId('queue-empty'), persona).toContainText(team)
+    await expect(page.getByTestId('queue-empty'), persona).not.toContainText(team)
     await clean(page, `Hoy de ${persona} sin pendientes propios`)
   }
   expect(checked, 'al menos una persona que supervisa sin pendientes propios y con pendientes en su equipo').toBeGreaterThan(0)

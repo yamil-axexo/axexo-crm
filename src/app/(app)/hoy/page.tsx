@@ -194,7 +194,8 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     more: { late: more('late'), today: more('today'), suggested: q.backlog > 0 ? m('today.backlog', { count: q.backlog }) : null },
     groups: { late: m('today.group.late'), today: m('today.group.today'), suggested: m('today.group.suggested') },
     emptyTitle: teamBusy ? ownClear : m('today.empty.title'),
-    emptyBody: !teamBusy ? m('today.empty.body') : t(`Tu equipo tiene ${teamOpen} ${teamOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}.`, `Your team has ${teamOpen} open ${teamOpen === 1 ? 'alert' : 'alerts'}.`),
+    // Quien supervisa sin pendientes propios: el título dice lo del equipo y la tarjeta lo propio, una vez cada cosa.
+    emptyBody: !teamBusy ? m('today.empty.body') : t('Lo que tienes que ver hoy está en los pendientes de tu equipo.', 'What you need to look at today is in your team’s alerts.'),
     emptyLink: teamOpen ? { href: '/supervisor', label: t('Ver los pendientes de mi equipo', 'See my team’s alerts') } : null, backlogLink: m('today.backlogLink'),
   }
 
@@ -203,7 +204,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
   return (
     <>
       {live.length > 0 && <LiveRefresh topics={live} />}
-      {header(teamBusy ? ownClear : m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
+      {header(teamBusy ? t(`Tu equipo tiene ${teamOpen} ${teamOpen === 1 ? 'pendiente abierto' : 'pendientes abiertos'}`, `Your team has ${teamOpen} open ${teamOpen === 1 ? 'alert' : 'alerts'}`) : m('today.pending', { count: total }), teamBusy ? teamOpen! : total, breakdown.join(' · '), 'hoy')}
       {!ob.hidden && ob.pending > 0 && (
         <aside className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 pr-3 pl-3.5" data-testid="hoy-onboarding">
           <Ring id="sc-ring-hoy" value={((ob.total - ob.pending) / ob.total) * 100} size={44} stroke={13} track="var(--cg-line-200)" from="#3ddc97" to="#24815f">
