@@ -40,7 +40,7 @@ export async function BuiltOff({ ctx }: { ctx: Ctx }) {
       </details>
       {proposed && proposed.length > 0 && (
         <details className="mt-3 card px-5 py-3" data-testid="help-built-off-proposed">
-          <summary className="flex min-h-11 cursor-pointer items-center text-[15px] font-semibold text-strong">{t(`Valores propuestos con dueño (${proposed.length})`, `Proposed values with an owner (${proposed.length})`)}</summary>
+          <summary className="flex min-h-11 cursor-pointer items-center text-[15px] font-semibold text-strong">{t(`Valores propuestos y quién decide (${proposed.length})`, `Proposed values with an owner (${proposed.length})`)}</summary>
           <p className="text-[13.5px] leading-5 text-muted-2">{t('CONTIGO funciona con estos valores mientras quien decide no los fija. Cada uno dice quién lo decide y dónde se cambia.', 'CONTIGO runs with these values until the decision owner sets them. Each one says who decides it and where it is changed.')}</p>
           <ul className="pb-2">
             {proposed.map((u) => (

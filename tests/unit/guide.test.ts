@@ -55,6 +55,9 @@ describe('guía: entrada, primer ingreso y ayuda', () => {
     expect(trackOf([{ role: 'lt' }])).toBe('lt')
     expect(trackOf([{ role: 'lt' }, { role: 'admin' }])).toBe('admin')
     expect(trackOf([])).toBe('rep')
+    expect(trackOf([{ role: 'kam' }])).toBe('kam')
+    expect(trackOf([{ role: 'finance' }])).toBe('finance')
+    expect(trackOf([{ role: 'finance' }, { role: 'lt' }])).toBe('lt')
   })
 
   it('la ayuda no repite preguntas, cada una tiene tema, y las de la entrada existen', () => {
@@ -108,7 +111,7 @@ describe('guía: entrada, primer ingreso y ayuda', () => {
   })
 
   it('cada rol empieza donde aterriza al entrar y recibe los pasos de lo que ya hace', () => {
-    const HOME: [Track, Role][] = [['rep', 'rep'], ['supervisor', 'supervisor'], ['lead', 'market_lead'], ['ops', 'ops'], ['lt', 'lt'], ['admin', 'admin']]
+    const HOME: [Track, Role][] = [['rep', 'rep'], ['supervisor', 'supervisor'], ['lead', 'market_lead'], ['ops', 'ops'], ['kam', 'kam'], ['lt', 'lt'], ['finance', 'finance'], ['admin', 'admin']]
     for (const [track, role] of HOME) {
       const home = homePath([{ role, market: role === 'admin' || role === 'lt' ? null : 'MX', teamId: null }])
       expect(STEPS[track][0]!.href.split('?')[0], track).toBe(home)
@@ -157,24 +160,33 @@ describe('guía: entrada, primer ingreso y ayuda', () => {
     expect(screenLabel(t, '/reportes/cerrados')).toBe('Negocios cerrados')
   })
 
-  it('la ayuda cubre todos los temas, dice la regla del piloto y lo que CONTIGO no hace todavía', () => {
+  it('la ayuda cubre todos los temas, dice la regla del piloto y lo que está construido y apagado', () => {
     for (const topic of Object.keys(HELP_TOPICS) as HelpTopic[]) expect(HELP.filter((h) => h.topic === topic).length, topic).toBeGreaterThanOrEqual(3)
     const won = HELP.find((h) => h.id === 'deal-won')!
     expect(won.a.es).toMatch(/los tres embudos de primera transacción se ganan a mano/)
     expect(won.a.en).toMatch(/three first-transaction pipelines are won by hand/)
+    // "Construido y apagado": cada respuesta dice qué está apagado o propuesto, qué falta y quién lo destraba
     const limits = HELP.filter((h) => h.topic === 'limits')
-    expect(limits.every((h) => h.a.es.startsWith('No') || h.a.es.startsWith('Todavía no') || h.a.es.startsWith('CONTIGO no'))).toBe(true)
+    expect(limits.length).toBeGreaterThanOrEqual(12)
+    for (const h of limits) expect(`${h.q.es} ${h.a.es}`, h.id).toMatch(/apagad|propuest|No\b|Todavía no/)
     const said = limits.map((h) => `${h.q.es} ${h.a.es}`).join(' ')
-    for (const word of [/Sales App/, /datos de ventas/, /sin conexión/, /fotos/, /correo/, /Slack/, /mapa/, /app para instalar/]) expect(said).toMatch(word)
+    for (const word of [/Sales App/, /archivo (diario )?de ventas/, /sin conexión/, /fotos/, /correo/, /Slack/, /WhatsApp/, /mapa/, /app para instalar/, /sign-off escrito de Dan Mulligan o Michael Essiet/, /[Vv]alores propuestos/]) expect(said).toMatch(word)
+    const saidEn = limits.map((h) => `${h.q.en} ${h.a.en}`).join(' ')
+    expect(saidEn).toMatch(/written sign-off from Dan Mulligan or Michael Essiet/)
     // lo que ya hace no figura como pendiente: exportar, registrar visitas, repartir en bloque y pedidos
     for (const h of limits) expect(`${h.q.es} ${h.a.es}`, h.id).not.toMatch(/exporta|pedido|repart/i)
     // y lo que entró en la ola 2 tiene su pregunta
     const ids = HELP.map((h) => h.id)
+    // y lo del programa "los 95": cada tema nuevo tiene sus preguntas
+    for (const topic of ['notices', 'pipeline', 'care', 'channel', 'reports', 'files', 'us', 'mx', 'markets', 'partners', 'ai', 'automations', 'integrations', 'security', 'governance'] as HelpTopic[]) expect(HELP.filter((h) => h.topic === topic).length, topic).toBeGreaterThanOrEqual(4)
+    for (const tr of ['finance', 'kam'] as Track[]) expect(HELP.filter((h) => h.tracks !== 'all' && h.tracks.includes(tr)).length, tr).toBeGreaterThanOrEqual(5)
+    // la IA se dice como es: apagada, y lo que funciona es por reglas
+    expect(HELP.filter((h) => h.topic === 'ai').map((h) => h.a.es).join(' ')).toMatch(/IA está apagada|está apagado/)
     for (const id of ['lead-convert', 'lead-hours', 'lead-pass', 'lead-bulk', 'deal-pause', 'deal-bulk', 'account-type', 'account-parent', 'merchant-order', 'ops-queue', 'ops-handoff', 'ops-return', 'ops-fields', 'notice-note', 'closed-deals', 'panel-how', 'fx-rate', 'adoption', 'field-report', 'role-home', 'admin-fx', 'admin-hours']) expect(ids, id).toContain(id)
     // respuestas cortas: caben en un párrafo
     for (const h of HELP) {
-      expect(h.a.es.length, h.id).toBeLessThanOrEqual(420)
-      expect(h.a.en.length, h.id).toBeLessThanOrEqual(420)
+      expect(h.a.es.length, h.id).toBeLessThanOrEqual(700)
+      expect(h.a.en.length, h.id).toBeLessThanOrEqual(700)
     }
     // reportar un problema está en la ayuda de todos
     expect(HELP.find((h) => h.id === 'report-problem')!.tracks).toBe('all')
