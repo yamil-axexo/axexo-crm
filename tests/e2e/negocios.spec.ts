@@ -39,10 +39,7 @@ async function dealWithoutDecisionMaker(): Promise<string> {
     with pick as (
       select d.id from crm.deals d join crm.stages s on s.id = d.stage_id join crm.pipelines p on p.id = d.pipeline_id join crm.users u on u.id = d.owner_id
        where p.name = 'Alta de tiendas (D2D)' and s.code = 'visitada' and d.status = 'open' and u.full_name = 'Marco Peña' order by d.id limit 1)
-    -- Integración ola 6: que quede arriba de su columna (sin revisita y con la entrada más antigua) y con un próximo paso válido
-    -- dentro del tope de embudo2; con la suite completa otras pruebas dejan negocios de Marco en la misma columna.
-    update crm.deals d set decision_maker_met = false, next_step = coalesce(d.next_step, 'Volver a visitar'), next_step_due = current_date + 1,
-           revisit_needed = false, stage_entered_at = now() - interval '400 days'
+    update crm.deals d set decision_maker_met = false, next_step = coalesce(d.next_step, 'Volver a visitar'), next_step_due = coalesce(d.next_step_due, current_date + 1)
       from pick where d.id = pick.id returning d.id`
   await sql.end()
   if (!d) throw new Error('el seed no dejó un negocio de Marco en "Prospecto"')
@@ -116,9 +113,14 @@ for (const w of WIDTHS) {
       await page.reload()
       if (w.name === 'movil') await page.getByTestId('stage-tab-visitada').click()
       const other = page.locator(`[data-card="${gated}"]`)
-      if (w.name === 'desktop') await drag(page, other, 'interes')
-      else await other.getByTestId('deal-stage-select').selectOption({ label: 'Contactada' })
       // El candado de etapa se resuelve en una hoja ahí mismo (antes era un aviso): dice qué falta y la tarjeta no se mueve sola.
+      // Integración ola 7: con la suite completa la columna es larga y el arrastre a veces no cae en la columna; se reintenta.
+      if (w.name === 'desktop') {
+        await expect(async () => {
+          await drag(page, other, 'interes')
+          await expect(page.getByTestId('gate-dialog')).toBeVisible({ timeout: 2000 })
+        }).toPass({ timeout: 20_000 })
+      } else await other.getByTestId('deal-stage-select').selectOption({ label: 'Contactada' })
       await expect(page.getByTestId('gate-dialog')).toBeVisible()
       await expect(page.getByTestId('gate-dialog')).toContainText('Contactada')
       await expect(page.getByTestId('gate-fields')).toBeVisible()
