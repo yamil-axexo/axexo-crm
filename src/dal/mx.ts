@@ -72,6 +72,9 @@ const bucketSql = (tx: Tx) => tx`case when app.store_count(l.custom) is null the
  * empresa y número de tiendas (E15.F5). Los meses son meses de calendario en la zona horaria del mercado. Cada persona ve
  * lo de su alcance (la base decide las filas): supervisión, lo de su equipo.
  */
+/** Un lead cuenta como convertido si está marcado así o si ya tiene un negocio. Una sola definición para todo el reporte. */
+const CONVERTED = (tx: Tx) => tx`(l.status = 'converted' or exists (select 1 from crm.deals d where d.lead_id = l.id))`
+
 export async function getMarketReport(ctx: Ctx, market: string, months: number): Promise<MarketReport> {
   const mk = ctx.market(market)
   if (!ctx.can('report.view', market)) throw forbidden()
@@ -84,9 +87,10 @@ export async function getMarketReport(ctx: Ctx, market: string, months: number):
       with m as (select to_char(g, 'YYYY-MM') as month from generate_series(${first}, date_trunc('month', now() at time zone ${tz}), interval '1 month') g),
       le as (select ${monthOf(tx`l.created_at`)} as month, count(*)::int as n from crm.leads l
               where l.market_code = ${market} and l.created_at at time zone ${tz} >= ${first} group by 1),
-      cv as (select ${monthOf(tx`c.at`)} as month, count(*)::int as n
-               from (select min(d.created_at) as at from crm.deals d where d.market_code = ${market} and d.lead_id is not null group by d.lead_id) c
-              where c.at at time zone ${tz} >= ${first} group by 1),
+      -- Convertidos: de los leads que llegaron ese mes, los que ya se volvieron negocio. Misma cuenta que las tablas por fuente
+      -- y por tipo de empresa (tercera vuelta del comité: el total decía 0 y las tablas 5).
+      cv as (select ${monthOf(tx`l.created_at`)} as month, count(*)::int as n from crm.leads l
+              where l.market_code = ${market} and l.created_at at time zone ${tz} >= ${first} and ${CONVERTED(tx)} group by 1),
       dc as (select ${monthOf(tx`d.created_at`)} as month, count(*)::int as n from crm.deals d
               where d.market_code = ${market} and d.created_at at time zone ${tz} >= ${first} group by 1),
       wn as (select ${monthOf(tx`d.won_at`)} as month, count(*)::int as n from crm.deals d
@@ -108,13 +112,13 @@ export async function getMarketReport(ctx: Ctx, market: string, months: number):
       select l.funnel, l.account_type,
              (select t.label_es from crm.account_types t where t.code = l.account_type and (t.market_code is null or t.market_code = ${market}) order by t.market_code nulls last limit 1) as type_es,
              (select t.label_en from crm.account_types t where t.code = l.account_type and (t.market_code is null or t.market_code = ${market}) order by t.market_code nulls last limit 1) as type_en,
-             ${bucketSql(tx)} as bucket, count(*)::int as leads, count(*) filter (where l.status = 'converted')::int as converted,
+             ${bucketSql(tx)} as bucket, count(*)::int as leads, count(*) filter (where ${CONVERTED(tx)})::int as converted,
              sum(app.store_count(l.custom))::text as stores
         from crm.leads l
        where l.market_code = ${market} and l.created_at at time zone ${tz} >= ${first}
        group by 1, 2, 5 order by l.funnel nulls last, l.account_type nulls last, min(coalesce(app.store_count(l.custom), 1e12))`
     const sources = await tx<{ source: string; funnel: string | null; channel_id: string | null; leads: number; converted: number }[]>`
-      select l.source, l.funnel, l.channel_id, count(*)::int as leads, count(*) filter (where l.status = 'converted')::int as converted
+      select l.source, l.funnel, l.channel_id, count(*)::int as leads, count(*) filter (where ${CONVERTED(tx)})::int as converted
         from crm.leads l where l.market_code = ${market} and l.created_at at time zone ${tz} >= ${first}
        group by 1, 2, 3 order by count(*) desc, l.source`
     const dead = await tx<{ total: number; with_email: number; with_consent: number }[]>`
