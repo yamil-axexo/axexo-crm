@@ -298,8 +298,13 @@ test.describe('plantillas, capacitación, reporte con tiempos y ayuda de la pant
     await expect(agenda.locator('[data-testid=training-session][data-status=done]')).toHaveCount(1)
     await expect(agenda.getByTestId('training-resolve')).toHaveCount(0)
     // A quien vendió le quedó el seguimiento en Hoy y el aviso en su campana.
+    // La tarea vence el próximo día hábil del mercado (un sábado o domingo, el lunes): se revisa que exista para quien vendió y
+    // que el aviso llegó a su campana, sin depender del día en que corre la suite.
+    const task = await sql<{ n: number }[]>`select count(*)::int as n from crm.activities where deal_id = ${deal} and owner_id = ${jade} and subject like 'Confirm the new training date with Dealer Avisos%' and done_at is null`
+    expect(task[0]!.n).toBe(1)
     await loginAs(page, 'jade.kim')
-    await expect(page.getByText(/Confirm the new training date with Dealer Avisos/).first()).toBeVisible()
+    await page.goto('/avisos')
+    await expect(page.getByText(/missed the training/).first()).toBeVisible()
   })
 
   test('ayuda de la pantalla y reporte con tiempos: recibido, en revisión y respondido, con aviso a quien reportó', async ({ page }) => {
