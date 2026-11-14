@@ -201,8 +201,8 @@ const S = {
     key: 'closed',
     title: { es: 'Revisa los negocios cerrados', en: 'Review the closed deals' },
     why: {
-      es: 'En tu menú, "Negocios cerrados": ganados y perdidos por persona y periodo. "Exportar CSV" baja lo que tienes filtrado.',
-      en: 'In your menu, "Closed deals": won and lost by person and period. "Export CSV" downloads what you have filtered.',
+      es: 'En tu menú, "Negocios cerrados": ganados y perdidos por persona y periodo. "Exportar CSV" baja lo que tienes filtrado: antes te pregunta para qué necesitas el archivo y la exportación queda en la bitácora.',
+      en: 'In your menu, "Closed deals": won and lost by person and period. "Export CSV" downloads what you have filtered: first it asks what you need the file for, and the export is logged.',
     },
     href: '/reportes/cerrados',
     cta: { es: 'Ir a Negocios cerrados', en: 'Go to Closed deals' },
@@ -472,8 +472,8 @@ const S = {
     key: 'queues',
     title: { es: 'Revisa las colas del equipo', en: 'Check the team queues' },
     why: {
-      es: 'Colas del equipo junta las colas oficiales de tu rol (por ejemplo, altas sin fondeo, revisitas vencidas o en riesgo). La meta es dejarlas en cero al cierre de la semana. Una vista guardada que fijas como cola sale en tu menú.',
-      en: 'Team queues gathers the official queues for your role (for example, enrollments without funding, overdue revisits or at risk). The goal is to bring them to zero by the end of the week. A saved view you pin as a queue shows in your menu.',
+      es: 'Colas del equipo junta las colas oficiales de tu rol, si tu rol las tiene (por ejemplo, altas sin fondeo, revisitas vencidas o en riesgo). La meta es dejarlas en cero al cierre de la semana. Una vista guardada que fijas como cola sale en tu menú.',
+      en: 'Team queues gathers the official queues for your role, if your role has any (for example, enrollments without funding, overdue revisits or at risk). The goal is to bring them to zero by the end of the week. A saved view you pin as a queue shows in your menu.',
     },
     href: '/colas',
     cta: GO.queues,
@@ -631,7 +631,7 @@ export const HABITS: Record<Track, Habits> = {
   lead: {
     changes: [
       { es: 'Ves todo tu mercado en un lugar: embudos, equipos y lo que quedó por repartir.', en: 'You see your whole market in one place: pipelines, teams and what was left with no current owner.' },
-      { es: 'Un negocio cuenta como ganado con la primera transacción, no con la firma. En el piloto se gana a mano, con la fecha real de cierre.', en: 'A deal counts as won at the first transaction, not at signing. During the pilot it is won by hand, with the actual close date.' },
+      { es: 'Un negocio cuenta como ganado con la primera transacción, no con la firma. En el piloto se gana a mano, con la fecha real de cierre; si pasó por Operaciones, lo marca Operaciones.', en: 'A deal counts as won at the first transaction, not at signing. During the pilot it is won by hand, with the actual close date; if it went through Operations, Operations marks it.' },
       { es: 'El acceso es por rol: sumar a alguien no cuesta una licencia.', en: 'Access is by role: adding someone does not cost a license.' },
     ],
     asks: [
@@ -803,8 +803,8 @@ const HOW = {
   config: {
     title: { es: 'Administración, pestaña por pestaña', en: 'Administration, tab by tab' },
     text: {
-      es: 'Personas y acceso, Territorios, Mercados y entidades, Embudos y campos, Formularios y turnos, Sales App y ventas, Pipedrive, Calidad de datos, Problemas reportados, Auditoría y Operaciones.',
-      en: 'People and access, Territories, Markets and entities, Pipelines and fields, Forms and rotation, Sales App and sales data, Pipedrive, Data quality, Reported problems, Audit and Operations.',
+      es: 'El menú de Administración va en seis grupos: Personas y territorios; Ventas y Operaciones (embudos, formularios y turnos, asignación, automatizaciones, cuidado de comercios); Avisos y soporte (avisos y plantillas, problemas reportados); Integraciones y datos (Sales App y ventas, Pipedrive, eventos y API, datos y calidad); Mercados (mercados y entidades, reporte del mercado, arranque, campo y canales, partners); y Control (Estado de CONTIGO, decisiones de negocio, tableros y valores propuestos, seguridad, gobierno, IA y asistencia, plataforma y auditoría).',
+      en: 'The Administration menu comes in six groups: People and territories; Sales and Operations (pipelines, forms and rotation, assignment, automations, merchant care); Notices and support (notices and templates, reported problems); Integrations and data (Sales App and sales data, Pipedrive, events and API, data and quality); Markets (markets and entities, market report, rollout, field and channels, partners); and Control (CONTIGO status, business decisions, boards and proposed values, security, governance, AI and assistance, platform and audit).',
     },
     visual: { shot: 'admin' },
   },
@@ -1332,7 +1332,7 @@ export const HELP: HelpItem[] = [
   {
     id: 'move-to-team', topic: 'team', tracks: ['supervisor'],
     q: { es: '¿Por qué solo veo a mi equipo en "Pasar a"?', en: 'Why do I only see my team under "Move to"?' },
-    a: { es: 'En "Repartir", supervisión reparte dentro de su equipo. En la ficha de un comercio (Datos) el selector lista a todas las personas del mercado. Para pasar algo a otro equipo, acuérdalo con quien lidera el mercado.', en: 'Under "Distribute", supervisors distribute within their team. On a merchant record (Details) the selector lists everyone in the market. To move something to another team, agree it with the market lead.' },
+    a: { es: 'En "Repartir" y en el plan de reparto en borrador (Campo y canales, Cartera), supervisión reparte dentro de su equipo; quien lidera el mercado ve a todo el mercado. En la ficha de un comercio (Datos) el selector lista a todas las personas del mercado. Para pasar algo a otro equipo, acuérdalo con quien lidera el mercado.', en: 'Under "Distribute" and in the draft reassignment plan (Field and channels, Portfolio), supervisors distribute within their team; the market lead sees the whole market. On a merchant record (Details) the selector lists everyone in the market. To move something to another team, agree it with the market lead.' },
   },
   {
     id: 'notify-receiver', topic: 'team', tracks: MANAGE,
@@ -1652,7 +1652,7 @@ export const HELP: HelpItem[] = [
     a: { es: "Sí. Cuando un negocio pasa los días de estancamiento de una etapa de Operaciones, el aviso le llega a quien lo lleva en Operaciones. En pausa no cuenta.", en: "Yes. When a deal passes the stall days of an Operations stage, the notice goes to whoever handles it in Operations. On hold does not count." } },
   { id: "first-contact-escalation", topic: "automations", tracks: [...SELL, 'admin'],
     q: { es: "¿Qué es el escalamiento del primer contacto?", en: "What is first-contact escalation?" },
-    a: { es: "Cuando vence la meta de primer contacto de un lead y nadie lo ha intentado, a quien supervisa a esa persona le llega un aviso (\"Un lead de tu equipo sigue sin primer contacto\"): sale en la campana, en Avisos y en Hoy (\"Te avisaron\") hasta que se atiende el lead. Si pasan más horas hábiles sin intento (las que fije el mercado), el aviso le llega a quien lidera el mercado. En Mi equipo, la guardia de leads muestra \"Avisado a supervisión\" o \"Avisado a quien lidera\". Con el primer intento, los avisos se cierran solos.", en: "When a lead’s first-contact goal passes and nobody has tried, that person’s supervisor gets a notice (\"A lead on your team still has no first contact\"): it shows in the bell, in Notices and in Today (\"You were notified\") until the lead is handled. If more business hours go by with no attempt (as many as the market sets), the notice goes to the market lead. In My team, the lead watch shows \"Supervisor notified\" or \"Market lead notified\". With the first attempt, the notices close on their own." } },
+    a: { es: "Cuando vence la meta de primer contacto de un lead y nadie lo ha intentado, a quien supervisa a esa persona le llega un aviso (\"Un lead de tu equipo sigue sin primer contacto\"): sale en la campana, en Avisos y en Hoy (\"Te avisaron\") hasta que se atiende el lead. Si pasan más horas hábiles sin intento (las que fije el mercado), el aviso le llega a quien lidera el mercado. En Mi equipo, la guardia de leads muestra \"Avisado a supervisión\" o \"Avisado a quien lidera\". Con el primer intento, los avisos se cierran solos. Solo corre en los mercados que lo encendieron (Administración, Automatizaciones, Escalamiento de leads) y cuenta horas hábiles: una meta que vence de madrugada avisa cuando abre el horario.", en: "When a lead’s first-contact goal passes and nobody has tried, that person’s supervisor gets a notice (\"A lead on your team still has no first contact\"): it shows in the bell, in Notices and in Today (\"You were notified\") until the lead is handled. If more business hours go by with no attempt (as many as the market sets), the notice goes to the market lead. In My team, the lead watch shows \"Supervisor notified\" or \"Market lead notified\". With the first attempt, the notices close on their own. It only runs in markets that turned it on (Administration, Automations, Lead escalation) and counts business hours: a goal that runs out overnight notifies when business hours open." } },
   { id: "turn-escalation-market", topic: "automations", tracks: ['admin'],
     q: { es: "¿Cómo enciendo el escalamiento en mi mercado?", en: "How do I turn on escalation for my market?" },
     a: { es: "Lo enciende administración en Administración > Automatizaciones > Escalamiento de leads, mercado por mercado, con las horas hábiles para el segundo aviso. Nace apagado: cada mercado lo enciende cuando ya fijó su meta con sus propios datos. El aviso llega a la campana, a Avisos y a Hoy. El correo y Slack respetan la preferencia de cada persona, pero esos canales están apagados.", en: "Administration turns it on in Administration > Automations > Lead escalation, market by market, with the business hours for the second notice. It starts off: each market turns it on once it has set its goal with its own data. The notice reaches the bell, Notices and Today. Email and Slack follow each person’s preference, but those channels are off." } },
@@ -2300,7 +2300,7 @@ export const HELP: HelpItem[] = [
     a: { es: "En Competencia: competidor de la lista, producto, precio observado, fecha y dónde lo viste. No en notas.", en: "Under Competition: competitor from the list, product, observed price, date and where you saw it. Not in notes." } },
   { id: "today-s-priority", topic: "channel", tracks: [...WORK],
     q: { es: "¿Qué es la prioridad de hoy?", en: "What is today's priority?" },
-    a: { es: "Tus tiendas ordenadas por reglas a la vista (visita atrasada, sin venta, en riesgo, saldo bajo), con la razón de cada una. Un grupo pequeño de cada territorio no se lista, para medir si ayuda.", en: "Your stores sorted by visible rules (visit overdue, no sales, at risk, low balance), each with its reason. A small group in each territory is not listed, to measure whether it helps." } },
+    a: { es: "Tus tiendas ordenadas por reglas a la vista (nunca visitada, visita atrasada, sin venta, en riesgo, saldo bajo), con la razón de cada una. En el teléfono la razón va debajo del nombre. Un grupo pequeño de cada territorio no se lista, para medir si ayuda.", en: "Your stores sorted by visible rules (never visited, visit overdue, no sales, at risk, low balance), each with its reason. On the phone the reason sits under the name. A small group in each territory is not listed, to measure whether it helps." } },
   { id: "sees-field-incident", topic: "channel", tracks: [...WORK],
     q: { es: "¿Quién ve un incidente de campo?", en: "Who sees a field incident?" },
     a: { es: "Quien lo reporta y quien lidera el mercado o administra. Es confidencial, va aparte de las notas comerciales, y cada vez que alguien lo abre queda registrado.", en: "Whoever reports it and the market lead or administration. It is confidential, separate from sales notes, and every time someone opens it is logged." } },
@@ -2477,7 +2477,7 @@ export const HELP: HelpItem[] = [
     a: { es: "La fecha del próximo paso puede ir hasta 90 días adelante (valor propuesto que administración puede cambiar en Administración, Embudo). Si falta más, pon un paso intermedio: así la alerta no se calla con fechas lejanas.", en: "The next step date can be up to 90 days ahead (a proposed value Administration can change under Administration, Pipeline). If it is further out, set an intermediate step, so the alert is not silenced with far dates." } },
   { id: "these-notices", topic: "pipeline", tracks: [...MANAGE],
     q: { es: "¿Qué es \"Lead contactado sin tarea siguiente\" y \"Comercio en alta sin tarea siguiente\"?", en: "What are these notices?" },
-    a: { es: "Avisos en la cola de supervisión: un lead contactado o calificado, o un comercio en alta, sin una tarea, llamada, visita o reunión pendiente. Se cierran solos al agendar la siguiente.", en: "Notices in the supervisor queue: a contacted or qualified lead, or an onboarding merchant, with no pending task, call, visit or meeting. They close on their own once the next one is scheduled." } },
+    a: { es: "Un lead contactado o calificado, o un comercio en alta, sin una tarea, llamada, visita o reunión pendiente. Salen en la cola de supervisión y, a quien lleva el registro, en Hoy como sugerencia (\"Agendar la siguiente tarea con...\"). Se cierran solos al agendar la siguiente.", en: "A contacted or qualified lead, or an onboarding merchant, with no pending task, call, visit or meeting. They show in the supervisor queue and, for whoever owns the record, in Today as a suggestion (\"Schedule the next task with...\"). They close on their own once the next one is scheduled." } },
   { id: "deal-stalled-2", topic: "pipeline", tracks: 'all',
     q: { es: "¿Cuándo un negocio está estancado?", en: "When is a deal stalled?" },
     a: { es: "Cuando pasó los días de su etapa (según a quién se espera: al cliente, al carrier o a otro tercero, cada uno con su plazo) y no tiene un próximo paso con fecha por venir. Una nota no reinicia nada.", en: "When it passed its stage days (depending on who it waits on: the customer, the carrier or another third party, each with its own limit) and has no upcoming dated next step. A note resets nothing." } },
@@ -2498,7 +2498,7 @@ export const HELP: HelpItem[] = [
     a: { es: "Al escribirla eliges: la ve el equipo, solo quien dirige, o reservada (solo tú, quien lleva el registro y administración).", en: "When you write it you choose: the team, managers only, or restricted (only you, the record owner and administration)." } },
   { id: "team-queues", topic: "team", tracks: [...WORK],
     q: { es: "¿Qué son las colas del equipo?", en: "What are team queues?" },
-    a: { es: "Las colas oficiales de tu rol (por ejemplo, revisitas vencidas, altas sin fondeo o puntos de venta en riesgo), en tu menú, \"Colas del equipo\", con su contador. La meta es dejarlas en cero al cierre de la semana.", en: "The official queues for your role (for example, overdue revisits, enrollments without funding or stores at risk), in your menu, \"Team queues\", with their counter. The goal is to bring them to zero by the end of the week." } },
+    a: { es: "Las colas oficiales de tu rol (por ejemplo, revisitas vencidas, altas sin fondeo o puntos de venta en riesgo), con su contador. Si tu rol tiene colas, \"Colas del equipo\" aparece en la barra y en tu menú; si no las tiene, no aparece. Qué colas lleva cada rol es un valor propuesto mientras C1 lo fija: hoy quien lidera el mercado no tiene colas oficiales. La meta es dejarlas en cero al cierre de la semana.", en: "The official queues for your role (for example, overdue revisits, enrollments without funding or stores at risk), with their counter. If your role has queues, \"Team queues\" shows in the bar and in your menu; if not, it does not show. Which queues each role has is a proposed value until C1 sets it: today the market lead has no official queues. The goal is to bring them to zero by the end of the week." } },
   { id: "evidence-stage-step-need", topic: "pipeline", tracks: [...WORK],
     q: { es: "¿Qué evidencia pide un paso de etapa?", en: "What evidence does a stage step need?" },
     a: { es: "Un documento del expediente de alta (queda con su huella), una huella SHA-256 del documento o un enlace. CONTIGO no guarda el archivo: la bóveda de documentos está apagada.", en: "A document from the onboarding file (kept with its fingerprint), a SHA-256 fingerprint of the document, or a link. CONTIGO does not keep the file: the document vault is off." } },

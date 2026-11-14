@@ -271,7 +271,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
           <p className={cx('text-[13px]', step ? 'text-brand-text' : calm ? 'text-muted-2' : 'text-amber-text')}>{m('record.next')}</p>
           <p className="mt-0.5 text-[15px] leading-6 font-medium text-strong">{step ? <span lang={step.lang && step.lang !== locale ? step.lang : undefined}>{step.text}</span> : calm ? m('record.next.calm') : m('record.next.none')}</p>
           <p className={cx('text-[13px]', stepLate ? 'font-medium text-red-text' : 'text-muted-2')}>
-            {step ? dueLabel(step.due, stepLate) : calm ? (metrics?.last_txn_at ? m('record.next.calmSale', { when: ago(metrics.last_txn_at, locale, now) }) : m('record.next.calmHint')) : m('record.next.noneHint')}
+            {step ? dueLabel(step.due, stepLate) : calm ? (metrics?.last_txn_at ? m(a.kind === 'store' ? 'record.next.calmSale' : 'record.next.calmSaleAccount', { when: ago(metrics.last_txn_at, locale, now) }) : m(a.kind === 'store' ? 'record.next.calmHint' : 'record.next.calmHintAccount')) : m('record.next.noneHint')}
             {(openDeal || lastDeal) && (
               <>
                 {step?.due ? ' · ' : step ? '' : ' '}
@@ -436,7 +436,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
           )}
           {identity && (totals || identity.moves.length > 0) && <TreeTotals ctx={ctx} totals={totals} moves={identity.moves} tz={tz} accountId={a.id} asOf={asOf} />}
           {ancestors.length + children.length === 0 ? (
-            <p className="text-[15px] text-muted">{m('record.tree.alone')}</p>
+            <p className="text-[15px] text-muted">{m(a.kind === 'store' ? 'record.tree.alone' : 'record.tree.aloneParent')}</p>
           ) : (
             <ul className="space-y-1">
               <li>

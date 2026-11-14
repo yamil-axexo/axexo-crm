@@ -90,7 +90,7 @@ export default async function ReportsPage() {
                     <Link href={href(s)} className="text-[15px] font-semibold text-strong underline decoration-line-2 underline-offset-4 [overflow-wrap:anywhere]" data-testid="saved-report-link">{t(s.name, VIEW_EN[s.name] ?? s.name)}</Link>
                     <p className="text-[13px] text-muted">
                       {def ? t(def.title[0], def.title[1]) : s.report}
-                      {s.is_shared ? ` · ${s.mine ? t('compartido con tu equipo', 'shared with your team') : t(`lo compartió ${s.owner_name}`, `shared by ${s.owner_name}`)}` : ` · ${t('solo tú lo ves', 'only you see it')}`}
+                      {s.is_shared ? ` · ${s.mine ? t('compartido con tu equipo', 'shared with your team') : t(`lo compartió ${s.owner_name}`, `shared by ${String(s.owner_name ?? '').replace(' (sistema)', ' (system)')}`)}` : ` · ${t('solo tú lo ves', 'only you see it')}`}
                       {s.schedule ? ` · ${when[s.schedule]}` : ''}
                     </p>
                   </div>

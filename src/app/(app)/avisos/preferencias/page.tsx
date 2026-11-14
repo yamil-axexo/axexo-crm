@@ -31,7 +31,7 @@ export default async function PrefsPage() {
       <PageHeader title={t('Preferencias de avisos', 'Notice preferences')} desc={t('Elige qué quieres recibir y por dónde. Dentro de CONTIGO llega al momento.', 'Choose what you want to receive and where. Inside CONTIGO it arrives right away.')} />
       {off.size > 0 && (
         <p role="note" className="mb-6 rounded-[14px] bg-surface-3 px-5 py-4 text-[14px] text-strong" data-testid="prefs-off-note">
-          {t('Correo, Slack y WhatsApp están apagados por ahora: CONTIGO guarda tu elección y no manda nada por esos canales hasta que se enciendan.', 'Email, Slack and WhatsApp are turned off for now: CONTIGO keeps your choice and sends nothing through those channels until they are turned on.')}
+          {t('Correo, Slack y WhatsApp están apagados por ahora: CONTIGO guarda tu elección y no manda nada por esos canales hasta que se enciendan. Se encienden con la aprobación escrita de Dan Mulligan o Michael Essiet.', 'Email, Slack and WhatsApp are turned off for now: CONTIGO keeps your choice and sends nothing through those channels until they are turned on. They are turned on with written approval from Dan Mulligan or Michael Essiet.')}
         </p>
       )}
       <ActionForm action={savePrefsAction} testId="prefs-form">

@@ -797,3 +797,7 @@ values (pg_temp.uid('kam-mx-deal'), 'MX', 'best_case', pg_temp.uid('elena.duarte
 
 -- ajustes3: "Contactada" (D2D México) ya no pide quien decide para entrar; se pide en "Comprometida" (misma regla que 0043).
 update crm.stages set required_fields = array_remove(required_fields, 'decision_maker') where id = pg_temp.uid('s-mx-d2d-interes');
+-- ajustes3: las tiendas de la red de un distribuidor o de un agente de ISO son tiendas, no sucursales (eso es de una cadena).
+update crm.accounts c set account_type = 'store'
+  from crm.accounts p
+ where p.id = c.parent_id and p.account_type in ('distributor', 'iso_agent', 'aggregator') and c.account_type = 'branch';
