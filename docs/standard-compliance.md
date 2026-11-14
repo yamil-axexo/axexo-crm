@@ -1,10 +1,20 @@
 # Engineering Standard v1: compliance of this PR
 
-Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on `design-v1` after integration 95-4 (migrations 0001 to 0036: waves 1 to 3 plus `ciclo-cs` 0031, `campo-canal` 0032, `partners-contratos` 0033, `ia` 0034, `integraciones-migracion` 0035 and `integraciones2` 0036). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
+Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on `design-v1` after integration 95-6 (migrations 0001 to 0040: waves 1 to 3, wave 4 `ciclo-cs` 0031, `campo-canal` 0032, `partners-contratos` 0033, `ia` 0034, `integraciones-migracion` 0035 and `integraciones2` 0036, and wave 6 `datos2` 0037, `embudo2` 0038, `campo2` 0039 and `reportes2` 0040). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
 
 **Met** = implemented and covered by a test or a file you can open. **Partial** = part of the rule is in place; the gap is stated. **Not yet** = not built. **Open** = needs a decision or an owner outside this repository. **N/A** = the thing the rule governs does not exist here yet.
 
 Summary: 28 Met, 31 Partial, 6 Not yet, 16 Open, 5 N/A, out of 86 rules (after integration 95-2: AUTHZ-09 moved from Not yet to Partial).
+
+## What integration 95-6 changed (13-Nov-2026)
+| Rule | Change |
+|---|---|
+| AUTHZ-03 | 19 new tables from wave 6 (0037 to 0040), all with RLS forced (253 tables, 717 policies) |
+| AUTHZ (roles) | One Finance role (`datos2` and `reportes2` each created it): reads its reports, does no commercial work (no merchant edits, no activities), and changes owners, merges and bulk edits only in markets where the business decision `ops.operator_rights` is on. The database repeats it: `app.write_markets()` gives Finance a market only through `app.operator_markets()`. New KAM role sells and holds key accounts. DB test `integracion-95-6` |
+| DATA (one model per concept) | One lead time zone column and one business clock: `app.business_due(market, from, minutes, zone)` with market holidays and a safe fallback for an unknown zone (the `business_due_tz` copy was removed); one exception kind constraint carrying the kinds of `embudo2`, `campo2` and `reportes2`; one saved views entry on the deals board |
+| Proposed values | Decisions, pipeline values, field thresholds and board settings stay where each package keeps them; CONTIGO status shows them in one list (`src/dal/proposed.ts`), each with its owner and where it is changed |
+| MIG | 0037 moves duplicate contact phones to `held_phone` before the unique index and backfills legal entities on contracts and leads; 0038 backfills `leads.first_contact_at` and assigns an owner to automations without one; 0039 routes open exceptions without owner. All set-based, no renames; each has its `.down.sql`, cycle reset, down to 0018 and up checked |
+| Adapters | New adapters of wave 6 (report Slack channel, snapshot file, billing, Academy progress, feedback to P&T, lakehouse crossmatch) are off and listed on CONTIGO status with what is missing |
 
 ## What integration 95-4 changed (13-Nov-2026)
 | Rule | Change |
@@ -68,7 +78,7 @@ How it was checked: counts taken from a database migrated from zero on 13-Nov-20
 |---|---|---|---|
 | AUTHZ-01 | MUST | Partial | Google OIDC through the adapter, domain enforced server-side. Needs the OAuth client configured in staging to be exercised end to end; MFA is an IdP policy `[pending: Workspace admin]` |
 | AUTHZ-02 | MUST | Met | `crm.memberships`, `crm.user_territories`, `ancestor_ids`; no claims |
-| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 234 tables of schema `crm` (661 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0036). The two views added in wave 4 (`crm.account_balance_latest`, `crm.load_runs`) run as the caller (`security_invoker`), so the policies of their tables apply. `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
+| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 253 tables of schema `crm` (717 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0040). The two views added in wave 4 (`crm.account_balance_latest`, `crm.load_runs`) run as the caller (`security_invoker`), so the policies of their tables apply. `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
 | AUTHZ-04 | MUST | Met | `withUser` in `src/server/db.ts`; `app.current_user_id()` |
 | AUTHZ-05 | MUST | Met | `contigo_app` has no BYPASSRLS and owns nothing (DB test; counted again on 13-Nov-2026). It has no `DELETE` on business records; DATA-11 lists the 11 configuration tables where it does |
 | AUTHZ-06 | MUST | Met | Scope functions wrapped in `(select …)`; indexes on `owner_id`, `territory_id`, `market_code`, GIN on `ancestor_ids` |
