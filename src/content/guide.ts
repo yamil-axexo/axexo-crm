@@ -859,7 +859,7 @@ export const HELP_TOPICS: Record<HelpTopic, L> = {
   files: { es: 'Importar y exportar', en: 'Import and export' },
   data: { es: 'Datos: duplicados, árbol, contactos y Pipedrive', en: 'Data: duplicates, tree, contacts and Pipedrive' },
   us: { es: 'US: alta y ficha de la tienda', en: 'US: enrollment and store record' },
-  mx: { es: 'México', en: 'Mexico' },
+  mx: { es: 'Mercado de México', en: 'Mexico market' },
   markets: { es: 'Mercados: entidad legal, tasa y consolidado', en: 'Markets: legal entity, rate and consolidated view' },
   partners: { es: 'Partners y contratos', en: 'Partners and contracts' },
   ai: { es: 'Asistencia e IA', en: 'Assistance and AI' },
