@@ -37,9 +37,11 @@ const [{ id: account }] = await sql`
 // mismo día, mismo resultado), así las cuentas de Mi equipo no cambian. Solo en esta base de capturas, nunca en el seed.
 const moved = await sql.begin(async (tx) => {
   const rows = await tx`
-    insert into crm.activities (market_code, account_id, kind, subject, done_at, outcome, owner_id, created_by, source, created_at)
+    insert into crm.activities (market_code, account_id, kind, subject, done_at, outcome, no_sale_code, owner_id, created_by, source, created_at)
     select v.market_code, v.account_id, 'visit', case v.market_code when 'US' then 'Visit to ' else 'Visita a ' end || a.name, v.checked_in_at,
            case when v.outcome = 'sale' then 'sale' when v.revisit then 'revisit' else 'no_sale' end,
+           -- una visita sin venta lleva su motivo (regla del paquete embudo): el de la visita si existe en el catálogo
+           case when v.outcome <> 'sale' and not v.revisit then coalesce((select r.code from crm.loss_reasons r where r.code = v.rejection_code), 'not_interested') end,
            coalesce(v.user_id, a.owner_id), coalesce(v.user_id, a.owner_id), 'user', v.checked_in_at
       from crm.visits v join crm.accounts a on a.id = v.account_id
      where coalesce(v.user_id, a.owner_id) is not null
