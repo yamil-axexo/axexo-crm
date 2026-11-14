@@ -162,16 +162,16 @@ export async function CoexistenceCards({ ctx }: { ctx: Ctx }) {
             {kinds.map((k) => (
               <section key={k}>
                 <h3 className="mb-2 text-[14px] font-semibold text-strong">{t(KIND[k]?.[0] ?? k, KIND[k]?.[1] ?? k)}</h3>
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {rebuild.filter((r) => r.kind === k).map((r) => (
-                    <li key={r.pd_name} className="flex flex-wrap items-start justify-between gap-2 text-[13.5px]" data-testid="rebuild-row" data-status={r.status}>
+                    <li key={r.pd_name} className="flex min-h-11 flex-wrap items-start justify-between gap-2 text-[13.5px]" data-testid="rebuild-row" data-status={r.status}>
                       <div className="min-w-0 max-w-[60ch]">
                         <p className="text-strong"><span lang="en">{r.pd_name}</span>{r.market_code ? <span className="ml-2 text-muted-2">{r.market_code}</span> : null}</p>
                         <p className="text-muted">{t(r.note_es ?? '', r.note_en ?? '')}</p>
                       </div>
                       <span className="flex items-center gap-2">
                         <Badge tone={STATUS[r.status].tone}>{t(STATUS[r.status].label[0], STATUS[r.status].label[1])}</Badge>
-                        {r.contigo_path && <Link href={r.contigo_path} className="inline-flex min-h-11 items-center underline">{t('Abrir', 'Open')}</Link>}
+                        {r.contigo_path && <Link href={r.contigo_path} className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 underline">{t('Abrir', 'Open')}</Link>}
                       </span>
                     </li>
                   ))}

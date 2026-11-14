@@ -159,7 +159,8 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
               <Link href={here({ owner: undefined })} aria-current={sp.owner !== 'me' ? 'page' : undefined} className={seg(sp.owner !== 'me')} data-testid="pill-all">{m('merchants.scope.all')}</Link>
               <Link href={here({ owner: 'me' })} aria-current={sp.owner === 'me' ? 'page' : undefined} className={seg(sp.owner === 'me')} data-testid="pill-me">{m('merchants.scope.mine')}</Link>
             </nav>}
-            <nav aria-label={m('deals.filter')} className="inline-flex rounded-full border border-line bg-surface p-1">
+            {/* Con "Revisitas vencidas" (embudo2) son cinco filtros: en un teléfono pasan a una segunda línea en vez de salirse del ancho. */}
+            <nav aria-label={m('deals.filter')} className="inline-flex max-w-full flex-wrap rounded-[22px] border border-line bg-surface p-1">
               <Link href={here({ paso: undefined })} aria-current={!['sin', 'pausa', 'revisita', 'revisita-vencida'].includes(sp.paso ?? '') ? 'page' : undefined} className={seg(!['sin', 'pausa', 'revisita', 'revisita-vencida'].includes(sp.paso ?? ''))} data-testid="filter-all">{m('deals.filter.all')}</Link>
               <Link href={here({ paso: 'sin' })} aria-current={sp.paso === 'sin' ? 'page' : undefined} className={seg(sp.paso === 'sin')} data-testid="filter-no-step">{m('deals.filter.noStep')}</Link>
               <Link href={here({ paso: 'pausa' })} aria-current={sp.paso === 'pausa' ? 'page' : undefined} className={seg(sp.paso === 'pausa')} data-testid="filter-paused">{t(`En pausa (${paused})`, `On hold (${paused})`)}</Link>

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { orderPrint } from '@/dal/orders'
-import { orderBrand } from '@/domain/order-pdf'
+import { orderBrand, orderHeaderText } from '@/domain/order-pdf'
 import { Badge, buttonClass } from '@/ui/kit'
 import { documentTaxId } from '@/dal/store-record'
 import { ActionForm, Submit } from '@/ui/client'
@@ -54,7 +54,7 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-5">
           <div>
             <p className="text-[13px] font-semibold tracking-wide text-muted-2 uppercase">{t('Pedido', 'Order')}</p>
-            <h1 className="text-[24px] leading-8 font-semibold text-strong" data-testid="order-header">{brand.company ?? o.header ?? 'axexo'}</h1>
+            <h1 className="text-[24px] leading-8 font-semibold text-strong" data-testid="order-header">{orderHeaderText(brand, o.header)}</h1>
             {brand.tagline && <p className="text-[13px] text-muted-2" data-testid="order-tagline">{brand.tagline}</p>}
           </div>
           <dl className="text-right text-[13.5px] text-strong">

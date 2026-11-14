@@ -17,6 +17,16 @@ export async function orderBrand(ctx: Ctx, market: string): Promise<Brand> {
   })
 }
 
+/**
+ * Un solo encabezado del pedido (integración ola 6): el que puso una persona en Administración, Comunicaciones del mercado
+ * (avisos) gana sobre la plantilla de marca mientras esa plantilla siga siendo valor propuesto; una plantilla confirmada por
+ * Marketing gana siempre. Sin ninguna, "axexo".
+ */
+export function orderHeaderText(brand: Brand, commsHeader: string | null): string {
+  if (brand.company && !brand.proposed) return brand.company
+  return commsHeader ?? brand.company ?? 'axexo'
+}
+
 const GREEN: [number, number, number] = [0x33, 0xb8, 0x88]
 const INK: [number, number, number] = [0, 0, 0]
 const MUTED: [number, number, number] = [90, 90, 90]
@@ -40,7 +50,7 @@ export async function orderPdf(ctx: Ctx, dealId: string): Promise<{ pdf: Buffer;
     ops = []
     pages.push(ops)
     ops.push({ kind: 'rect', x: 0, y: A4.h - 6, w: A4.w, h: 6, color: GREEN })
-    ops.push({ kind: 'text', x: M, y: A4.h - 52, size: 20, bold: true, text: brand.company ?? o.header ?? 'axexo' })
+    ops.push({ kind: 'text', x: M, y: A4.h - 52, size: 20, bold: true, text: orderHeaderText(brand, o.header) })
     if (brand.tagline) ops.push({ kind: 'text', x: M, y: A4.h - 70, size: 10, text: brand.tagline, color: MUTED })
     const label = t('PEDIDO', 'ORDER')
     ops.push({ kind: 'text', x: right - textWidth(label, 11, true), y: A4.h - 48, size: 11, bold: true, text: label, color: GREEN })

@@ -8,6 +8,7 @@ import { WIDTHS, loginAs, pageErrors, testDb } from './helpers'
 // navegador y correo con el canal apagado (E5.F9), respaldo de Pipedrive (E6.F4) y la hoja de leads de México (E18.F7).
 
 const sql = testDb()
+let hours: { days: number[]; opens: string; closes: string } | undefined
 const setLocale = async (page: Page, locale: 'es' | 'en') => {
   await page.context().addCookies([{ name: 'contigo_locale', value: locale, url: page.url() }])
   await page.reload()
@@ -26,6 +27,10 @@ test.describe.configure({ mode: 'serial' })
 test.describe('integraciones2', () => {
   let storeId = ''
   test.beforeAll(async () => {
+    // El correo a un comercio espera el horario hábil del mercado (notify.ts): la prueba abre el horario de México para no
+    // depender de la hora a la que corre la suite, y lo deja como estaba al final.
+    hours = (await sql<{ days: number[]; opens: string; closes: string }[]>`select days, opens::text, closes::text from crm.market_hours where market_code = 'MX'`)[0]
+    await sql`update crm.market_hours set days = '{1,2,3,4,5,6,7}', opens = '00:00', closes = '23:59:59' where market_code = 'MX'`
     const s = (await sql<{ id: string }[]>`
       select a.id from crm.accounts a join crm.users u on u.id = a.owner_id
        where u.email = 'lucia.vega@contigo.test' and a.kind = 'store' and a.archived_at is null and a.market_code = 'MX' order by a.id limit 1`)[0]!
@@ -39,6 +44,7 @@ test.describe('integraciones2', () => {
   test.afterAll(async () => {
     await sql`delete from crm.store_sales_lines where account_id = ${storeId}`
     await sql`delete from crm.generated_documents where account_id = ${storeId}`
+    if (hours) await sql`update crm.market_hours set days = ${hours.days}, opens = ${hours.opens}::time, closes = ${hours.closes}::time where market_code = 'MX'`
     await sql`delete from crm.load_windows`
     await sql.end()
   })
