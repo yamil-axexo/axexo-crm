@@ -11,7 +11,7 @@ type Pair = [string, string]
 /** Un valor con el que CONTIGO funciona mientras su dueño no lo fija. */
 export type ProposedRow = {
   key: string
-  source: 'decision' | 'funnel' | 'field' | 'board'
+  source: 'decision' | 'funnel' | 'field' | 'board' | 'platform'
   label: Pair
   /** Dónde aplica y cuánto vale hoy, si se puede decir en una línea. */
   detail: Pair | null
@@ -33,7 +33,7 @@ export const ownerEn = (o: string) => OWNER_EN[o] ?? o
  */
 export async function allProposed(ctx: Ctx): Promise<ProposedRow[]> {
   const live = ctx.markets.filter((m) => m.status === 'live').map((m) => m.code)
-  const [decisions, funnel, steps, field, boards] = await Promise.all([
+  const [decisions, funnel, steps, field, boards, platform, recovery] = await Promise.all([
     withUser(ctx.user.id, (tx) => decisionRows(tx, live)),
     listFunnelSettings(ctx),
     withUser(ctx.user.id, (tx) => tx<{ id: string; name_es: string; name_en: string; pending_owner: string }[]>`
@@ -42,6 +42,8 @@ export async function allProposed(ctx: Ctx): Promise<ProposedRow[]> {
        where t.pending_owner is not null order by p.name`),
     fieldProposed(ctx),
     pendingDecisions(ctx),
+    withUser(ctx.user.id, (tx) => tx<{ key: string; label_es: string; label_en: string; owner_label: string }[]>`select key, label_es, label_en, owner_label from crm.platform_values where proposed order by key`),
+    withUser(ctx.user.id, (tx) => tx<{ key: string }[]>`select key from crm.service_objectives where kind = 'recovery' and target is null order by position`),
   ])
   const out: ProposedRow[] = []
   // Decisiones de negocio (datos2): una fila por decisión, con los mercados que siguen en propuesta.
@@ -70,5 +72,9 @@ export async function allProposed(ctx: Ctx): Promise<ProposedRow[]> {
   }
   // Tableros por rol y ajustes de reportes (reportes2).
   for (const b of boards) out.push({ key: b.key, source: 'board', label: b.label, detail: null, owner: b.pending, href: '/admin/tableros' })
+  // Valores de plataforma (plataforma, ola 7) y objetivos de recuperación sin cifra (GOB-07).
+  for (const p of platform) out.push({ key: `platform.${p.key}`, source: 'platform', label: [p.label_es, p.label_en], detail: null, owner: p.owner_label, href: '/admin/plataforma' })
+  const REC: Record<string, Pair> = { rpo_minutes: ['Pérdida de datos aceptable (RPO)', 'Acceptable data loss (RPO)'], rto_minutes: ['Tiempo para volver (RTO)', 'Time to recover (RTO)'] }
+  for (const r of recovery) out.push({ key: `recovery.${r.key}`, source: 'platform', label: REC[r.key] ?? ['Cada cuánto se prueba restaurar', 'How often restore is tested'], detail: null, owner: 'Dan Mulligan', href: '/admin/gobierno' })
   return out
 }

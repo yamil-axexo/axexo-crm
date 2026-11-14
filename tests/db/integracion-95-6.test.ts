@@ -69,7 +69,7 @@ describe('un solo reloj hábil con zona horaria (datos2 MULTI-02 + embudo2 LEAD-
 describe('valores propuestos: una sola lista con dueño (datos2, embudo2, campo2, reportes2)', () => {
   it('Estado de CONTIGO junta las cuatro fuentes y cada fila tiene dueño y dónde se cambia', async () => {
     const rows = await allProposed(await ctxFor('nora.salas'))
-    expect(new Set(rows.map((r) => r.source))).toEqual(new Set(['decision', 'funnel', 'field', 'board']))
+    expect(new Set(rows.map((r) => r.source))).toEqual(new Set(['decision', 'funnel', 'field', 'board', 'platform']))
     for (const r of rows) {
       expect(r.owner.trim().length).toBeGreaterThan(1)
       expect(r.href).toMatch(/^\//)

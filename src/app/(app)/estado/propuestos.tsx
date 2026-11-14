@@ -9,6 +9,7 @@ const SOURCE: Record<string, [string, string]> = {
   funnel: ['Embudo y automatizaciones', 'Pipeline and automations'],
   field: ['Campo y canales', 'Field and channels'],
   board: ['Tableros y reportes', 'Boards and reports'],
+  platform: ['Plataforma', 'Platform'],
 }
 
 /**

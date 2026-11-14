@@ -26,15 +26,13 @@ export async function StagingBanner({ ctx }: { ctx: Ctx }) {
 
 export async function PlatformCard({ ctx, realtime: rt }: { ctx: Ctx; realtime: { mode: RealtimeMode; missing: string[] } }) {
   const { t, locale } = ctx
-  const { speed, pending, recovery, lag } = await withUser(ctx.user.id, async (tx) => {
+  const { speed, lag } = await withUser(ctx.user.id, async (tx) => {
     const speed = await tx<{ screen: string; n: number; buckets: number[] }[]>`
       select screen, sum(n)::int as n,
              array[sum(buckets[1]), sum(buckets[2]), sum(buckets[3]), sum(buckets[4]), sum(buckets[5]), sum(buckets[6])]::int[] as buckets
         from crm.request_metrics where screen in ('buscar', 'telefono') and day > (now() at time zone 'UTC')::date - 30 group by screen`
-    const pending = await tx<{ key: string; label_es: string; label_en: string; owner_label: string }[]>`select key, label_es, label_en, owner_label from crm.platform_values where proposed order by key`
-    const recovery = await tx<{ key: string; target: string | null }[]>`select key, target::text from crm.service_objectives where kind = 'recovery' order by position`
     const lag = await consumerLag(tx)
-    return { speed, pending, recovery, lag }
+    return { speed, lag }
   })
   const sp = (k: string) => speed.find((s) => s.screen === k)
   const realtime = rt.mode
@@ -51,18 +49,7 @@ export async function PlatformCard({ ctx, realtime: rt }: { ctx: Ctx; realtime: 
           <span className="min-w-0 flex-1 basis-60"><span className="block text-[14px] font-medium text-strong">{t('Abrir una pantalla en teléfono (p95)', 'Opening a screen on a phone (p95)')}</span><span className="text-[12.5px] text-muted-2">{t('Medido en el teléfono de cada persona. La meta en Android de gama baja la fija C1 en el piloto.', 'Measured on each person’s phone. The target on low-end Android is set by C1 in the pilot.')}</span></span>
           <Badge tone={sp('telefono') ? 'info' : 'neutral'}>{msText(t, sp('telefono') ? p95(sp('telefono')!.buckets) : null)}</Badge>
         </li>
-        {recovery.filter((r) => r.target === null).map((r) => (
-          <li key={r.key} className={row} data-testid="status-pending-value">
-            <span className="min-w-0 flex-1 basis-60 text-[14px] font-medium text-strong">{r.key === 'rpo_minutes' ? t('Pérdida de datos aceptable (RPO)', 'Acceptable data loss (RPO)') : r.key === 'rto_minutes' ? t('Tiempo para volver (RTO)', 'Time to recover (RTO)') : t('Cada cuánto se prueba restaurar', 'How often restore is tested')}</span>
-            <Badge tone="warn">{t('Pendiente: Dan Mulligan', 'Pending: Dan Mulligan')}</Badge>
-          </li>
-        ))}
-        {pending.map((p) => (
-          <li key={p.key} className={row} data-testid="status-pending-value">
-            <span className="min-w-0 flex-1 basis-60 text-[14px] font-medium text-strong">{t(p.label_es, p.label_en)}</span>
-            <span className="inline-flex items-center rounded-[10px] bg-warn-bg px-2.5 py-0.5 text-[13px] font-medium text-amber-text">{t(`Valor propuesto, pendiente: ${p.owner_label}`, `Proposed value, pending: ${p.owner_label}`)}</span>
-          </li>
-        ))}
+        {/* Los valores propuestos de plataforma y los objetivos de recuperación sin cifra están en la lista única de valores propuestos. */}
         <li className={row} data-testid="status-realtime">
           <span className="min-w-0 flex-1 basis-60"><span className="block text-[14px] font-medium text-strong">{t('Pantallas en vivo por Broadcast', 'Live screens over Broadcast')}</span><span className="text-[12.5px] text-muted-2">{realtime === 'live' ? t('Encendido.', 'On.') : t(`Las pantallas se actualizan solas leyendo la cola dentro de CONTIGO. Para Broadcast falta: ${rt.missing.join(', ')} (sign-off de Dan Mulligan o Michael Essiet).`, `Screens refresh by reading the queue inside CONTIGO. Broadcast needs: ${rt.missing.join(', ')} (sign-off from Dan Mulligan or Michael Essiet).`)}</span></span>
           <Badge tone={realtime === 'live' ? 'good' : 'neutral'}>{realtime === 'live' ? t('Encendido', 'On') : realtime === 'simulated' ? t('Simulado (pruebas)', 'Simulated (tests)') : t('Apagado', 'Off')}</Badge>

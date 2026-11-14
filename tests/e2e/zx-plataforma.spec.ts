@@ -100,8 +100,10 @@ test.describe('Plataforma en Administración', () => {
     const card = page.getByTestId('status-platform')
     await expect(card.getByTestId('status-p95-search')).toBeVisible()
     await expect(card.getByTestId('status-p95-phone')).toBeVisible()
-    await expect(card.getByTestId('status-pending-value').filter({ hasText: 'Lectura sin señal' })).toContainText('pendiente: Seguridad')
-    await expect(card.getByTestId('status-pending-value').filter({ hasText: 'Pérdida de datos aceptable' })).toContainText('Dan Mulligan')
+    // Integración ola 7 (cambiado a propósito): los pendientes de plataforma están en la lista única de valores propuestos.
+    const proposed = page.getByTestId('status-proposed')
+    await expect(proposed.getByTestId('status-proposed-row').filter({ hasText: 'Lectura sin señal' })).toContainText('pendiente: Seguridad')
+    await expect(proposed.getByTestId('status-proposed-row').filter({ hasText: 'Pérdida de datos aceptable' })).toContainText('Dan Mulligan')
     await expect(card.getByTestId('status-realtime')).toContainText('REALTIME_ADAPTER')
     await expect(card.getByTestId('status-egress')).toBeVisible()
     await expect(page.getByTestId('status-real-data')).toHaveCount(0)
