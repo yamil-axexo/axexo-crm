@@ -71,9 +71,20 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/solicitudes', 'Pedir un cambio', 'Request a change'],
 ]
 
+// Renglones de medición que no son una ruta (GOB-07 / UX-04).
+const SPECIAL: Record<string, [string, string]> = {
+  telefono: ['Todas las pantallas, en el teléfono', 'All screens, on the phone'],
+  buscar: ['Búsqueda', 'Search'],
+  otra: ['Otra pantalla', 'Another screen'],
+}
+
 export function screenLabel(t: T, path: string | null | undefined): string {
   if (!path) return t('No se sabe', 'Unknown')
   const bare = path.split(/[?#]/)[0]!
+  if (SPECIAL[bare]) return t(...SPECIAL[bare])
   const hit = SCREENS.find(([prefix]) => bare === prefix || bare.startsWith(`${prefix}/`))
-  return hit ? t(hit[1], hit[2]) : path
+  if (!hit) return path
+  // La lista y el detalle de un registro no se llaman igual ("Leads" dos veces en Gobierno).
+  const rest = bare.slice(hit[0].length)
+  return rest.includes('[id]') ? t(`${hit[1]}, detalle`, `${hit[2]}, detail`) : t(hit[1], hit[2])
 }

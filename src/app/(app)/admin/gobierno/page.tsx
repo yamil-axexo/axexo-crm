@@ -97,7 +97,7 @@ export default async function GovernancePage({ searchParams }: { searchParams: P
               return (
                 <tr key={o.key} className="table-row" data-testid={`slo-${o.key}`}>
                   <td><span className="block font-semibold text-strong">{t(...OBJECTIVE_LABEL[o.key]!.label)}</span><span className="text-[12.5px] text-muted-2">{t(...OBJECTIVE_LABEL[o.key]!.hint)}</span></td>
-                  <td className="num" data-testid="slo-measured">{m.value}<span className="block text-[12.5px] text-muted-2">{t(`${num(m.n, locale)} mediciones`, `${num(m.n, locale)} measurements`)}</span></td>
+                  <td className="num" data-testid="slo-measured">{m.value}<span className="block text-[12.5px] text-muted-2">{m.n === 1 ? t('1 medición', '1 measurement') : t(`${num(m.n, locale)} mediciones`, `${num(m.n, locale)} measurements`)}</span></td>
                   <td className="num" data-testid="slo-target">{o.target === null ? pending : `${o.key === 'availability' ? '≥' : '≤'} ${num(o.target, locale)}${unit}`}</td>
                   <td data-testid="slo-status">{m.ok === null ? <Badge>{o.target === null ? t('Sin objetivo', 'No objective') : t('Sin mediciones', 'No measurements')}</Badge> : m.ok ? <Badge tone="good">{t('Se cumple', 'Met')}</Badge> : <Badge tone="bad">{t('No se cumple', 'Not met')}</Badge>}</td>
                   {manage && (
