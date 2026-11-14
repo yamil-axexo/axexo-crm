@@ -116,7 +116,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Search size={20} strokeWidth={1.75} aria-hidden />
           </Link>
           {official.length > 0 && (
-            <Link href="/colas" className="press relative inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-full border border-line px-1.5 text-[13px] font-semibold text-strong hover:bg-green-50 md:px-3" data-testid="nav-official-queues">
+            <Link href="/colas" className="press relative hidden h-10 min-w-10 shrink-0 md:inline-flex items-center justify-center gap-2 rounded-full border border-line px-1.5 text-[13px] font-semibold text-strong hover:bg-green-50 md:px-3" data-testid="nav-official-queues">
               <ListChecks size={18} strokeWidth={1.75} aria-hidden className="hidden md:block" />
               <span className="sr-only md:not-sr-only">{t('Colas', 'Queues')}</span>
               <span className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11.5px] font-semibold text-white" data-testid="nav-official-count">{officialTotal > 99 ? '99+' : officialTotal}</span>
@@ -161,6 +161,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {!ctx.can('config.manage') && (ctx.can('priority.read') || ctx.can('onboarding.review') || ctx.can('incident.report')) && <Link href="/campo" role="menuitem" className={menuLink} data-testid="nav-field"><MapPinned size={20} strokeWidth={1.75} aria-hidden />{t('Campo y canales', 'Field and channels')}</Link>}
               {/* Quien administra llega a Asistencia desde Administración, IA y asistencia (y desde la paleta): su menú ya no cabe en un teléfono. */}
               {!ctx.can('config.manage') && (ctx.can('ia.read') || ctx.can('ia.ask')) && <Link href="/asistencia" role="menuitem" className={menuLink} data-testid="nav-assist"><Lightbulb size={20} strokeWidth={1.75} aria-hidden />{t('Asistencia', 'Assistance')}</Link>}
+              {/* UX-03 (embudo2): en el teléfono la barra no tiene lugar para "Colas"; quien tiene colas oficiales las abre desde aquí. */}
+              {official.length > 0 && !ctx.can('config.manage') && <Link href="/colas" role="menuitem" className={`${menuLink} md:hidden`} data-testid="nav-official-queues-menu"><ListChecks size={20} strokeWidth={1.75} aria-hidden />{t(`Colas del equipo (${officialTotal > 99 ? '99+' : officialTotal})`, `Team queues (${officialTotal > 99 ? '99+' : officialTotal})`)}</Link>}
               {ctx.can('report.gallery') && <Link href="/reportes" role="menuitem" className={menuLink} data-testid="nav-reports"><BarChart3 size={20} strokeWidth={1.75} aria-hidden />{t('Reportes', 'Reports')}</Link>}
               {/* reportes2 (E8.F4): la lista de personas de los comercios, con vistas por equipo. Quien administra llega desde la paleta (Ctrl+K): su menú ya no cabe en un teléfono. */}
               {!ctx.can('config.manage') && ctx.can('view.save') && <Link href="/personas" role="menuitem" className={menuLink} data-testid="nav-contacts"><Users size={20} strokeWidth={1.75} aria-hidden />{t('Personas de los comercios', 'Merchant contacts')}</Link>}
