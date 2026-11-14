@@ -352,6 +352,23 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
         </Dialog>
       )}
 
+      {(() => {
+        // En la calle se anota la competencia, se pide fondeo o se arma el expediente de la tienda donde se está: desde la
+        // ficha, con el comercio ya elegido (antes había que salir y buscarlo en una lista de todo el mercado).
+        const mk = a.market_code
+        const field = [
+          ctx.can('competitor.record', mk) ? { key: 'competencia', label: t('Competencia', 'Competition') } : null,
+          ctx.can('credit.request', mk) || ctx.can('credit.approve', mk) ? { key: 'credito', label: t('Fondeo y crédito', 'Funding and credit') } : null,
+          ctx.can('onboarding.capture', mk) || ctx.can('onboarding.review', mk) ? { key: 'expedientes', label: t('Expediente', 'Enrollment file') } : null,
+        ].filter((x): x is { key: string; label: string } => !!x)
+        return field.length > 0 && !isParent ? (
+          <p className="-mt-1 flex flex-wrap items-center gap-x-4 text-[14px]" data-testid="ficha-field-links">
+            <span className="text-muted">{t('En campo:', 'In the field:')}</span>
+            {field.map((f) => <Link key={f.key} href={`/campo?tab=${f.key}&mercado=${mk}&cuenta=${a.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid={`ficha-field-${f.key}`}>{f.label}</Link>)}
+          </p>
+        ) : null
+      })()}
+
       <nav aria-label={m('record.tabs')} className="flex gap-6 border-b border-line" data-testid="ficha-tabs">
         {FICHA_TABS.map((k) => (
           <Link key={k} href={href(a.id, k)} scroll={false} aria-current={tab === k ? 'page' : undefined} data-testid={`tab-${k}`}

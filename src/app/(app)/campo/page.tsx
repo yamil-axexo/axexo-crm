@@ -73,7 +73,8 @@ export default async function CampoPage({ searchParams }: { searchParams: Promis
             <label className="flex min-w-[240px] flex-col gap-1 text-[13px] font-semibold text-muted-2">{t('Comercio', 'Merchant')}
               <select name="cuenta" defaultValue={acc?.id ?? ''} className={sel} data-testid="campo-account">
                 <option value="">{t('Elige un comercio', 'Choose a merchant')}</option>
-                {(await dal.marketAccounts(ctx, market.code)).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {acc && <option value={acc.id}>{acc.name}</option>}
+                {(await dal.marketAccounts(ctx, market.code)).filter((a) => a.id !== acc?.id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </label>
           )}

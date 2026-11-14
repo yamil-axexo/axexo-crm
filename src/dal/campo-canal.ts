@@ -10,7 +10,9 @@ export type Option = { id: string; name: string }
 
 export async function marketAccounts(ctx: Ctx, market: string): Promise<Option[]> {
   return withUser(ctx.user.id, (tx) => tx<Option[]>`
-    select id, name from crm.accounts where market_code = ${market} and archived_at is null order by name, id limit 300`)
+    select id, name || coalesce(' · ' || nullif(btrim(locality), ''), '') as name from crm.accounts
+     where market_code = ${market} and archived_at is null
+     order by (owner_id = ${ctx.user.id}) desc nulls last, name, id limit 300`)
 }
 
 export async function marketPeople(ctx: Ctx, market: string, roles: string[] = ['rep', 'supervisor', 'market_lead']): Promise<Option[]> {
