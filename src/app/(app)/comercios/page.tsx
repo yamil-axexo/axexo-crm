@@ -110,7 +110,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
         <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-[28px] leading-9 font-semibold">{m('merchants.title')}</h1>
-            <p className="mt-1 text-[15px] text-muted">{m('merchants.subtitle')}</p>
+            <p className="mt-1 text-[15px] text-muted">{m(ctx.memberships.some((x) => x.role === 'rep' || x.role === 'supervisor') ? 'merchants.subtitle' : 'merchants.subtitleAll')}</p>
           </div>
           {ctx.can('account.create') && (
             <Dialog trigger={t('Nuevo comercio', 'New merchant')} title={t('Nuevo comercio', 'New merchant')} variant="primary" testId="new-account" hash="nuevo">

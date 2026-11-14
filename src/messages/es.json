@@ -161,6 +161,7 @@
   "health.new": "Recién llegado",
   "merchants.title": "Comercios",
   "merchants.subtitle": "Tu cartera: organizaciones, cadenas y puntos de venta",
+  "merchants.subtitleAll": "Organizaciones, cadenas y puntos de venta que puedes ver",
   "merchants.filter.all": "Todos",
   "merchants.filter.risk": "En riesgo",
   "merchants.filter.idle": "Sin transaccionar",

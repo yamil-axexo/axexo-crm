@@ -60,10 +60,10 @@ describe('claves de mensajes (P1: Hoy con claves internas)', () => {
   })
 
   it('los tipos de aviso que acepta la base son los del registro, y todos tienen nombre y acción', async () => {
-    const [{ def }] = await admin<{ def: string }[]>`
+    const [row] = await admin<{ def: string }[]>`
       select pg_get_constraintdef(c.oid) as def from pg_constraint c join pg_class t on t.oid = c.conrelid
        where t.relname = 'exceptions' and c.conname = 'exceptions_kind_check'`
-    const inDb = [...def.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort()
+    const inDb = [...row!.def.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort()
     expect(inDb).toEqual([...QUEUE_KINDS].sort())
     for (const k of [...EXCEPTION_KINDS, ...AUTOMATION_KINDS]) expect(QUEUE_KINDS, k).toContain(k)
     for (const k of QUEUE_KINDS) {

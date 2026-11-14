@@ -130,6 +130,7 @@ export type GrantLabels = {
   adminFor: string
   adminNoEmail: string
   adminOtherDomain: string
+  adminBlockedDomain?: string
   adminExpires: string
   adminNoExpiry: string
   supervisorWarn: string
@@ -140,7 +141,7 @@ export type GrantLabels = {
  * Campos de "Dar acceso". Lo que se pide depende del rol: Administración y Leadership no llevan mercado ni equipo;
  * Administración pide una confirmación aparte; una supervisión sin equipo avisa antes de guardar.
  */
-export function GrantFields({ roles, markets, teams, labels, today, ownDomain, locale = 'es' }: { roles: { value: string; label: string }[]; markets: { code: string; name: string }[]; teams: { id: string; name: string; market: string }[]; labels: GrantLabels; today: string; /** Dominio del correo de quien da el acceso: un correo de otro dominio se señala al confirmar Administración. */ ownDomain?: string; locale?: 'es' | 'en' }) {
+export function GrantFields({ roles, markets, teams, labels, today, ownDomain, allowedDomains = [], locale = 'es' }: { roles: { value: string; label: string }[]; markets: { code: string; name: string }[]; teams: { id: string; name: string; market: string }[]; labels: GrantLabels; today: string; /** Dominio del correo de quien da el acceso: un correo de otro dominio se señala al confirmar Administración. */ ownDomain?: string; /** Dominios que pueden entrar: uno que no está no recibe la sugerencia de fecha de fin, se dice que no puede entrar. */ allowedDomains?: string[]; locale?: 'es' | 'en' }) {
   const [email, setEmail] = useState('')
   const [expires, setExpires] = useState('')
   const emailRef = useRef<HTMLInputElement>(null)
@@ -230,7 +231,9 @@ export function GrantFields({ roles, markets, teams, labels, today, ownDomain, l
           <p className="mt-1.5 text-[13.5px] font-medium text-amber-text">{labels.adminHint}</p>
           <ul className="mt-3 space-y-1 text-[13.5px] text-strong" data-testid="grant-admin-who">
             <li data-testid="grant-admin-for">{email.trim() ? labels.adminFor.replace('{email}', email.trim()) : labels.adminNoEmail}</li>
-            {domain && ownDomain && domain !== ownDomain && <li className="font-semibold text-amber-text" data-testid="grant-admin-external">{labels.adminOtherDomain.replace('{domain}', domain)}</li>}
+            {domain && allowedDomains.length > 0 && !allowedDomains.includes(domain)
+              ? <li className="font-semibold text-red-text" data-testid="grant-admin-blocked">{(labels.adminBlockedDomain ?? labels.adminOtherDomain).replace('{domain}', domain)}</li>
+              : domain && ownDomain && domain !== ownDomain && <li className="font-semibold text-amber-text" data-testid="grant-admin-external">{labels.adminOtherDomain.replace('{domain}', domain)}</li>}
             <li data-testid="grant-admin-until">{expiresText ? labels.adminExpires.replace('{date}', expiresText) : labels.adminNoExpiry}</li>
           </ul>
           <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-[14px] font-semibold text-strong">

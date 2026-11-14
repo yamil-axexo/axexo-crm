@@ -6,6 +6,9 @@ import { ActionForm, Submit } from '@/ui/client'
 import { dayTime } from '@/lib/format'
 import { resolveConflictAction, setCutoverAction } from './pipedrive-actions'
 
+// Solo la primera letra en minúscula: los nombres propios (Pipedrive, CONTIGO) se quedan como son.
+const lowerFirst = (x: string) => (x.length > 1 && x[1] === x[1]!.toUpperCase() && /[A-Z]/.test(x[1]!) ? x : x.charAt(0).toLowerCase() + x.slice(1))
+
 type Pair = [es: string, en: string]
 
 const FIELD: Record<string, Pair> = {
@@ -61,7 +64,7 @@ export async function CoexistenceCards({ ctx }: { ctx: Ctx }) {
                 <p className="mt-3 text-[13px] text-muted" data-testid="cutover-missing">
                   {m.pipedrive_off_at ? t(`Apagado el ${dayTime(m.pipedrive_off_at, locale, 'UTC')}.`, `Switched off on ${dayTime(m.pipedrive_off_at, locale, 'UTC')}.`)
                     : missing.length === 0 ? t('Todo listo: ya se puede apagar Pipedrive en este mercado.', 'All set: Pipedrive can be switched off in this market.')
-                    : t(`Falta para apagar Pipedrive: ${missing.map((c) => c.label[0].toLowerCase()).join(', ')}.`, `Missing to switch Pipedrive off: ${missing.map((c) => c.label[1].toLowerCase()).join(', ')}.`)}
+                    : t(`Falta para apagar Pipedrive: ${missing.map((c) => lowerFirst(c.label[0])).join(', ')}.`, `Missing to switch Pipedrive off: ${missing.map((c) => lowerFirst(c.label[1])).join(', ')}.`)}
                 </p>
                 {canDecide && !m.pipedrive_off_at && (
                   <div className="mt-4 flex flex-wrap items-end gap-3">

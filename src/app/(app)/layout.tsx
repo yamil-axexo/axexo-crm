@@ -1,3 +1,4 @@
+import { zoneName } from '@/lib/format'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
@@ -74,7 +75,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ]
   // Registrar una visita, una llamada o una nota empieza en el dock: quien trabaja en la calle no abre primero la ficha.
   const canLog = ctx.can('activity.write')
-  const viewAsUntil = ctx.viewAs ? new Intl.DateTimeFormat(ctx.locale === 'en' ? 'en-US' : 'es-MX', { hour: 'numeric', minute: '2-digit', timeZone: await readerTimeZone(ctx) }).format(new Date(ctx.viewAs.until)) : ''
+  // La hora de fin con su zona escrita (sin cookie del navegador, la zona sale del mercado de la persona vista) y sin doble punto.
+  const viewTz = ctx.viewAs ? await readerTimeZone(ctx) : 'UTC'
+  const viewAsUntil = ctx.viewAs ? `${new Intl.DateTimeFormat(ctx.locale === 'en' ? 'en-US' : 'es-MX', { hour: 'numeric', minute: '2-digit', timeZone: viewTz }).format(new Date(ctx.viewAs.until))} ${zoneName(viewTz, ctx.locale)}` : ''
   // Colas fijadas por la persona (vistas guardadas), con su contador.
   const queues = await pinnedQueues(ctx)
   // UX-03 (embudo2): las colas oficiales del rol, con su total en la barra principal.

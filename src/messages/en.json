@@ -161,6 +161,7 @@
   "health.new": "Just arrived",
   "merchants.title": "Merchants",
   "merchants.subtitle": "Your book: organizations, chains and stores",
+  "merchants.subtitleAll": "Organizations, chains and stores you can see",
   "merchants.filter.all": "All",
   "merchants.filter.risk": "At risk",
   "merchants.filter.idle": "Not transacting",

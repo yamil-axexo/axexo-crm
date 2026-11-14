@@ -70,6 +70,7 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
                   today={today}
                   locale={locale}
                   ownDomain={ctx.user.email.slice(ctx.user.email.lastIndexOf('@') + 1).toLowerCase()}
+                  allowedDomains={[...domains]}
                   labels={{
                     email: t('Correo', 'Email'),
                     emailHint: t(`Tiene que ser una cuenta de ${domainList(domains, 'o')}.`, `It has to be a ${domainList(domains, 'or')} account.`),
@@ -86,6 +87,7 @@ export async function PeopleTab({ ctx, access, today }: { ctx: Ctx; access: Acce
                     adminScope: t('Administración ve y cambia todo, en todos los mercados.', 'Administration sees and changes everything, in every market.'),
                     adminFor: t('Se la das a: {email}', 'You are granting it to: {email}'),
                     adminNoEmail: t('Falta escribir el correo de la persona.', 'The person’s email is still missing.'),
+                    adminBlockedDomain: t(`{domain} no es un dominio que pueda entrar a CONTIGO (${domainList(domains, 'o')}). No le pongas fecha: pide la cuenta a quien administra las cuentas de Google.`, `{domain} is not a domain that can sign in to CONTIGO (${domainList(domains, 'or')}). Do not set a date: ask whoever manages the Google accounts for an account.`),
                     adminOtherDomain: t('Su correo es de {domain}, un dominio distinto al tuyo. Si es una persona externa, ponle fecha de fin.', 'Their email is from {domain}, a different domain from yours. If they are an external person, set an end date.'),
                     adminExpires: t('Fin del acceso: vence el {date}.', 'End of access: it expires on {date}.'),
                     adminNoExpiry: t('Sin fecha de fin: vale hasta que alguien se la quite.', 'No end date: it stays until someone removes it.'),

@@ -535,6 +535,23 @@ export const isAuditGroup = (v: string | undefined): v is AuditGroup => v !== un
 
 /** Tipos de registro por los que se filtra, con su nombre. */
 export const AUDIT_OBJECT: Record<string, Pair> = {
+  // ajustes3: todo objeto que deja bitácora tiene nombre (la fila del resumen semanal decía "feedback_digest").
+  alias_system: ['Sistema de identificadores', 'ID system'],
+  commission_statement: ['Estado de comisiones', 'Commission statement'],
+  connector: ['Conector', 'Connector'],
+  feedback_digest: ['Resumen semanal de comentarios', 'Weekly feedback summary'],
+  forecast_submission: ['Envío de pronóstico', 'Forecast submission'],
+  funnel_setting: ['Valor del embudo', 'Pipeline setting'],
+  goal: ['Meta', 'Goal'],
+  mcp: ['Acceso de agentes (MCP)', 'Agent access (MCP)'],
+  metric: ['Indicador', 'Metric'],
+  process_list: ['Lista de procesos', 'Process list'],
+  quality_rule: ['Regla de calidad de datos', 'Data quality rule'],
+  saved_report: ['Reporte guardado', 'Saved report'],
+  saved_view: ['Vista guardada', 'Saved view'],
+  setting: ['Ajuste', 'Setting'],
+  stage_transition: ['Paso de etapa', 'Stage step'],
+  visit_reason: ['Propósito de visita', 'Visit purpose'],
   feature_flag: ['Función por rol', 'Feature by role'],
   platform_value: ['Valor de la plataforma', 'Platform value'],
   event_notice_rule: ['Aviso por evento', 'Event notice'],
@@ -794,9 +811,9 @@ function word(t: T, locale: Locale, key: string, v: Json, names: Names, action =
     return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-MX').format(v)
   }
   if (Array.isArray(v)) {
-    if (key === 'account_ids') return t(`${v.length} comercios`, `${v.length} merchants`)
-    if (key === 'lead_ids') return t(`${v.length} leads`, `${v.length} leads`)
-    if (key === 'deal_ids') return t(`${v.length} negocios`, `${v.length} deals`)
+    if (key === 'account_ids') return v.length === 1 ? t('1 comercio', '1 merchant') : t(`${v.length} comercios`, `${v.length} merchants`)
+    if (key === 'lead_ids') return v.length === 1 ? t('1 lead', '1 lead') : t(`${v.length} leads`, `${v.length} leads`)
+    if (key === 'deal_ids') return v.length === 1 ? t('1 negocio', '1 deal') : t(`${v.length} negocios`, `${v.length} deals`)
     return v.length === 0 ? t('nadie', 'nobody') : v.map((x) => word(t, locale, key, x, names, action)).join(', ')
   }
   if (typeof v === 'object') return JSON.stringify(v).slice(0, 160)
