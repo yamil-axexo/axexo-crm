@@ -397,17 +397,21 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   async function Quality() {
     const d = await getDataQuality(ctx)
+    // Cada número de "sin asignar" abre su lista (tercera vuelta del comité): sin enlace no había forma de llegar a ellos.
+    const countLink = (n: number, href: string, testId: string) => n > 0
+      ? <Link href={href} className="font-medium text-blue-text underline" data-testid={testId}>{num(n, locale)}</Link>
+      : <span>{num(n, locale)}</span>
     return (
       <div className="space-y-8" data-testid="admin-quality">
         <Card pad={false}>
           <div className="px-7 pt-7"><CardTitle title={t('Huecos por mercado', 'Gaps by market')} /></div>
           <Table label={t('Huecos por mercado', 'Gaps by market')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Comercios sin asignar', 'Merchants with no owner')}</th><th>{t('Negocios abiertos sin asignar', 'Open deals with no owner')}</th><th>{t('Leads abiertos sin asignar', 'Open leads with no owner')}</th><th>{t('Sin teléfono', 'No phone')}</th><th>{t('Sin contacto', 'No contact')}</th><th>{t('Sin ID externo', 'No external ID')}</th></>}>
-            {d.gaps.map((g) => <tr key={g.market_code} className="table-row" data-testid="gap-row"><td className="font-semibold text-strong">{g.market_code}</td><td className="num">{num(g.total, locale)}</td><td className="num">{g.no_owner}</td><td className="num">{d.unowned[g.market_code]?.deals ?? 0}</td><td className="num">{d.unowned[g.market_code]?.leads ?? 0}</td><td className="num">{g.no_phone}</td><td className="num">{g.no_contact}</td><td className="num">{g.no_alias}</td></tr>)}
+            {d.gaps.map((g) => <tr key={g.market_code} className="table-row" data-testid="gap-row"><td className="font-semibold text-strong">{g.market_code}</td><td className="num">{num(g.total, locale)}</td><td className="num">{countLink(g.no_owner, qs('/comercios', { market: g.market_code, owner: 'none' }), 'gap-accounts')}</td><td className="num">{countLink(d.unowned[g.market_code]?.deals ?? 0, qs('/pipelines', { owner: 'none' }), 'gap-deals')}</td><td className="num">{countLink(d.unowned[g.market_code]?.leads ?? 0, qs('/leads', { market: g.market_code, owner: 'none' }), 'gap-leads')}</td><td className="num">{g.no_phone}</td><td className="num">{g.no_contact}</td><td className="num">{g.no_alias}</td></tr>)}
           </Table>
         </Card>
         <Card pad={false} data-testid="orphans">
           <div className="px-5 pt-6 md:px-7 md:pt-7"><CardTitle title={t('Por repartir', 'No current owner')} hint={t('Siguen a nombre de una cuenta de servicio o de alguien que ya no vende ni opera en ese mercado. Nadie los va a trabajar hasta que se repartan en Mi equipo. Es la misma regla de "Por repartir" en Mi equipo y en Comercios: tener solo acceso de administración no cuenta como llevar cartera.', 'They still sit under a service account or someone who no longer sells or runs operations in that market. Nobody will work them until they are distributed in My team. It is the same "No current owner" rule used in My team and in Merchants: administration access alone does not count as carrying a book.')} /></div>
-          {d.orphans.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Nada por repartir', 'Nothing to distribute')} hint={t('Todo lo abierto lo lleva alguien que vende u opera en su mercado.', 'Everything open is with someone who sells or runs operations in its market.')} /></div> : (
+          {d.orphans.length === 0 ? <div className="px-5 pb-6 md:px-7 md:pb-7"><Empty title={t('Nada a nombre de cuentas de servicio ni de gente que ya no está', 'Nothing under service accounts or people who left')} hint={t('Lo que no tiene a nadie asignado es otra cosa: está en la tabla de arriba y se abre desde su número.', 'What has no one assigned is a different thing: it is in the table above and opens from its number.')} /></div> : (
             <Table label={t('Por repartir', 'No current owner')} head={<><th>{t('Mercado', 'Market')}</th><th>{t('A nombre de', 'Held by')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Negocios abiertos', 'Open deals')}</th><th>{t('Leads abiertos', 'Open leads')}</th></>}>
               {d.orphans.map((o) => <tr key={`${o.market_code}${o.owner_id}`} className="table-row" data-testid="orphan-row"><td className="font-semibold text-strong">{o.market_code}</td><td>{o.full_name}</td><td className="num">{num(o.accounts, locale)}</td><td className="num">{num(o.deals, locale)}</td><td className="num">{num(o.leads, locale)}</td></tr>)}
             </Table>
