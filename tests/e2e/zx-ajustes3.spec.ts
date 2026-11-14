@@ -164,21 +164,30 @@ test.describe('campo y negocios', () => {
     try {
       const rows = await sql<{ id: string }[]>`
         select d.id from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.stages s on s.id = d.stage_id
-         where p.market_code = 'US' and p.ops_checklist and d.status = 'open' and s.is_ops and d.training_status <> 'done' order by d.id limit 1`
+         where p.market_code = 'US' and p.ops_checklist and d.status = 'open' and s.is_ops and d.training_status <> 'done' order by (d.title like 'Onboarding: Silver State%') desc, (s.name_en = 'Approvals') desc, d.id limit 1`
       if (!rows[0]) test.skip(true, 'sin negocio de US en Operaciones en la siembra')
       id = rows[0]!.id
+      // En el piloto se gana a mano: el embudo de prueba se deja así para ver el diálogo (se restaura al final).
+      await sql`update crm.pipelines set close_by_transaction = false where id = (select pipeline_id from crm.deals where id = ${id})`
     } finally {
       await sql.end()
     }
     await loginAs(page, 'tom.reyes', { stay: true })
     await page.goto(`/deals/${id}`)
     const win = page.getByTestId('deal-win')
-    if (!(await win.count())) test.skip(true, 'Operaciones no gana este negocio desde aquí')
+    await expect(page.locator('h1')).toBeVisible()
+    await expect(win).toBeVisible()
     await win.click()
     await expect(page.getByTestId('win-ops-pending')).toBeVisible()
     await expect(page.getByTestId('win-ops-pending')).toContainText(/Training: not done|Capacitación: sin hacer/)
     await expect(page.getByTestId('win-ops-ack')).toHaveAttribute('required', '')
     await page.keyboard.press('Escape')
+    const back = testDb()
+    try {
+      await back`update crm.pipelines set close_by_transaction = true where id = (select pipeline_id from crm.deals where id = ${id})`
+    } finally {
+      await back.end()
+    }
   })
 
   test('una cuenta de distribuidor con un negocio abierto todavía deja abrir otro', async ({ page }) => {
