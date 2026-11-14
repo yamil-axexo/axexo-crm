@@ -18,7 +18,7 @@ import { HEALTH_DOT, healthOf } from '@/lib/health'
 import { KIND, MOTOR, lab, qs } from '@/lib/labels'
 import type { MessageKey } from '@/lib/messages'
 import { createAccountAction } from './actions'
-import { accountTypeOptions, intakeFields } from '@/dal/b2b'
+import { accountTypeOptions, intakeFields, myTeamMotor } from '@/dal/b2b'
 import { IntakeFields } from '@/ui/intake'
 import { Ficha, fichaTab, type FichaTab } from './ficha'
 import { flat } from '@/server/params'
@@ -66,7 +66,11 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
   const [typeOptions, intake] = ctx.can('account.create') ? await Promise.all([accountTypeOptions(ctx), intakeFields(ctx)]) : [[], []]
   // Canal por defecto de "Nuevo comercio": el del primer embudo del mercado de la persona (en US, Dealers; en México, tiendas).
   const firstPipe = ctx.can('account.create') ? (await marketPipelines(ctx, live.find((x) => ctx.can('account.create', x.code))?.code))[0] : undefined
-  const defaultSegment = firstPipe && firstPipe.motor in MOTOR ? firstPipe.motor : 'd2d'
+  // Quien vende a cadenas y distribuidores no da de alta tiendas: canal y tipo de cuenta salen de su equipo (B2B México
+  // abría en "Tienda independiente" y "Tiendas, puerta a puerta").
+  const teamMotor = ctx.can('account.create') ? await myTeamMotor(ctx, live.find((x) => ctx.can('account.create', x.code))?.code) : null
+  const defaultSegment = teamMotor && teamMotor in MOTOR ? teamMotor : firstPipe && firstPipe.motor in MOTOR ? firstPipe.motor : 'd2d'
+  const defaultType = teamMotor === 'b2b' ? (typeOptions.find((x) => x.kind === 'chain') ?? typeOptions.find((x) => x.kind === 'distributor'))?.code : undefined
   await track(ctx, 'view.comercios')
   // REP-04: todo dato del archivo de ventas va con su fecha de corte a la vista.
   const cutoff = tree ? null : await salesCutoff(ctx, sp.market)
@@ -112,7 +116,7 @@ export default async function ComerciosPage({ searchParams }: { searchParams: Pr
             <Dialog trigger={t('Nuevo comercio', 'New merchant')} title={t('Nuevo comercio', 'New merchant')} variant="primary" testId="new-account" hash="nuevo">
               <ActionForm action={createAccountAction} className="grid grid-cols-2 gap-4">
                 <Field label={t('Mercado', 'Market')}><select name="market" className="input">{live.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></Field>
-                <Field label={t('Tipo de cuenta', 'Account type')}><select name="kind" className="input" data-testid="account-type">{typeOptions.map((x) => <option key={x.code} value={x.code}>{t(x.label_es, x.label_en)}</option>)}</select></Field>
+                <Field label={t('Tipo de cuenta', 'Account type')}><select name="kind" className="input" defaultValue={defaultType} data-testid="account-type">{typeOptions.map((x) => <option key={x.code} value={x.code}>{t(x.label_es, x.label_en)}</option>)}</select></Field>
                 <Field label={t('Nombre', 'Name')} className="col-span-2"><input name="name" className="input" required minLength={2} data-testid="account-name" /></Field>
                 <Field label={t('Canal', 'Channel')}><select name="segment" className="input" defaultValue={defaultSegment} data-testid="account-segment">{Object.entries(MOTOR).map(([k, v]) => <option key={k} value={k}>{t(v[0], v[1])}</option>)}</select></Field>
                 <Field label={t('Teléfono', 'Phone')}><input name="phone" className="input" inputMode="tel" data-testid="account-phone" /></Field>

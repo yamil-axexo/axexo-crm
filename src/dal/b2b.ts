@@ -115,10 +115,17 @@ export async function intakeFields(ctx: Ctx): Promise<IntakeField[]> {
 }
 
 /** Catálogo de tipos de cuenta para el alta: los de todos los mercados y los de los mercados de la persona. */
-export async function accountTypeOptions(ctx: Ctx): Promise<{ code: string; label_es: string; label_en: string }[]> {
+/** El tipo de venta del equipo de la persona en ese mercado (para proponer el canal y el tipo de cuenta al dar de alta). */
+export async function myTeamMotor(ctx: Ctx, market: string | undefined): Promise<string | null> {
+  const teams = ctx.memberships.filter((m) => m.teamId && (!market || m.market === market)).map((m) => m.teamId!)
+  if (!teams.length) return null
+  return withUser(ctx.user.id, async (tx) => (await tx<{ motor: string }[]>`select motor from crm.teams where id = any(${teams}::uuid[]) order by name limit 1`)[0]?.motor ?? null)
+}
+
+export async function accountTypeOptions(ctx: Ctx): Promise<{ code: string; label_es: string; label_en: string; kind?: string }[]> {
   return withUser(ctx.user.id, async (tx) => {
-    const rows = await tx<{ code: string; label_es: string; label_en: string; position: number }[]>`
-      select distinct on (t.code) t.code, t.label_es, t.label_en, t.position from crm.account_types t
+    const rows = await tx<{ code: string; label_es: string; label_en: string; position: number; kind: string }[]>`
+      select distinct on (t.code) t.code, t.label_es, t.label_en, t.position, t.kind from crm.account_types t
        where t.is_active and (t.market_code is null or t.market_code = any(app.my_markets())) order by t.code, t.market_code nulls last`
     return [...rows].sort((a, b) => a.position - b.position)
   })
