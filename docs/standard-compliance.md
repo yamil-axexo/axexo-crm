@@ -1,10 +1,20 @@
 # Engineering Standard v1: compliance of this PR
 
-Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on `design-v1` after integration 95-6 (migrations 0001 to 0040: waves 1 to 3, wave 4 `ciclo-cs` 0031, `campo-canal` 0032, `partners-contratos` 0033, `ia` 0034, `integraciones-migracion` 0035 and `integraciones2` 0036, and wave 6 `datos2` 0037, `embudo2` 0038, `campo2` 0039 and `reportes2` 0040). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
+Source: `axexo-CONTIGO-Estandar-Ingenieria-v1-2026-11-11`. Status as of 13-Nov-2026, on `design-v1` after integration 95-7 (migrations 0001 to 0042: waves 1 to 3, wave 4 `ciclo-cs` 0031, `campo-canal` 0032, `partners-contratos` 0033, `ia` 0034, `integraciones-migracion` 0035 and `integraciones2` 0036, wave 6 `datos2` 0037, `embudo2` 0038, `campo2` 0039 and `reportes2` 0040, and wave 7 `conectores` 0041 and `plataforma` 0042). Staging may hold current Pipedrive data under ADR-005, which is still unsigned; development and CI use synthetic data.
 
 **Met** = implemented and covered by a test or a file you can open. **Partial** = part of the rule is in place; the gap is stated. **Not yet** = not built. **Open** = needs a decision or an owner outside this repository. **N/A** = the thing the rule governs does not exist here yet.
 
 Summary: 28 Met, 31 Partial, 6 Not yet, 16 Open, 5 N/A, out of 86 rules (after integration 95-2: AUTHZ-09 moved from Not yet to Partial).
+
+## What integration 95-7 changed (13-Nov-2026)
+| Rule | Change |
+|---|---|
+| AUTHZ-03 | 15 new tables from wave 7 (0041, 0042), all with RLS forced (268 tables, 740 policies) |
+| Adapters (Tech Implementation Review) | Every adapter has a written `live` mode that turns on only with three things: its variable set to `live`, the provider credentials and `<VARIABLE>_APPROVAL` with the written sign-off reference. One gate (`src/server/adapters/live/gate.ts`) and one registry (`src/server/adapters/registry.ts`) cover all of them, including the wave 6 ones (scheduled reports to Slack, feedback digest to P&T, Academy progress, lakehouse cross-match) and live screens (Broadcast). `docs/adapters.md` is the sign-off annex; `.env.example` lists names without values. A DB test fails if an adapter file is not in the registry |
+| AI-02 / IA-07 (egress) | One server-side `fetch`: `egressFetch` (`src/server/net/egress.ts`). The connector HTTP client goes through it, so every live connector is checked against the closed allowlist plus its own provider hosts; contract services take their host only from the operator-set URL variable. The network-level control on the platform stays an operator step (`docs/egress.md`) |
+| AUT-02 | Event delivery reads the outbox by committed transaction id (`txid`, no 2 s gap); notices are fed from the outbox by rules; browser push is a channel of the single notice service |
+| Proposed values | Platform values and recovery objectives without a figure join the single proposed values list in CONTIGO status |
+| MIG | 0042 adds stored generated `search_tsv` columns to `accounts`, `leads` and `deals` and a `txid` column with a volatile default to `outbox_events`: each rewrites its table (fine at current volumes; on large tables run in a maintenance window). 0041 only relaxes status checks and adds columns. Cycle reset, down to 0018 and up checked |
 
 ## What integration 95-6 changed (13-Nov-2026)
 | Rule | Change |
@@ -78,7 +88,7 @@ How it was checked: counts taken from a database migrated from zero on 13-Nov-20
 |---|---|---|---|
 | AUTHZ-01 | MUST | Partial | Google OIDC through the adapter, domain enforced server-side. Needs the OAuth client configured in staging to be exercised end to end; MFA is an IdP policy `[pending: Workspace admin]` |
 | AUTHZ-02 | MUST | Met | `crm.memberships`, `crm.user_territories`, `ancestor_ids`; no claims |
-| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 253 tables of schema `crm` (717 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0040). The two views added in wave 4 (`crm.account_balance_latest`, `crm.load_runs`) run as the caller (`security_invoker`), so the policies of their tables apply. `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
+| AUTHZ-03 | MUST | Met | RLS enabled and forced on all 268 tables of schema `crm` (740 policies), counted on a freshly migrated database on 13-Nov-2026 (migrations 0001 to 0042). The two views added in wave 4 (`crm.account_balance_latest`, `crm.load_runs`) run as the caller (`security_invoker`), so the policies of their tables apply. `tests/db/permissions.test.ts` fails if any table lacks it and each package repeats the check for its own tables |
 | AUTHZ-04 | MUST | Met | `withUser` in `src/server/db.ts`; `app.current_user_id()` |
 | AUTHZ-05 | MUST | Met | `contigo_app` has no BYPASSRLS and owns nothing (DB test; counted again on 13-Nov-2026). It has no `DELETE` on business records; DATA-11 lists the 11 configuration tables where it does |
 | AUTHZ-06 | MUST | Met | Scope functions wrapped in `(select …)`; indexes on `owner_id`, `territory_id`, `market_code`, GIN on `ancestor_ids` |

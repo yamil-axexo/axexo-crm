@@ -1,6 +1,6 @@
 # Scope against the full feature catalog (95 items)
 
-Generated on 13-Nov-2026, first by the `gobierno` package of the build program and regenerated at integration 95-6 (packages integrated in `design-v1`: `automatizaciones`, `avisos`, `datos`, `eventos-api`, `reportes`, `embudo`, `integraciones-migracion`, `mx`, `us-embudo`, `us-ficha`, `campo-canal`, `ciclo-cs`, `gobierno`, `mercados`, `seguridad`, `partners-contratos`, `ia`, `integraciones2`, `datos2`, `embudo2`, `campo2`, `reportes2`). It replaces the earlier scope note, which listed 20 pilot items and 35 foundation items and gave several as built that the audit of 12-Nov-2026 found partial.
+Generated on 13-Nov-2026, first by the `gobierno` package of the build program and regenerated at integration 95-7 (packages integrated in `design-v1`: `automatizaciones`, `avisos`, `datos`, `eventos-api`, `reportes`, `embudo`, `integraciones-migracion`, `mx`, `us-embudo`, `us-ficha`, `campo-canal`, `ciclo-cs`, `gobierno`, `mercados`, `seguridad`, `partners-contratos`, `ia`, `integraciones2`, `datos2`, `embudo2`, `campo2`, `reportes2`, `conectores`, `plataforma`). It replaces the earlier scope note, which listed 20 pilot items and 35 foundation items and gave several as built that the audit of 12-Nov-2026 found partial.
 
 ## How to read it
 - **Sources.** The catalog `CRM-catalogo-funcionalidades-2026-11-11` (95 items), the audit of 12-Nov-2026 (state before the build program) and, for every item a package integrated in `design-v1` has reported, that package's result with its evidence, as checked by the integrator. An item with no integrated package report keeps the audited state and says so in its "Source" line.
@@ -14,15 +14,15 @@ Generated on 13-Nov-2026, first by the `gobierno` package of the build program a
 | Status | Items |
 |---|---|
 | Built | 33 |
-| Built, external channel off | 33 |
-| Partial | 27 |
+| Built, external channel off | 39 |
+| Partial | 21 |
 | Missing | 0 |
 | Not applicable | 2 |
 | **Total** | **95** |
 
 93 items carry a package report from the build program; 2 still show the audited state of 12-Nov-2026 because their package has not been integrated yet.
 
-Check made when this file was generated: the integrated package reports cite 263 file paths as evidence and 262 of them exist in this tree.
+Check made when this file was generated: the integrated package reports cite 269 file paths as evidence and 268 of them exist in this tree.
 
 ## By domain
 | Domain | Items | Built | Built, channel off | Partial | Missing | Not applicable |
@@ -30,17 +30,17 @@ Check made when this file was generated: the integrated package reports cite 263
 | DAT · Modelo de datos, jerarquía e identidad | 7 | 5 | 2 | 0 | 0 | 0 |
 | LEAD · Captura, atribución, ruteo y SLA | 5 | 2 | 1 | 2 | 0 | 0 |
 | PIPE · Pipelines, etapas, transiciones y cierre | 8 | 2 | 3 | 3 | 0 | 0 |
-| ACT · Actividades, timeline y tareas | 3 | 1 | 0 | 2 | 0 | 0 |
-| CAMPO · Integración con la app de campo, supervisión y alta | 8 | 5 | 3 | 0 | 0 | 0 |
-| CANAL · Canal, PRM, atribución y comisiones | 8 | 4 | 1 | 2 | 0 | 1 |
-| CS · Customer success B2B | 8 | 2 | 6 | 0 | 0 | 0 |
+| ACT · Actividades, timeline y tareas | 3 | 1 | 1 | 1 | 0 | 0 |
+| CAMPO · Integración con la app de campo, supervisión y alta | 8 | 4 | 2 | 2 | 0 | 0 |
+| CANAL · Canal, PRM, atribución y comisiones | 8 | 4 | 3 | 0 | 0 | 1 |
+| CS · Customer success B2B | 8 | 0 | 8 | 0 | 0 | 0 |
 | REP · Reportes, métricas y forecast | 4 | 0 | 3 | 1 | 0 | 0 |
-| AUT · Automatización, eventos e integraciones | 7 | 2 | 1 | 4 | 0 | 0 |
-| IA · IA asistida, agentes y guardas | 8 | 1 | 3 | 4 | 0 | 0 |
+| AUT · Automatización, eventos e integraciones | 7 | 3 | 2 | 2 | 0 | 0 |
+| IA · IA asistida, agentes y guardas | 8 | 2 | 4 | 2 | 0 | 0 |
 | MULTI · Multi-país, moneda, entidad, IDs fiscales y WhatsApp | 5 | 0 | 4 | 1 | 0 | 0 |
-| SEG · Seguridad, privacidad y cumplimiento | 10 | 4 | 3 | 2 | 0 | 1 |
-| UX · Experiencia de uso | 4 | 2 | 0 | 2 | 0 | 0 |
-| GOB · Gobierno, adopción y operación | 10 | 3 | 3 | 4 | 0 | 0 |
+| SEG · Seguridad, privacidad y cumplimiento | 10 | 3 | 3 | 3 | 0 | 1 |
+| UX · Experiencia de uso | 4 | 3 | 0 | 1 | 0 | 0 |
+| GOB · Gobierno, adopción y operación | 10 | 4 | 3 | 3 | 0 | 0 |
 
 ## Item by item
 
@@ -68,10 +68,11 @@ Check made when this file was generated: the integrated package reports cite 263
 - Evidence: 0040: índice único crm.contacts(market_code, phone), limpieza app.contact_phone_cleanup (teléfono en espera + par sugerido), cola crm.contact_pairs, fusión con foto y deshacer (src/domain/contacts-dedup.ts); conversión de leads, segunda solicitud, Sales App y carga de Pipedrive pasan por resolveContact/phoneDedup. Pantalla /datos?tab=duplicados 'Contactos con el mismo teléfono'. tests/db/datos2.test.ts DAT-02 (6), E2E zx-datos2.
 
 **DAT-03 · ID canónico y tabla de alias de IDs externos: Built, external channel off.**
-- Source: package `datos`, 13-Nov-2026.
-- Evidence: Pantallas: ficha Datos 'IDs en otros sistemas' (Agregar ID, Cerrar con motivo, 'ID anteriores' con vigencia), /buscar encuentra por cualquier alias, /datos?tab=catalogos 'Sistemas de origen de ID' (Agregar sistema). Dominio: addAlias (choque detectado con el nombre del comercio que lo tiene, app.alias_holder), closeAlias, createAliasSystem; crm.alias_systems reemplaza el check (Sales App, Merchant ID, Pipedrive, Zoho, EMIDA, Sky, Movilway, InComm, proveedor o carrier, más los que agregue administración). Los ID de sistemas de axexo solo los toca administración; los de sistemas externos, también Operaciones y quien lidera el mercado. Bitácora alias.added y alias.closed; eventos account.alias_issued y account.alias_closed al outbox. Pruebas: tests/db/datos.test.ts 'DAT-03' (2), tests/e2e/zx-datos.spec.ts 'Operaciones agrega un ID de otro sistema...'.
-- Adapter turned off: Publicación de la tabla de alias a S5: los eventos quedan en el outbox; el publicador es del paquete eventos-api (AUT-02). El ID fiscal completo no entra como alias (estándar de datos).
-- Who unblocks or what it depends on: Paquete eventos-api para publicar; S5 para el contrato de datos
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: snapshot_file (S5 bucket, from-contigo/) y event_delivery live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Encender con sign-off; S5 confirma suscripción y ubicación
+- Adapter turned off: SNAPSHOT_FILE_ADAPTER, CONTIGO_EVENT_DELIVERY
+- Who unblocks or what it depends on: Roxanna Quintero (S5); Dan Mulligan o Michael Essiet
 
 **DAT-04 · Deduplicación y golden record: Built.**
 - Source: package `datos2`, 13-Nov-2026.
@@ -113,10 +114,11 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: Yamil
 
 **LEAD-02 · Captura multicanal con atribución (UTM, click IDs, CTWA): Built, external channel off.**
-- Source: package `embudo`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Toques que solo se agregan, primero y último (crm.source_touches); UTM, clics de Google, Meta, TikTok, LinkedIn, X y Click to WhatsApp, página de llegada y de origen (sin lo que venga tras '?'), referido. Viaja al comercio y al negocio al convertir ('De dónde vino' en /deals/<id>). Filtros en /leads (fuente o campaña, clic de anuncio) y reporte en /reportes/embudo. Conversiones 'lead calificado' y 'primera transacción' en cola con llave propia (crm.conversion_events), visibles en /admin/embudo. Pruebas: tests/db/embudo.test.ts 'la atribución completa...', E2E.
-- Adapter turned off: ad-conversions (AD_CONVERSIONS): envío a Google, Meta, TikTok, LinkedIn y X. La cola se llena y cada conversión queda como 'Canal apagado'.
-- Who unblocks or what it depends on: MarTech (la auditoría dice 'Martech'; titular pendiente de confirmar: cuentas de anuncios y nombre de evento por plataforma); Dan Mulligan o Michael Essiet (aprobación)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: ad_conversions live (Meta CAPI, Google Ads, TikTok, LinkedIn; X queda en cola); flushConversions por fila; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Cuentas de anuncios y nombre de evento por plataforma; X sin conector (OAuth 1.0a)
+- Adapter turned off: AD_CONVERSIONS
+- Who unblocks or what it depends on: MarTech; Dan Mulligan o Michael Essiet
 
 **LEAD-03 · Ruteo y asignación: Built.**
 - Source: package `embudo2`, 13-Nov-2026.
@@ -179,11 +181,11 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: Liderazgo comercial MX (meta desde la línea base del piloto)
 
 **PIPE-06 · Cierre por evento transaccional (primer fondeo, primera transacción): Built, external channel off.**
-- Source: package `embudo`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Primer fondeo con método (efectivo, SPEI, ACH, Pix, otro), primera transacción y hábito por separado: crm.account_milestones + historia que solo se agrega crm.milestone_events. El archivo de ventas acepta first_funding_at, funding_method, habit_at, manifest y corrections (src/domain/embudo/closing.ts, docs/contracts/merchant-metrics-daily-v1.md). El fondeo pasa el negocio a 'esperando la primera venta'; la transacción lo gana. Manifiesto que no cuadra rechaza el archivo (409). Un corte recargado con otras cifras guarda antes y después (crm.metric_restatements). Corrección compensatoria: anular o corregir fecha, por archivo o por quien lidera el mercado ('Corregir un hito' en /deals/<id> y en el comercio, pestaña Datos; permiso deal.correct_win): reabre el negocio con evento de causa 'correction', tarea y aviso a quien lo lleva, comercio de vuelta a 'en alta'. Fecha de corte visible. Pruebas: tests/db/embudo.test.ts 'PIPE-06' (5), E2E 'quien lidera corrige un ganado que no lo era'.
-- Missing: Decisión pendiente (no es construcción): qué embudos pueden ganarse a mano (close_by_transaction se puede apagar por embudo). El contrato con fondeo, método y hábito no está acordado con Data y Reportería.
-- Adapter turned off: sales-file (SALES_FILE): ir a buscar el archivo. Hoy entra por POST /api/v1/metrics/daily.
-- Who unblocks or what it depends on: Roxanna Quintero y Mauricio Fernandez (contrato y dónde se deja el archivo); Dan Mulligan o Michael Essiet (aprobación de tecnología); Yamil (embudos que se ganan a mano)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: sales_file live: manifiesto S5 + huella SHA-256 + crm.connector_files; jobs embudo.sales_file_pull; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Contrato y ubicación del archivo; sign-off
+- Adapter turned off: SALES_FILE
+- Who unblocks or what it depends on: Roxanna Quintero y Mauricio Fernandez; Dan Mulligan o Michael Essiet
 
 **PIPE-07 · Oferta comercial y contrato como objeto (CPQ-lite): Partial.**
 - Source: package `embudo2`, 13-Nov-2026.
@@ -193,10 +195,10 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: Finanzas/CANAL-05; Dan Mulligan o Michael Essiet (proveedor de firma)
 
 **PIPE-08 · Plan de integración compartido para KAM (mutual action plan): Built, external channel off.**
-- Source: package `partners-contratos`, 13-Nov-2026.
-- Evidence: /comercios/[id]/plan (plantilla de 6 hitos specs/sandbox/certificación/salida, dueño por hito de cada lado, fechas, estado, vencidos, días a certificación como línea base, ligado opcional al negocio); tests/db/partners.test.ts (PIPE-08), e2e plan
-- Missing: Vista del cliente (misma identidad de externos, apagada: 'Compartir con el cliente' queda en cola).
-- Adapter turned off: external_identity (CONTIGO_EXTERNAL_IDENTITY_ADAPTER)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: external_identity live (Supabase Auth invite); /comercios/[id]/plan pide correo cuando está encendido; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off
+- Adapter turned off: CONTIGO_EXTERNAL_IDENTITY_ADAPTER
 - Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 ### ACT · Actividades, timeline y tareas
@@ -205,7 +207,7 @@ Check made when this file was generated: the integrated package reports cite 263
 |---|---|---|---|---|
 | ACT-01 | Timeline único con actividades y notas de primera clase | Must | F1 | Partial |
 | ACT-02 | Próximo paso obligatorio | Must | F1 | Built |
-| ACT-03 | Captura de comunicaciones (email, calendario, WhatsApp) | Should | F2 | Partial |
+| ACT-03 | Captura de comunicaciones (email, calendario, WhatsApp) | Should | F2 | Built, external channel off |
 
 **ACT-01 · Timeline único con actividades y notas de primera clase: Partial.**
 - Source: package `embudo2`, 13-Nov-2026.
@@ -220,19 +222,19 @@ Check made when this file was generated: the integrated package reports cite 263
 - Missing: Tope de 90 días es valor propuesto [pendiente: Liderazgo comercial].
 - Who unblocks or what it depends on: Liderazgo comercial
 
-**ACT-03 · Captura de comunicaciones (email, calendario, WhatsApp): Partial.**
-- Source: package `partners-contratos`, 13-Nov-2026.
-- Evidence: /comercios/[id]/comunicaciones (correo, reunión o WhatsApp registrados a mano en el hilo con asunto, participantes, resumen, fecha y duración; escaneo de datos prohibidos; ventana de 24 h calculada y visible), modelo crm.activity_comms con fuente, referencia externa y teléfono E.164 listo para la sincronización; tests/db/partners.test.ts (ACT-03, 2 pruebas), e2e
-- Missing: La sincronización automática (Gmail, Google Calendar, WhatsApp Cloud API o BSP): adaptadores apagados sin implementación real.
-- Adapter turned off: gmail (CONTIGO_GMAIL_CAPTURE_ADAPTER), calendar (CONTIGO_CALENDAR_CAPTURE_ADAPTER), whatsapp_capture (CONTIGO_WHATSAPP_CAPTURE_ADAPTER)
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (revisión de tecnología de Gmail, Calendar y WhatsApp)
+**ACT-03 · Captura de comunicaciones (email, calendario, WhatsApp): Built, external channel off.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: captura Gmail (gmail.metadata) y Calendar (readonly) live por opt-in en /avisos/preferencias, job conectores.captura, webhook /api/webhooks/whatsapp con firma; liga solo contactos conocidos (domain/conectores/capture.ts); /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off; registrar el webhook en Meta
+- Adapter turned off: CONTIGO_GMAIL_CAPTURE_ADAPTER, CONTIGO_CALENDAR_CAPTURE_ADAPTER, CONTIGO_WHATSAPP_CAPTURE_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 ### CAMPO · Integración con la app de campo, supervisión y alta
 
 | ID | Feature | Priority | Phase | Status |
 |---|---|---|---|---|
-| CAMPO-01 | Contrato de eventos CRM y Sales App, un solo creador de PDV | Must | F1 | Built, external channel off |
-| CAMPO-02 | Next best store y frecuencias por segmento | Should | F2 | Built |
+| CAMPO-01 | Contrato de eventos CRM y Sales App, un solo creador de PDV | Must | F1 | Partial |
+| CAMPO-02 | Next best store y frecuencias por segmento | Should | F2 | Partial |
 | CAMPO-03 | Cartera, territorios y reasignación | Must | F1 | Built |
 | CAMPO-04 | Tablero del supervisor y cola de excepciones | Must | F1 | Built, external channel off |
 | CAMPO-05 | KPIs de campo con trust score de visita | Should | F2 | Built |
@@ -240,18 +242,19 @@ Check made when this file was generated: the integrated package reports cite 263
 | CAMPO-07 | Inteligencia competitiva en el PDV | Should | F2 | Built |
 | CAMPO-08 | Score 'PDV perfecto' consumido desde la Sales App | Could | F2 | Built |
 
-**CAMPO-01 · Contrato de eventos CRM y Sales App, un solo creador de PDV: Built, external channel off.**
-- Source: package `eventos-api`, 13-Nov-2026.
-- Evidence: POST /api/v1/events/sales-app recibe visit.checked_out, store.created, onboarding.submitted y merchant.approved (src/domain/integrations.ts). Un solo creador de PDV: se busca por ID de Sales Core, luego por teléfono en el mercado, y solo entonces se crea; quien llega segundo se liga. Mensajes fuera de contrato o de un punto de venta desconocido quedan detenidos con motivo y se reprocesan. Pantalla /admin/integraciones?tab=sales-app: matriz de campos, eventos, simulador y mensajes detenidos. docs/contracts/sales-app-events-v1.md (matriz generada) y sales-app-events-v1.schema.json. Pruebas: tests/db/eventos-api2.test.ts (2 casos), tests/e2e/zx-eventos-api.spec.ts (1 caso).
-- Missing: Lo que no depende del código: firmar el contrato con el equipo que lleva la Sales App y Sales Core, y conectar su sistema con una llave events:write. La primera transacción sigue llegando por el archivo diario de ventas, no como evento.
-- Adapter turned off: conexión real con la Sales App (no hay adaptador saliente: es una entrada con llave)
-- Who unblocks or what it depends on: Dan Mulligan (equipo de la Sales App y Sales Core)
+**CAMPO-01 · Contrato de eventos CRM y Sales App, un solo creador de PDV: Partial.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: Sin cambio de conector propio: la Sales App empuja a CONTIGO (llave events:write); no hay salida que construir aquí
+- Missing: Contrato firmado con P&T y que la Sales App se conecte; first_transaction por archivo S5 (sales_file live ya construido)
+- Adapter turned off: SALES_FILE
+- Who unblocks or what it depends on: Dan Mulligan (Sales App); Datos S5
 
-**CAMPO-02 · Next best store y frecuencias por segmento: Built.**
-- Source: package `campo-canal`, 13-Nov-2026.
-- Evidence: store_priority con segmento A a D, frecuencia por segmento (umbral), puntaje, razones visibles y grupo de control por territorio; tarea campo-canal.store_priority; /campo?tab=prioridad; API GET /api/v1/field-signals para la Sales App; tests/db/campo-canal.test.ts 'CAMPO-02'
-- Missing: Segmentos y frecuencias son valores de arranque: Ventas debe confirmarlos. La Sales App todavía no lee la API.
-- Who unblocks or what it depends on: Ventas (segmentos y frecuencias)
+**CAMPO-02 · Next best store y frecuencias por segmento: Partial.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: routes live (contrato docs/contracts/route-tool.md, PUT /v1/stores); /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Que la Sales App lea /api/v1/field-signals; archivo de ventas real; elegir herramienta
+- Adapter turned off: ROUTE_TOOL
+- Who unblocks or what it depends on: Equipo Sales App (Dan Mulligan); Ventas US; Roxanna Quintero
 
 **CAMPO-03 · Cartera, territorios y reasignación: Built.**
 - Source: package `campo-canal`, 13-Nov-2026.
@@ -293,21 +296,21 @@ Check made when this file was generated: the integrated package reports cite 263
 
 | ID | Feature | Priority | Phase | Status |
 |---|---|---|---|---|
-| CANAL-01 | Portal de partners con visibilidad por subárbol | Should | F2 | Partial |
+| CANAL-01 | Portal de partners con visibilidad por subárbol | Should | F2 | Built, external channel off |
 | CANAL-02 | Registro de PDV u oportunidad y reglas de compromiso | Should | F2 | Built |
 | CANAL-03 | Atribución en 3 capas con fecha efectiva | Must | F1 | Built |
 | CANAL-04 | Motor de comisiones y residuales | Won't | F3 | Not applicable |
 | CANAL-05 | Visibilidad de comisión e incentivos por actividad sostenida | Should | F1 | Built |
 | CANAL-06 | Tiers de partner, enablement y cruce de bases | Could | F3 | Built, external channel off |
-| CANAL-07 | Fondeo, saldo y límite de crédito por nodo | Should | F2 | Partial |
+| CANAL-07 | Fondeo, saldo y límite de crédito por nodo | Should | F2 | Built, external channel off |
 | CANAL-08 | Disputas, ajustes y clawbacks de atribución y comisión | Should | F2 | Built |
 
-**CANAL-01 · Portal de partners con visibilidad por subárbol: Partial.**
-- Source: package `partners-contratos`, 13-Nov-2026.
-- Evidence: /partners (portal del partner: su subárbol por RLS con estado del alta y etapa, nivel y material; para quien maneja: dar acceso de partner, invitar externo en cola, tokens), GET /api/partners/v1/accounts con token por subárbol (corre con la identidad del partner, RLS), baja automática al archivar o fusionar el nodo (trigger), persona sintética iso.partner; tests/db/partners.test.ts (CANAL-01, 3 pruebas), e2e portal y token
-- Missing: Entrada de usuarios externos (adaptador apagado) y, por eso, el alta delegada de usuarios y sub-dealers desde el portal y la superficie dentro de axexo Business. 'Ver como' auditado ya existe (seguridad).
-- Adapter turned off: external_identity (CONTIGO_EXTERNAL_IDENTITY_ADAPTER)
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (identidad de externos) y P&T dueño de axexo Business
+**CANAL-01 · Portal de partners con visibilidad por subárbol: Built, external channel off.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: external_identity live (invitación por enlace Supabase Auth); /partners pide correo cuando está encendido; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off
+- Adapter turned off: CONTIGO_EXTERNAL_IDENTITY_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **CANAL-02 · Registro de PDV u oportunidad y reglas de compromiso: Built.**
 - Source: package `campo2`, 13-Nov-2026.
@@ -339,12 +342,12 @@ Check made when this file was generated: the integrated package reports cite 263
 - Adapter turned off: academy_progress, lakehouse_crossmatch
 - Who unblocks or what it depends on: Kore Academy; Data y Reportería; Dan Mulligan o Michael Essiet
 
-**CANAL-07 · Fondeo, saldo y límite de crédito por nodo: Partial.**
-- Source: package `campo-canal`, 13-Nov-2026.
-- Evidence: account_funding (método, saldo, límite, fecha de corte, fuente), historial y simulador marcado como tal (solo administración, fuera de producción) en /campo?tab=credito; límite de crédito pedido y aprobado por otra persona (credit_limit_requests); adaptador funding-feed apagado y tarea campo-canal.funding_pull; tests y e2e
-- Missing: El dato real: el archivo de ventas o el core no exponen fondeo, saldo ni límite. El límite aprobado no se escribe al core.
-- Adapter turned off: funding-feed (CONTIGO_FUNDING_FEED)
-- Who unblocks or what it depends on: Datos S5 (Roxanna Quintero) o core; Michael Essiet o Dan Mulligan
+**CANAL-07 · Fondeo, saldo y límite de crédito por nodo: Built, external channel off.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: funding_feed live (archivo "funding" del manifiesto S5, filas validadas); /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: S5 o core publican fondeo/saldo/límite; sign-off
+- Adapter turned off: CONTIGO_FUNDING_FEED
+- Who unblocks or what it depends on: Roxanna Quintero; Dan Mulligan o Michael Essiet
 
 **CANAL-08 · Disputas, ajustes y clawbacks de atribución y comisión: Built.**
 - Source: package `campo2`, 13-Nov-2026.
@@ -356,48 +359,49 @@ Check made when this file was generated: the integrated package reports cite 263
 
 | ID | Feature | Priority | Phase | Status |
 |---|---|---|---|---|
-| CS-01 | Lifecycle del comercio con handoffs con dueño | Must | F1 | Built |
+| CS-01 | Lifecycle del comercio con handoffs con dueño | Must | F1 | Built, external channel off |
 | CS-02 | Health score explicable y validado | Should | F2 | Built, external channel off |
 | CS-03 | Alertas tempranas y playbooks de activación y reactivación | Must | F1 | Built, external channel off |
 | CS-04 | Segmentación dinámica por modelo de atención | Should | F2 | Built, external channel off |
 | CS-05 | Account management corporativo/API | Should | F2 | Built, external channel off |
 | CS-06 | Capacitación del comercio y cambio de encargado | Should | F2 | Built, external channel off |
-| CS-07 | Pipeline de expansión y cross-sell sobre comercio activo | Should | F2 | Built |
+| CS-07 | Pipeline de expansión y cross-sell sobre comercio activo | Should | F2 | Built, external channel off |
 | CS-08 | Feedback de producto desde campo | Could | F2 | Built, external channel off |
 
-**CS-01 · Lifecycle del comercio con handoffs con dueño: Built.**
-- Source: package `ciclo-cs`, 13-Nov-2026.
-- Evidence: Migración 0042: crm.account_care (8 etapas), crm.lifecycle_events (historial con origen), crm.lifecycle_windows (por mercado y línea de producto, histéresis, días mínimos en etapa), app.lifecycle_recalc, app.lifecycle_backtest, crm.handoffs (de/a papel, dueño, fecha, lista, acuse). Pantallas /comercios/<id>/cuidado, /cuidado, /admin/cuidado. Job ciclo-cs.lifecycle. tests/db/ciclo-cs.test.ts (CS-01, 10 pruebas); tests/e2e/zx-ciclo-cs.spec.ts.
-- Missing: Umbrales calibrados con datos propios reales: la calibración está construida y pide 30 comercios con dos cortes; hoy hay valores de fábrica (5/8/20/15/90/3) marcados como tales.
-- Who unblocks or what it depends on: Data y Reportería (archivo de ventas con historia suficiente)
+**CS-01 · Lifecycle del comercio con handoffs con dueño: Built, external channel off.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: sales_file live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Archivo real de S5 y calibrar ventanas
+- Adapter turned off: SALES_FILE
+- Who unblocks or what it depends on: Roxanna Quintero
 
 **CS-02 · Health score explicable y validado: Built, external channel off.**
-- Source: package `ciclo-cs`, 13-Nov-2026.
-- Evidence: crm.health_config (pesos editables), app.health_snapshot_run (tope por grupo, decay, explicación por grupo guardada), crm.health_validations y app.health_backtest (precisión y recall por modelo de atención); no se publica sin validación de 30+ comercios. Pruebas CS-02 (4).
-- Missing: Publicación real pendiente de validación con datos de producción. Grupos mix/tickets/saldo sin dato hasta encender conexiones.
-- Adapter turned off: zendesk_counts (ZENDESK_COUNTS_ADAPTER); care_signals (CARE_SIGNALS_ADAPTER)
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan (Zendesk); Data y Reportería (señales)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: zendesk_counts live (organization external_id = id del comercio, search/count) y care_signals live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: CS pone external_id en Zendesk; sign-off; validar con datos reales
+- Adapter turned off: ZENDESK_COUNTS_ADAPTER, CARE_SIGNALS_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet; Datos S5
 
 **CS-03 · Alertas tempranas y playbooks de activación y reactivación: Built, external channel off.**
-- Source: package `ciclo-cs`, 13-Nov-2026.
-- Evidence: crm.cs_settings (N, caída, saldo bajo, grupo de control, límite de mensajes), crm.playbooks editables por mercado y modelo de atención, crm.cs_alerts crea tarea con pasos al dueño según modelo de atención, cierre solo, medición returned_14d/30d contra grupo de control, crm.cs_messages con consentimiento del registro de Seguridad (crm.consents, app.may_contact). Job ciclo-cs.alerts. Pruebas CS-03 (4).; integración ola 4: es la única regla de saldo bajo (umbral de Cuidado de comercios; saldo de crm.account_balance_latest, que junta fondeo y señales)
-- Missing: Alertas apagadas por defecto en cada mercado (decisión por defecto): las enciende quien lidera. Saldo bajo depende de la conexión de señales.
-- Adapter turned off: whatsapp (WHATSAPP_ADAPTER); care_signals (saldo)
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan (WhatsApp Business); Data y Reportería (saldo)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: WhatsApp live solo plantilla aprobada por mercado (domain/conectores/whatsapp.ts, care.ts), límite diario cuenta "sent"; care_signals live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Plantillas aprobadas por Meta (cs_<tipo>); sign-off; líderes encienden alertas
+- Adapter turned off: WHATSAPP_ADAPTER, CARE_SIGNALS_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet; Marketing y Legal; Datos S5
 
 **CS-04 · Segmentación dinámica por modelo de atención: Built, external channel off.**
-- Source: package `ciclo-cs`, 13-Nov-2026.
-- Evidence: service_tier en crm.account_care, app.service_tier_recalc con comisión como variable principal y volumen como secundaria, histéresis por margen, tipo de cuenta manda; historial crm.service_tier_events; umbrales en /admin/cuidado. Prueba CS-04.
-- Missing: Comisión real por comercio: hoy se estima con volumen x tasa del mercado y la pantalla lo dice.
-- Adapter turned off: care_signals
-- Who unblocks or what it depends on: Data y Reportería o quien liquida
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: care_signals live trae commission_minor_30d; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Archivo care_signals real
+- Adapter turned off: CARE_SIGNALS_ADAPTER
+- Who unblocks or what it depends on: Datos S5 o quien liquida
 
 **CS-05 · Account management corporativo/API: Built, external channel off.**
-- Source: package `ciclo-cs`, 13-Nov-2026.
-- Evidence: Quien cuida la cuenta se nombra por entrega con acuse (to_role am); crm.account_plans, crm.account_relationships (rollup a la más débil), crm.account_reviews con minuta y próxima revisión; borrador con datos sin IA. Solo cadenas, distribuidores, organizaciones y dedicadas. Prueba CS-05.; integración ola 4: el borrador con IA pasa por el adaptador único de AI (AI_ADAPTER), sin interruptor propio
-- Missing: Borrador de QBR con IA.
-- Adapter turned off: ai_draft (AI_DRAFT_ADAPTER)
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: aiDraftText (Anthropic, solo datos internos, revisión humana); /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off y evaluación
+- Adapter turned off: AI_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **CS-06 · Capacitación del comercio y cambio de encargado: Built, external channel off.**
 - Source: package `campo2`, 13-Nov-2026.
@@ -406,9 +410,12 @@ Check made when this file was generated: the integrated package reports cite 263
 - Adapter turned off: kore_academy
 - Who unblocks or what it depends on: Kore Academy; Dan Mulligan o Michael Essiet
 
-**CS-07 · Pipeline de expansión y cross-sell sobre comercio activo: Built.**
-- Source: package `ciclo-cs`, 13-Nov-2026.
-- Evidence: crm.expansion_rules por mercado (opcional producto del catálogo), app.expansion_run solo sobre activos con actividad real y sin el producto en la matriz, crm.expansion_opportunities hija de la cuenta con embudo por tomar/en conversación/aceptó/no aceptó, tarea al tomar, no reabre en 90 días. Prueba CS-07.
+**CS-07 · Pipeline de expansión y cross-sell sobre comercio activo: Built, external channel off.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: sales_file live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Archivo real de S5
+- Adapter turned off: SALES_FILE
+- Who unblocks or what it depends on: Roxanna Quintero
 
 **CS-08 · Feedback de producto desde campo: Built, external channel off.**
 - Source: package `campo2`, 13-Nov-2026.
@@ -458,9 +465,9 @@ Check made when this file was generated: the integrated package reports cite 263
 | ID | Feature | Priority | Phase | Status |
 |---|---|---|---|---|
 | AUT-01 | Capa de dominio única para reglas | Must | F1 | Partial |
-| AUT-02 | Eventos de dominio (outbox) | Must | F1 | Partial |
+| AUT-02 | Eventos de dominio (outbox) | Must | F1 | Built, external channel off |
 | AUT-03 | Workflows, SLAs y aprobaciones como transiciones | Should | F1 | Built |
-| AUT-04 | API y entornos de prueba | Must | F1 | Partial |
+| AUT-04 | API y entornos de prueba | Must | F1 | Built |
 | AUT-05 | Servicio de notificaciones centralizado | Should | F2 | Partial |
 | AUT-06 | Ingesta del lakehouse por archivos diarios | Should | F1 | Built, external channel off |
 | AUT-07 | Import y export masivo gobernado | Should | F1 | Built |
@@ -471,12 +478,12 @@ Check made when this file was generated: the integrated package reports cite 263
 - Missing: 1) contigo_app conserva INSERT y UPDATE directos sobre crm: pasar a escritura solo por funciones de Postgres es un cambio de arquitectura que pide Tech Implementation Review. 2) La importación sigue escribiendo por lotes con su propio SQL (por volumen), validando cada fila con las reglas compartidas; un negocio abierto importado sin próximo paso entra y se cuenta, no se rechaza. 3) La prueba de contrato de importación ejercita las funciones que llama el cargador, no una corrida completa contra el Pipedrive simulado. 4) Validaciones fiscales (MULTI-03) no son de este paquete.
 - Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (Tech Implementation Review: dónde viven las reglas, TypeScript o funciones Postgres)
 
-**AUT-02 · Eventos de dominio (outbox): Partial.**
-- Source: package `eventos-api`, 13-Nov-2026.
-- Evidence: Pantalla /admin/integraciones?tab=eventos (administración): catálogo versionado de 79 eventos con esquema y ejemplo, lista de lo que no emite y por qué, suscriptores (destino https, eventos, mercado, secreto, pausa, baja), entregas en reintento y mensajes muertos con Reenviar, y Publicar ahora. Código: src/domain/events/catalog.ts (decide: lista explícita), src/domain/common.ts (audit emite en la misma transacción), src/domain/publisher.ts, job eventos-api.publish en src/server/jobs/eventos-api.ts. Contrato: docs/contracts/domain-events-v1.md (generado). Pruebas: tests/db/eventos-api.test.ts (9 casos de AUT-02), tests/unit/eventos-api-contracts.test.ts, tests/e2e/zx-eventos-api.spec.ts (2 casos).
-- Missing: 1) Entrega real: el adaptador solo tiene off y simulated; la implementación HTTP no se escribió a propósito (regla: sin llamadas de red). Para encender: aprobar el transporte, escribir la entrega en src/server/adapters/event-delivery.ts, poner CONTIGO_EVENT_SIGNING_KEY y CONTIGO_EVENT_DELIVERY. 2) UI en vivo por Broadcast (punto 5 de la auditoría): no venía en el encargo y es tecnología nueva. 3) Nadie suscrito todavía (Sales Core, S5): depende de P&T. 4) El corredor que decide cuándo corre el job lo construye el paquete automatizaciones.
-- Adapter turned off: event-delivery (CONTIGO_EVENT_DELIVERY)
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (Tech Implementation Review del transporte; decidir si hay bus de P&T)
+**AUT-02 · Eventos de dominio (outbox): Built, external channel off.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Cursor por transacción confirmada (0045: crm.outbox_events.txid xid8, app.outbox_take con horizonte por consumidor, crm.outbox_consumers/outbox_consumed); automatizaciones por evento ya no usan id con margen de 2 s (engine.ts runEvents). UI en vivo: crm.live_signals + job plataforma.en_vivo + /api/live + LiveRefresh en Hoy (flag live_updates); Broadcast detrás de src/server/adapters/realtime.ts. Pruebas: tests/db/plataforma.test.ts 'AUT-02' (transacción larga que confirma tarde, consumidor que falla), zx-plataforma 'marcas en vivo'.
+- Missing: Suscriptores externos (Sales Core, S5) y transporte HTTP real de entrega (paquete conectores).
+- Adapter turned off: REALTIME_ADAPTER (Broadcast de Supabase Realtime)
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **AUT-03 · Workflows, SLAs y aprobaciones como transiciones: Built.**
 - Source: package `embudo2`, 13-Nov-2026.
@@ -484,18 +491,18 @@ Check made when this file was generated: the integrated package reports cite 263
 - Missing: Programar el cron en el despliegue (vercel.json) sigue fuera del alcance.
 - Who unblocks or what it depends on: Administración (confirmar responsables); Operaciones (activar pasos)
 
-**AUT-04 · API y entornos de prueba: Partial.**
-- Source: package `eventos-api`, 13-Nov-2026.
-- Evidence: GET /api/v1/accounts, /deals, /leads, /activities y /catalogs con llave de un mercado y alcances mínimos, cursor, filtros validados y los permisos de quien creó la llave (RLS). Límite por llave y por IP en la base con 429 y Retry-After; 20 llaves inválidas por minuto por IP y después 429. Rotación con dos llaves vigentes y fecha de retiro, último uso, revocar con confirmación. Pantalla /admin/integraciones?tab=api con llaves y documentación. docs/contracts/api-v1.md y api-v1.openapi.json (generados). Llaves de prueba ctg_test_: leen un juego sintético en memoria (src/server/api-sandbox.ts), nunca las tablas del negocio. Pruebas: tests/db/eventos-api.test.ts (5 casos de AUT-04), tests/e2e/zx-eventos-api.spec.ts (2 casos). Integración de la ola 1 (13-nov): las llaves de lectura y de escritura se crean, rotan y revocan en una sola pantalla y por una sola función (src/domain/api-keys.ts); se quitó la tarjeta de llaves de la pestaña anterior.
-- Missing: 1) API de escritura general sobre el dominio (el encargo pidió lectura). 2) Tokens de socios acotados a un subárbol: hoy la llave se acota a un mercado. 3) Entornos por rama (branches de Supabase, previews de Vercel): no se tocó infraestructura; se resolvió con llaves de prueba. 4) La API v1 no expone teléfonos, correos, nombres de contacto ni texto de notas: si un consumidor los necesita, es decisión de C1.
-- Who unblocks or what it depends on: Yamil Alvarez (alcance de la v1 y datos de contacto); Dan Mulligan (plataforma y entornos por rama)
+**AUT-04 · API y entornos de prueba: Built.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: POST /api/v1/activities, POST /api/v1/leads, PATCH /api/v1/deals/{id}, PATCH /api/v1/accounts/{id} (src/server/api.ts apiWrite; domain/plataforma/api-write.ts llama recordActivity, createLead, moveDeal, updateAccount como el dueño de la llave, acotado a su mercado); scopes *:write; llaves de prueba no escriben. docs/contracts/api-v1-write.md y api-v1-write.openapi.json; docs/entornos-por-rama.md. Pruebas tests/db/plataforma.test.ts 'AUT-04', zx-plataforma 'API de escritura' (201/403/404/422).
+- Missing: Entornos por rama (branches de Supabase, previews de Vercel) documentados, no encendidos. Idempotencia en escritura no incluida (documentado).
+- Who unblocks or what it depends on: Dan Mulligan (entornos por rama)
 
 **AUT-05 · Servicio de notificaciones centralizado: Partial.**
-- Source: package `avisos`, 13-Nov-2026.
-- Evidence: Servicio único src/domain/notify.ts (notify, notifyMany, notifyOutside) con registro crm.notifications (canal, plantilla, destinatario, costo, estado). Pantallas: campana con contador en la barra, /avisos (leído y sin leer, enlace al registro), /avisos/preferencias (tipo por canal y resumen diario), Hoy muestra los que piden acción, /admin/avisos (canales, cola de salida, plantillas, por mercado), /estado (cada canal apagado y qué falta). Horario hábil, resumen y límite diario de WhatsApp en dominio. Menciones, devoluciones, negocio ganado, segunda solicitud web y llegada de lead pasan por el servicio. Pruebas: tests/db/avisos.test.ts, tests/unit/avisos.test.ts, tests/e2e/zx-avisos.spec.ts. Integración de la ola 1 (13-nov): el corredor ya corre avisos.lead_goal, avisos.release y avisos.digest. También pasan por notify.ts los avisos de una automatización (tipo automation), el escalamiento de leads (lead_escalated), los reportes programados (scheduled_report) y la alerta de exportaciones a administración (export_alert). Prueba de que nadie escribe avisos por su lado: tests/db/integracion-95-1.test.ts.
-- Missing: 1) Canal push: no se construyó (no estaba en el encargo; pide service worker y proveedor). 2) El servicio se llama dentro de la transacción del cambio; no se alimenta del publicador del outbox (AUT-02, paquete eventos-api). 3) Correo, Slack y WhatsApp quedan apagados; WhatsApp a personas no tiene a dónde ir porque CONTIGO no guarda su teléfono.
-- Adapter turned off: email (EMAIL_ADAPTER), slack (SLACK_ADAPTER), whatsapp (WHATSAPP_ADAPTER)
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan (revisión de tecnología)
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Avisos alimentados por la cola: crm.event_notice_rules (reglas por evento y audiencia, apagadas como propuesta), domain/plataforma/feed.ts noticesFromOutbox (consumidor 'notices', llama a notify, nunca al actor), job plataforma.avisos_eventos, Administración > Plataforma 'Avisos por evento'. Pruebas tests/db/plataforma.test.ts 'AUT-05', zx-plataforma.
+- Missing: Los avisos que ya existían siguen saliendo dentro de la transacción del cambio (no se migraron a reglas por evento); push lo escribe el paquete conectores (WEB_PUSH_ADAPTER) y lo usa notify al integrar.
+- Adapter turned off: WEB_PUSH_ADAPTER, correo, Slack, WhatsApp (conectores)
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **AUT-06 · Ingesta del lakehouse por archivos diarios: Built, external channel off.**
 - Source: package `reportes2`, 13-Nov-2026.
@@ -517,8 +524,8 @@ Check made when this file was generated: the integrated package reports cite 263
 | IA-03 | Calificación y clasificación de leads asistida | Could | F3 | Built, external channel off |
 | IA-04 | Agentes con autonomía graduada | Could | F2 | Built, external channel off |
 | IA-05 | Consulta en lenguaje natural sobre métricas definidas | Could | F2 | Built, external channel off |
-| IA-06 | Servidor MCP del CRM | Could | F2 | Partial |
-| IA-07 | Guardas contra inyección y fuga de datos | Must | F1 | Partial |
+| IA-06 | Servidor MCP del CRM | Could | F2 | Built, external channel off |
+| IA-07 | Guardas contra inyección y fuga de datos | Must | F1 | Built |
 | IA-08 | Evaluación de IA | Should | F2 | Partial |
 
 **IA-01 · Captura asistida (voz, documentos, conversaciones): Partial.**
@@ -534,39 +541,38 @@ Check made when this file was generated: the integrated package reports cite 263
 - Missing: Límite por ruta (hoy es por comercio). El 'ayudan o no' solo se afirma con 30 medidas por grupo y algún territorio marcado como control: decisión de quien lidera.
 
 **IA-03 · Calificación y clasificación de leads asistida: Built, external channel off.**
-- Source: package `ia`, 13-Nov-2026.
-- Evidence: Lead /leads/[id] tarjeta 'Calificación' (puntaje con cada punto, clase propuesta, confirmación humana); pesos por mercado en /admin/ia?tab=calificacion; crm.lead_score_weights, crm.lead_classifications; tests/db/ia.test.ts IA-03; e2e zx-ia 3
-- Missing: Clasificación de texto libre con modelo: construida tras el adaptador y apagada (lista cerrada de 5 clases, texto citado como no confiable, sin herramientas).
-- Adapter turned off: AI_ADAPTER (src/server/adapters/ai.ts)
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan (revisión de tecnología)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: aiAdapter live: Anthropic Messages, allowlist (AI_EGRESS_ALLOWLIST), opción cerrada, costo por AI_PRICE_*; ia_calls acepta mode live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off tras TIR y evaluación IA-08; Finanzas fija precio
+- Adapter turned off: AI_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **IA-04 · Agentes con autonomía graduada: Built, external channel off.**
-- Source: package `ia`, 13-Nov-2026.
-- Evidence: /admin/ia: nivel por mercado (apagado, sugiere, redacta, ejecuta con aprobación), quien supervisa obligatorio, revisión semanal, costo por acción; /asistencia?tab=borradores aprobar o rechazar con motivo; resumen de cuenta de solo lectura en la ficha; registro en crm.ia_calls y bitácora; agente único por reglas con prueba de la tríada (src/domain/ia/agents.ts); tests IA-04; e2e zx-ia 5
-- Missing: Agentes con modelo: no hay ninguno (apagado por regla).
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: mismo adaptador AI live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off; C1 nombra supervisor por mercado
 - Adapter turned off: AI_ADAPTER
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet; C1
 
 **IA-05 · Consulta en lenguaje natural sobre métricas definidas: Built, external channel off.**
-- Source: package `ia`, 13-Nov-2026.
-- Evidence: /asistencia?tab=preguntas: 9 preguntas sobre lib/metric-defs.ts con periodo, mercado y equipo; número + definición + corte; fuera de lo definido no contesta; permisos de la persona (RLS); tests/db/ia.test.ts IA-05; e2e zx-ia 4
-- Missing: Interpretación libre de preguntas con modelo: apagada.
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: mismo adaptador AI live; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off
 - Adapter turned off: AI_ADAPTER
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
-**IA-06 · Servidor MCP del CRM: Partial.**
-- Source: package `ia`, 13-Nov-2026.
-- Evidence: src/server/mcp/tools.ts (4 herramientas de solo lectura, como la persona, capacidad por herramienta, 50 filas, bitácora ia.mcp_read con vía mcp); src/app/api/mcp/route.ts responde 404 sin MCP_SERVER; docs/mcp.md; /admin/ia?tab=mcp; tests IA-06; e2e zx-ia 6
-- Missing: Ingreso por persona para agentes (OAuth 2.1 con PKCE) y el servidor de escritura (después).
+**IA-06 · Servidor MCP del CRM: Built, external channel off.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: OAuth 2.1 con PKCE S256 para MCP: crm.mcp_oauth_clients/codes/tokens (solo huellas), /mcp/autorizar (consentimiento), /api/mcp/oauth/token, metadatos .well-known, /api/mcp acepta Bearer mcpt_ como la persona; registro y retiro en Administración > Plataforma; docs/mcp.md. Prueba tests/db/plataforma.test.ts 'IA-06'.
+- Missing: Encender el servidor MCP (revisión de tecnología). Servidor de escritura: después, por diseño.
 - Adapter turned off: MCP_SERVER
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
-**IA-07 · Guardas contra inyección y fuga de datos: Partial.**
-- Source: package `ia`, 13-Nov-2026.
-- Evidence: Verificado lo de eventos-api (marca de origen no confiable). Agregado: lista de dominios de salida en el adaptador (AI_EGRESS_ALLOWLIST, vacía = no sale nada), salida solo de lista cerrada, texto de fuera citado como dato, separación lector/actor revisada en código y prueba, registro de cada llamada con versión, herramienta y diff (crm.ia_calls), casos de inyección en la evaluación
-- Missing: Lista de permitidos de salida a nivel red (es de la plataforma, no de la app).
-- Adapter turned off: AI_ADAPTER
-- Who unblocks or what it depends on: Dueño de la plataforma de producción
+**IA-07 · Guardas contra inyección y fuga de datos: Built.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Cliente único de salida src/server/net/egress.ts (solo https, lista cerrada EGRESS_ALLOWLIST, sin redirecciones, bloqueos visibles en /estado); prueba que falla con cualquier fetch del servidor fuera de ese archivo; red-team por agente (crm.agent_redteam_reviews, lista de 7 puntos) obligatorio para subir el nivel a redactar o proponer (setIaSettings). docs/egress.md. Pruebas tests/db/plataforma.test.ts 'IA-07', tests/db/ia.test.ts, zx-plataforma.
+- Missing: El mismo control a nivel de red de la plataforma.
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **IA-08 · Evaluación de IA: Partial.**
 - Source: package `reportes2`, 13-Nov-2026.
@@ -586,11 +592,11 @@ Check made when this file was generated: the integrated package reports cite 263
 | MULTI-05 | WhatsApp por mercado (WABA, costos, plantillas) | Should | F2 | Built, external channel off |
 
 **MULTI-01 · Multi-moneda con tasa fechada: Built, external channel off.**
-- Source: package `mercados`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: crm.deals guarda fx_rate, fx_rate_date, fx_source, amount_usd_minor y fx_frozen_at (0032): abierto usa la tasa vigente del día, al cerrar la congela. /reportes/consolidado (abiertos con ponderado por etapa y ganados; corte por mercado, entidad legal o unidad de negocio; monto original y USD; 'sin convertir' aparte). Una sola regla: Finanzas (/reportes/finanzas) y el Panel del LT ya no usan la tasa más reciente (Finanzas: la guardada en cada negocio; panel: la vigente en la fecha de corte de los datos). Job mercados.fx_restamp registrado. Pruebas: tests/db/mercados.test.ts 'MULTI-01' (5), tests/e2e/zx-mercados.spec.ts 'MULTI-01 y E1.F10' (2). Integración 95-2: el Panel del LT convierte el volumen con app.fx_at a la fecha de corte del archivo de ventas.
-- Missing: Las tasas se cargan a mano: la carga automática desde los datos de ventas está construida y apagada. Las partidas de un negocio (deal_items) siguen la tasa de su negocio; no guardan una propia. Finanzas y el LT confirman la regla única (decisión por defecto: tasa guardada en el negocio).
-- Adapter turned off: FX_FEED_ADAPTER (tasas fechadas desde los datos de ventas)
-- Who unblocks or what it depends on: Roxanna Quintero (S5 publica tasas fechadas) y Finanzas confirma la fuente
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: fx_feed live (archivo fx_rates del manifiesto S5); pullFxFeed; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: S5 publica tasas fechadas; Finanzas confirma fuente
+- Adapter turned off: FX_FEED_ADAPTER
+- Who unblocks or what it depends on: Roxanna Quintero; Finanzas
 
 **MULTI-02 · Entidad legal y localización (idioma, zona horaria): Partial.**
 - Source: package `datos2`, 13-Nov-2026.
@@ -599,38 +605,38 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: Legal y Finanzas (lista de entidades); decisión de abrir Brasil para portugués
 
 **MULTI-03 · Identificadores fiscales por país con validación en 3 capas: Built, external channel off.**
-- Source: package `mercados`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Captura una vez en la ficha (Datos, 'Identificador fiscal'): capa 1 interna con formato y dígito verificador para RFC (MX), EIN (US, rechaza SSN), NIT (CO y SV) y CNPJ alfanumérico (BR); capa 2 y 3 (registro oficial y listas de riesgo) por adaptador apagado; revisión humana por otra persona con nota, con aviso a quien revisa y a quien capturó (notify.ts). Se guardan últimos 4, huella (HMAC) y estado en crm.tax_ids y cada capa en crm.tax_id_verifications; el valor completo no queda en ninguna tabla ni en la bitácora. Búsqueda exacta en /buscar, en su propio campo (viaja en el cuerpo, no en la dirección). Pruebas: tests/unit/mercados.test.ts (6 de formato), tests/db/mercados.test.ts 'MULTI-03' (5), zx-mercados 'MULTI-03' (2). Integración 95-2: la ficha de dealer de US (E9.F13) usa este mismo modelo y este mismo resguardo.
-- Missing: DECISIÓN ABIERTA: el estándar prohíbe guardar el identificador completo; hoy se descarta tras validarlo. Si Legal y Seguridad deciden guardarlo, el adaptador de resguardo ya está. Falta elegir proveedor de verificación fiscal y de listas de riesgo. En staging y producción la huella necesita la llave BLIND_INDEX_KEY (sin ella no se detectan repetidos y la pantalla lo dice).
-- Adapter turned off: TAX_REGISTRY_ADAPTER (registro oficial y listas de riesgo), PROTECTED_DATA_ADAPTER (resguardo del valor completo), BLIND_INDEX_KEY (llave de la huella)
-- Who unblocks or what it depends on: Compliance (proveedor), Legal y Seguridad (valor completo), Dan Mulligan o Michael Essiet (revisión de tecnología)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: tax_registry live (contrato docs/contracts/tax-registry.md) y protected_data live (AES-256-GCM + bucket privado); /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Compliance elige proveedor; Legal y Seguridad deciden guardar valor completo; BLIND_INDEX_KEY
+- Adapter turned off: TAX_REGISTRY_ADAPTER, PROTECTED_DATA_ADAPTER
+- Who unblocks or what it depends on: Compliance; Legal y Seguridad; Dan Mulligan o Michael Essiet
 
 **MULTI-04 · Direcciones por país y geolocalización: Built, external channel off.**
-- Source: package `mercados`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Formato de dirección por país en crm.address_formats (campos, orden, obligatorios, código postal): la ficha pinta el formulario desde ahí. Dirección normalizada con índice para buscar por calle. Coordenadas a mano, desde el teléfono (permiso del navegador) o desde el evento store.created de la Sales App (opcional, no pisa lo guardado). Distancia, 'Cerca de mí' (/comercios/cerca) y posibles repetidos a menos de 60 m calculados en la base, sin proveedor. Pruebas: tests/db/mercados.test.ts 'MULTI-04' (3); zx-mercados 'MULTI-04 y E2.F1' (2, una a 390 px con geolocalización).
-- Missing: Mapa y geocodificación por dirección: construidos como adaptador y apagados (la vista Mapa lo dice y manda a Cerca de mí). Cambié el encabezado Permissions-Policy a geolocation=(self): antes bloqueaba la ubicación del teléfono para todos.
-- Adapter turned off: GEOCODING_ADAPTER (mapa y geocodificación)
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (proveedor de mapas en la revisión de tecnología)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: geocoding live (Google Geocoding API); /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off en TIR
+- Adapter turned off: GEOCODING_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **MULTI-05 · WhatsApp por mercado (WABA, costos, plantillas): Built, external channel off.**
-- Source: package `mercados`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Por mercado y entidad: número (crm.whatsapp_accounts, uno activo por mercado y entidad), plantillas por idioma y categoría con estado de aprobación, costo por mensaje con vigencia y fuente, y ventana de 24 h (72 h desde anuncio) visible en la ficha y en su encabezado. Enlace wa.me del número del mercado en la ficha para que el comercio escriba primero. Un solo interruptor con el canal de avisos (WHATSAPP_ADAPTER). Pruebas: tests/db/mercados.test.ts 'MULTI-05' (2); zx-mercados 'MULTI-05' (1). Integración 95-2: es el único modelo de WhatsApp: el servicio de avisos (notify.ts) toma de aquí el costo y el límite diario; Avisos, Canales ya no los pide.
-- Missing: No sale ni entra ningún mensaje: envío, recepción (la ventana se anota a mano con 'El comercio me escribió') y costos reales por webhook esperan la cuenta de WhatsApp Business. Sin código QR (pide una dependencia nueva): queda el enlace.
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: WhatsApp Cloud API live, plantillas aprobadas, número por mercado, límite y costo existentes; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: WABA por mercado y plantillas aprobadas por Meta; sign-off
 - Adapter turned off: WHATSAPP_ADAPTER
-- Who unblocks or what it depends on: Marketing y Legal (cuenta de WhatsApp Business por mercado y plantillas aprobadas por Meta); Dan Mulligan o Michael Essiet (revisión de tecnología)
+- Who unblocks or what it depends on: Marketing y Legal; Dan Mulligan o Michael Essiet
 
 ### SEG · Seguridad, privacidad y cumplimiento
 
 | ID | Feature | Priority | Phase | Status |
 |---|---|---|---|---|
 | SEG-01 | Permisos por rol, territorio y fila (RLS) | Must | F1 | Built |
-| SEG-02 | Seguridad por campo (comisiones, splits, datos sensibles) | Must | F1 | Built, external channel off |
+| SEG-02 | Seguridad por campo (comisiones, splits, datos sensibles) | Must | F1 | Partial |
 | SEG-03 | Audit log inmutable y monitoreo de exportes | Must | F1 | Built, external channel off |
 | SEG-04 | Consentimiento, datos sensibles y retención | Must | F1 | Partial |
 | SEG-05 | Offline seguro con escritura | Won't | F3 | Not applicable |
 | SEG-06 | Código de conducta e incidentes de campo | Should | F2 | Built |
-| SEG-07 | Ciclo de vida de identidades | Should | F1 | Partial |
-| SEG-08 | Gestión de secretos y credenciales de integración | Should | F1 | Built |
+| SEG-07 | Ciclo de vida de identidades | Should | F1 | Built, external channel off |
+| SEG-08 | Gestión de secretos y credenciales de integración | Should | F1 | Partial |
 | SEG-09 | Derechos de titulares (acceso, rectificación, eliminación) | Should | F2 | Built |
 | SEG-10 | Protección de endpoints públicos | Should | F2 | Built, external channel off |
 
@@ -640,25 +646,25 @@ Check made when this file was generated: the integrated package reports cite 263
 - Missing: Una parte de Administración sigue leyendo todos los mercados (es rol global, como Leadership): estrecharlo es decisión.
 - Who unblocks or what it depends on: Yamil Alvarez (decisión de alcance de lectura de administración parcial)
 
-**SEG-02 · Seguridad por campo (comisiones, splits, datos sensibles): Built, external channel off.**
-- Source: package `seguridad`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: crm.sensitive_fields y crm.account_sensitive (sin privilegios para la app; solo funciones app.sensitive_*), visibilidad y edición por rol y por quien lleva la cuenta, tapado con revelado bajo motivo registrado en bitácora y en lecturas; el valor nunca entra a la bitácora. /comercios/<id>/equipo y /admin/seguridad?s=privacidad. tests/db/seguridad.test.ts (SEG-02, 2 pruebas); E2E revela con motivo
-- Missing: Cifrado con llaves gestionadas apagado (el valor se guarda sin cifrar, protegido por permisos). Solo existen campos reservados de comercio (no de negocio ni de contacto).
+**SEG-02 · Seguridad por campo (comisiones, splits, datos sensibles): Partial.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Datos reservados en negocio y contacto (crm.record_sensitive, app.record_sensitive_*; sensitive_fields.applies_to), reparto de comisión del negocio que quien vende no ve; tarjeta en /deals/<id> y en /comercios/<id>/equipo por contacto. Pruebas tests/db/plataforma.test.ts 'SEG-02', zx-plataforma (390 px).
+- Missing: No hay módulo de comisiones (CANAL-05): 'el ISO ve comisiones de su subárbol' no tiene tablas sobre qué aplicarse. Cifrado por campo apagado.
 - Adapter turned off: FIELD_CRYPTO_ADAPTER
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (servicio de llaves aprobado)
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (llaves); decisión de CANAL-05
 
 **SEG-03 · Audit log inmutable y monitoreo de exportes: Built, external channel off.**
-- Source: package `seguridad`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Migración 0031: esquema audit (data_log, config_log, read_log, archive_batches) escrito por triggers en toda tabla de crm, con vía y solicitud, solo inserción; alertas (app.security_scan, job seguridad.alertas) avisadas por el servicio de avisos. Pantalla /admin/seguridad (Alertas y lecturas, Bitácora de la base). tests/db/seguridad.test.ts (SEG-03, 11 pruebas); tests/e2e/zx-seguridad.spec.ts
-- Missing: La copia fuera de la base no sale (adaptador apagado). No se registran las lecturas de listas en pantalla (sí exportaciones, búsquedas, revelados, ver como y lecturas con llave). Los datos del antes y el después quedan completos en la bitácora: falta decidir retención y tamaño.
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Listas en pantalla (comercios, leads, tablero de negocios) en audit.read_log kind 'list'; umbral list_rows_per_day y app.security_scan_lists (job plataforma.lecturas) con alerta por el servicio de avisos; 0045 llama audit.attach_all y prueba de cobertura total de triggers; retención de bitácora como valor propuesto audit_retention_days. Pruebas tests/db/plataforma.test.ts 'SEG-03'.
+- Missing: Copia diaria fuera de la base (AUDIT_ARCHIVE_ADAPTER, conectores) y plazo de retención (Legal y Seguridad).
 - Adapter turned off: AUDIT_ARCHIVE_ADAPTER
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (destino aprobado: almacenamiento de objetos o lakehouse)
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet; Legal
 
 **SEG-04 · Consentimiento, datos sensibles y retención: Partial.**
-- Source: package `seguridad`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: crm.consents por contacto o lead, canal y categoría con evidencia y fecha; baja en crm.contact_suppressions; app.may_contact la preguntan el servicio de avisos (notifyOutside, releaseHeld) y la base de correo de leads; el consentimiento pasa del lead al contacto al convertir; reglas de retención con vista previa y job seguridad.retencion. tests/db/seguridad.test.ts (SEG-04, 5 pruebas); E2E registra consentimiento y baja
-- Missing: Las reglas de retención nacen apagadas y sin plazo (lo define Legal). Captura segura de documentos e identificaciones: no construida (necesita proveedor aprobado). El guard sigue rechazando en vez de enmascarar y avisar. markets.privacy_notice_version sigue vacío.
-- Who unblocks or what it depends on: Legal (plazos de retención y versión del aviso de privacidad)
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: DLP tapa CLABE y SSN (últimos 4) y avisa (masked en la respuesta), solo la tarjeta válida bloquea (guard.ts dlpMask en actividades y API); versión del aviso de privacidad por mercado editable en Administración > Plataforma con 'pendiente: Legal'. Pruebas tests/db/plataforma.test.ts 'SEG-04'.
+- Missing: Captura segura de documentos e identificaciones (proveedor) no construida; plazos de retención de Legal; el DLP tapa en actividades y API, el resto de los campos libres sigue rechazando.
+- Who unblocks or what it depends on: Legal; Dan o Michael (proveedor de captura)
 
 **SEG-05 · Offline seguro con escritura: Not applicable.**
 - Source: audit of 12-Nov-2026 (before the build program); no package of the program owns it.
@@ -671,17 +677,18 @@ Check made when this file was generated: the integrated package reports cite 263
 - Missing: Que la Sales App mande el evento; Compliance confirma tipos
 - Who unblocks or what it depends on: Equipo Sales App; Compliance
 
-**SEG-07 · Ciclo de vida de identidades: Partial.**
-- Source: package `seguridad`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Ver como: solo lectura, con motivo, máximo 60 minutos, registrado, barra en toda pantalla (app.view_as_*, runAction corta toda acción). Reporte de accesos sin uso, revisión periódica con acuse de quien lidera, aviso a la persona cuando recibe un acceso. /admin/seguridad?s=accesos. tests/db/seguridad.test.ts (SEG-07, 4 pruebas); E2E de ver como
-- Missing: Baja automática por directorio de Google apagada. MFA obligatorio para roles con exportación: CONTIGO no ve el segundo factor (política de Google Workspace).
+**SEG-07 · Ciclo de vida de identidades: Built, external channel off.**
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: directory live (Admin SDK, readonly); job seguridad.directorio pasa cuentas conocidas; directorio vacío falla sin quitar accesos; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off; cuenta de servicio con delegación
 - Adapter turned off: DIRECTORY_ADAPTER
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (cuenta de servicio de solo lectura del directorio); IT (política de MFA en Google Workspace)
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
-**SEG-08 · Gestión de secretos y credenciales de integración: Built.**
-- Source: package `seguridad`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Inventario de conexiones de salida sin valores (crm.secret_inventory: responsable, cada cuánto se rota, última rotación, si la variable existe); llaves de API con responsable y vencimiento sobre lo que hizo eventos-api (rotación, último uso); alertas de llave por vencer, sin uso, rotación vencida, llamadas por hora y filas por día. /admin/seguridad?s=llaves. tests/db/seguridad.test.ts (SEG-08, 2 pruebas)
-- Missing: No hay gestor de secretos ni rotación automática: CONTIGO avisa, la rotación la hace una persona en la plataforma. El inventario se llena a mano.
+**SEG-08 · Gestión de secretos y credenciales de integración: Partial.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Suplente por conexión (secret_inventory.backup_owner_id, distinto del responsable) editable en Administración > Plataforma; rotación programada: job plataforma.rotacion avisa al responsable o suplente una vez al día; 'pendiente: Yamil' mientras falten nombres. Pruebas tests/db/plataforma.test.ts 'SEG-08'.
+- Missing: Gestor de secretos de la plataforma y rotación automática; responsables y suplentes sin cargar.
+- Who unblocks or what it depends on: Dan Mulligan (gestor); Yamil (responsables)
 
 **SEG-09 · Derechos de titulares (acceso, rectificación, eliminación): Built.**
 - Source: package `seguridad`, 13-Nov-2026, checked at integration 95-2.
@@ -690,18 +697,18 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: Legal (plazo de respuesta por país)
 
 **SEG-10 · Protección de endpoints públicos: Built, external channel off.**
-- Source: package `eventos-api`, 13-Nov-2026.
-- Evidence: Formularios públicos /f/[slug]: límite por IP y por formulario (vistas y envíos), llave de la página, tiempo mínimo entre carga y envío, campo trampa y adaptador anti-bot. Lo rechazado no se guarda (solo un conteo por motivo) y la respuesta es la misma para todos los motivos. La API de formularios tiene límite por llave y por IP con 429. Pantalla /admin/integraciones?tab=formularios: límites por formulario y rechazos de 7 días; /estado muestra el adaptador. Código: src/domain/form-guard.ts, src/server/protect.ts, app.rate_hit. Pruebas: tests/db/eventos-api2.test.ts (2 casos), tests/e2e/zx-eventos-api.spec.ts (1 caso).
-- Missing: La página pública responde 200 con el aviso de espera, no un 429: el código de estado real pide mover el límite al borde. Links de alta: no existen todavía, no hay qué proteger.
-- Adapter turned off: antibot (CONTIGO_ANTIBOT)
-- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet (aprobar el servicio anti-bot)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: antibot live (Cloudflare Turnstile de referencia); antibotSiteKey para el widget; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off en TIR; montar el widget en los formularios públicos con TURNSTILE_SITE_KEY
+- Adapter turned off: CONTIGO_ANTIBOT
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 ### UX · Experiencia de uso
 
 | ID | Feature | Priority | Phase | Status |
 |---|---|---|---|---|
 | UX-01 | Ficha de cuenta con lo importante arriba | Must | F1 | Built |
-| UX-02 | Velocidad, UI optimista y búsqueda por cualquier alias | Must | F1 | Partial |
+| UX-02 | Velocidad, UI optimista y búsqueda por cualquier alias | Must | F1 | Built |
 | UX-03 | Vistas guardadas como colas y estados vacíos útiles | Must | F1 | Built |
 | UX-04 | Móvil para supervisores y KAM | Should | F1 | Partial |
 
@@ -711,10 +718,11 @@ Check made when this file was generated: the integrated package reports cite 263
 - Missing: Los cinco datos por rol son un punto de partida: C1 los confirma acompañando a supervisión y a Operaciones (el catálogo lo pide).
 - Who unblocks or what it depends on: Yamil Alvarez (C1): sesión de acompañamiento con supervisión y Operaciones
 
-**UX-02 · Velocidad, UI optimista y búsqueda por cualquier alias: Partial.**
-- Source: package `seguridad`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Teléfono solo por número completo (7 dígitos o más) y alias solo exacto; 30 búsquedas por persona por minuto contadas por la base; cada búsqueda queda en el registro de lecturas. Paleta de comandos con Ctrl+K (src/ui/palette.tsx). tests/db/seguridad.test.ts (UX-02); E2E de búsqueda y paleta
-- Missing: Interfaz optimista con vuelta atrás: no hecha. Latencia p95 en Android de gama baja: sin medir. Búsqueda de texto completo: no hecha. Identificador fiscal: existe (crm.tax_ids, paquete mercados) y se busca por su campo propio en /buscar, no por fragmento.
+**UX-02 · Velocidad, UI optimista y búsqueda por cualquier alias: Built.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Teléfono exacto E.164 por mercado (src/lib/search-terms.ts, índices por teléfono, app.search_others_exact); texto completo con GIN (search_tsv en comercios, leads, negocios); UI optimista con reversión en Visto (Hoy), Tomar lead y Calificar lead (src/ui/optimistic.tsx); p95 de búsqueda en el servidor (renglón 'buscar') visible en /estado. Pruebas tests/db/plataforma.test.ts 'UX-02', zx-plataforma ('Calificar' vuelve con el motivo).
+- Missing: Meta de p95 en Android de gama baja: la medición existe; la cifra la fija C1 en el piloto.
+- Who unblocks or what it depends on: C1 (piloto)
 
 **UX-03 · Vistas guardadas como colas y estados vacíos útiles: Built.**
 - Source: package `embudo2`, 13-Nov-2026.
@@ -723,10 +731,11 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: C1
 
 **UX-04 · Móvil para supervisores y KAM: Partial.**
-- Source: package `mercados`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: Enlace directo /comercios/ref/<ID de la Sales App, Merchant ID o ID de CONTIGO> que no revela comercios fuera del alcance. A 390 px, sin desbordes y con axe limpio: ficha y pestaña Datos como quien lidera y como Operaciones, revisión del identificador fiscal de un toque, Cerca de mí, Consolidado y Administración de mercados. Pruebas: tests/db/mercados.test.ts 'UX-04'; zx-mercados 'UX-04' y los recorridos a 390 px.
-- Missing: 1) Sin caché de lectura sin señal: no la construí porque deja datos de comercios guardados en teléfonos personales (decisión de Seguridad). 2) El enlace existe de este lado; falta que la Sales App lo use. 3) Velocidad en un teléfono real sin medir. 4) Las aprobaciones de pasos de etapa son del paquete automatizaciones: no las verifiqué a 390 px.
-- Who unblocks or what it depends on: Seguridad (caché en el teléfono); equipo de la Sales App (enlace)
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Aprobación de paso de un toque verificada a 390 px con axe y botón de 44 px (zx-plataforma 'UX-04'); tiempo en teléfono medido en el navegador (renglón 'telefono', p95 en /estado); contrato docs/contracts/sales-app-deeplink-v1.md; lectura sin señal como valor propuesto offline_read_cache (apagado).
+- Missing: Caché sin señal (decisión de Seguridad); la Sales App todavía no usa el enlace; datos de velocidad reales solo cuando el equipo lo use en teléfono.
+- Adapter turned off: offline_read_cache (valor propuesto)
+- Who unblocks or what it depends on: Seguridad; equipo de la Sales App
 
 ### GOB · Gobierno, adopción y operación
 
@@ -739,7 +748,7 @@ Check made when this file was generated: the integrated package reports cite 263
 | GOB-05 | Migración y convivencia con Pipedrive y Zoho | Should | F1 | Built, external channel off |
 | GOB-06 | Avisos a la red con acuse | Should | F2 | Built, external channel off |
 | GOB-07 | Observabilidad, respaldo y recuperación | Should | F1 | Partial |
-| GOB-08 | Datos de prueba sintéticos por mercado | Should | F1 | Partial |
+| GOB-08 | Datos de prueba sintéticos por mercado | Should | F1 | Built |
 | GOB-09 | Costo unitario del CRM (FinOps) | Should | F1 | Built, external channel off |
 | GOB-10 | Soporte y entrenamiento in-app | Should | F1 | Partial |
 
@@ -761,10 +770,10 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: Yamil Alvarez y quienes lideran los mercados
 
 **GOB-04 · Gobierno de releases y mantenimiento: Partial.**
-- Source: package `gobierno`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: /admin/gobierno (Versiones): responsable técnico y suplente por componente (7 componentes, sin nombres, dos personas distintas), calendario de mantenimiento por mercado, versiones con notas ES y EN que se anuncian antes de salir (salen por Anuncios y quedan en /solicitudes), lista de salida de 8 puntos con evidencia (revisión de tecnología y estándar incluidos) sin la cual la versión no se libera, registro de despliegues (job gobierno.deploy_watch anota el commit que corre). Plantilla de PR con la lista. Runbook docs/runbooks/despliegue-y-vuelta-atras.md. tests/db/gobierno.test.ts (GOB-04, 6 pruebas), E2E.
-- Missing: Nombres de responsable y suplente [pendiente: Dan Mulligan]. Segunda persona que haya desplegado y vuelto atrás. Banderas por rol y mecanismo general de banderas (sigue una bandera por mercado y por embudo). Vistas previas por rama con datos del generador (plataforma). Protección de rama con dos revisores [pendiente: administradores del repositorio]. Visto bueno de Tech Implementation Review de lo ya desplegado en staging.
-- Who unblocks or what it depends on: Dan Mulligan; Michael Essiet; administradores del repositorio
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Flags generales por rol y mercado (crm.feature_flags, flagOn/flagApplies, Administración > Plataforma), usadas en Hoy (live_updates); docs/entornos-por-rama.md. Pruebas tests/db/plataforma.test.ts 'GOB-04', zx-plataforma.
+- Missing: Nombres de responsable y suplente por componente, segunda persona que despliegue y vuelva atrás, protección de rama con dos revisores, previews por rama, sign-off de Tech Implementation Review: dependen de personas.
+- Who unblocks or what it depends on: Dan Mulligan; Michael Essiet; administradores del repo; Yamil
 
 **GOB-05 · Migración y convivencia con Pipedrive y Zoho: Built, external channel off.**
 - Source: package `integraciones2`, 13-Nov-2026.
@@ -774,23 +783,23 @@ Check made when this file was generated: the integrated package reports cite 263
 - Who unblocks or what it depends on: LuisRo Sanabria (filtros)
 
 **GOB-06 · Avisos a la red con acuse: Built, external channel off.**
-- Source: package `avisos`, 13-Nov-2026.
-- Evidence: /anuncios: publicar con audiencia (mercado, equipo, rol), vigencia, tema y acuse; cada persona lo ve al entrar (franja en toda pantalla), en su campana y en Hoy si pide acuse; lo marca leído o Enterado; quien publica ve quién falta; versión nueva reinicia el acuse; retiro; todo en bitácora (announcement.*). Cambio de comisiones o de alta: acuse obligatorio y fecha de entrada en vigor posterior al anuncio (regla en dominio y en la base). Pruebas: tests/db/avisos2.test.ts (GOB-06), tests/e2e/zx-avisos.spec.ts.
-- Missing: El candado que impide cambiar una comisión o una regla de alta sin anuncio previo no se puede poner: CONTIGO no tiene módulo de comisiones (CANAL-05). Llega solo a quienes son usuarios; reps de calle e ISOs sin usuario dependen del canal de WhatsApp, que está apagado.
-- Adapter turned off: whatsapp (WHATSAPP_ADAPTER), email (EMAIL_ADAPTER)
-- Who unblocks or what it depends on: Michael Essiet o Dan Mulligan (revisión de tecnología)
+- Source: package `conectores`, 13-Nov-2026.
+- Evidence: WhatsApp y correo (Gmail API) live por notify.ts; /estado tarjeta Conectores; tests/db/conectores.test.ts; docs/adapters.md
+- Missing: Sign-off
+- Adapter turned off: WHATSAPP_ADAPTER, EMAIL_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan o Michael Essiet
 
 **GOB-07 · Observabilidad, respaldo y recuperación: Partial.**
-- Source: package `gobierno`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: /admin/gobierno (Servicio): objetivos de servicio medidos por CONTIGO (disponibilidad, abrir una pantalla, guardar un cambio, API) con tablero por pantalla, errores con referencia, incidentes que no cierran sin causa y acciones, objetivos de recuperación con quién y cuándo, registro de pruebas de restauración (vacío). /estado muestra los objetivos. Identificador de petición de punta a punta (proxy, acciones, API, bitácora, errores). Alerta diaria a administración si un objetivo no se cumple (job gobierno.slo_watch). Runbook docs/runbooks/respaldo-y-restauracion.md. tests/db/gobierno.test.ts (GOB-07, 8 pruebas), tests/e2e/zx-gobierno.spec.ts.
-- Missing: Recuperación a un punto en el tiempo habilitada y primera prueba de restauración (es de la plataforma; ADR-002 abierto). RPO, RTO y frecuencia de prueba: sin valor, [pendiente: Dan Mulligan]. Valores de los objetivos de servicio: los fija una persona, hoy sin fijar. Dictamen de residencia de datos [pendiente: Legal]. Trazas hacia una herramienta externa: adaptador apagado.
-- Adapter turned off: traces (TRACES_ADAPTER)
-- Who unblocks or what it depends on: Dan Mulligan (plataforma, RPO y RTO); Michael Essiet o Dan Mulligan (herramienta de trazas); Legal (residencia)
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: Prueba de restauración automatizada local scripts/restore-test.mjs (pg_dump, pg_restore, conteos de 9 tablas, registro en crm.restore_tests ambiente 'local'); runbook respaldo-y-restauracion.md sección 6; RPO, RTO y SLO configurables en Gobierno y listados en /estado como 'pendiente: Dan Mulligan'. Prueba tests/db/plataforma.test.ts 'GOB-07'.
+- Missing: PITR y prueba en staging/producción; valores de RPO/RTO/SLO; dictamen de residencia; trazas externas (TRACES_ADAPTER).
+- Adapter turned off: TRACES_ADAPTER
+- Who unblocks or what it depends on: Dan Mulligan; Legal
 
-**GOB-08 · Datos de prueba sintéticos por mercado: Partial.**
-- Source: package `gobierno`, 13-Nov-2026, checked at integration 95-2.
-- Evidence: scripts/synthetic.mjs y scripts/synthetic-lib.mjs: generador reproducible por mercado (MX, US, SV), volumen y profundidad configurables (hasta 8 niveles), últimos 4 de una identificación fiscal con formato válido (RFC con dígito verificador, EIN, NIT), coordenadas, 7 días de ventas, 10 casos límite; idempotente; nunca en producción. /admin/gobierno (Datos de prueba): origen de los datos del ambiente, regla y corridas. Usado en pruebas de aislamiento por mercado y de cadena. Runbook docs/runbooks/staging-a-datos-sinteticos.md. tests/db/gobierno.test.ts (GOB-08, 3 pruebas), E2E.
-- Missing: Staging sigue con datos reales de Pipedrive (excepción de ADR-005 sin firma): pasarlo a datos del generador es decisión de Michael Essiet o Dan Mulligan; el procedimiento está escrito y no se ejecutó. Vistas previas por rama (plataforma). El generador todavía no se usa en las pruebas de contrato.
+**GOB-08 · Datos de prueba sintéticos por mercado: Built.**
+- Source: package `plataforma`, 13-Nov-2026.
+- Evidence: El generador sintético (scripts/synthetic-lib.mjs plan) alimenta la prueba de contrato de escritura de leads en MX, US y SV (tests/db/plataforma.test.ts 'GOB-08'); /estado avisa arriba mientras staging_has_real_data esté encendido (zx-plataforma).
+- Missing: Pasar staging a datos sintéticos (procedimiento escrito, no ejecutado).
 - Who unblocks or what it depends on: Michael Essiet o Dan Mulligan
 
 **GOB-09 · Costo unitario del CRM (FinOps): Built, external channel off.**
@@ -810,7 +819,7 @@ Check made when this file was generated: the integrated package reports cite 263
 ## The 180 requirements
 Source: `axexo-crm-requirements-v1` audited on 12-Nov-2026 (180 requirements). State before the build program: 58 built, 81 partial, 35 missing, 2 not applicable, 4 not verified.
 
-Requirements already reported by an integrated package of the program (94): 87 built, 7 partial. One line each:
+Requirements already reported by an integrated package of the program (94): 90 built, 4 partial. One line each:
 
 | Requirement | Status | Package | Missing |
 |---|---|---|---|
@@ -827,14 +836,14 @@ Requirements already reported by an integrated package of the program (94): 87 b
 | E4.F2 | Built | `datos2` | Decisión por defecto: apagado en todos los mercados (también US) hasta que Martech lo encienda en Administración, Decisiones de negocio. |
 | E4.F4 | Built | `seguridad` | La persona de agencia necesita una cuenta de Google de la organización (no hay ingreso para externos). Integración 95-2: ligado a E9.F12. Un solo catálogo de agencias (crm.agencies de 0027 con la clase agencia o socio de 0030); lo que crea la agencia confinada nace con "Reclutado por" de su clase (tests/db/integracion-95-2.test.ts). |
 | E4.F9 | Built | `datos2` | Usuarios de partner y los que crea la carga de Pipedrive no pasan por el candado (siguen en 'accesos sin aprobación'). |
-| E5.F1 | Built | `integraciones2` | Contrato confirmado y lugar donde Data y Reporteria deja el archivo |
+| E5.F1 | Built | `conectores` | Archivo real de S5 y contrato confirmado |
 | E5.F2 | Built | `integraciones2` | n/a |
 | E5.F3 | Built | `integraciones2` | Responsables reales de cada carga (se ponen en /estado) |
 | E5.F4 | Built | `integraciones2` | n/a |
 | E5.F5 | Built | `integraciones2` | n/a |
-| E5.F6 | Built | `integraciones2` | Elegir la herramienta de rutas y conectarla |
-| E5.F7 | Built | `integraciones2` | n/a |
-| E5.F9 | Built | `integraciones2` | Elegir almacenamiento para la boveda |
+| E5.F6 | Built | `conectores` | Elegir herramienta |
+| E5.F7 | Built | `conectores` | Proveedor final [pendiente]; confirmar fuera del código que la firma actual no pasa por Pipedrive |
+| E5.F9 | Built | `conectores` | Sign-off; decisión de una sola bóveda |
 | E6.F2 | Built | `integraciones-migracion` | n/a |
 | E6.F3 | Built | `integraciones-migracion` | Fecha real de corte por mercado (decision de negocio) |
 | E6.F4 | Built | `integraciones2` | Dueno y lugar de guarda del respaldo |
@@ -862,7 +871,7 @@ Requirements already reported by an integrated package of the program (94): 87 b
 | E9.F10 | Built | `us-ficha` | n/a |
 | E9.F11 | Built | `datos2` | Listas reales y fuente del estado de baja las definen Operaciones y ventas US. |
 | E9.F12 | Built | `us-ficha` | El reporte agencia contra equipo propio (E8.F3) es de otro paquete. Integración 95-2: un solo catálogo de agencias con el de la agencia confinada (E4.F4, paquete seguridad); hay dos entradas para editarlo (Datos, Catálogos y Administración, Seguridad, Accesos). |
-| E9.F13 | Partial | `us-ficha` | El requerimiento pide el identificador completo y el estándar (DATA-06) lo prohíbe: ganó el estándar. Falta la decisión: excepción escrita, resguardo cifrado y aprobación de tecnología. |
+| E9.F13 | Built | `plataforma` | Firma de la excepción y bóveda encendida. |
 | E10.F1 | Built | `us-embudo` | En staging las etapas vienen de la importación de Pipedrive: confirmar ahí que son las nueve (se renombran, crean y reordenan desde /admin). |
 | E10.F2 | Built | `us-ficha` | n/a |
 | E10.F3 | Built | `us-embudo` | n/a |
@@ -877,17 +886,17 @@ Requirements already reported by an integrated package of the program (94): 87 b
 | E10.F14 | Built | `us-embudo` | n/a |
 | E11.F1 | Built | `us-embudo` | n/a |
 | E11.F3 | Built | `reportes2` | Logotipo y encabezado definitivos de Empower: valor propuesto hasta que Marketing los entregue. |
-| E11.F4 | Built | `us-embudo` | El correo real al buzón de pedidos sigue apagado. |
+| E11.F4 | Built | `conectores` | Sign-off; buzón de pedidos por mercado |
 | E11.F5 | Built | `us-embudo` | n/a |
 | E12.F1 | Built | `us-embudo` | n/a |
 | E12.F2 | Built | `us-embudo` | n/a |
 | E12.F3 | Built | `us-embudo` | n/a |
 | E12.F4 | Partial | `embudo2` | La lista real del sistema anterior confirmada por ventas US. |
 | E12.F6 | Built | `reportes2` | Finanzas confirma que esa es su fuente (decisión por defecto: la descarga de CONTIGO). |
-| E12.F8 | Partial | `us-embudo` | Elegir la herramienta de rutas, su aprobación de tecnología, exponer src/dal/routes.ts por la API de lectura de eventos-api y encender ROUTE_TOOL. El armado de la ruta y las millas los hace la herramienta externa. |
+| E12.F8 | Built | `conectores` | Elegir herramienta |
 | E13.F1 | Built | `avisos` | El correo no sale: canal apagado. |
 | E13.F2 | Built | `avisos` | Destinatarios por defecto internos (quien lleva el comercio, Operaciones): el requerimiento está abierto sobre si van al dealer. 'Dealer no longer open' se interpretó como negocio perdido. Los textos son borradores editables. El correo no sale: canal apagado. |
-| E13.F3 | Built | `avisos` | El correo no sale: canal apagado. Por defecto exige consentimiento también para el acuse (se cambia por plantilla). |
+| E13.F3 | Built | `conectores` | Sign-off |
 | E13.F4 | Built | `avisos` | El enlace del video de recorrido está vacío hasta que administración lo cargue. |
 | E14.F2 | Built | `mx` | n/a |
 | E14.F3 | Built | `mx` | La carga completa desde las hojas (E18.F7 y F8) es del paquete integraciones-migracion: si trae su propio importador de tiendas, hay que dejar uno solo. |
@@ -896,9 +905,9 @@ Requirements already reported by an integrated package of the program (94): 87 b
 | E15.F2 | Built | `mx` | n/a |
 | E15.F3 | Built | `mx` | Decisión por defecto: la pregunta no es obligatoria (un lead nunca se pierde por un campo); sin respuesta, el lead nace sin tipo y se completa al calificar. |
 | E15.F5 | Built | `mx` | n/a |
-| E15.F6 | Partial | `mx` | El aviso fuera de la pantalla (correo o Slack) es del servicio de avisos del paquete avisos, que lo deja construido y apagado. Este paquete no agregó otro canal para no duplicarlo. |
+| E15.F6 | Built | `conectores` | Sign-off |
 | E15.F8 | Partial | `mx` | Hecho al integrar: src/domain/leads.ts usa isWebSource, así que un lead de campaña (web_campaign) recibe bienvenida o acuse. Sigue pendiente lo mismo que en avisos: el texto confirmado de la bienvenida de México, la dirección de salida y la versión en inglés. Canal de correo apagado. |
-| E15.F9 | Built | `mx` | La alerta fuera de CONTIGO al llegar y al vencer la meta es del servicio de avisos (paquete avisos), apagada. |
+| E15.F9 | Built | `conectores` | Sign-off |
 | E16.F2 | Built | `mx` | Decisiones por defecto: un territorio sin gerente no cambia nada (regiones sin cobertura); al nombrar gerente pasan a él solo las tiendas que nadie llevaba o que llevaba el gerente anterior. Ningún territorio trae gerente cargado: lo elige administración. |
 | E17.F4 | Built | `mx` | Decisión por defecto (el requerimiento está abierto): mientras las hojas viven, las visitas entran pegándolas; no hay conexión a la hoja. |
 | E18.F2 | Built | `mx` | Decisión por defecto: la regla viene apagada en todos los mercados; la activa quien lidera el mercado o administración. |
