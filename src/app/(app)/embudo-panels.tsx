@@ -87,6 +87,10 @@ export async function DealEmbudoPanel({ ctx, dealId }: { ctx: Ctx; dealId: strin
         <CardTitle title={t('Cierre por venta real', 'Closing by real sales')}
           hint={d.close_by_transaction ? t('Este embudo se gana solo: el primer fondeo lo pasa a esperar la primera venta y la primera transacción lo gana.', 'This pipeline is won on its own: the first funding moves it to waiting for the first sale and the first transaction wins it.') : t('En este embudo el negocio se gana a mano. Los hitos del comercio se muestran igual.', 'In this pipeline the deal is won by hand. The merchant’s milestones are shown anyway.')}
           right={ctx.can('deal.correct_win', d.market_code) ? <CorrectionDialog ctx={ctx} accountId={d.account_id} today={today} /> : undefined} />
+        {/* Los hitos son del comercio: en una ampliación ya existían antes de este negocio, y se dice para no leerlos como suyos. */}
+        {d.milestones?.first_txn_at && new Date(d.milestones.first_txn_at) < new Date(d.created_at) && (
+          <p className="mb-3 text-[13.5px] text-muted-2" data-testid="deal-closing-earlier">{t('El comercio ya vendía antes de este negocio: estos hitos son de su alta original, no de esta oportunidad.', 'The merchant was already selling before this deal: these milestones belong to its original onboarding, not to this opportunity.')}</p>
+        )}
         <MilestoneList ctx={ctx} ms={d.milestones} cut={d.cut} tz={market.timezone} />
         {d.corrections.length > 0 && (
           <ul className="mt-4 space-y-2 border-t border-line pt-3 text-[13.5px]" data-testid="corrections">

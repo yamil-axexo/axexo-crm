@@ -77,8 +77,8 @@ export async function fullThread(ctx: Ctx, accountId: string, opts: { withChildr
 
 export async function dealEmbudo(ctx: Ctx, dealId: string) {
   return withUser(ctx.user.id, async (tx) => {
-    const d = await tx<{ account_id: string; market_code: string; status: string; closed_by: string | null; lead_id: string | null; close_by_transaction: boolean; stage_id: string }[]>`
-      select d.account_id, d.market_code, d.status, d.closed_by, d.lead_id, p.close_by_transaction, d.stage_id from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where d.id = ${dealId}`
+    const d = await tx<{ account_id: string; market_code: string; status: string; closed_by: string | null; lead_id: string | null; close_by_transaction: boolean; stage_id: string; created_at: Date }[]>`
+      select d.account_id, d.market_code, d.status, d.closed_by, d.lead_id, p.close_by_transaction, d.stage_id, d.created_at from crm.deals d join crm.pipelines p on p.id = d.pipeline_id where d.id = ${dealId}`
     if (!d[0]) return null
     const ms = await tx<Milestones[]>`select first_funding_at, funding_method, first_txn_at, habit_at, as_of::text from crm.account_milestones where account_id = ${d[0].account_id}`
     const corrections = await tx<MilestoneEvent[]>`

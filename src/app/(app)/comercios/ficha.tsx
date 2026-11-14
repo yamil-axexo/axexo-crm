@@ -1,3 +1,4 @@
+import { STAGE, type Stage } from '@/lib/care'
 import { AccountDataPanel, AccountThreadPanel } from '@/app/(app)/embudo-panels'
 import Link from 'next/link'
 import { Def } from '@/ui/report'
@@ -512,7 +513,9 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
           <section className={canChangeOwner ? section : undefined}>
             <h3 className={h3}>{isParent ? t('Ventas de su red', 'Network sales') : t('Ventas', 'Sales')}</h3>
             <dl className="mt-2">
-              <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde', 'since')} {day(a.lifecycle_at, locale, tz)}</KeyVal>
+              <KeyVal k={t('Etapa de vida', 'Lifecycle')}>{a.care_stage && STAGE[a.care_stage as Stage]
+                ? <>{lab(t, STAGE[a.care_stage as Stage].label)} · {t('desde el', 'since')} {day(a.care_stage_at ?? a.lifecycle_at, locale, tz)}</>
+                : <>{lab(t, LIFECYCLE[a.lifecycle]?.label)} · {t('desde el', 'since')} {day(a.lifecycle_at, locale, tz)}</>}</KeyVal>
               {/* reportes2 (REP-04): de dónde sale el estado. Si el archivo de ventas lo trae, manda el archivo; si no, se dice que es la regla de respaldo. */}
               {!isParent && ['active', 'at_risk', 'inactive'].includes(a.lifecycle) && (
                 <div className="-mt-1 mb-2">

@@ -115,12 +115,15 @@ export async function getAccount(ctx: Ctx, id: string) {
       { id: string; market_code: string; name: string; kind: string; segment: string | null; lifecycle: string; lifecycle_at: Date; owner_id: string | null; owner_name: string | null;
         parent_id: string | null; ancestor_ids: string[]; phone: string | null; email: string | null; address_line: string | null; locality: string | null; region: string | null;
         postal_code: string | null; territory: string | null; in_my_territory: boolean; custom: Record<string, unknown>; created_at: Date; archived_at: Date | null; merged_into: string | null;
-        account_type: string; type_es: string | null; type_en: string | null }[]
+        account_type: string; type_es: string | null; type_en: string | null; care_stage: string | null; care_stage_at: Date | null }[]
     >`select a.id, a.market_code, a.name, a.kind, a.segment, a.lifecycle, a.lifecycle_at, a.owner_id, u.full_name as owner_name, a.parent_id, a.ancestor_ids,
              a.phone, a.email::text, a.address_line, a.locality, a.region, a.postal_code, t.name as territory,
              exists (select 1 from crm.user_territories ut where ut.territory_id = a.territory_id and ut.user_id = ${ctx.user.id}) as in_my_territory,
              a.custom, a.created_at, a.archived_at, a.merged_into,
-             a.account_type, ty.label_es as type_es, ty.label_en as type_en
+             a.account_type, ty.label_es as type_es, ty.label_en as type_en,
+             -- La etapa detallada de Cuidado del comercio (con hábito, reactivado): Datos y Cuidado dicen lo mismo.
+             (select c.stage from crm.account_care c where c.account_id = a.id order by c.stage_at desc limit 1) as care_stage,
+             (select c.stage_at from crm.account_care c where c.account_id = a.id order by c.stage_at desc limit 1) as care_stage_at
         from crm.accounts a left join crm.users u on u.id = a.owner_id left join crm.territories t on t.id = a.territory_id
         left join lateral (select x.label_es, x.label_en from crm.account_types x where x.code = a.account_type and (x.market_code is null or x.market_code = a.market_code)
                             order by x.market_code nulls last limit 1) ty on true
