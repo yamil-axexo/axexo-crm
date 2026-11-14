@@ -40,8 +40,7 @@ export async function accountBrief(ctx: Ctx, accountId: string): Promise<Brief |
   return withUser(ctx.user.id, async (tx) => {
     const r = await tx<Brief[]>`
       select a.lifecycle,
-             floor(extract(epoch from now() - coalesce((select max(x.done_at) from crm.activities x where x.account_id = a.id and x.done_at is not null
-                   and x.kind in ('visit','call','note','meeting')), a.created_at)) / 86400)::int as days_quiet,
+             floor(extract(epoch from now() - coalesce(app.last_contact_at(a.id), a.created_at)) / 86400)::int as days_quiet,
              (select count(*)::int from crm.deals d where d.account_id = a.id and d.status = 'open') as open_deals,
              (select count(*)::int from crm.activities x where x.account_id = a.id and x.done_at is null and x.due_at is not null) as open_tasks,
              (select mm.txn_count_30d from crm.merchant_metrics_daily mm where mm.account_id = a.id order by mm.as_of desc limit 1) as txn_now,

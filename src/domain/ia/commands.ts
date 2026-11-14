@@ -52,8 +52,7 @@ export async function generateRecommendations(tx: Tx): Promise<{ created: number
                  from crm.markets m left join crm.ia_settings s on s.market_code = m.code where m.status = 'live')
     select a.id, a.market_code, a.owner_id, a.lifecycle, s.level, s.quiet_days, s.default_locale as locale,
            floor(extract(epoch from now() - a.created_at) / 86400)::int as days_created,
-           floor(extract(epoch from now() - coalesce((select max(x.done_at) from crm.activities x
-                  where x.account_id = a.id and x.done_at is not null and x.kind in ('visit','call','note','meeting')), a.created_at)) / 86400)::int as days_quiet,
+           floor(extract(epoch from now() - coalesce(app.last_contact_at(a.id), a.created_at)) / 86400)::int as days_quiet,
            exists (select 1 from crm.merchant_metrics_daily mm where mm.account_id = a.id and mm.first_txn_at is not null) as first_txn,
            (select mm.txn_count_30d from crm.merchant_metrics_daily mm where mm.account_id = a.id order by mm.as_of desc limit 1) as txn_now,
            (select mm.txn_count_30d from crm.merchant_metrics_daily mm where mm.account_id = a.id
@@ -95,13 +94,15 @@ export async function generateRecommendations(tx: Tx): Promise<{ created: number
 export async function measureRecommendations(tx: Tx): Promise<number> {
   const res = await tx`
     update crm.recommendations r set
-      followed = (r.status = 'accepted' and exists (select 1 from crm.activities x where x.account_id = r.account_id and x.done_at is not null
-                   and x.kind in ('visit','call','note','meeting') and x.done_at >= r.decided_at and x.done_at < r.decided_at + make_interval(days => ${MEASURE_DAYS}))),
+      followed = (r.status = 'accepted' and (exists (select 1 from crm.activities x where x.account_id = r.account_id and x.done_at is not null
+                   and x.kind in ('visit','call','note','meeting') and x.done_at >= r.decided_at and x.done_at < r.decided_at + make_interval(days => ${MEASURE_DAYS}))
+                   or exists (select 1 from crm.visits v where v.account_id = r.account_id and v.checked_in_at >= r.decided_at and v.checked_in_at < r.decided_at + make_interval(days => ${MEASURE_DAYS})))),
       outcome = case
         when exists (select 1 from crm.merchant_metrics_daily mm where mm.account_id = r.account_id and mm.as_of > r.created_at::date
                       and (mm.txn_count_30d > coalesce((r.signal ->> 'txn_now')::int, 0) or (r.rule_code = 'no_first_sale' and mm.first_txn_at is not null))) then 'sale_up'
         when exists (select 1 from crm.activities x where x.account_id = r.account_id and x.done_at is not null and x.kind in ('visit','call','note','meeting')
-                      and x.done_at >= r.created_at and x.done_at < r.created_at + make_interval(days => ${MEASURE_DAYS})) then 'contacted'
+                      and x.done_at >= r.created_at and x.done_at < r.created_at + make_interval(days => ${MEASURE_DAYS}))
+          or exists (select 1 from crm.visits v where v.account_id = r.account_id and v.checked_in_at >= r.created_at and v.checked_in_at < r.created_at + make_interval(days => ${MEASURE_DAYS})) then 'contacted'
         else 'no_change' end,
       measured_at = now()
      where r.measured_at is null and r.created_at < now() - make_interval(days => ${MEASURE_DAYS}) and (r.status <> 'open' or r.holdout)`

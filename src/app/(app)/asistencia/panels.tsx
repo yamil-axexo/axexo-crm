@@ -59,8 +59,8 @@ export async function AccountNextActions({ ctx, accountId, market }: { ctx: Ctx;
     <section className="mb-6 rounded-[18px] bg-surface-3 px-4 py-4 md:px-5" aria-label={t('Resumen y siguiente acción', 'Summary and next action')} data-testid="account-next">
       <h3 className="text-[15px] font-semibold text-strong">{t('Antes de la visita', 'Before the visit')}</h3>
       <ul className="mt-2 grid grid-cols-1 gap-1 text-[14px] text-muted-2 md:grid-cols-2" data-testid="account-brief">
-        <li>{t(`${num(brief.days_quiet, 'es')} días sin contacto`, `${num(brief.days_quiet, 'en')} days without contact`)}</li>
-        <li>{t(`${brief.open_deals} negocios abiertos, ${brief.open_tasks} pendientes`, `${brief.open_deals} open deals, ${brief.open_tasks} to-dos`)}</li>
+        <li>{brief.days_quiet === 1 ? t('1 día sin contacto', '1 day without contact') : t(`${num(brief.days_quiet, 'es')} días sin contacto`, `${num(brief.days_quiet, 'en')} days without contact`)}</li>
+        <li>{t(`${brief.open_deals === 1 ? '1 negocio abierto' : `${brief.open_deals} negocios abiertos`}, ${brief.open_tasks === 1 ? '1 pendiente' : `${brief.open_tasks} pendientes`}`, `${brief.open_deals === 1 ? '1 open deal' : `${brief.open_deals} open deals`}, ${brief.open_tasks === 1 ? '1 to-do' : `${brief.open_tasks} to-dos`}`)}</li>
         <li>{brief.txn_now == null ? t('Sin datos de ventas todavía', 'No sales data yet') : t(`${num(brief.txn_now, 'es')} transacciones en 30 días`, `${num(brief.txn_now, 'en')} transactions in 30 days`)}</li>
         {drop !== null && <li>{drop < 0 ? t(`Bajó ${-drop}% contra el mes anterior`, `Down ${-drop}% against the previous month`) : t(`Subió ${drop}% contra el mes anterior`, `Up ${drop}% against the previous month`)}</li>}
       </ul>

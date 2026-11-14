@@ -93,3 +93,14 @@ update crm.exceptions e set owner_id = f.user_id, detail = e.detail || jsonb_bui
                         app.exception_record_motor(coalesce(x.account_id, (select d.account_id from crm.deals d where d.id = x.deal_id)), x.deal_id, x.lead_id))).*
           from crm.exceptions x where x.resolved_at is null and x.detail ? 'routed_to' and x.detail ->> 'routed_to' in ('supervisor', 'market_lead')) f
  where f.id = e.id and f.user_id is not null and f.user_id is distinct from e.owner_id;
+
+-- Último contacto con un comercio: lo registrado en CONTIGO (visita, llamada, nota, reunión) y también las visitas que
+-- llegan de la Sales App (crm.visits). "Días sin contacto" ignoraba las de la Sales App. Una sola definición para la tarjeta
+-- "Antes de la visita", las sugerencias de Asistencia y su medición. Corre con los permisos de quien pregunta.
+create or replace function app.last_contact_at(p_account uuid) returns timestamptz
+language sql stable set search_path = crm, app, pg_catalog as $$
+  select nullif(greatest(
+    coalesce((select max(x.done_at) from crm.activities x where x.account_id = p_account and x.done_at is not null and x.kind in ('visit','call','note','meeting')), '-infinity'::timestamptz),
+    coalesce((select max(v.checked_in_at) from crm.visits v where v.account_id = p_account), '-infinity'::timestamptz)), '-infinity'::timestamptz)
+$$;
+grant execute on function app.last_contact_at(uuid) to contigo_app;

@@ -18,3 +18,4 @@ begin
 end $$;
 drop function if exists app.exception_record_motor(uuid, uuid, uuid);
 drop function if exists app.exception_fallback_owner_motor(text, uuid, text);
+drop function if exists app.last_contact_at(uuid);
