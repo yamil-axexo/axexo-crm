@@ -30,7 +30,12 @@ async function dealWithoutNextStep(): Promise<{ id: string; name: string }> {
 async function drag(page: Page, card: ReturnType<Page['locator']>, stage: string) {
   await expect(card).toHaveAttribute('draggable', 'true')
   await card.evaluate((el) => el.scrollIntoView({ block: 'center' }))
-  await card.dragTo(page.getByTestId(`stage-${stage}`), { targetPosition: { x: 40, y: 30 } })
+  // Se suelta a la altura de la tarjeta: con columnas largas (suite completa) la parte de arriba de la columna queda fuera de la
+  // pantalla y soltar ahí obligaba a desplazar en medio del arrastre, que el navegador no termina.
+  const target = page.getByTestId(`stage-${stage}`)
+  const [c, t] = [await card.boundingBox(), await target.boundingBox()]
+  const y = c && t ? Math.min(Math.max(c.y + c.height / 2 - t.y, 30), t.height - 30) : 30
+  await card.dragTo(target, { targetPosition: { x: 40, y } })
 }
 
 async function dealWithoutDecisionMaker(): Promise<string> {
