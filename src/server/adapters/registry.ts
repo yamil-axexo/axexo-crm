@@ -19,6 +19,7 @@ import { MARKET_GATES } from './markets'
 import { PARTNER_GATES } from './partners'
 import { REPORT_SLACK_GATE, SNAPSHOT_GATE } from './report-channels'
 import { CAMPO2_GATES } from './campo2'
+import { REALTIME_GATE } from './realtime'
 import { ROUTES_GATE } from './routes'
 import { SALES_FILE_GATE } from './sales-file'
 import { SUPPORT_DESK_GATE } from './support-desk'
@@ -186,6 +187,9 @@ export const CONNECTORS: ConnectorDef[] = [
   { key: 'lakehouse_crossmatch', name: ['Datos y Reportería: cruce de bases de aliados', 'Data & Reporting: partner base cross-match'], provider: 'Supabase Storage (bucket de Datos y Reportería con manifiesto)', file: 'campo2', gate: CAMPO2_GATES.lakehouse_crossmatch,
     turnsOn: tir(['Datos y Reportería publica el archivo "partner_crossmatch" en el manifiesto.', 'Data & Reporting publishes the "partner_crossmatch" file in the manifest.']), scopes: ['Lectura del bucket S5_BUCKET.', 'Read on the S5_BUCKET bucket.'],
     dataOut: ['Nada sale.', 'Nothing goes out.'], items: ['CANAL-06'], probe: s5Probe },
+  // Integración ola 7: pantallas en vivo por Broadcast (plataforma, AUT-02) con la misma regla de encendido.
+  { key: 'realtime', name: ['Pantallas en vivo (Supabase Realtime Broadcast)', 'Live screens (Supabase Realtime Broadcast)'], provider: 'Supabase Realtime (Broadcast, canales privados)', file: 'realtime', gate: REALTIME_GATE, turnsOn: TIR,
+    scopes: ['Llave de servicio de Supabase para publicar en Broadcast.', 'Supabase service key to publish on Broadcast.'], dataOut: ['Solo tema, tipo de evento y hora; nunca datos de registros.', 'Only topic, event type and time; never record data.'], items: ['AUT-02'], probe: async () => await authSettingsProbe() },
 ]
 
 export const connector = (key: string) => CONNECTORS.find((c) => c.key === key)

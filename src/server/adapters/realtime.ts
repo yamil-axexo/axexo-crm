@@ -1,5 +1,6 @@
 import 'server-only'
 import { egressFetch, EGRESS_ALLOWLIST } from '@/server/net/egress'
+import { gate, type GateSpec } from './live/gate'
 
 /**
  * AUT-02: UI en vivo por Broadcast (Supabase Realtime). Adaptador APAGADO por defecto.
@@ -16,17 +17,14 @@ export const REALTIME_ENV = { envVar: 'REALTIME_ADAPTER', credentials: ['SUPABAS
 const g = globalThis as unknown as { __contigoSimulatedBroadcast?: LiveSignal[] }
 export const simulatedBroadcasts = () => (g.__contigoSimulatedBroadcast ??= [])
 
+/** La regla única de encendido (live/gate.ts, conectores): variable en "live", credenciales y la referencia del sign-off. */
+export const REALTIME_GATE: GateSpec = { envVar: REALTIME_ENV.envVar, credentials: REALTIME_ENV.credentials }
 export function realtimeMissing(): string[] {
-  const missing: string[] = []
-  if (process.env.REALTIME_ADAPTER !== 'live') missing.push(REALTIME_ENV.envVar)
-  for (const c of REALTIME_ENV.credentials) if (!process.env[c]) missing.push(c)
-  if (!process.env[REALTIME_ENV.approval]) missing.push(REALTIME_ENV.approval)
-  return missing
+  return gate(REALTIME_GATE).missing
 }
 
 export function realtimeMode(): RealtimeMode {
-  if (process.env.APP_ENV === 'test' && process.env.REALTIME_ADAPTER === 'simulated') return 'simulated'
-  return realtimeMissing().length === 0 ? 'live' : 'off'
+  return gate(REALTIME_GATE).mode
 }
 
 export async function broadcast(signals: LiveSignal[]): Promise<{ mode: RealtimeMode; sent: number }> {
