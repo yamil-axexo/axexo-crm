@@ -5,7 +5,7 @@ import { track } from '@/dal/boards'
 import { getQueue, getTeamQueue, QUEUE_PAGE, type QueueRow } from '@/dal/queue'
 import { ensureRulesFresh } from '@/domain/rules'
 import { resultOptions, sheetConfig, taskResults } from '@/server/sheet'
-import { ago, clock, daysSince, longDay, weekday } from '@/lib/format'
+import { ago, clock, daysSince, isoDay, longDay, marketTime, weekday } from '@/lib/format'
 import type { MessageKey } from '@/lib/messages'
 import { cx } from '@/ui/kit'
 import { CountUp, Queue, type QueueItem, type QueueLabels } from '@/ui/queue'
@@ -126,6 +126,8 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
         context: `${m(isWebSource(r.kind) ? 'ctx.leadSource.web_form' : 'ctx.leadSource.other')} ${r.market} · ${m('ctx.arrived', { ago: ago(r.created, locale, now) })}`,
         chip: r.group === 'late' ? { text: m('today.chip.late'), tone: 'risk' } : { text: m('today.chip.today'), tone: 'warn' },
         clock: r.due ? r.due.toISOString() : null,
+        // Misma hora que la Guardia de leads y la lista de Leads: si la meta no vence hoy, se dice cuándo vence.
+        clockAt: r.due && r.due > now && isoDay(r.due, tz) !== isoDay(now, tz) ? marketTime(r.due, locale, ctx.market(r.market)) : null,
         results: resultOptions(ctx, ['reached', 'no_answer']),
         defaultResult: null,
       }
@@ -188,7 +190,7 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
   const labels: QueueLabels = {
     now: m('today.now'), call: m('action.call'), whatsapp: m('action.whatsapp'), open: m('action.open'), done: m('action.done'), markDone: m('action.markDone'), noPhone: m('action.noPhone'),
     completeOf: m('action.completeOf', { title: '%s' }), callOf: m('action.callOf', { name: '%s' }), whatsappOf: m('action.whatsappOf', { name: '%s' }),
-    clock: m('today.leadClock', { time: '%s' }), clockLate: m('today.leadClockLate', { time: '%s' }),
+    clock: m('today.leadClock', { time: '%s' }), clockLate: m('today.leadClockLate', { time: '%s' }), clockAt: m('today.leadClockAt', { time: '%s' }),
     more: { late: more('late'), today: more('today'), suggested: q.backlog > 0 ? m('today.backlog', { count: q.backlog }) : null },
     groups: { late: m('today.group.late'), today: m('today.group.today'), suggested: m('today.group.suggested') },
     emptyTitle: teamBusy ? ownClear : m('today.empty.title'),

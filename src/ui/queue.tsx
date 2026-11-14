@@ -19,6 +19,8 @@ export type QueueItem = {
   chip: { text: string; tone: 'risk' | 'warn' | 'neutral' | 'suggested' }
   /** Vencimiento del primer contacto de un lead (ISO): alimenta la cuenta regresiva. */
   clock: string | null
+  /** Cuando la meta no vence hoy (por ejemplo, el lunes a las 11:00), la fecha y hora de vencimiento en lugar de la cuenta regresiva. */
+  clockAt?: string | null
   href: string
   tel: string | null
   wa: string | null
@@ -42,6 +44,7 @@ export type QueueLabels = {
   whatsappOf: string
   clock: string
   clockLate: string
+  clockAt?: string
   more: Record<QueueGroup, string | null>
   groups: Record<QueueGroup, string>
   emptyTitle: string
@@ -64,7 +67,9 @@ function span(ms: number): string {
   const h = Math.floor(total / 3600)
   const mm = Math.floor((total % 3600) / 60)
   const ss = total % 60
-  return h > 0 ? `${h} h ${String(mm).padStart(2, '0')} min` : `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+  // Sin segundos: "07:21" se leía como horas (tercera vuelta del comité). Menos de un minuto cuenta como 1 min.
+  void ss
+  return h > 0 ? `${h} h ${mm} min` : `${Math.max(1, mm)} min`
 }
 
 /**
@@ -151,7 +156,7 @@ export function Queue({
         data-testid="lead-clock"
       >
         <Clock size={15} strokeWidth={1.75} aria-hidden />
-        {fill(late ? labels.clockLate : labels.clock, span(left))}
+        {!late && item.clockAt && labels.clockAt ? fill(labels.clockAt, item.clockAt) : fill(late ? labels.clockLate : labels.clock, span(left))}
       </span>
     )
   }

@@ -18,7 +18,7 @@ import { CONTACT_ROLE, LEAD_STATUS, MOTOR, SOURCE, lab, qs } from '@/lib/labels'
 import { bulkDisqualifyAction, createLeadAction, takeLeadAction } from './actions'
 import { completeItemAction } from '@/app/(app)/hoy/actions'
 import { flat } from '@/server/params'
-import { day } from '@/lib/format'
+import { day, isoDay, marketTime } from '@/lib/format'
 
 /** Anillo de reloj: cuánto de la meta de primer contacto ya se consumió. Lleno y en rojo si se pasó; verde con palomita si ya hubo contacto. */
 function Ring({ fraction, tone }: { fraction: number; tone: 'warn' | 'risk' | 'ok' | 'idle' }) {
@@ -93,7 +93,12 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       return {
         waiting: true, late, ring: late ? ('risk' as const) : due === null ? ('idle' as const) : ('warn' as const), fraction: late || total <= 0 ? 1 : (now.getTime() - new Date(l.created_at).getTime()) / total,
         chip: late ? m('leads.state.late') : m('leads.state.waiting'), chipClass: late ? 'bg-risk-bg text-red-text' : 'bg-warn-bg text-amber-text',
-        note: due === null ? '' : late ? m('leads.clock.late', { time: span(now.getTime() - due) }) : m('leads.clock.left', { time: span(due - now.getTime()) }),
+        // Si la meta no vence hoy (fin de semana, fuera de horario), se dice cuándo vence: la misma hora que el detalle,
+        // Hoy y la Guardia de leads. "Quedan 2 días" asustaba un sábado por un lead que vence el lunes a las 11:00.
+        note: due === null ? '' : late ? m('leads.clock.late', { time: span(now.getTime() - due) })
+          : isoDay(new Date(due), ctx.market(l.market_code).timezone) !== isoDay(now, ctx.market(l.market_code).timezone)
+            ? m('leads.clock.due', { time: marketTime(new Date(due), ctx.locale, ctx.market(l.market_code)) })
+            : m('leads.clock.left', { time: span(due - now.getTime()) }),
       }
     }
     const onTime = l.first_touch_at && due !== null ? new Date(l.first_touch_at).getTime() <= due : null

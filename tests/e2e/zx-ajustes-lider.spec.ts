@@ -117,7 +117,7 @@ test.describe('el lead nuevo avisa dentro de CONTIGO', () => {
       await expect(page).toHaveURL(/equipo=/)
       const row = page.getByTestId('lead-watch-card').getByTestId('watch-row').filter({ hasText: name })
       await expect(row).toContainText('Diana Cruz')
-      await expect(row.getByTestId('watch-left')).toHaveText(/^Quedan 4[3-5] min hábiles$/)
+      await expect(row.getByTestId('watch-left')).toHaveText(/^Quedan 4[3-5] min hábiles · vence el /) // ajustes3: dice también cuándo vence (cambiado a propósito)
 
       const openTeam = Number(((await page.getByTestId('exception-open').textContent()) ?? '0').replace(/[^\d]/g, ''))
       expect(openTeam).toBeLessThan(openAll)
