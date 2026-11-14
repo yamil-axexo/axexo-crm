@@ -100,7 +100,9 @@ describe('SEG-05 y SEG-08: texto libre sin datos prohibidos y con límites', () 
       select d.id, d.account_id, d.stage_id, d.pipeline_id from crm.deals d join crm.stages s on s.id = d.stage_id
        where d.owner_id = ${marco.user.id} and d.status = 'open' and s.code = 'interes' order by d.id desc limit 1`)
     await expect(addActivity(marco, { accountId: d.account_id, kind: 'note', subject: 'Datos de pago', body: `Tarjeta ${CARD}` })).rejects.toMatchObject({ code: 'invalid' })
-    await expect(addActivity(marco, { accountId: d.account_id, kind: 'note', subject: `Cuenta ${CLABE}` })).rejects.toMatchObject({ code: 'invalid' })
+    // SEG-04 (plataforma, a propósito): una CLABE en una nota ya no rechaza la nota: se tapa y quedan los últimos 4.
+    const masked = await addActivity(marco, { accountId: d.account_id, kind: 'note', subject: `Cuenta ${CLABE}` })
+    expect((await one(admin<{ subject: string }[]>`select subject from crm.activities where id = ${masked}`)).subject).toBe(`Cuenta [cuenta ••${CLABE.slice(-4)}]`)
     await expect(updateDeal(marco, d.id, { nextStep: `Cobrar a la tarjeta ${CARD}`, nextStepDue: tomorrow })).rejects.toMatchObject({ code: 'invalid' })
     const to = (await one(admin<{ id: string }[]>`select id from crm.stages where pipeline_id = ${d.pipeline_id} and code = 'visitada'`)).id
     await expect(moveDeal(marco, d.id, to, undefined, { step: `Pedir ${CARD}`, due: tomorrow })).rejects.toMatchObject({ code: 'invalid' })

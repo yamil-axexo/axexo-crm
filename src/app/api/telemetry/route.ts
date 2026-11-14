@@ -14,14 +14,18 @@ export async function POST(request: NextRequest) {
   if (site && site !== 'same-origin') return new NextResponse(null, { status: 204 })
   const ctx = await getCtx()
   if (!ctx) return new NextResponse(null, { status: 204 })
-  let body: { p?: unknown; ms?: unknown }
+  let body: { p?: unknown; ms?: unknown; d?: unknown }
   try {
-    body = JSON.parse((await request.text()).slice(0, 400)) as { p?: unknown; ms?: unknown }
+    body = JSON.parse((await request.text()).slice(0, 400)) as { p?: unknown; ms?: unknown; d?: unknown }
   } catch {
     return new NextResponse(null, { status: 204 })
   }
   const ms = typeof body.ms === 'number' && Number.isFinite(body.ms) ? Math.round(body.ms) : -1
   const screen = screenKey(typeof body.p === 'string' ? body.p : '')
-  if (ms >= 0 && ms <= 120_000 && screen !== 'otra') await recordRequest('page', screen, ms, false)
+  if (ms >= 0 && ms <= 120_000 && screen !== 'otra') {
+    await recordRequest('page', screen, ms, false)
+    // UX-04: en teléfono, además, en su propio renglón ("telefono"), para ver el p95 real de quien trabaja en la calle.
+    if (body.d === 'm') await recordRequest('page', 'telefono', ms, false)
+  }
   return new NextResponse(null, { status: 204 })
 }

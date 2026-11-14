@@ -14,6 +14,7 @@ import { cicloCsJobs } from './ciclo-cs'
 import { partnersJobs } from './partners'
 import { iaJobs } from './ia'
 import { integraciones2Jobs } from './integraciones2'
+import { plataformaJobs } from './plataforma'
 import { campo2Jobs } from './campo2'
 import { reportes2Jobs } from './reportes2'
 import { conectoresJobs } from './conectores'
@@ -35,6 +36,7 @@ export const JOBS: Job[] = [
   ...partnersJobs,
   ...iaJobs,
   ...integraciones2Jobs,
+  ...plataformaJobs,
   ...campo2Jobs,
   ...reportes2Jobs,
   ...conectoresJobs,

@@ -268,6 +268,10 @@ export const CAPABILITIES = {
   'push.subscribe': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance', 'agency', 'partner'],
   // ACT-03: encender la captura de su propio correo y calendario (solo metadatos, solo contactos conocidos).
   'capture.optin': ['admin', 'lt', 'market_lead', 'supervisor', 'rep', 'ops', 'finance'],
+  // Paquete plataforma (0042): flags por rol, valores propuestos, reglas de aviso por evento. Lo cambia administración (parte Embudos y campos).
+  'platform.manage': ['admin'],
+  // IA-06: dejar que un agente (cliente MCP) lea CONTIGO como la persona, con su mismo alcance. Lo decide cada quien para sí.
+  'mcp.authorize': ['admin', 'market_lead', 'supervisor', 'rep', 'ops'],
   // E4.F2 (datos2): Ventas, Operaciones y Finanzas cambian dueños, fusionan duplicados y editan en bloque SOLO en los mercados
   // donde la decisión "Lo que pueden hacer Ventas y Operaciones" está encendida (Administración, Decisiones de negocio). El
   // contexto revisa el mercado (server/context.ts); quien dirige o administra ya lo hace con sus capacidades de siempre.
@@ -348,6 +352,8 @@ export const CAP_AREA: Partial<Record<Capability, AdminArea | 'any'>> = {
   'load.configure': 'integrations',
   'pipedrive.backup': 'integrations',
   'market.reset_test': 'integrations',
+  'platform.manage': 'config',
+  'mcp.authorize': 'any',
   'reason.custody': 'config',
   'view.official': 'config',
   'connector.test': 'integrations',

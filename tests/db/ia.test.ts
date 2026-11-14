@@ -6,6 +6,7 @@ import {
   recordSpotCheck, rulesAnswer, runEvaluation, setHoldout, setIaSettings, setLeadWeights,
 } from '@/domain/ia/commands'
 import { classifyLead, matchQuestion, nextActions, nextReason, periodIn, scoreLead, topAction } from '@/domain/ia/rules'
+import { recordRedteam, REDTEAM_CHECKLIST } from '@/domain/plataforma/admin'
 import { AGENTS, assertSafeAgent, effectiveLevel, UnsafeAgent, type Agent } from '@/domain/ia/agents'
 import { accountBrief, askMetric, iaAdmin, leadScore, leadScores, openRecommendations, pendingDrafts, recommendationStats } from '@/dal/ia'
 import { aiAdapter, aiStatus, egressAllowed, mcpMode } from '@/server/adapters/ai'
@@ -119,6 +120,9 @@ describe('IA-04: autonomía graduada', () => {
     const ana = await ctxFor('ana.robles')
     await expect(setIaSettings(nora, 'MX', { level: 'draft', quietDays: 9 })).rejects.toMatchObject({ code: 'invalid' })
     await expect(setIaSettings(ana, 'MX', { level: 'draft', supervisorId: ana.user.id, quietDays: 9 })).rejects.toMatchObject({ code: 'forbidden' })
+    // IA-07 (plataforma): sin revisión de red-team aprobada del agente, no se enciende un nivel que actúa.
+    await expect(setIaSettings(nora, 'MX', { level: 'execute', supervisorId: ana.user.id, quietDays: 9 })).rejects.toMatchObject({ code: 'invalid' })
+    for (const a of AGENTS) await recordRedteam(nora, a.key, REDTEAM_CHECKLIST.map((c) => c.key), 'Probado con notas de engaño y la persona de menor alcance.')
     await setIaSettings(nora, 'MX', { level: 'execute', supervisorId: ana.user.id, quietDays: 9 })
     await admin`update crm.recommendations set status = 'expired' where status = 'open' and market_code = 'MX'`
     await runJob('ia.next_actions')

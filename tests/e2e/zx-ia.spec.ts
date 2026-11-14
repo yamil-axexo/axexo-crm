@@ -104,6 +104,12 @@ test.describe.serial('Asistencia por reglas', () => {
   })
 
   test('administración sube el mercado a "ejecuta con aprobación" con quien revisa; quien vende aprueba un borrador', async ({ page }) => {
+    // IA-07 (plataforma): un nivel que actúa pide la revisión de red-team aprobada de cada agente. Aquí se deja por la base;
+    // el recorrido por pantalla está en zx-plataforma.spec.ts.
+    const rt = testDb()
+    await rt`insert into crm.agent_redteam_reviews (agent_key, checklist, passed, notes, reviewed_by)
+             values ('rules_next_action', '{}'::jsonb, true, 'Revisión de prueba del recorrido de IA.', md5('contigo:nora.salas')::uuid)`
+    await rt.end()
     await loginAs(page, 'nora.salas', { stay: true })
     await page.goto('/admin')
     await page.getByTestId('pill-ia').click()

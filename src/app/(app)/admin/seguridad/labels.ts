@@ -4,6 +4,7 @@ export const ALERT_KIND: Record<string, Pair> = {
   exports_per_day: ['Muchas exportaciones en un día', 'Many exports in one day'],
   export_rows_per_day: ['Muchas filas exportadas en un día', 'Many rows exported in one day'],
   searches_per_hour: ['Muchas búsquedas en una hora', 'Many searches in one hour'],
+  list_rows_per_day: ['Muchas filas vistas en listas en un día', 'Many rows viewed in lists in one day'],
   reveals_per_day: ['Muchos datos reservados revelados en un día', 'Many restricted values revealed in one day'],
   api_calls_per_hour: ['Muchas llamadas con una llave en una hora', 'Many calls with one key in an hour'],
   api_rows_per_day: ['Muchas filas leídas con una llave en un día', 'Many rows read with one key in one day'],
@@ -22,6 +23,7 @@ export const THRESHOLD_LABEL: Record<string, Pair> = {
   api_rows_per_day: ['Filas leídas por llave al día', 'Rows read per key per day'],
   key_unused_days: ['Días sin uso para avisar de una llave', 'Days unused before flagging a key'],
   key_expiring_days: ['Días antes del vencimiento para avisar', 'Days before expiry to flag'],
+  list_rows_per_day: ['Filas vistas en listas por persona al día', 'Rows viewed in lists per person per day'],
 }
 
 export const VIA_LABEL: Record<string, Pair> = {

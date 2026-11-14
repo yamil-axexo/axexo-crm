@@ -64,3 +64,21 @@ The record starts empty. The status page shows "Last tested restore: To be defin
 - Availability, response time per screen and unexpected errors, in Administration, Governance, Service and on the status page. A health probe job writes one measurement per run.
 - Every request carries an identifier that reaches the audit log and the error record; the person sees its short reference on the error screen.
 - Traces to an external tool are an adapter that is turned off (`TRACES_ADAPTER`). Turning it on is new technology: it needs the Tech Implementation Review sign-off.
+
+## 6. Automated restore test (local, GOB-07)
+
+`scripts/restore-test.mjs` runs the test above end to end against a local test database, without anyone typing steps:
+
+```
+MIGRATION_DATABASE_URL=postgres://postgres@127.0.0.1:5433/contigo_<package>_unit node scripts/restore-test.mjs
+```
+
+1. Counts rows in `crm.accounts`, `deals`, `leads`, `activities`, `contacts`, `audit_events`, `outbox_events`, `users` and `memberships`.
+2. `pg_dump` (custom format) of the database, then `pg_restore` into a scratch database.
+3. Compares the counts table by table. Any difference = failed.
+4. Drops the scratch database and the dump file.
+5. Records the test in `crm.restore_tests` with environment "local", minutes, result and both counts. It shows in Administration, Governance, Service.
+
+It refuses to run with `APP_ENV=production`, against a non-local host, or against a database whose name does not start with `contigo_`. It runs in the unit tests (`tests/db/plataforma.test.ts`, "GOB-07").
+
+The same test against staging and production (point-in-time recovery of the platform) and the RPO, RTO and service objective values are still to be set. [pendiente: Dan Mulligan] Until then they show as pending in CONTIGO status, and the values are edited in Administration, Governance, Service, with who agreed and when.

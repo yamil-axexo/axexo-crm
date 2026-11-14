@@ -1,4 +1,5 @@
 import 'server-only'
+import { EgressBlocked, egressFetch } from '@/server/net/egress'
 
 /**
  * Cliente HTTP único de los conectores `live` (fetch nativo, sin dependencias).
@@ -106,8 +107,11 @@ export async function http(opts: HttpOptions): Promise<HttpResult> {
     await pace(opts.connector, opts.minIntervalMs)
     let res: Response
     try {
-      res = await fetch(url, { method: opts.method ?? (body !== undefined ? 'POST' : 'GET'), headers, body: body as BodyInit | undefined, signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000), cache: 'no-store', redirect: 'error' })
-    } catch {
+      // IA-07 (plataforma): toda salida pasa por el único cliente que valida el host contra la allowlist de CONTIGO, además de los
+      // hosts del proveedor. En pruebas la URL ya apunta al servidor falso local.
+      res = await egressFetch(url, { method: opts.method ?? (body !== undefined ? 'POST' : 'GET'), headers, body: body as BodyInit | undefined, signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000), cache: 'no-store' }, { purpose: opts.connector, allowHosts: base ? undefined : opts.allowHosts })
+    } catch (e) {
+      if (e instanceof EgressBlocked) throw new ConnectorError(opts.connector, 'egress_blocked')
       last = new ConnectorError(opts.connector, 'network')
       if (i < attempts - 1) await sleep(backoffBase() * 2 ** i)
       continue

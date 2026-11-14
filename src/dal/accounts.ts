@@ -4,6 +4,8 @@ import type { Ctx } from '@/server/context'
 import { isUuid } from '@/lib/ids'
 import { stepSubject } from '@/dal/step-text'
 import { accountFilter, type AccountFilters } from '@/server/account-filter'
+import { phoneCandidates, textQuery } from '@/lib/search-terms'
+import { recordRequest } from '@/server/telemetry'
 
 export type AccountListItem = {
   id: string
@@ -63,6 +65,8 @@ export async function listAccounts(ctx: Ctx, f: AccountFilters, pageSize: number
     const items = rows.slice(0, pageSize)
     const last = items[items.length - 1]
     const total = f.ver === 'riesgo' ? c.risk : f.ver === 'sin-transaccionar' ? c.idle : f.ver === 'sin-paso' ? c.nostep : c.all
+    // SEG-03: la lectura de una lista en pantalla también queda en el registro de lecturas (cuántas filas, sin cuáles).
+    await tx`select app.log_read('list', 'accounts', ${items.length}, ${f.market || null})`
     return { items, next: rows.length > pageSize && last ? `${last.name_norm}|${last.id}` : null, total, counts: c }
   })
 }
@@ -253,14 +257,18 @@ export async function searchAll(ctx: Ctx, q: string) {
   const term = q.trim()
   const nothing = { accounts: [], leads: [], deals: [], others: [], limited: false }
   if (term.length < 2) return nothing
-  return withUser(ctx.user.id, async (tx) => {
+  const started = performance.now()
+  const out = await withUser(ctx.user.id, async (tx) => {
     // UX-02: quien busca muchas veces seguidas espera un minuto. La base cuenta las búsquedas de la persona.
     const allowed = await tx<{ ok: boolean }[]>`select app.search_allowed() as ok`
     if (allowed[0]?.ok === false) return { ...nothing, limited: true }
-    // Teléfono y alias no se buscan por pedazo (eso deja recorrerlos uno por uno): el teléfono, por su número completo
-    // con o sin código de país (7 dígitos o más, comparado contra el final); el alias, por el identificador exacto.
-    const digits = term.replace(/[^\d]/g, '')
-    const phone = digits.length >= 7 && digits.length <= 15 ? digits : ''
+    // UX-02: el teléfono se busca EXACTO, normalizado a E.164 con el país de cada mercado de la persona (índice por teléfono);
+    // el texto, con búsqueda de texto completo (índice GIN) más parecido por trigramas para errores de dedo; el alias, por el
+    // identificador exacto. Nada se busca por pedazo de número (eso dejaría recorrerlos uno por uno).
+    const phones = phoneCandidates(term, ctx.markets.map((m) => m.code))
+    const phone = phones.length > 0
+    const qn = textQuery(term, false)
+    const qa = textQuery(term, true)
     const alias = term.toUpperCase()
     const accounts = await tx<{ id: string; name: string; market_code: string; lifecycle: string; locality: string | null; via: string | null; has_deal: boolean }[]>`
       select a.id, a.name, a.market_code, a.lifecycle, a.locality,
@@ -269,27 +277,27 @@ export async function searchAll(ctx: Ctx, q: string) {
                and upper(al.external_id) = ${alias} limit 1) as via
         from crm.accounts a
        where a.archived_at is null and a.market_code = any(${ctx.markets.map((m) => m.code)}::text[])
-         and (a.name_norm like ${'%'} || app.norm(${term}) || ${'%'} or a.name_norm % app.norm(${term})
-             -- E2.F1: también por dirección (calle, colonia o código postal).
-             ${term.length >= 4 ? tx`or a.address_norm like ${'%'} || app.norm(${term}) || ${'%'}` : tx``}
-             ${phone ? tx`or a.phone like ${'%' + phone}` : tx``}
+         and (${qn ? tx`a.search_tsv @@ to_tsquery('simple', ${qn}) or` : tx``} a.name_norm % app.norm(${term})
+             ${phone ? tx`or a.phone = any(${phones}::text[])` : tx``}
              ${/^[0-9a-f]{8}(-[0-9a-f-]{0,28})?$/i.test(term) ? tx`or a.id::text like ${term.toLowerCase() + '%'}` : tx``}
              or exists (select 1 from crm.account_contacts ac join crm.contacts c on c.id = ac.contact_id
                          where ac.account_id = a.id and ac.valid_to is null
-                           and (app.norm(c.full_name) like ${'%'} || app.norm(${term}) || ${'%'} ${phone ? tx`or c.phone like ${'%' + phone}` : tx``}))
+                           and (app.norm(c.full_name) like ${'%'} || app.norm(${term}) || ${'%'} ${phone ? tx`or c.phone = any(${phones}::text[])` : tx``}))
              or exists (select 1 from crm.account_aliases al where al.account_id = a.id and al.valid_to is null and upper(al.external_id) = ${alias}))
-       order by similarity(a.name_norm, app.norm(${term})) desc limit 12`
+       order by ${qn ? tx`ts_rank(a.search_tsv, to_tsquery('simple', ${qn})) desc,` : tx``} similarity(a.name_norm, app.norm(${term})) desc limit 12`
     const leads = await tx<{ id: string; business_name: string; market_code: string; status: string }[]>`
       select id, business_name, market_code, status from crm.leads
-       where app.norm(business_name) like ${'%'} || app.norm(${term}) || ${'%'} or app.norm(contact_name) like ${'%'} || app.norm(${term}) || ${'%'}
-          ${phone ? tx`or phone like ${'%' + phone}` : tx``}
+       where ${qa ? tx`search_tsv @@ to_tsquery('simple', ${qa})` : tx`false`} ${qn && qn !== qa ? tx`or search_tsv @@ to_tsquery('simple', ${qn})` : tx``}
+          ${phone ? tx`or phone = any(${phones}::text[])` : tx``}
        order by created_at desc limit 8`
     const deals = await tx<{ id: string; title: string; market_code: string; status: string }[]>`
-      select id, title, market_code, status from crm.deals where app.norm(title) like ${'%'} || app.norm(${term}) || ${'%'} order by created_at desc limit 8`
+      select id, title, market_code, status from crm.deals
+       where ${qa ? tx`search_tsv @@ to_tsquery('simple', ${qa})` : tx`false`} ${qn && qn !== qa ? tx`or search_tsv @@ to_tsquery('simple', ${qn})` : tx``}
+       order by created_at desc limit 8`
     // "Existe y lo lleva X": lo que es de otra persona en un mercado donde vendo. La función solo da nombre, ciudad y dueño;
     // aquí se quita lo que la persona sí puede abrir (por ejemplo, lo de su equipo), para no repetirlo.
     const found = await tx<{ kind: 'account' | 'lead'; id: string; name: string; locality: string | null; owner_name: string; market_code: string }[]>`
-      select kind, id, name, locality, owner_name, market_code from app.search_others(${term})`
+      select kind, id, name, locality, owner_name, market_code from app.search_others_exact(${term}, ${phones}::text[])`
     const ids = found.map((o) => o.id)
     const mine = ids.length === 0 ? [] : await tx<{ id: string }[]>`
       select id from crm.accounts where id = any(${ids}::uuid[]) union all select id from crm.leads where id = any(${ids}::uuid[])`
@@ -298,4 +306,7 @@ export async function searchAll(ctx: Ctx, q: string) {
     await tx`select app.log_read('search', 'search', ${accounts.length + leads.length + deals.length + others.length}, null, ${tx.json({ shape: phone ? 'phone' : 'text' })})`
     return { accounts: [...accounts], leads: [...leads], deals: [...deals], others, limited: false }
   })
+  // UX-02: el tiempo de cada búsqueda en el servidor se mide (p95 en Estado de CONTIGO y en Gobierno, renglón "buscar").
+  await recordRequest('action', 'buscar', performance.now() - started, false)
+  return out
 }

@@ -34,7 +34,9 @@ export function Beacon() {
     }
     click.current = null
     if (ms === null || !navigator.sendBeacon) return
-    navigator.sendBeacon('/api/telemetry', new Blob([JSON.stringify({ p: pathname, ms: Math.round(ms) })], { type: 'text/plain' }))
+    // UX-04: también dice si es un teléfono (pantalla angosta o puntero táctil): el tiempo en teléfono se mide aparte.
+    const phone = window.matchMedia('(max-width: 640px)').matches || window.matchMedia('(pointer: coarse)').matches
+    navigator.sendBeacon('/api/telemetry', new Blob([JSON.stringify({ p: pathname, ms: Math.round(ms), d: phone ? 'm' : 'd' })], { type: 'text/plain' }))
   }, [pathname])
 
   return null

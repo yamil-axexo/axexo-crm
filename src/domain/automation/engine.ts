@@ -1,4 +1,5 @@
 import 'server-only'
+import { takeEvents } from '@/domain/plataforma/outbox'
 import type postgres from 'postgres'
 import { marketToday, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
@@ -401,15 +402,9 @@ export const EVENT_BATCH = 300
  * automatizaciones de ese mercado que lo escuchan. Solo lee la cola (no la marca como publicada: eso es de quien publica hacia afuera).
  */
 export async function runEvents(tx: Tx, sys: Ctx): Promise<{ events: number; acted: number }> {
-  const cur = await tx<{ v: string | null }[]>`select value #>> '{}' as v from crm.settings where key = 'automation_event_cursor' for update`
-  if (!cur[0]) {
-    // Primera vez: se empieza desde ahora. Los eventos viejos no disparan automatizaciones que no existían.
-    await tx`insert into crm.settings (key, value) select 'automation_event_cursor', to_jsonb(coalesce((select o.id::text from crm.outbox_events o order by o.id desc limit 1), '00000000-0000-0000-0000-000000000000')) on conflict do nothing`
-    return { events: 0, acted: 0 }
-  }
-  const events = await tx<{ id: string; event_type: string; aggregate_id: string; market_code: string | null }[]>`
-    select id, event_type, aggregate_id, market_code from crm.outbox_events
-     where id > ${cur[0].v}::uuid and created_at < now() - interval '2 seconds' order by id limit ${EVENT_BATCH}`
+  // AUT-02: la cola se lee por transacción confirmada (app.outbox_take), no por id con margen de tiempo. La primera vez se
+  // empieza desde ahora: los eventos viejos no disparan automatizaciones que no existían.
+  const events = await takeEvents(tx, 'automations', EVENT_BATCH)
   if (events.length === 0) return { events: 0, acted: 0 }
   const list = await loadAutomations(tx, 'event')
   let acted = 0
@@ -428,6 +423,5 @@ export async function runEvents(tx: Tx, sys: Ctx): Promise<{ events: number; act
       acted++
     }
   }
-  await tx`update crm.settings set value = to_jsonb(${events[events.length - 1]!.id}::text) where key = 'automation_event_cursor'`
   return { events: events.length, acted }
 }

@@ -18,6 +18,9 @@ import { myNotices } from '@/dal/ops'
 import { noticeSeenAction } from '@/app/(app)/operaciones/actions'
 import { ActionForm, Submit } from '@/ui/client'
 import { getSupervisorBoard } from '@/dal/boards'
+import { LiveRefresh } from '@/ui/live-refresh'
+import { OptimisticAction } from '@/ui/optimistic'
+import { flagOn } from '@/domain/plataforma/admin'
 
 /** Las tareas con fecha pero sin hora se guardan a esta hora UTC: no se muestran como una hora real. */
 const DATE_ONLY = 'T15:00:00.000Z'
@@ -193,8 +196,11 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
     emptyLink: teamOpen ? { href: '/supervisor', label: t('Ver los pendientes de mi equipo', 'See my team’s alerts') } : null, backlogLink: m('today.backlogLink'),
   }
 
+  // AUT-02: Hoy se actualiza solo cuando cambia algo en los mercados de la persona (flag live_updates, por rol y mercado).
+  const live = (await flagOn(ctx, 'live_updates')) ? ctx.markets.flatMap((mk) => ['deal', 'account', 'lead', 'activity'].map((a) => `${mk.code}:${a}`)) : []
   return (
     <>
+      {live.length > 0 && <LiveRefresh topics={live} />}
       {header(teamBusy ? ownClear : m('today.pending', { count: total }), total, breakdown.join(' · '), 'hoy')}
       {!ob.hidden && ob.pending > 0 && (
         <aside className="card mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 pr-3 pl-3.5" data-testid="hoy-onboarding">
@@ -214,23 +220,29 @@ export default async function HoyPage({ searchParams }: { searchParams: Promise<
       {notices.length > 0 && (
         <section aria-label={t('Avisos', 'Notices')} className="card mb-6 divide-y divide-line overflow-hidden" data-testid="hoy-notices">
           <h2 className="px-4 py-3 text-[15px] font-semibold text-strong">{t(`Te avisaron (${notices.length})`, `You were notified (${notices.length})`)}</h2>
-          {notices.map((n) => (
-            <div key={n.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3" data-testid="hoy-notice">
-              {/* El aviso se escribió en el idioma guardado de la persona (notify.ts): si la pantalla está en otro, lo dice el atributo lang. */}
-              <p className="min-w-[200px] flex-1 text-[14.5px] text-strong" lang={ctx.user.locale && ctx.user.locale !== locale ? ctx.user.locale : undefined}>
-                <span className="font-semibold">{n.title ?? n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
-                <span className="block text-muted-2">{n.body}</span>
-              </p>
-              <Link href={n.link ?? (n.deal_id ? `/deals/${n.deal_id}` : n.account_id ? `/comercios/${n.account_id}` : '/avisos')} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="hoy-notice-open">{t('Abrir', 'Open')}</Link>
-              {/* Un anuncio con acuse se confirma en Anuncios: "Visto" no cuenta como acuse. */}
-              {n.kind !== 'announcement' && (
-                <ActionForm action={noticeSeenAction}>
-                  <input type="hidden" name="notice_id" value={n.id} />
-                  <Submit variant="ghost" size="sm" testId="hoy-notice-seen">{t('Visto', 'Seen')}</Submit>
-                </ActionForm>
-              )}
-            </div>
-          ))}
+          {notices.map((n) => {
+            // UX-02: "Visto" es optimista: la fila se va al instante y vuelve con el motivo si el servidor no guardó.
+            const body = (
+              <>
+                {/* El aviso se escribió en el idioma guardado de la persona (notify.ts): si la pantalla está en otro, lo dice el atributo lang. */}
+                <p className="min-w-[200px] flex-1 text-[14.5px] text-strong" lang={ctx.user.locale && ctx.user.locale !== locale ? ctx.user.locale : undefined}>
+                  <span className="font-semibold">{n.title ?? n.from_name}</span>{n.record ? <span className="text-muted-2"> · {n.record}</span> : null}
+                  <span className="block text-muted-2">{n.body}</span>
+                </p>
+                <Link href={n.link ?? (n.deal_id ? `/deals/${n.deal_id}` : n.account_id ? `/comercios/${n.account_id}` : '/avisos')} className="inline-flex min-h-11 items-center font-medium text-blue-text underline" data-testid="hoy-notice-open">{t('Abrir', 'Open')}</Link>
+              </>
+            )
+            const rowClass = 'flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3'
+            // Un anuncio con acuse se confirma en Anuncios: "Visto" no cuenta como acuse.
+            return n.kind === 'announcement' ? (
+              <div key={n.id} className={rowClass} data-testid="hoy-notice">{body}</div>
+            ) : (
+              <OptimisticAction key={n.id} action={noticeSeenAction} fields={{ notice_id: n.id }} label={t('Visto', 'Seen')} doneLabel={t('Visto', 'Seen')} hideRow
+                testId="hoy-notice-seen" className={rowClass} rowTestId="hoy-notice" rolledBack={t('No se guardó y lo dejamos como estaba.', 'It was not saved and we left it as it was.')}>
+                {body}
+              </OptimisticAction>
+            )
+          })}
         </section>
       )}
       <Queue items={items} counts={q.counts} labels={labels} sheet={sheetConfig(ctx, now)} now={now.toISOString()} action={completeItemAction} />

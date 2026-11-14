@@ -91,6 +91,8 @@ export async function listLeads(ctx: Ctx, f: LeadFilters, pageSize: number = LEA
     const items = rows.slice(0, pageSize)
     const last = items[items.length - 1]
     const key = last ? new Date(sort === 'due' ? last.sla_due_at : last.created_at).toISOString() : ''
+    // SEG-03: la lista de leads en pantalla queda en el registro de lecturas (cuántas filas).
+    await tx`select app.log_read('list', 'leads', ${items.length}, null)`
     return {
       items,
       next: rows.length > pageSize && last ? `${key}|${last.id}` : null,

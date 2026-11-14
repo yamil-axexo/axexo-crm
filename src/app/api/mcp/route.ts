@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getCtx } from '@/server/context'
+import { getCtx, loadCtx } from '@/server/context'
+import { tokenUser } from '@/domain/plataforma/mcp-oauth'
 import { mcpMode } from '@/server/adapters/ai'
 import { callTool, MCP_TOOLS } from '@/server/mcp/tools'
 import { DomainError } from '@/lib/errors'
@@ -19,8 +20,15 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (mcpMode() === 'off') return gone()
-  const ctx = await getCtx()
-  if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  // IA-06: un agente entra con el token OAuth (PKCE) que la persona le autorizó y corre como ella; sin token, la sesión del navegador.
+  const auth = req.headers.get('authorization') ?? ''
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
+  const who = bearer ? await tokenUser(bearer) : null
+  const ctx = who ? await loadCtx(who.userId, 'en') : bearer ? null : await getCtx()
+  if (!ctx) {
+    const meta = new URL('/.well-known/oauth-protected-resource', req.url).toString()
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: { 'www-authenticate': `Bearer resource_metadata="${meta}"` } })
+  }
   let msg: { id?: unknown; method?: string; params?: { name?: string; arguments?: Record<string, unknown> } }
   try {
     msg = await req.json()

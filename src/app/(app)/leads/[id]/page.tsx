@@ -17,6 +17,7 @@ import { OwnTime } from '@/ui/own-time'
 import { ACTIVITY, CONTACT_ROLE, LEAD_STATUS, LIFECYCLE, MOTOR, SOURCE, lab } from '@/lib/labels'
 import { MATCH_KIND } from '@/lib/datos-labels'
 import { leadStepAction, takeLeadAction } from '../actions'
+import { OptimisticAction } from '@/ui/optimistic'
 import { CompleteButton } from '@/ui/complete'
 import { resultOptions, sheetConfig } from '@/server/sheet'
 import { buttonClass } from '@/ui/kit'
@@ -112,7 +113,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           {open && canWork && !lead.owner_id && !canAssign && (
             <Card data-testid="lead-free">
               <CardTitle title={t('Nadie lleva este lead', 'This lead has no owner')} hint={t('Tómalo para llamarlo y trabajarlo. Queda a tu nombre.', 'Take it to call and work it. It becomes yours.')} />
-              <ActionForm action={takeLeadAction}><input type="hidden" name="id" value={lead.id} /><Submit testId="lead-take">{t('Tomar este lead', 'Take this lead')}</Submit></ActionForm>
+              <div className="flex flex-wrap gap-3"><OptimisticAction action={takeLeadAction} fields={{ id: lead.id }} label={t('Tomar este lead', 'Take this lead')} doneLabel={t('Es tuyo', 'It is yours')} variant="primary" size="md" testId="lead-take" rolledBack={t('No se pudo tomar y lo dejamos como estaba.', 'It could not be taken and we left it as it was.')} /></div>
             </Card>
           )}
           {open && canWork && (lead.owner_id || canAssign) && (
@@ -154,7 +155,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                   />
                 )}
                 {['new', 'contacted'].includes(lead.status) && (
-                  <ActionForm action={leadStepAction}><input type="hidden" name="id" value={lead.id} /><Submit name="step" value="qualify" variant={lead.status === 'contacted' ? 'primary' : 'ghost'} testId="lead-qualify">{t('Calificar', 'Qualify')}</Submit></ActionForm>
+                  <OptimisticAction action={leadStepAction} fields={{ id: lead.id, step: 'qualify' }} label={t('Calificar', 'Qualify')} doneLabel={t('Calificado', 'Qualified')} variant={lead.status === 'contacted' ? 'primary' : 'ghost'} size="md" testId="lead-qualify" rolledBack={t('No se pudo calificar y lo dejamos como estaba.', 'It could not be qualified and we left it as it was.')} />
                 )}
                 {lead.status === 'qualified' && pipes.length === 0 && (
                   <p className="w-full rounded-[10px] bg-warn-bg px-4 py-3 text-[14px] font-medium text-amber-text" data-testid="lead-no-pipeline">

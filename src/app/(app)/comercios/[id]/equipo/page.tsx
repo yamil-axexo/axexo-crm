@@ -6,6 +6,7 @@ import { Badge, Card, CardTitle, Empty, Field, LinkButton, PageHeader } from '@/
 import { ActionForm, Dialog, RevealOnce, Submit } from '@/ui/client'
 import { day } from '@/lib/format'
 import { readerTimeZone } from '@/server/timezone'
+import { ReservedCard } from '@/ui/reserved-card'
 import * as A from '@/app/(app)/admin/seguridad/actions'
 import { CHANNEL_LABEL, CONSENT_CATEGORY, CONSENT_SOURCE, TEAM_FUNCTION } from '@/app/(app)/admin/seguridad/labels'
 
@@ -138,6 +139,10 @@ export default async function AccountTeamPage({ params }: { params: Promise<{ id
           </ul>
         )}
       </Card>
+
+      {d.contacts.map((c) => (
+        <ReservedCard key={`reserved-${c.id}`} ctx={ctx} object="contact" id={c.id} tz={tz} title={t(`Datos reservados de ${c.full_name}`, `Restricted data for ${c.full_name}`)} />
+      ))}
 
       <Card data-testid="consent-card">
         <CardTitle

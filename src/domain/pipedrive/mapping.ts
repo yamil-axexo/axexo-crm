@@ -170,7 +170,7 @@ export const OMITTED = '[dato omitido]'
  * Número de tarjeta: longitud y prefijo de una marca real, y dígito de control. Un IMEI también pasa el dígito de control
  * (15 dígitos, casi siempre empieza con 35) y aquí es un dato de trabajo: con el prefijo y la longitud por marca no se confunde.
  */
-const isCard = (d: string) =>
+export const isCard = (d: string) =>
   !/^(\d)\1+$/.test(d) &&
   ((d.length === 16 && /^(4|5[1-5]|2[2-7]|6|35)/.test(d)) || (d.length === 15 && /^3[47]/.test(d)) || (d.length === 14 && /^3[068]/.test(d)) || (d.length === 13 && /^4/.test(d)) || (d.length === 19 && /^[46]/.test(d))) &&
   luhn(d)

@@ -40,7 +40,7 @@ export async function DealSteps({ ctx, dealId, canEdit, market }: { ctx: Ctx; de
               <ActionForm action={decideApprovalAction} testId="approval-approve">
                 <input type="hidden" name="approval_id" value={s.pending.id} />
                 <input type="hidden" name="decision" value="approve" />
-                <Submit size="sm" testId="approval-approve-btn">{t('Aprobar y mover', 'Approve and move')}</Submit>
+                <Submit testId="approval-approve-btn">{t('Aprobar y mover', 'Approve and move')}</Submit>
               </ActionForm>
               <Dialog trigger={t('No aprobar', 'Decline')} title={t('No aprobar este paso', 'Decline this step')} size="sm" testId="approval-reject">
                 <ActionForm action={decideApprovalAction} className="space-y-4 text-left" onOk="close" testId="approval-reject-form">
