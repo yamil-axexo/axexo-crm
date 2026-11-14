@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { ssoEnabled, bootstrapAdmins } from '@/env'
 import { allowedEmail, identityProvider } from '@/server/adapters/identity'
+import { firstStop } from '@/server/first-stop'
 import { createSession } from '@/server/context'
 import { withoutUser } from '@/server/db'
 
@@ -19,5 +20,5 @@ export async function GET(request: NextRequest) {
   const userId = rows[0]?.id
   if (!userId) return fail('no_access')
   await createSession(userId, 'sso')
-  return NextResponse.redirect(new URL('/hoy', origin))
+  return NextResponse.redirect(new URL(await firstStop(userId), origin))
 }

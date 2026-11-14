@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAs, pageErrors } from './helpers'
+import { fichaTab, loginAs, pageErrors } from './helpers'
 
 // Corre al final (zz-): la importación agrega cientos de registros y las demás pruebas cuentan sobre los datos sintéticos.
 test.describe.configure({ mode: 'serial' })
@@ -36,6 +36,7 @@ test('un comercio importado muestra sus campos de Pipedrive y se pueden editar',
   await page.goto('/buscar?q=EM-1001')
   await page.getByRole('link', { name: /Abarrotes La Esperanza \(sintético\)/ }).first().click()
   await expect(page.getByTestId('account-facts')).toBeVisible()
+  await fichaTab(page, 'datos')
   const card = page.getByTestId('account-custom')
   await expect(card).toContainText('Monthly Volume')
   await expect(card).toContainText('48,250.75')
@@ -50,6 +51,7 @@ test('un comercio importado muestra sus campos de Pipedrive y se pueden editar',
   await page.getByTestId('custom-save').click()
   await expect(page.getByTestId('form-ok')).toContainText('1 campo')
   await page.getByTestId('custom-back').click()
+  await fichaTab(page, 'datos')
   await expect(page.getByTestId('account-custom')).toContainText('51,000')
 })
 
@@ -59,6 +61,9 @@ test('los embudos importados operan: un pedido se gana a mano, un alta no', asyn
   await page.getByRole('link', { name: /Order 4471/ }).first().click()
   await expect(page.getByTestId('deal-items')).toContainText('SIM kit (synthetic)')
   await page.getByTestId('deal-win').click()
+  // Ganar a mano pide la fecha real de cierre (hoy por defecto) y confirma.
+  await expect(page.getByTestId('win-rule')).toContainText('se gana a mano')
+  await page.getByTestId('deal-win-confirm').click()
   await expect(page.getByTestId('deal-move')).toHaveCount(0)
   await expect(page.locator('body')).toContainText('Ganado')
 

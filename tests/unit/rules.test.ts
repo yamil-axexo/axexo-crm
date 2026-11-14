@@ -32,7 +32,20 @@ describe('criterios de etapa (PIPE-01, ACT-02)', () => {
 describe('matriz de capacidades (AUT-01)', () => {
   const m = (role: Role, market: string | null = 'MX'): Membership[] => [{ role, market, teamId: null }]
   it('el LT lee tableros y auditoría pero no escribe nada', () => {
-    const writes = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((c) => !['board.supervisor', 'board.lt', 'audit.read'].includes(c))
+    const writes = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((c) => !['board.supervisor', 'board.lt', 'audit.read', 'status.read', 'report.view', 'report.export', 'adoption.read', 'exception.read', 'automation.read', 'rollout.read',
+      // Paquete reportes: leadership lee la galería, Finanzas, la conciliación y la adopción por equipo. Guardar un reporte o una vista es
+      // una preferencia de la persona (como reportar un problema): no cambia datos del negocio.
+      'report.gallery', 'report.finance', 'report.reconcile', 'adoption.team', 'report.save', 'view.save',
+      // Paquete seguridad: leadership lee la pantalla de Seguridad (alertas, lecturas, inventario); no revisa alertas ni cambia umbrales.
+      // Paquete gobierno: leadership lee Gobierno (servicio, versiones, costos) y, como cualquier persona, puede pedir un cambio de
+      // configuración; pedirlo no cambia nada hasta que administración decide.
+      'security.read', 'gov.read', 'config.request',
+      // Paquete ia: leadership ve las sugerencias, pregunta por las cifras definidas y lee la evaluación; no acepta ni configura nada.
+      'ia.read', 'ia.ask', 'ia.oversee',
+      // Paquete reportes2: leadership lee los tableros KAM y de Operaciones, el costo de CONTIGO y el detalle de visitas para reembolsos.
+      'board.kam', 'board.ops', 'cost.read', 'visit.reimbursement',
+      // Paquete conectores: activar los avisos de SU navegador y la captura de SU correo son preferencias de la persona.
+      'push.subscribe', 'capture.optin'].includes(c))
     for (const cap of writes) expect(can(m('lt', null), cap, 'MX'), cap).toBe(false)
     expect(can(m('lt', null), 'board.lt')).toBe(true)
   })
@@ -54,10 +67,13 @@ describe('matriz de capacidades (AUT-01)', () => {
     expect(can(m('rep'), 'lead.assign', 'MX')).toBe(false)
     expect(can(m('supervisor'), 'account.reassign', 'MX')).toBe(true)
   })
-  it('operaciones edita comercios y trabaja handoffs, pero no vende', () => {
+  it('operaciones edita comercios, trabaja handoffs y lleva los negocios de su mercado; no crea negocios ni trabaja leads', () => {
     expect(can(m('ops'), 'account.edit', 'MX')).toBe(true)
     expect(can(m('ops'), 'activity.write', 'MX')).toBe(true)
-    expect(can(m('ops'), 'deal.move', 'MX')).toBe(false)
+    expect(can(m('ops'), 'deal.move', 'MX')).toBe(true)
+    expect(can(m('ops'), 'deal.edit', 'MX')).toBe(true)
+    expect(can(m('ops'), 'deal.move', 'US')).toBe(false)
+    expect(can(m('ops'), 'deal.create', 'MX')).toBe(false)
     expect(can(m('ops'), 'lead.work', 'MX')).toBe(false)
   })
 })
@@ -75,8 +91,11 @@ describe('formato (DATA-03, DATA-05)', () => {
   it('el dinero se guarda en unidades menores y se muestra con el código de su moneda', () => {
     expect(money(2500000, 'MXN', 'es')).toContain('25,000')
     expect(money(2500000, 'MXN', 'es')).toContain('MXN')
-    expect(money(null, 'USD', 'en')).toBe('—')
-    expect(pct(1, 4)).toBe('25%')
-    expect(pct(0, 0)).toBe('—')
+    // sin dato: "s/d" en español y "n/a" en inglés, nunca un guion largo
+    expect(money(null, 'USD', 'en')).toBe('n/a')
+    expect(money(null, 'MXN', 'es')).toBe('s/d')
+    expect(pct(1, 4, 'es')).toBe('25%')
+    expect(pct(0, 0, 'es')).toBe('s/d')
+    expect(pct(0, 0, 'en')).toBe('n/a')
   })
 })

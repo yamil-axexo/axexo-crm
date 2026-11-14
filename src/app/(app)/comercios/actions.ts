@@ -2,8 +2,10 @@
 
 import { redirect } from 'next/navigation'
 import { runAction, str } from '@/server/action'
-import { addContact, createAccount, mergeAccounts, reassignAccounts, setParent, updateAccount } from '@/domain/accounts'
-import { withUser } from '@/server/db'
+import { addContactLinked, createAccount, mergeAccounts, reassignAccounts, setParent, updateAccount } from '@/domain/accounts'
+import { DomainError, invalid } from '@/lib/errors'
+import { updateCustom, type CustomInput } from '@/domain/custom'
+
 import type { ActionResult } from '@/lib/errors'
 
 type R = ActionResult<unknown>
@@ -13,24 +15,45 @@ export async function createAccountAction(_: R | null, fd: FormData): Promise<R>
   const res = await runAction(async (ctx) => {
     const out = await createAccount(ctx, {
       market: str(fd, 'market'),
-      kind: str(fd, 'kind') as 'store',
+      accountType: str(fd, 'kind'),
       name: str(fd, 'name'),
       segment: str(fd, 'segment') as 'd2d',
       parentId: str(fd, 'parent_id'),
       phone: str(fd, 'phone'),
       locality: str(fd, 'locality'),
       region: str(fd, 'region'),
+      territoryId: str(fd, 'territory_id'),
+      email: str(fd, 'email'),
+      addressLine: str(fd, 'address_line'),
+      taxId: str(fd, 'tax_id'),
       force: fd.get('force') === 'on',
+      reason: str(fd, 'reason'),
+      recruitedBy: str(fd, 'recruited_by'),
     })
     if (out.duplicates) {
       const names = out.duplicates.map((d) => `${d.name}${d.owner_name ? ` (${d.owner_name})` : ''}`).join('; ')
-      throw new (await import('@/lib/errors')).DomainError(
+      // DAT-04: una llave fuerte exacta (teléfono, correo, nombre y dirección) no se salta con un clic; lo parecido, solo con motivo.
+      const strong = out.duplicates.some((d) => d.strong)
+      if (strong && !ctx.can('account.reassign', str(fd, 'market')))
+        throw new DomainError('duplicate', `Parece que ya existe: ${names}. Coincide un dato exacto, así que no se crea otro: búscalo o pídeselo a tu supervisión.`, `It looks like this already exists: ${names}. An exact detail matches, so a second one is not created: look it up or ask your supervisor.`)
+      throw new DomainError(
         'duplicate',
-        `Parece que ya existe: ${names}. Si es otro comercio, marca "Crear de todos modos".`,
-        `It looks like this already exists: ${names}. If it is a different merchant, tick "Create anyway".`,
+        `Parece que ya existe: ${names}. Si es otro comercio, marca "Crear de todos modos" y escribe por qué.`,
+        `It looks like this already exists: ${names}. If it is a different merchant, tick "Create anyway" and say why.`,
       )
     }
     id = out.id!
+    // Lo mínimo para calificar que se pidió en el alta (campos marcados "pedir al dar de alta"): se guarda como campos de la cuenta.
+    const intake: CustomInput = {}
+    for (const [k, v] of fd.entries()) if (k.startsWith('f_') && typeof v === 'string' && v.trim()) intake[k.slice(2)] = v
+    if (Object.keys(intake).length > 0) {
+      // El alta nunca se pierde por un dato de calificación que no cuadra: el comercio ya existe y eso se completa en la ficha.
+      try {
+        await updateCustom(ctx, 'account', id, intake)
+      } catch (e) {
+        if (!(e instanceof DomainError)) throw e
+      }
+    }
   })
   if (res.ok && id) redirect(`/comercios/${id}`)
   return res
@@ -53,8 +76,10 @@ export async function updateAccountAction(_: R | null, fd: FormData): Promise<R>
 
 export async function addContactAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    await addContact(ctx, str(fd, 'account_id'), { fullName: str(fd, 'full_name'), phone: str(fd, 'phone'), email: str(fd, 'email'), role: str(fd, 'role') as 'staff' })
-    return { message: ['Contacto agregado.', 'Contact added.'] }
+    const out = await addContactLinked(ctx, str(fd, 'account_id'), { fullName: str(fd, 'full_name'), phone: str(fd, 'phone'), email: str(fd, 'email'), role: str(fd, 'role') as 'staff',
+      locale: str(fd, 'locale') as 'es', sms: fd.get('sms') === 'on', primary: fd.get('primary') === 'on' })
+    // DAT-02: la misma persona en otra cuenta no se duplica; se liga la que ya existe y se dice.
+    return { message: out.linked ? [`${out.name} ya era contacto de otra cuenta con ese teléfono: quedó ligado también a esta.`, `${out.name} was already a contact of another account with that phone: now linked to this one too.`] : ['Contacto agregado.', 'Contact added.'] }
   })
 }
 
@@ -65,18 +90,14 @@ export async function setParentAction(_: R | null, fd: FormData): Promise<R> {
   })
 }
 
+/** Reasignar desde la ficha o con una selección de la lista. El reparto por filtro y por lotes vive en reparto-actions.ts. */
 export async function reassignAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
-    let ids = fd.getAll('account_id').filter((v): v is string => typeof v === 'string' && v.length > 0)
-    const from = str(fd, 'from_user_id')
-    if (ids.length === 0 && from) {
-      const market = str(fd, 'market')
-      const rows = await withUser(ctx.user.id, (tx) => tx<{ id: string }[]>`
-        select id from crm.accounts where owner_id = ${from} and market_code = ${market} and archived_at is null limit 500`)
-      ids = rows.map((r) => r.id)
-    }
+    const ids = fd.getAll('account_id').filter((v): v is string => typeof v === 'string' && v.length > 0)
+    if (ids.length === 0) throw invalid('Elige al menos un comercio.', 'Choose at least one merchant.')
     const n = await reassignAccounts(ctx, ids, str(fd, 'to_user_id'))
-    return { message: [`${n} comercios reasignados, con sus deals y tareas abiertas.`, `${n} merchants reassigned, with their open deals and tasks.`] }
+    if (n === 1) return { message: ['1 comercio reasignado, con sus negocios abiertos y sus pendientes.', '1 merchant reassigned, with its open deals and to-dos.'] }
+    return { message: [`${n} comercios reasignados, con sus negocios abiertos y sus pendientes.`, `${n} merchants reassigned, with their open deals and to-dos.`] }
   })
 }
 

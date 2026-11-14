@@ -8,6 +8,7 @@ import { CRM_OBJECT, closesByTransaction, last4, marketFromPipelineName, motorFr
 import { SRC, addIssue, bump, ensureLossReason, rawRows, saveRefs, sid, type Issue, type Json } from './refs'
 export type { Issue } from './refs'
 import { LOADERS, finish } from './load'
+import { finishOpenLoad, loadBlocked, startLoad } from '@/domain/loads'
 
 /**
  * Migración desde Pipedrive en tres tiempos, reanudable y repetible (REL-07):
@@ -19,7 +20,8 @@ import { LOADERS, finish } from './load'
 export const STEPS = [
   'config',
   'x:organization', 'x:person', 'x:deal', 'x:deal_archived', 'x:lead', 'x:lead_archived', 'x:activity', 'x:note', 'x:product', 'x:deal_product',
-  'l:organization', 'l:person', 'l:deal', 'l:lead', 'l:activity', 'l:note', 'l:product', 'l:deal_product',
+  'x:deal_flow', 'x:org_relationship',
+  'l:organization', 'l:person', 'l:deal', 'l:lead', 'l:activity', 'l:note', 'l:product', 'l:deal_product', 'l:deal_flow', 'l:org_relationship',
   'finish',
 ] as const
 export type Step = (typeof STEPS)[number]
@@ -68,6 +70,10 @@ export async function startImport(ctx: Ctx, mode: Mode): Promise<string> {
     if (mode !== 'full' && !last) throw invalid('Primero corre una importación completa.', 'Run a full import first.')
     const cursor: Cursor = { mode, since: mode === 'delta' ? new Date(last!.started_at.getTime() - 5 * 60_000).toISOString() : null }
     if (mode === 'remap') await tx`update crm.import_raw set loaded_at = null, load_note = null where source = ${SRC} and object not like 'cfg:%'`
+    // E5.F3/F4: la carga de Pipedrive queda con inicio y fin, respeta la ventana de mantenimiento y no corre junto con otra.
+    const load = await startLoad(tx, 'pipedrive', 'manual', ctx.user.id)
+    const blocked = loadBlocked(load)
+    if (blocked) throw invalid(blocked[0], blocked[1])
     const row = await one(tx<{ id: string }[]>`insert into crm.import_runs (source, phase, cursor, started_by) values (${SRC}, 'config', ${tx.json(cursor as unknown as Json)}, ${ctx.user.id}) returning id`)
     await audit(tx, ctx, 'import.started', 'import_run', row!.id, null, null, { source: SRC, mode })
     return row!.id
@@ -80,6 +86,7 @@ export async function cancelImport(ctx: Ctx): Promise<void> {
     const row = await one(tx<{ id: string }[]>`update crm.import_runs set status = 'cancelled', finished_at = now(), updated_at = now()
       where source = ${SRC} and status = 'running' returning id`)
     if (row) await audit(tx, ctx, 'import.cancelled', 'import_run', row.id, null, null, null)
+    await finishOpenLoad(tx, 'pipedrive', { ok: false, error: 'cancelled' }, ctx.user.id)
   })
 }
 
@@ -93,6 +100,8 @@ export async function resumeImport(ctx: Ctx): Promise<void> {
         cursor = cursor - 'lock_until'
       where id = (select id from crm.import_runs where source = ${SRC} order by started_at desc limit 1) and status = 'failed' returning id`)
     if (!row) throw invalid('No hay una importación detenida que reanudar.', 'There is no stopped import to resume.')
+    const blocked = loadBlocked(await startLoad(tx, 'pipedrive', 'manual', ctx.user.id))
+    if (blocked) throw invalid(blocked[0], blocked[1])
     await audit(tx, ctx, 'import.resumed', 'import_run', row.id, null, null, null)
   })
 }
@@ -138,7 +147,11 @@ export async function importStep(ctx: Ctx, budgetMs = 20_000): Promise<StepResul
       const idx = STEPS.indexOf(phase)
       const next = nextStep(idx, cursor.mode)
       if (!next) {
-        await withSystem((tx) => tx`update crm.import_runs set status = 'done', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until' where id = ${run.id}`)
+        await withSystem(async (tx, sys) => {
+          const r = await tx<{ n: number }[]>`update crm.import_runs set status = 'done', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until' where id = ${run.id}
+            returning (select count(*)::int from crm.import_raw x where x.source = ${SRC} and x.loaded_at >= import_runs.started_at) as n`
+          await finishOpenLoad(tx, 'pipedrive', { ok: true, done: r[0]?.n ?? 0, note: cursor.mode }, sys)
+        })
         return { status: 'done', phase }
       }
       phase = next
@@ -158,8 +171,11 @@ export async function importStep(ctx: Ctx, budgetMs = 20_000): Promise<StepResul
       ? { code: `pipedrive_${e.code}`, step: phase, detail: e.status ? `HTTP ${e.status}` : undefined }
       : { code: 'error', step: phase, detail: [pg?.name, pg?.code, pg?.constraint_name, pg?.column].filter(Boolean).join(' ').slice(0, 160) || 'Error' }
     console.error(JSON.stringify({ level: 'error', msg: 'import_step_failed', step: phase, code: issue.code, detail: issue.detail ?? null }))
-    await withSystem((tx) => tx`update crm.import_runs set status = 'failed', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until',
-      issues = issues || ${tx.json([issue] as unknown as Json)} where id = ${run.id}`)
+    await withSystem(async (tx, sys) => {
+      await tx`update crm.import_runs set status = 'failed', finished_at = now(), updated_at = now(), cursor = cursor - 'lock_until',
+        issues = issues || ${tx.json([issue] as unknown as Json)} where id = ${run.id}`
+      await finishOpenLoad(tx, 'pipedrive', { ok: false, error: issue.code }, sys)
+    })
     return { status: 'failed', phase }
   }
 }
@@ -180,6 +196,7 @@ async function runStep(runId: string, phase: Step, cursor: Cursor, deadline: num
     return { done: true, cursor }
   }
   if (phase === 'x:deal_product') return extractDealProducts(runId, cursor)
+  if (phase === 'x:deal_flow' || phase === 'x:org_relationship') return extractPerRecord(runId, phase, cursor, deadline)
   if (phase.startsWith('x:')) return extractPage(runId, phase, cursor)
   if (phase === 'finish') {
     await withSystem((tx, sysId) => finish(tx, runId, sysId))
@@ -195,7 +212,7 @@ async function runStep(runId: string, phase: Step, cursor: Cursor, deadline: num
 
 /** jsonb_set no crea niveles intermedios: los conteos se inicializan una vez. */
 async function initStats(tx: Tx, runId: string): Promise<void> {
-  await tx`update crm.import_runs set stats = '{"config":{},"extracted":{},"created":{},"updated":{},"skipped":{}}'::jsonb || stats where id = ${runId}`
+  await tx`update crm.import_runs set stats = '{"config":{},"extracted":{},"created":{},"updated":{},"skipped":{},"kept":{},"conflicts":{}}'::jsonb || stats where id = ${runId}`
 }
 
 // ---------------------------------------------------------------- 1. configuración
@@ -313,8 +330,8 @@ export async function applyConfig(tx: Tx, runId: string): Promise<void> {
     if (pipelineId) {
       await tx`update crm.pipelines set name = ${name}, position = ${position}, market_code = ${market} where id = ${pipelineId}`
     } else {
-      const row = await one(tx<{ id: string }[]>`insert into crm.pipelines (market_code, motor, name, position, close_by_transaction)
-        values (${market}, ${motor}, ${name}, ${position}, ${closesByTransaction(motor)}) returning id`)
+      const row = await one(tx<{ id: string }[]>`insert into crm.pipelines (market_code, motor, name, position, close_by_transaction, multi_open, has_items)
+        values (${market}, ${motor}, ${name}, ${position}, ${closesByTransaction(motor)}, ${motor === 'orders'}, ${motor === 'orders'}) returning id`)
       pipelineId = row!.id
       await saveRefs(tx, 'pipeline', [{ ext: p.external_id, id: pipelineId }])
     }
@@ -329,7 +346,12 @@ export async function applyConfig(tx: Tx, runId: string): Promise<void> {
       const rot = s.payload.is_deal_rot_enabled ? Math.max(0, Math.round(Number(s.payload.days_to_rotten ?? 0))) : 0
       const existing = stageRefs.get(s.external_id)
       if (existing) {
-        await tx`update crm.stages set position = ${pos}, name_es = ${sname}, name_en = ${sname}, probability = ${prob}, rot_days = ${rot} where id = ${existing}`
+        // Una etapa que administración ya corrigió (nombre en español, días) conserva lo corregido: solo se mueve de lugar.
+        await tx`update crm.stages set position = ${pos}, probability = ${prob},
+                  name_es = case when edited_at is null then ${sname} else name_es end,
+                  name_en = case when edited_at is null then ${sname} else name_en end,
+                  rot_days = case when edited_at is null then ${rot} else rot_days end
+                 where id = ${existing}`
       } else {
         const row = await one(tx<{ id: string }[]>`insert into crm.stages (pipeline_id, position, code, name_es, name_en, kind, probability, rot_days)
           values (${pipelineId}, ${pos}, ${'pd_' + s.external_id}, ${sname}, ${sname}, 'open', ${prob}, ${rot}) returning id`)
@@ -458,6 +480,67 @@ async function extractDealProducts(runId: string, cursor: Cursor): Promise<{ don
   await withSystem(async (tx) => {
     if (rows.length) await upsertRaw(tx, 'deal_product', rows)
     await bump(tx, runId, ['extracted', 'deal_product'], rows.length)
+    await tx`update crm.import_runs set cursor = cursor || ${tx.json({ after: last } as unknown as Json)}, updated_at = now() where id = ${runId}`
+  })
+  return { done: false, cursor: { ...cursor, after: last } }
+}
+
+/**
+ * GOB-05: el historial de etapas de cada negocio y las relaciones padre e hijo de las organizaciones no vienen en las listas:
+ * se piden a Pipedrive registro por registro, solo para lo que llegó o cambió en esta corrida (lo pendiente de carga).
+ * Si la cuenta de Pipedrive no da ese dato (404 o sin permiso), el paso termina con un aviso y la carga sigue.
+ */
+async function extractPerRecord(runId: string, phase: 'x:deal_flow' | 'x:org_relationship', cursor: Cursor, deadline: number): Promise<{ done: boolean; cursor: Cursor }> {
+  const flow = phase === 'x:deal_flow'
+  const parentObject = flow ? 'deal' : 'organization'
+  const after = cursor.after ?? ''
+  const ids = await withSystem((tx) => tx<{ external_id: string }[]>`
+    select external_id from crm.import_raw where source = ${SRC} and object = ${parentObject} and loaded_at is null and external_id > ${after}
+     order by external_id limit 25`)
+  if (!ids.length) return { done: true, cursor }
+  const rows: RawRow[] = []
+  let last = after
+  for (const { external_id: id } of ids) {
+    if (Date.now() > deadline) break
+    try {
+      if (flow) {
+        const items: PdItem[] = []
+        let page: string | null = null
+        for (let i = 0; i < 20; i++) {
+          const res = await pdList(`/v1/deals/${id}/flow`, 'offset', { items: 'dealChange' }, page, 100)
+          items.push(...res.items)
+          if (!res.next) break
+          page = res.next
+        }
+        for (const it of items) {
+          const d = (it.data ?? it) as PdItem
+          if ((it.object ?? 'dealChange') !== 'dealChange' || d.field_key !== 'stage_id' || d.id == null) continue
+          rows.push({ external_id: `${id}:${d.id}`, parent_ref: id, payload: { old_value: d.old_value ?? null, new_value: d.new_value ?? null, log_time: d.log_time ?? it.timestamp ?? null, user_id: d.user_id ?? null } as PdItem })
+        }
+      } else {
+        const res = await pdList('/v1/organizationRelationships', 'single', { org_id: id }, null, 100)
+        for (const r of res.items) {
+          if (r.id == null || r.type !== 'parent') continue
+          const owner = sid((r.rel_owner_org_id as PdItem | undefined)?.value ?? r.rel_owner_org_id)
+          const linked = sid((r.rel_linked_org_id as PdItem | undefined)?.value ?? r.rel_linked_org_id)
+          if (owner && linked) rows.push({ external_id: String(r.id), parent_ref: linked, payload: { parent_org: owner, child_org: linked } as PdItem })
+        }
+      }
+    } catch (e) {
+      if (e instanceof PipedriveError && (e.code === 'not_found' || e.status === 403)) {
+        await withSystem((tx) => addIssue(tx, runId, { code: 'history_unavailable', step: phase, detail: e.code === 'not_found' ? 'not_found' : 'forbidden' }))
+        return { done: true, cursor }
+      }
+      throw e
+    }
+    last = id
+  }
+  const object = flow ? 'deal_flow' : 'org_relationship'
+  // La misma relación llega al pedirla por la matriz y por la hija: una sola fila por identificador.
+  const unique = [...new Map(rows.map((r) => [r.external_id, r])).values()]
+  await withSystem(async (tx) => {
+    if (unique.length) await upsertRaw(tx, object, unique)
+    await bump(tx, runId, ['extracted', object], unique.length)
     await tx`update crm.import_runs set cursor = cursor || ${tx.json({ after: last } as unknown as Json)}, updated_at = now() where id = ${runId}`
   })
   return { done: false, cursor: { ...cursor, after: last } }

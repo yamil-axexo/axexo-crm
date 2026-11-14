@@ -1,11 +1,16 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { ctxFor, owner, personaId, systemContext } from './helpers'
+import { ctxFor, owner, personaId, systemContext, marketDay } from './helpers'
 import { convertLead, createLead, intakeFromForm, qualifyLead } from '@/domain/leads'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
 import { createAccount, mergeAccounts, reassignAccounts } from '@/domain/accounts'
 import { ingestMetricsFile, ingestSalesAppEvent } from '@/domain/integrations'
 import { evaluateRules } from '@/domain/rules'
 import { withUser } from '@/server/db'
+
+// embudo2 (ACT-02): la fecha del próximo paso tiene tope (90 días propuestos); las pruebas usan fechas cercanas.
+const SOON = marketDay(30)
+const SOON2 = marketDay(45)
+void SOON2
 
 const admin = owner()
 afterAll(() => admin.end())
@@ -16,7 +21,7 @@ const phone = () => `55 6${Math.floor(1000000 + Math.random() * 8999999)}`
 describe('leads (LEAD-01, LEAD-03, REL-07)', () => {
   it('un lead no se convierte sin calificar; al convertir nace cuenta, contacto, atribución, deal y tarea', async () => {
     const marco = await ctxFor('marco.pena')
-    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Tienda Dominio ${tag()}`, contactName: 'Rosa Luna', phone: phone() })
+    const id = await createLead(marco, { market: 'MX', motor: 'd2d', businessName: `Tienda Dominio ${tag()}`, contactName: 'Rosa Luna', phone: phone(), locality: 'Guadalajara' })
     await expect(convertLead(marco, id)).rejects.toMatchObject({ code: 'invalid' })
     await qualifyLead(marco, id)
     const out = await convertLead(marco, id)
@@ -69,7 +74,7 @@ describe('embudo (PIPE-01, PIPE-04, PIPE-06, ACT-02)', () => {
     const diana = await ctxFor('diana.cruz')
     const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena Dominio ${tag()}`, segment: 'b2b' })
     const pipe = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b'`)
-    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal de prueba', nextStep: 'Llamar', nextStepDue: '2030-01-10' })
+    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal de prueba', nextStep: 'Llamar', nextStepDue: SOON })
     const stages = await admin<{ id: string; code: string }[]>`select id, code from crm.stages where pipeline_id = ${pipe.id} order by position`
     const stage = (code: string) => stages.find((s) => s.code === code)!.id
     return { diana, dealId, accountId: acc.id!, stage }
@@ -201,7 +206,11 @@ describe('cuentas (DAT-04, CAMPO-03, CANAL-03)', () => {
     const dup = await createAccount(marco, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel })
     expect(dup.id).toBeUndefined()
     expect(dup.duplicates?.[0]).toMatchObject({ id: a.id, match: 'phone', owner_name: 'Lucía Vega' })
-    const forced = await createAccount(marco, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true })
+    // paquete datos (DAT-04): el teléfono exacto es llave fuerte. Quien vende no crea otro; quien dirige sí, y solo con motivo.
+    await expect(createAccount(marco, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true, reason: 'Es otra tienda de la misma dueña' })).rejects.toMatchObject({ code: 'duplicate_blocked' })
+    const fernando = await ctxFor('fernando.ibarra')
+    await expect(createAccount(fernando, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true })).rejects.toMatchObject({ code: 'invalid' })
+    const forced = await createAccount(fernando, { market: 'MX', kind: 'store', name: 'Otro nombre', segment: 'd2d', phone: tel, force: true, reason: 'Es otra tienda de la misma dueña' })
     expect(forced.id).toBeTruthy()
   })
 
@@ -240,17 +249,23 @@ describe('reglas (CAMPO-04, CS-03)', () => {
     const diana = await ctxFor('diana.cruz')
     const acc = await createAccount(diana, { market: 'MX', kind: 'chain', name: `Cadena Reglas ${tag()}`, segment: 'b2b' })
     const pipe = await one(admin<{ id: string }[]>`select id from crm.pipelines where market_code = 'MX' and motor = 'b2b'`)
-    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal reglas', nextStep: 'Llamar', nextStepDue: '2030-01-10' })
+    const dealId = await createDeal(diana, { accountId: acc.id!, pipelineId: pipe.id, title: 'Deal reglas', nextStep: 'Llamar', nextStepDue: SOON })
     await admin`update crm.deals set next_step = null, next_step_due = null, stage_entered_at = now() - interval '40 days' where id = ${dealId}`
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     const open = await admin`select kind from crm.exceptions where deal_id = ${dealId} and resolved_at is null order by kind`
     expect(open.map((e) => e.kind)).toEqual(['no_next_step', 'stalled_deal'])
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     expect((await admin`select 1 from crm.exceptions where deal_id = ${dealId} and resolved_at is null`).length).toBe(2)
-    await updateDeal(diana, dealId, { nextStep: 'Visitar', nextStepDue: '2030-02-01' })
+    await updateDeal(diana, dealId, { nextStep: 'Visitar', nextStepDue: SOON2 })
     await withUser(sys.user.id, (tx) => evaluateRules(tx))
     const after = await admin`select kind, resolution from crm.exceptions where deal_id = ${dealId} order by kind`
     expect(after.find((e) => e.kind === 'no_next_step')).toMatchObject({ resolution: 'auto' })
-    expect(after.find((e) => e.kind === 'stalled_deal')!.resolution).toBeNull()
+    // embudo2 (PIPE-03): un próximo paso con fecha por venir también saca al negocio de "estancado" (valor propuesto
+    // rot_respects_next_step); con el valor apagado, el aviso de estancado sigue abierto como antes.
+    expect(after.find((e) => e.kind === 'stalled_deal')).toMatchObject({ resolution: 'auto' })
+    await admin`update crm.funnel_settings set value = 'false' where key = 'rot_respects_next_step' and market_code is null`
+    await withUser(sys.user.id, (tx) => evaluateRules(tx))
+    expect(await admin`select 1 from crm.exceptions where deal_id = ${dealId} and kind = 'stalled_deal' and resolved_at is null`).toHaveLength(1)
+    await admin`update crm.funnel_settings set value = 'true' where key = 'rot_respects_next_step' and market_code is null`
   })
 })

@@ -1,12 +1,29 @@
 import 'server-only'
-import { withUser } from '@/server/db'
+import { withUser, type Tx } from '@/server/db'
 import type { Ctx } from '@/server/context'
 import { audit } from '@/domain/common'
-import { invalid, notFound } from '@/lib/errors'
+import { DomainError, invalid, notFound } from '@/lib/errors'
 import { scrub } from '@/domain/pipedrive/mapping'
 import type postgres from 'postgres'
 
-type Def = { key: string; label_es: string; label_en: string; data_type: string; options: string[] }
+type Def = { key: string; label_es: string; label_en: string; data_type: string; options: string[]; value_schema?: ValueSchema | null }
+/** DAT-05 (datos2): reglas del valor con palabras de JSON Schema. */
+export type ValueSchema = { minimum?: number; maximum?: number; minLength?: number; maxLength?: number; pattern?: string }
+
+/** Revisa un valor ya convertido contra las reglas del campo. Devuelve el problema en ES/EN, o null si cumple. */
+export function schemaProblem(def: Pick<Def, 'label_es' | 'label_en'>, schema: ValueSchema | null | undefined, value: unknown): [string, string] | null {
+  if (!schema || value === undefined || value === null) return null
+  if (typeof value === 'number') {
+    if (schema.minimum !== undefined && value < schema.minimum) return [`"${def.label_es}" va de ${schema.minimum} en adelante.`, `"${def.label_en}" must be ${schema.minimum} or more.`]
+    if (schema.maximum !== undefined && value > schema.maximum) return [`"${def.label_es}" llega hasta ${schema.maximum}.`, `"${def.label_en}" must be ${schema.maximum} or less.`]
+  }
+  if (typeof value === 'string') {
+    if (schema.minLength !== undefined && value.length < schema.minLength) return [`"${def.label_es}" lleva al menos ${schema.minLength} caracteres.`, `"${def.label_en}" needs at least ${schema.minLength} characters.`]
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) return [`"${def.label_es}" lleva hasta ${schema.maxLength} caracteres.`, `"${def.label_en}" takes up to ${schema.maxLength} characters.`]
+    if (schema.pattern && !new RegExp(`^(?:${schema.pattern})$`).test(value)) return [`"${def.label_es}" no tiene la forma que se pide.`, `"${def.label_en}" is not in the expected format.`]
+  }
+  return null
+}
 export type CustomInput = Record<string, string | string[] | { amount: string; currency: string } | undefined>
 
 /** Un campo es editable aquí si vive en `custom`: los que alimentan columnas del modelo o están restringidos no se tocan por esta vía. */
@@ -52,18 +69,30 @@ function coerce(def: Def, raw: CustomInput[string]): unknown {
 }
 
 /** DATA-08: edita los campos adicionales de una cuenta o un deal. Solo audita lo que cambió. */
-export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: string, input: CustomInput): Promise<number> {
-  return withUser(ctx.user.id, async (tx) => {
-    const rows = object === 'account'
-      ? await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean }[]>`select market_code, custom, archived_at is not null as locked from crm.accounts where id = ${id} for update`
-      : await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean }[]>`select market_code, custom, false as locked from crm.deals where id = ${id} for update`
+export async function updateCustom(ctx: Ctx, object: 'account' | 'deal' | 'contact' | 'activity', id: string, input: CustomInput): Promise<number> {
+  return withUser(ctx.user.id, (tx) => updateCustomTx(tx, ctx, object, id, input))
+}
+
+/** Lo mismo dentro de una transacción ya abierta (por ejemplo, al pasar a sus campos lo escrito en la nota de una visita). */
+export async function updateCustomTx(tx: Tx, ctx: Ctx, object: 'account' | 'deal' | 'contact' | 'activity', id: string, input: CustomInput): Promise<number> {
+  {
+    type Locked = { market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }
+    // DAT-05 (datos2): los campos de contacto y de actividad se editan igual que los de cuenta y negocio.
+    const rows = object === 'contact'
+      ? await tx<Locked[]>`select market_code, custom, archived_at is not null as locked, null::text as motor from crm.contacts where id = ${id} for update`
+      : object === 'activity'
+      ? await tx<Locked[]>`select market_code, custom, false as locked, null::text as motor from crm.activities where id = ${id} for update`
+      : object === 'account'
+      ? await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`select market_code, custom, archived_at is not null as locked, segment as motor from crm.accounts where id = ${id} for update`
+      : await tx<{ market_code: string; custom: Record<string, unknown>; locked: boolean; motor: string | null }[]>`
+          select d.market_code, d.custom, false as locked, (select p.motor from crm.pipelines p where p.id = d.pipeline_id) as motor from crm.deals d where d.id = ${id} for update`
     const row = rows[0]
     if (!row) throw notFound()
-    ctx.assert(object === 'account' ? 'account.edit' : 'deal.edit', row.market_code)
+    ctx.assert(object === 'account' || object === 'contact' ? 'account.edit' : object === 'activity' ? 'activity.write' : 'deal.edit', row.market_code)
     if (row.locked) throw invalid('Un comercio archivado no se edita.', 'An archived merchant cannot be edited.')
     const defs = await tx<(Def & { mapped_to: string | null; data_class: string })[]>`
-      select key, label_es, label_en, data_type, options, mapped_to, data_class from crm.field_definitions
-       where object = ${object} and is_active and (market_code is null or market_code = ${row.market_code})`
+      select key, label_es, label_en, data_type, options, mapped_to, data_class, value_schema from crm.field_definitions
+       where object = ${object} and is_active and (market_code is null or market_code = ${row.market_code}) and (motor is null or motor = ${row.motor})`
     const before: Record<string, unknown> = {}
     const after: Record<string, unknown> = {}
     const remove: string[] = []
@@ -71,6 +100,8 @@ export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: str
     for (const d of defs) {
       if (!isEditable(d) || !(d.key in input)) continue
       const next = coerce(d, input[d.key])
+      const problem = schemaProblem(d, d.value_schema, next)
+      if (problem) throw invalid(...problem)
       const prev = row.custom[d.key]
       if (JSON.stringify(next ?? null) === JSON.stringify(prev ?? null)) continue
       before[d.key] = prev ?? null
@@ -82,23 +113,34 @@ export async function updateCustom(ctx: Ctx, object: 'account' | 'deal', id: str
     if (!changed) return 0
     const json = tx.json(patch as postgres.JSONValue)
     if (object === 'account') await tx`update crm.accounts set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
+    else if (object === 'contact') await tx`update crm.contacts set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
+    else if (object === 'activity') await tx`update crm.activities set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
     else await tx`update crm.deals set custom = (custom - ${remove}::text[]) || ${json} where id = ${id}`
     await audit(tx, ctx, `${object}.custom_updated`, object, id, row.market_code, before, after)
     return changed
-  })
+  }
 }
 
 /** Configuración de un embudo: si cierra por primera transacción y qué etapa es la de espera. Solo administración (P11). */
-export async function configurePipeline(ctx: Ctx, pipelineId: string, input: { closeByTransaction: boolean; awaitingStageId: string | null }): Promise<void> {
+export async function configurePipeline(ctx: Ctx, pipelineId: string, input: { closeByTransaction: boolean; awaitingStageId: string | null; confirmed?: boolean }): Promise<void> {
   ctx.assert('config.manage')
   await withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ market_code: string; close_by_transaction: boolean }[]>`select market_code, close_by_transaction from crm.pipelines where id = ${pipelineId} for update`
     const p = rows[0]
     if (!p) throw notFound()
+    // Cambiar cómo se gana aplica desde ese momento a los negocios abiertos: la pantalla dice a cuántos y pide confirmarlo.
+    const open = await tx<{ n: number }[]>`select count(*)::int as n from crm.deals where pipeline_id = ${pipelineId} and status = 'open'`
+    const openDeals = open[0]?.n ?? 0
+    const ruleChanges = p.close_by_transaction !== input.closeByTransaction
+    if (ruleChanges && openDeals > 0 && input.confirmed === false) {
+      throw new DomainError('confirm_required',
+        `Este cambio aplica a ${openDeals === 1 ? '1 negocio abierto' : `${openDeals} negocios abiertos`} de este embudo. Marca la casilla de confirmación y guarda de nuevo.`,
+        `This change applies to ${openDeals === 1 ? '1 open deal' : `${openDeals} open deals`} in this pipeline. Tick the confirmation box and save again.`)
+    }
     const prev = await tx<{ id: string }[]>`select id from crm.stages where pipeline_id = ${pipelineId} and kind = 'awaiting_txn'`
     let awaiting: string | null = null
     if (input.closeByTransaction && input.awaitingStageId) {
-      const ok = await tx`select 1 from crm.stages where id = ${input.awaitingStageId} and pipeline_id = ${pipelineId} and kind in ('open','awaiting_txn')`
+      const ok = await tx`select 1 from crm.stages where id = ${input.awaitingStageId} and pipeline_id = ${pipelineId} and kind in ('open','awaiting_txn') and archived_at is null`
       if (!ok[0]) throw invalid('Esa etapa no es de este embudo.', 'That stage does not belong to this pipeline.')
       awaiting = input.awaitingStageId
     }
@@ -107,6 +149,6 @@ export async function configurePipeline(ctx: Ctx, pipelineId: string, input: { c
     if (awaiting) await tx`update crm.stages set kind = 'awaiting_txn' where id = ${awaiting}`
     await audit(tx, ctx, 'pipeline.configured', 'pipeline', pipelineId, p.market_code,
       { close_by_transaction: p.close_by_transaction, awaiting_stage_id: prev[0]?.id ?? null },
-      { close_by_transaction: input.closeByTransaction, awaiting_stage_id: awaiting })
+      { close_by_transaction: input.closeByTransaction, awaiting_stage_id: awaiting, ...(ruleChanges ? { open_deals: openDeals } : {}) })
   })
 }

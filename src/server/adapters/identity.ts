@@ -2,6 +2,7 @@ import 'server-only'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { env } from '@/env'
+import { emailInDomains } from '@/lib/domains'
 
 // PORT-04: el proveedor de identidad vive detrás de esta interfaz.
 // Staging usa Supabase Auth como intermediario OIDC de Google Workspace.
@@ -40,7 +41,9 @@ const supabaseProvider: IdentityProvider = {
       options: {
         redirectTo: callbackUrl,
         skipBrowserRedirect: true,
-        queryParams: { hd: env().AUTH_ALLOWED_DOMAIN, prompt: 'select_account' },
+        // "hd" solo ordena el selector de cuentas de Google; con varios dominios se pide cualquiera de la organización.
+        // Quién entra lo decide allowedEmail en el servidor.
+        queryParams: { hd: env().AUTH_ALLOWED_DOMAINS.length === 1 ? env().AUTH_ALLOWED_DOMAINS[0]! : '*', prompt: 'select_account' },
       },
     })
     if (error || !data.url) throw new Error('identity provider did not return a login URL')
@@ -70,5 +73,5 @@ export function identityProvider(): IdentityProvider {
 
 /** AUTHZ-01: el dominio se fuerza en el servidor, no se confía en el parámetro "hd" del navegador. */
 export function allowedEmail(identity: VerifiedIdentity): boolean {
-  return identity.emailVerified && identity.email.endsWith(`@${env().AUTH_ALLOWED_DOMAIN.toLowerCase()}`)
+  return identity.emailVerified && emailInDomains(identity.email, env().AUTH_ALLOWED_DOMAINS)
 }

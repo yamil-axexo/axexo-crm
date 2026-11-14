@@ -13,14 +13,14 @@ export default async function CustomFieldsPage({ params }: { params: Promise<{ i
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const row = await customValues(ctx, 'account', id)
   if (!row || row.locked || !ctx.can('account.edit', row.market_code)) notFound()
-  const defs = (await fieldDefs(ctx, 'account', row.market_code)).filter(isEditable)
+  const defs = (await fieldDefs(ctx, 'account', row.market_code, row.motor)).filter(isEditable)
   return (
     <>
       <PageHeader
         eyebrow={row.title}
         title={t('Campos del comercio', 'Merchant fields')}
         desc={t('Cada cambio queda en la bitácora con el valor anterior y el nuevo.', 'Every change is logged with the old and the new value.')}
-        actions={<LinkButton href={`/comercios/${id}`} testId="custom-back">{t('Volver', 'Back')}</LinkButton>}
+        actions={<LinkButton href={`/comercios/${id}?tab=datos`} testId="custom-back">{t('Volver', 'Back')}</LinkButton>}
       />
       <Card>
         <CustomFieldsForm

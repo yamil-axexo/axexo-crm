@@ -1,24 +1,28 @@
 import type { Ctx } from '@/server/context'
 import { getImportStatus } from '@/dal/imports'
 import { STEPS } from '@/domain/pipedrive/import'
-import { Badge, Card, CardTitle, Empty, Table } from '@/ui/kit'
+import { Badge, Card, CardTitle, Empty, Table, NoData } from '@/ui/kit'
 import { ActionForm, Submit } from '@/ui/client'
 import { ImportRunner } from '@/ui/import-runner'
 import { ago, dayTime, num } from '@/lib/format'
 import { MOTOR, lab } from '@/lib/labels'
+import { CoexistenceCards } from './coexistence'
 import { cancelImportAction, importStepAction, purgeRawAction, resumeImportAction, startImportAction } from './actions'
+import { MigrationToolsCard } from './pruebas-pipedrive'
 
 type Pair = [es: string, en: string]
 
 const OBJECTS: { key: string; label: Pair; into: Pair }[] = [
   { key: 'organization', label: ['Organizaciones', 'Organizations'], into: ['Comercios', 'Merchants'] },
   { key: 'person', label: ['Personas', 'People'], into: ['Contactos', 'Contacts'] },
-  { key: 'deal', label: ['Deals', 'Deals'], into: ['Deals', 'Deals'] },
+  { key: 'deal', label: ['Negocios', 'Deals'], into: ['Negocios', 'Deals'] },
   { key: 'lead', label: ['Leads', 'Leads'], into: ['Leads', 'Leads'] },
   { key: 'activity', label: ['Actividades', 'Activities'], into: ['Actividades', 'Activities'] },
-  { key: 'note', label: ['Notas', 'Notes'], into: ['Notas en el timeline', 'Timeline notes'] },
+  { key: 'note', label: ['Notas', 'Notes'], into: ['Notas en el hilo', 'Thread notes'] },
   { key: 'product', label: ['Productos', 'Products'], into: ['Productos', 'Products'] },
-  { key: 'deal_product', label: ['Productos en deals', 'Deal products'], into: ['Partidas del deal', 'Deal line items'] },
+  { key: 'deal_product', label: ['Productos de los negocios', 'Deal products'], into: ['Líneas del negocio', 'Deal line items'] },
+  { key: 'deal_flow', label: ['Cambios de etapa', 'Stage changes'], into: ['Historial de etapas', 'Stage history'] },
+  { key: 'org_relationship', label: ['Organización matriz', 'Parent organization'], into: ['Árbol de cuentas', 'Account tree'] },
 ]
 
 const PHASE: Record<string, Pair> = {
@@ -27,14 +31,26 @@ const PHASE: Record<string, Pair> = {
 }
 const SKIP: Record<string, Pair> = {
   no_market: ['sin mercado identificable', 'no identifiable market'],
+  // Reglas de entrada (las mismas de la pantalla y la API): la fila que no cumple no entra.
+  rule_name: ['sin nombre válido', 'no valid name'],
+  already_known: ['ya estaba en el historial', 'already in the history'],
+  no_account: ['alguna de las dos organizaciones no está en CONTIGO', 'one of the two organizations is not in CONTIGO'],
+  other_market: ['la matriz es de otro mercado', 'the parent is in another market'],
+  parent_kept: ['ya tenía matriz en CONTIGO: manda CONTIGO', 'it already had a parent in CONTIGO: CONTIGO wins'],
+  parent_rejected: ['la matriz no puede tener cuentas debajo', 'the parent cannot have accounts under it'],
+  rule_prohibited: ['traía un dato que CONTIGO no guarda', 'it carried data CONTIGO does not store'],
+  rule_phone: ['teléfono inválido', 'invalid phone number'],
+  rule_amount: ['monto inválido', 'invalid amount'],
+  rule_lost_reason: ['perdido sin motivo', 'lost with no reason'],
   pipeline_out_of_scope: ['embudo fuera de US y MX', 'pipeline outside US and MX'],
   archived_open: ['archivado sin cerrar', 'archived while open'],
   deleted: ['borrado en Pipedrive', 'deleted in Pipedrive'],
   no_stage: ['etapa inexistente', 'missing stage'],
-  no_link: ['sin comercio, deal ni lead', 'no merchant, deal or lead'],
-  no_deal: ['su deal no se cargó', 'its deal was not loaded'],
+  no_link: ['sin comercio, negocio ni lead', 'no merchant, deal or lead'],
+  no_deal: ['su negocio no se cargó', 'its deal was not loaded'],
   empty: ['sin texto', 'no text'],
   merged_in_contigo: ['ya fusionado en CONTIGO', 'already merged in CONTIGO'],
+  market_cut_over: ['su mercado ya apagó Pipedrive', 'its market already switched Pipedrive off'],
 }
 const ISSUE: Record<string, Pair> = {
   pipedrive_unauthorized: ['Pipedrive rechazó el token. Revisa PIPEDRIVE_API_TOKEN en el servidor y que sea de un usuario administrador.', 'Pipedrive rejected the token. Check PIPEDRIVE_API_TOKEN on the server and that it belongs to an admin user.'],
@@ -63,7 +79,7 @@ const DEST: Record<string, Pair> = {
   'policy:omit': ['No se guarda (DATA-06)', 'Not stored (DATA-06)'],
 }
 const OBJ: Record<string, Pair> = {
-  account: ['Comercio', 'Merchant'], contact: ['Contacto', 'Contact'], deal: ['Deal y lead', 'Deal and lead'], activity: ['Actividad', 'Activity'], product: ['Producto', 'Product'],
+  account: ['Comercio', 'Merchant'], contact: ['Contacto', 'Contact'], deal: ['Negocio y lead', 'Deal and lead'], activity: ['Actividad', 'Activity'], product: ['Producto', 'Product'],
 }
 
 export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
@@ -148,6 +164,9 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
         )}
       </Card>
 
+      <CoexistenceCards ctx={ctx} />
+      <MigrationToolsCard ctx={ctx} />
+
       <Card pad={false} data-testid="import-counts">
         <div className="px-7 pt-7"><CardTitle title={t('Qué se copió y qué se cargó', 'What was copied and what was loaded')} hint={t('Lo que no se carga queda contado con su motivo. Nada se descarta en silencio.', 'Anything not loaded is counted with its reason. Nothing is dropped silently.')} /></div>
         <Table head={<><th>Pipedrive</th><th>{t('Copiados', 'Copied')}</th><th>CONTIGO</th><th>{t('Nuevos', 'New')}</th><th>{t('Actualizados', 'Updated')}</th><th>{t('No cargados', 'Not loaded')}</th><th>{t('Pendientes', 'Pending')}</th></>}>
@@ -161,14 +180,14 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
                 <td className="text-[13.5px] text-muted-2">{lab(t, o.into)}</td>
                 <td className="num" data-testid="count-created">{num(stats.created?.[o.key] ?? 0, locale)}</td>
                 <td className="num">{num(stats.updated?.[o.key] ?? 0, locale)}</td>
-                <td className="text-[13px] text-muted-2">{sk.length ? sk.map((s) => `${num(s.n, locale)} ${lab(t, SKIP[s.reason], s.reason)}`).join(' · ') : '—'}</td>
+                <td className="text-[13px] text-muted-2">{sk.length ? sk.map((s) => `${num(s.n, locale)} ${lab(t, SKIP[s.reason], s.reason)}`).join(' · ') : <NoData locale={locale} />}</td>
                 <td className="num">{num(raw?.pending ?? 0, locale)}</td>
               </tr>
             )
           })}
         </Table>
         <p className="px-7 pb-6 text-[12.5px] text-muted">
-          {t(`Además. Comercios creados para deals sin organización: ${num(stats.created?.account_from_deal ?? 0, locale)}. IDs de EMIDA ligados: ${num(stats.created?.alias_emida ?? 0, locale)}. Accesos de ventas otorgados: ${num(stats.created?.membership ?? 0, locale)}.`,
+          {t(`Además. Comercios creados para negocios sin organización: ${num(stats.created?.account_from_deal ?? 0, locale)}. IDs de EMIDA ligados: ${num(stats.created?.alias_emida ?? 0, locale)}. Accesos de ventas otorgados: ${num(stats.created?.membership ?? 0, locale)}.`,
             `Also. Merchants created for deals with no organization: ${num(stats.created?.account_from_deal ?? 0, locale)}. EMIDA IDs linked: ${num(stats.created?.alias_emida ?? 0, locale)}. Sales access grants: ${num(stats.created?.membership ?? 0, locale)}.`)}
         </p>
       </Card>
@@ -176,7 +195,7 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
       <div className="space-y-8">
         <Card pad={false} data-testid="import-totals">
           <div className="px-7 pt-7"><CardTitle title={t('Lo que hay hoy en CONTIGO', 'What CONTIGO holds today')} /></div>
-          <Table head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Contactos', 'Contacts')}</th><th>Deals</th><th>Leads</th><th>{t('Actividades', 'Activities')}</th></>}>
+          <Table head={<><th>{t('Mercado', 'Market')}</th><th>{t('Comercios', 'Merchants')}</th><th>{t('Contactos', 'Contacts')}</th><th>{t('Negocios', 'Deals')}</th><th>Leads</th><th>{t('Actividades', 'Activities')}</th></>}>
             {d.totals.map((m) => <tr key={m.market_code} className="table-row"><td className="font-semibold text-strong">{m.market_code}</td><td className="num">{num(m.accounts, locale)}</td><td className="num">{num(m.contacts, locale)}</td><td className="num">{num(m.deals, locale)}</td><td className="num">{num(m.leads, locale)}</td><td className="num">{num(m.activities, locale)}</td></tr>)}
           </Table>
           <p className="px-7 pb-6 text-[12.5px] text-muted" data-testid="import-users">
@@ -241,13 +260,13 @@ export async function PipedriveTab({ ctx }: { ctx: Ctx }) {
             {d.webhooks.map((w) => (
               <li key={w.id} className="flex flex-wrap items-center justify-between gap-3 text-[13.5px]" data-testid="webhook-row">
                 <span><code className="text-[12.5px] text-strong">{w.event}</code>{w.name ? <span className="ml-2 text-muted-2">{w.name}</span> : null}</span>
-                <span className="flex items-center gap-2 text-muted-2">{w.target ?? '—'}<Badge tone={w.active ? 'good' : 'neutral'}>{w.active ? t('activo', 'active') : t('inactivo', 'inactive')}</Badge></span>
+                <span className="flex items-center gap-2 text-muted-2">{w.target ?? <NoData locale={locale} />}<Badge tone={w.active ? 'good' : 'neutral'}>{w.active ? t('activo', 'active') : t('inactivo', 'inactive')}</Badge></span>
               </li>
             ))}
           </ul>
         )}
         {d.inventory.length > 0 && <p className="mt-5 text-[13px] text-muted-2">{d.inventory.map((x) => `${x.object.replace('_', ' ')}: ${x.n}`).join(' · ')}</p>}
-        <p className="mt-4 text-[13px] text-muted">{t('Las automatizaciones (Automations) de Pipedrive no se pueden leer por API. Se inventarían aparte y se rehacen como reglas de CONTIGO.', 'Pipedrive Automations cannot be read through the API. They are inventoried separately and rebuilt as CONTIGO rules.')}</p>
+        <p className="mt-4 text-[13px] text-muted">{t('Las automatizaciones, los reportes y las metas de Pipedrive no se leen por API: se levantaron de la pantalla y se reconstruyeron en CONTIGO. Dónde quedó cada uno está en "Qué falta por reconstruir".', 'Pipedrive automations, reports and goals cannot be read through the API: they were taken from the screen and rebuilt in CONTIGO. Where each one lives is in "What is left to rebuild".')}</p>
       </Card>
     </div>
   )

@@ -166,13 +166,22 @@ const luhn = (digits: string) => {
 }
 export const OMITTED = '[dato omitido]'
 
+/**
+ * Número de tarjeta: longitud y prefijo de una marca real, y dígito de control. Un IMEI también pasa el dígito de control
+ * (15 dígitos, casi siempre empieza con 35) y aquí es un dato de trabajo: con el prefijo y la longitud por marca no se confunde.
+ */
+export const isCard = (d: string) =>
+  !/^(\d)\1+$/.test(d) &&
+  ((d.length === 16 && /^(4|5[1-5]|2[2-7]|6|35)/.test(d)) || (d.length === 15 && /^3[47]/.test(d)) || (d.length === 14 && /^3[068]/.test(d)) || (d.length === 13 && /^4/.test(d)) || (d.length === 19 && /^[46]/.test(d))) &&
+  luhn(d)
+
 /** SEC-08: si un texto libre trae una tarjeta o un SSN, ese fragmento no entra a la base. */
 export function scrub(text: string): string {
   return text
     .replace(/\b(?:\d[ -]?){13,19}\b/g, (m) => {
       const d = m.replace(/\D/g, '')
       const tail = /[ -]$/.test(m) ? m.slice(-1) : ''
-      return d.length >= 13 && d.length <= 19 && !/^(\d)\1+$/.test(d) && /^[3-6]/.test(d) && luhn(d) ? OMITTED + tail : m
+      return isCard(d) ? OMITTED + tail : m
     })
     .replace(/\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b/g, OMITTED)
 }
@@ -281,7 +290,7 @@ const COUNTRY: Record<string, string> = {
 export const countryCode = (name: unknown): string | null => (typeof name === 'string' ? (COUNTRY[normName(name)] ?? null) : null)
 
 export function marketFromPipelineName(name: string): string | null {
-  const m = /^\s*([A-Za-z]{2})\s*[-–—:|]/.exec(name)
+  const m = /^\s*([A-Za-z]{2})\s*[-\u2013\u2014:|]/.exec(name)
   return m ? m[1]!.toUpperCase() : null
 }
 

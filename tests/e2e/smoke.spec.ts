@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAs, pageErrors } from './helpers'
+import { loginAs, openMenu, pageErrors } from './helpers'
 
 const PAGES = ['/hoy', '/leads', '/pipelines', '/comercios', '/actividades', '/buscar?q=esperanza']
 
@@ -15,6 +15,7 @@ for (const persona of ['nora.salas', 'luis.tovar', 'ana.robles', 'fernando.ibarr
     for (const nav of ['nav-supervisor', 'nav-panel-lt', 'nav-admin']) {
       const link = page.getByTestId(nav)
       if (await link.count()) {
+        await openMenu(page)
         await link.click()
         await expect(page.locator('h1').first()).toBeVisible()
       }
