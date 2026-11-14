@@ -2,7 +2,7 @@ import { ProposedTag } from '@/ui/role-board'
 import { notFound } from 'next/navigation'
 import { requireCtx } from '@/server/context'
 import { getReportOptions } from '@/dal/reports'
-import { USAGE_WEEKS, getUsage, metricOwners } from '@/dal/reportes'
+import { USAGE_WEEKS, getUsage, metricOwners, teamBoardStreak } from '@/dal/reportes'
 import { oneOnOnePeople, rolloutRule, usageExtra } from '@/dal/reportes2'
 import { ActionForm, Submit } from '@/ui/client'
 import { Field } from '@/ui/kit'
@@ -41,6 +41,7 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
   // reportes2 (GOB-03): colas atendidas y 1:1 con el tablero, y la regla de paso a despliegue como dato (propuesta hasta que la fijen).
   const [extra, rule, oooPeople] = await Promise.all([usageExtra(ctx, [...new Set(d.rows.map((r) => r.user_id))]), rolloutRule(ctx), ctx.can('one_on_one.record') ? oneOnOnePeople(ctx) : Promise.resolve([])])
   const ex = (id: string) => extra.find((x) => x.user_id === id)
+  const streaks = await teamBoardStreak(ctx, rule.supervisor_weeks)
   const todayIso = new Intl.DateTimeFormat('en-CA', { timeZone: ctx.markets[0]?.timezone ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const trend = (w: number[]) => t(`Últimas ${USAGE_WEEKS} semanas: ${w.join(', ')}`, `Last ${USAGE_WEEKS} weeks: ${w.join(', ')}`)
   return (
@@ -60,7 +61,7 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
 
       {teams.length > 0 && (
         <Card className="mt-6" pad={false} data-testid="usage-teams">
-          <div className="px-5 pt-5 md:px-7 md:pt-6"><CardTitle title={t('Por equipo', 'By team')} hint={t('"Listo para ampliar" junta dos cosas: quien supervisa abrió el tablero de su equipo esta semana, y el equipo ya tiene comercios activos.', '"Ready to expand" puts two things together: the supervisor opened the team board this week, and the team already has active merchants.')} /></div>
+          <div className="px-5 pt-5 md:px-7 md:pt-6"><CardTitle title={t('Por equipo', 'By team')} hint={t('"Listo para ampliar" aplica la regla de paso a despliegue de abajo: semanas seguidas de tablero, 1:1 con cada persona en 30 días y comercios activos. Si falta algo, la fila dice qué.', '"Ready to expand" applies the rollout readiness rule below: weeks in a row of board use, a 1:1 with each person in 30 days and active merchants. If something is missing, the row says what.')} /></div>
           <DataTable testId="usage-team-table" label={t('Uso por equipo', 'Use by team')}
             head={[{ label: t('Equipo', 'Team') }, { label: t('Actividades, tendencia', 'Activities, trend') }, { label: t('Esta semana', 'This week'), num: true }, { label: t('Próximo paso al día', 'Next step up to date'), num: true }, { label: t('Leads a tiempo', 'Leads on time'), num: true }, { label: t('Supervisión usó el tablero', 'Supervisor used the board') }, { label: t('Señal', 'Signal') }]}
             rows={teams.map((tm) => {
@@ -68,14 +69,23 @@ export default async function AdoptionPage({ searchParams }: { searchParams: Pro
               const w = sumWeeks(rows)
               const views = d.views.find((v) => v.team_id === tm.team_id)?.views ?? 0
               const out = d.outcome.find((o) => o.team_id === tm.team_id)
-              const ready = views > 0 && (out?.active ?? 0) > 0
+              // La misma regla que se muestra abajo (regla de paso a despliegue): semanas seguidas de tablero, 1:1 con cada
+              // persona del equipo en 30 días y resultado (comercios activos). Una sola regla, no dos criterios.
+              const streak = streaks.get(tm.team_id!) ?? 0
+              const oneOnOnesOk = rows.every((r) => (ex(r.user_id)?.one_on_ones ?? 0) >= rule.one_on_ones_min)
+              const ready = streak >= rule.supervisor_weeks && oneOnOnesOk && (out?.active ?? 0) > 0
+              const missing = [
+                streak < rule.supervisor_weeks ? t(`tablero ${streak} de ${rule.supervisor_weeks} semanas`, `board ${streak} of ${rule.supervisor_weeks} weeks`) : null,
+                !oneOnOnesOk ? t('faltan 1:1', '1:1s missing') : null,
+                (out?.active ?? 0) === 0 ? t('sin comercios activos', 'no active merchants') : null,
+              ].filter(Boolean).join(', ')
               return { key: tm.team_id!, testId: 'usage-team-row', cells: [
                 <span key="n" className="font-semibold">{tm.team_name}{multi ? ` · ${tm.market_code}` : ''}</span>,
                 <Spark key="s" values={w} label={trend(w)} />, num(w[w.length - 1] ?? 0, locale),
                 pct(rows.reduce((n, r) => n + r.step_ok, 0), rows.reduce((n, r) => n + r.open_deals, 0), locale),
                 pct(rows.reduce((n, r) => n + r.leads_on_time, 0), rows.reduce((n, r) => n + r.leads_judged, 0), locale),
                 views > 0 ? t(`Sí, ${views} ${views === 1 ? 'vez' : 'veces'} esta semana`, `Yes, ${views} ${views === 1 ? 'time' : 'times'} this week`) : t('Todavía no esta semana', 'Not yet this week'),
-                <span key="r" data-testid="usage-signal"><Badge tone={ready ? 'good' : 'neutral'}>{ready ? t('Listo para ampliar', 'Ready to expand') : t('Todavía no', 'Not yet')}</Badge></span>,
+                <span key="r" data-testid="usage-signal"><Badge tone={ready ? 'good' : 'neutral'}>{ready ? t('Listo para ampliar', 'Ready to expand') : t('Todavía no', 'Not yet')}</Badge>{!ready && missing && <span className="mt-1 block text-[12.5px] text-muted-2" data-testid="usage-signal-missing">{missing}</span>}</span>,
               ] }
             })} />
           <div className="px-5 pb-4 md:px-7"><Def t={t} k="rollout" named owners={owners} /></div>

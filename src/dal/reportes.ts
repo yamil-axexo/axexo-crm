@@ -456,6 +456,32 @@ export type UsageRow = {
 export type TeamSignal = { team_id: string; views: number }
 export const USAGE_WEEKS = 8
 /** Uso real por persona: actividades registradas por semana, próximo paso al día y leads atendidos a tiempo. Nunca ingresos. */
+/**
+ * Semanas seguidas (contando la actual) en que quien supervisa abrió el tablero de su equipo, hasta `weeks`.
+ * Es lo que pide la regla de paso a despliegue; "Listo para ampliar" se calcula con la misma regla que muestra la pantalla.
+ */
+export async function teamBoardStreak(ctx: Ctx, weeks: number): Promise<Map<string, number>> {
+  return withUser(ctx.user.id, async (tx) => {
+    const n = Math.max(1, Math.min(12, Math.round(weeks)))
+    const cum: Map<string, number>[] = []
+    for (let k = 1; k <= n; k++) {
+      const rows = await tx<TeamSignal[]>`select team_id, views from app.team_board_views(now() - make_interval(days => ${k * 7}))`
+      cum.push(new Map(rows.map((r) => [r.team_id, Number(r.views)])))
+    }
+    const out = new Map<string, number>()
+    for (const team of new Set(cum.flatMap((m) => [...m.keys()]))) {
+      let streak = 0
+      for (let k = 0; k < n; k++) {
+        const inWeek = (cum[k]!.get(team) ?? 0) - (k > 0 ? cum[k - 1]!.get(team) ?? 0 : 0)
+        if (inWeek <= 0) break
+        streak++
+      }
+      out.set(team, streak)
+    }
+    return out
+  })
+}
+
 export async function getUsage(ctx: Ctx, f: Filters) {
   const live = ctx.markets.filter((m) => m.status === 'live').map((m) => m.code)
   const has = (code: string, roles: Role[]) => ctx.memberships.some((m) => roles.includes(m.role) && (m.market === null || m.market === code))

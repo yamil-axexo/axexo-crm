@@ -286,8 +286,8 @@ export const METRICS = {
   },
   rollout: {
     label: ['Listo para ampliar', 'Ready to expand'],
-    what: ['Señal para decidir si un equipo pasa a la siguiente etapa del despliegue: quien supervisa usa CONTIGO (revisó el tablero de su equipo esta semana) y el equipo tiene un resultado (visitas por alta o comercios activos). Es una señal para conversar, no una calificación.', 'A signal to decide whether a team moves to the next rollout stage: the supervisor uses CONTIGO (opened the team board this week) and the team has an outcome (visits per enrolled store or active merchants). It is a prompt for a conversation, not a grade.'],
-    owner: C1, window: ['Esta semana y los últimos 30 días.', 'This week and the last 30 days.'], source: CONTIGO,
+    what: ['Señal para decidir si un equipo pasa a la siguiente etapa del despliegue. Aplica la regla de paso a despliegue: quien supervisa abre el tablero de su equipo las semanas seguidas que pide la regla, hace los 1:1 con el tablero en 30 días y el equipo tiene comercios activos. Es una señal para conversar, no una calificación.', 'A signal to decide whether a team moves to the next rollout stage. It applies the rollout readiness rule: the supervisor opens the team board for the weeks in a row the rule asks, holds the 1:1s with the board in 30 days and the team has active merchants. It is a prompt for a conversation, not a grade.'],
+    owner: C1, window: ['Las semanas que pide la regla y los últimos 30 días.', 'The weeks the rule asks for and the last 30 days.'], source: CONTIGO,
   },
   // ------------------------------------------------------------------ reportes2 (REP-01): tableros por rol. La lista de cada rol vive en
   // crm.role_boards (Administración la cambia); aquí vive la definición de cada cifra, una sola vez.
