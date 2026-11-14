@@ -72,14 +72,14 @@ export default async function EmbudoReport({ searchParams }: { searchParams: Pro
           <DataTable testId="no-step-table" label={t('Sin próximo paso', 'No next step')} empty={empty(t('Todo lo abierto tiene próximo paso.', 'Everything open has a next step.'))}
             head={[{ label: t('Qué es', 'What') }, { label: t('Registro', 'Record') }, { label: t('Quién lo lleva', 'Owner') }, { label: t('Mercado', 'Market') }]}
             rows={[
-              ...r.noStepDeals.map((x) => ({ key: `d-${x.id}`, cells: [t('Negocio', 'Deal'), <Link key="l" href={`/deals/${x.id}`} className={linkClass}>{x.title} · {x.account}</Link>, x.owner ?? t('Sin asignar', 'Unassigned'), x.market_code] })),
-              ...r.noStepLeads.map((x) => ({ key: `l-${x.id}`, cells: [`${t('Lead', 'Lead')} (${lab(t, LEAD_STATUS[x.status]?.label, x.status)})`, <Link key="l" href={`/leads/${x.id}`} className={linkClass}>{x.business_name}</Link>, x.owner ?? t('Sin asignar', 'Unassigned'), x.market_code] })),
-              ...r.noStepAccounts.map((x) => ({ key: `a-${x.id}`, cells: [t('Comercio en alta', 'Merchant being onboarded'), <Link key="l" href={`/comercios/${x.id}`} className={linkClass}>{x.name}</Link>, x.owner ?? t('Sin asignar', 'Unassigned'), x.market_code] })),
+              ...r.noStepDeals.map((x) => ({ key: `d-${x.id}`, cells: [t('Negocio', 'Deal'), <Link key="l" href={`/deals/${x.id}`} className={linkClass}>{x.title} · {x.account}</Link>, x.owner ?? t('Sin asignar', 'No owner'), x.market_code] })),
+              ...r.noStepLeads.map((x) => ({ key: `l-${x.id}`, cells: [`${t('Lead', 'Lead')} (${lab(t, LEAD_STATUS[x.status]?.label, x.status)})`, <Link key="l" href={`/leads/${x.id}`} className={linkClass}>{x.business_name}</Link>, x.owner ?? t('Sin asignar', 'No owner'), x.market_code] })),
+              ...r.noStepAccounts.map((x) => ({ key: `a-${x.id}`, cells: [t('Comercio en alta', 'Merchant being onboarded'), <Link key="l" href={`/comercios/${x.id}`} className={linkClass}>{x.name}</Link>, x.owner ?? t('Sin asignar', 'No owner'), x.market_code] })),
             ]} />
           <div className="border-t border-line px-5 pt-5 md:px-7"><CardTitle title={t('Próximos pasos a más de 60 días', 'Next steps more than 60 days out')} hint={t('Una fecha muy lejana apaga el aviso sin que pase nada. Conviene revisarlas una por una.', 'A far-off date silences the alert while nothing happens. They are worth reviewing one by one.')} /></div>
           <DataTable testId="far-steps-table" label={t('Próximos pasos lejanos', 'Far next steps')} empty={empty(t('Ningún próximo paso está a más de 60 días.', 'No next step is more than 60 days out.'))}
             head={[{ label: t('Negocio', 'Deal') }, { label: t('Quién lo lleva', 'Owner') }, { label: t('Fecha', 'Date') }, { label: t('Días', 'Days'), num: true }]}
-            rows={r.farSteps.map((x) => ({ key: x.id, cells: [<Link key="l" href={`/deals/${x.id}`} className={linkClass}>{x.title} · {x.account}</Link>, x.owner ?? t('Sin asignar', 'Unassigned'), day(x.due, locale), num(x.days, locale)] }))} />
+            rows={r.farSteps.map((x) => ({ key: x.id, cells: [<Link key="l" href={`/deals/${x.id}`} className={linkClass}>{x.title} · {x.account}</Link>, x.owner ?? t('Sin asignar', 'No owner'), day(x.due, locale), num(x.days, locale)] }))} />
         </Card>
 
         <Card pad={false} data-testid="report-gaps">

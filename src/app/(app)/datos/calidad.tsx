@@ -107,7 +107,7 @@ export async function CalidadTab({ ctx, market, team, rule }: { ctx: Ctx; market
               {queue.map((q) => (
                 <tr key={q.id} className="table-row" data-testid="quality-queue-row">
                   <td><Link href={q.kind === 'deal' ? `/deals/${q.id}` : `/comercios/${q.id}?tab=datos`} className="inline-flex min-h-11 items-center font-semibold text-blue-text underline">{q.name}</Link></td>
-                  <td className="text-[13.5px]">{q.who ?? <span className="text-amber-text">{t('Sin asignar', 'Unassigned')}</span>}</td>
+                  <td className="text-[13.5px]">{q.who ?? <span className="text-amber-text">{t('Sin asignar', 'No owner')}</span>}</td>
                   <td className="text-[13.5px] text-muted-2">{ago(q.since, locale)}</td>
                 </tr>
               ))}

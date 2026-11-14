@@ -115,6 +115,21 @@ async function Priority({ ctx, market }: { ctx: Ctx; market: string }) {
       {p.rows.length === 0 ? (
         <Empty title={t('Todavía no hay prioridad calculada', 'No priority computed yet')} hint={t('Se calcula una vez al día con la tarea programada. Si no hay tiendas activas con quien las lleve, no aparece nada.', 'It is computed once a day by the scheduled job. If there are no active stores with an owner, nothing shows.')} />
       ) : (
+        <>
+        {/* En el teléfono el porqué va a la vista, debajo del nombre: es lo que dice a qué se va a cada tienda. */}
+        <ul className="divide-y divide-line md:hidden" data-testid="priority-list">
+          {p.rows.map((r) => (
+            <li key={r.account_id} className="py-3" data-testid="priority-item">
+              <a className="flex min-h-11 items-center justify-between gap-3 font-semibold text-strong underline-offset-2 hover:underline" href={`/comercios/${r.account_id}`}>
+                <span className="min-w-0 [overflow-wrap:anywhere]">{r.account}</span>
+                <span className="num shrink-0 text-[13px] font-medium text-muted-2">{r.segment.toUpperCase()} · {num(r.score, locale)}</span>
+              </a>
+              <p className="text-[14px] text-muted-2" data-testid="priority-why">{r.reasons.map((x) => reasonText(t, x)).join(', ')}</p>
+              {!mine && <p className="text-[13px] text-muted">{shown(r.owner ?? null) ?? t('Sin asignar', 'No owner')}</p>}
+            </li>
+          ))}
+        </ul>
+        <div className="hidden md:block">
         <Table label={t('Prioridad', 'Priority')} testId="priority-table" head={<><th className={th}>{t('Tienda', 'Store')}</th><th className={th}>{t('Segmento', 'Segment')}</th><th className={th}>{t('Puntaje', 'Score')}</th><th className={th}>{t('Por qué', 'Why')}</th>{!mine && <th className={th}>{t('Quién la lleva', 'Owner')}</th>}</>}>
           {p.rows.map((r) => (
             <tr key={r.account_id} data-testid="priority-row">
@@ -122,10 +137,12 @@ async function Priority({ ctx, market }: { ctx: Ctx; market: string }) {
               <td className={td}>{r.segment.toUpperCase()}</td>
               <td className={`${td} num`}>{num(r.score, locale)}</td>
               <td className={td}>{r.reasons.map((x) => reasonText(t, x)).join(', ')}</td>
-              {!mine && <td className={td}>{shown(r.owner ?? null) ?? t('Sin asignar', 'Unassigned')}</td>}
+              {!mine && <td className={td}>{shown(r.owner ?? null) ?? t('Sin asignar', 'No owner')}</td>}
             </tr>
           ))}
         </Table>
+        </div>
+        </>
       )}
       <p className="mt-4 text-[13px] text-muted" data-testid="priority-holdout">
         {p.day ? t(`Cálculo del ${day(p.day, locale)}. ${p.holdout} tiendas están en el grupo de control de su territorio y no se listan, para medir si la prioridad ayuda.`, `Computed on ${day(p.day, locale)}. ${p.holdout} stores are in their territory’s control group and are not listed, to measure whether the priority helps.`) : ''}

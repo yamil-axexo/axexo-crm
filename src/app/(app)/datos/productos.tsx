@@ -102,7 +102,7 @@ export async function ProductosTab({ ctx, market, provider, status, late, withou
                   <td>{canExpand && <label className="flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" name="account_id" value={r.id} className="h-5 w-5" aria-label={t(`Elegir ${r.name}`, `Pick ${r.name}`)} data-testid="expansion-pick" /></label>}</td>
                   <td><Link href={`/comercios/${r.id}`} className="inline-flex min-h-11 items-center font-semibold text-blue-text underline">{r.name}</Link></td>
                   <td className="text-[13.5px]">{r.locality ?? <NoData locale={locale} />}</td>
-                  <td className="text-[13.5px]">{r.owner_name ?? <span className="text-amber-text">{t('Sin asignar', 'Unassigned')}</span>}</td>
+                  <td className="text-[13.5px]">{r.owner_name ?? <span className="text-amber-text">{t('Sin asignar', 'No owner')}</span>}</td>
                   <td className="num">{r.txn_30d === null ? <NoData locale={locale} /> : num(r.txn_30d, locale)}</td>
                 </tr>
               ))}

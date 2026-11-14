@@ -98,7 +98,7 @@ export default async function CareBoardPage({ searchParams }: { searchParams: Pr
                 {b.alerts.map((al) => (
                   <li key={al.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line py-3 first:border-t-0" data-testid="board-alert" data-kind={al.kind}>
                     <span className="min-w-0 text-[14.5px]">{acc(al.account_id, al.account)} <span className="text-muted">· {lab(t, ALERT[al.kind as AlertKind]?.label, al.kind)} · {ago(al.opened_at, locale)}{al.tier ? ` · ${lab(t, TIER[al.tier as Tier]?.label)}` : ''}{al.message_status ? ` · ${lab(t, MESSAGE_STATUS[al.message_status], al.message_status)}` : ''}</span></span>
-                    <span className="text-[13.5px] text-strong">{al.in_holdout ? t('Grupo de control', 'Control group') : al.digital_only ? t('Por mensaje primero', 'By message first') : al.owner_name ?? t('Sin asignar', 'Unassigned')}</span>
+                    <span className="text-[13.5px] text-strong">{al.in_holdout ? t('Grupo de control', 'Control group') : al.digital_only ? t('Por mensaje primero', 'By message first') : al.owner_name ?? t('Sin asignar', 'No owner')}</span>
                   </li>
                 ))}
               </ul>
