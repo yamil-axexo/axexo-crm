@@ -275,6 +275,12 @@ test.describe('administración configura desde la pantalla', () => {
     await page.locator('dialog[open]').getByTestId('b2b-label-en').fill(`${type} en`)
     await page.locator('dialog[open]').getByTestId('type-new-save').click()
     await expect(page.getByTestId('type-row').filter({ hasText: type })).toHaveCount(1)
+    // Integración ola 6 (cambiado a propósito): el catálogo de motivos tiene tope por mercado (embudo2, PIPE-04, valor propuesto
+    // en crm.funnel_settings). Para probar el alta se abre espacio durante la prueba y se deja como estaba al final.
+    const capDb = testDb()
+    const caps = await capDb<{ key: string; value: unknown }[]>`select key, value from crm.funnel_settings where key in ('reason_core_max', 'reason_max_extensions') and market_code is null`
+    await capDb`update crm.funnel_settings set value = '10'::jsonb where key = 'reason_max_extensions' and market_code is null`
+    await capDb`update crm.funnel_settings set value = '30'::jsonb where key = 'reason_core_max' and market_code is null`
     const reason = `Sin presupuesto ${uniq()}`
     await page.getByTestId('reason-new').click()
     await page.locator('dialog[open]').getByTestId('b2b-label-es').fill(reason)
@@ -282,6 +288,8 @@ test.describe('administración configura desde la pantalla', () => {
     await page.locator('dialog[open]').getByTestId('reason-new-b2b').check()
     await page.locator('dialog[open]').getByTestId('reason-new-save').click()
     await expect(page.getByTestId('reason-row').filter({ hasText: reason }).getByTestId('reason-scope')).toHaveText('Cadenas y distribuidores')
+    for (const c of caps) await capDb`update crm.funnel_settings set value = ${capDb.json(c.value as never)} where key = ${c.key} and market_code is null`
+    await capDb.end()
     await check(page, 'administración, embudos y campos')
     for (const w of WIDTHS.slice(1)) {
       await page.setViewportSize({ width: w.width, height: w.height })

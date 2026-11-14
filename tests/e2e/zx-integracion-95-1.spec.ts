@@ -146,7 +146,7 @@ test.describe('integración de la ola 1 de los 95', () => {
     for (const g of ['personas', 'ventas', 'avisos', 'integraciones', 'mercados', 'control']) await expect(nav.getByTestId(`admin-group-${g}`)).toBeVisible()
     const pills = await page.locator('nav[aria-label="Secciones"] a').allInnerTexts()
     expect(new Set(pills).size, pills.join(' | ')).toBe(pills.length)
-    expect(pills).toHaveLength(26) // integración 95-2: Mercados, Asignación y embudo, Seguridad y Gobierno; 95-4: Cuidado de comercios, Campo y canales, Partners, IA y asistencia; reportes2: Tableros y valores propuestos
+    expect(pills).toHaveLength(27) // integración 95-2: Mercados, Asignación y embudo, Seguridad y Gobierno; 95-4: Cuidado de comercios, Campo y canales, Partners, IA y asistencia; reportes2: Tableros y valores propuestos; datos2: Decisiones de negocio
     await expect(nav.getByTestId('admin-group-integraciones')).toContainText('Sales App y ventas')
     await expect(nav.getByTestId('admin-group-integraciones').getByRole('link')).toHaveText(['Sales App y ventas', 'Eventos, API y datos', 'Pipedrive', 'Calidad de datos', 'Datos'])
     await expect(page.getByTestId('pill-personas')).toHaveAttribute('aria-current', 'page')

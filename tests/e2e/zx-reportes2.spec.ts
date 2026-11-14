@@ -174,6 +174,9 @@ test.describe('Administración: tableros y valores propuestos; PDF del pedido', 
     const db = testDb()
     const [deal] = await db<{ id: string }[]>`select d.id from crm.deals d join crm.pipelines p on p.id = d.pipeline_id and p.has_items
       where d.market_code = 'US' and exists (select 1 from crm.deal_items i where i.deal_id = d.id) order by d.id limit 1`
+    // Integración ola 6: un encabezado puesto a mano en Comunicaciones del mercado gana sobre la plantilla propuesta (zx-avisos
+    // pone uno antes); esta prueba mira la plantilla, así que lo quita.
+    await db`update crm.market_comms set order_header = null where market_code = 'US'`
     await db.end()
     await loginAs(page, 'robert.hale')
     await page.goto(`/deals/${deal!.id}/pedido`)
