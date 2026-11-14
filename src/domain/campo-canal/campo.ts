@@ -109,7 +109,7 @@ async function computeDiff(tx: Tx, market: string, ids: string[], toUserId: stri
  * visibilidad. Nada cambia hasta aplicarlo. Origen: todos los comercios que lleva una persona (opcional: de un territorio).
  */
 export async function draftPlan(ctx: Ctx, raw: { market: string; fromUserId: string; toUserId: string; territoryId?: string; note?: string }): Promise<string> {
-  const p = z.object({ market: z.string().min(2).max(3), fromUserId: z.guid(), toUserId: z.guid(), territoryId: z.guid().optional().or(z.literal('')), note: z.string().max(300).optional() }).safeParse(raw)
+  const p = z.object({ market: z.string().min(2).max(3), fromUserId: z.guid().or(z.literal('none')), toUserId: z.guid(), territoryId: z.guid().optional().or(z.literal('')), note: z.string().max(300).optional() }).safeParse(raw)
   if (!p.success) throw invalid('Elige de quién salen los comercios y a quién van.', 'Choose whose merchants move and who receives them.')
   const d = p.data
   if (d.fromUserId === d.toUserId) throw invalid('Elige a otra persona: los comercios ya son suyos.', 'Choose someone else: the merchants are already theirs.')
@@ -118,7 +118,9 @@ export async function draftPlan(ctx: Ctx, raw: { market: string; fromUserId: str
   assertNoProhibited(note)
   return withUser(ctx.user.id, async (tx) => {
     await assertTarget(tx, ctx, d.market, d.toUserId)
-    const accs = await tx<{ id: string }[]>`select id from crm.accounts where market_code = ${d.market} and owner_id = ${d.fromUserId} and archived_at is null
+    // "none": los comercios sin asignar (los de debajo de una cadena los lleva la cadena: no se reparten sueltos).
+    const accs = await tx<{ id: string }[]>`select id from crm.accounts where market_code = ${d.market} and archived_at is null
+                                            and ${d.fromUserId === 'none' ? tx`owner_id is null and parent_id is null` : tx`owner_id = ${d.fromUserId}`}
                                             ${d.territoryId ? tx`and territory_id = ${d.territoryId}` : tx``} order by id limit 5000`
     if (accs.length === 0) throw invalid('Esa persona no lleva comercios que puedas repartir con ese filtro.', 'That person has no merchants you can move with that filter.')
     const ids = accs.map((a) => a.id)

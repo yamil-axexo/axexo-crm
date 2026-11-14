@@ -6,6 +6,7 @@ import { Badge, Card, CardTitle, Empty, Field, PageHeader, Pills, Table, shown }
 import { ActionForm, RevealOnce, Submit } from '@/ui/client'
 import { day, dayTime, isoDay, money, num } from '@/lib/format'
 import * as dal from '@/dal/campo-canal'
+import { getHolders, getTargets } from '@/dal/reparto'
 import { THRESHOLDS } from '@/domain/campo-canal/thresholds'
 import { documentVault } from '@/server/adapters/document-vault'
 import { fundingFeed } from '@/server/adapters/funding-feed'
@@ -312,7 +313,11 @@ async function Files({ ctx, market, tz, accountId, fileId }: { ctx: Ctx; market:
 
 async function Portfolio({ ctx, market, acc, tz }: { ctx: Ctx; market: string; acc: { id: string; name: string } | null; tz: string }) {
   const { t, locale } = ctx
-  const [people, list, owners, profiles] = await Promise.all([dal.marketPeople(ctx, market), dal.plans(ctx, market), dal.territoryOwners(ctx, market), dal.sellerProfiles(ctx, market)])
+  const [people, list, owners, profiles, holders, targets] = await Promise.all([dal.marketPeople(ctx, market), dal.plans(ctx, market), dal.territoryOwners(ctx, market), dal.sellerProfiles(ctx, market), getHolders(ctx, [market]), getTargets(ctx, [market])])
+  // "Comercios que lleva": quien tiene comercios hoy, incluidos "Sin asignar" y las cuentas de servicio o personas que ya no
+  // venden (la rotación real). "Pasan a": las mismas personas que puede elegir en Repartir (supervisión: su equipo).
+  const fromOptions = holders.filter((h) => h.accounts > 0).sort((a, b) => Number(a.current) - Number(b.current) || (a.full_name ?? '').localeCompare(b.full_name ?? ''))
+    .map((h) => ({ id: h.owner_id ?? 'none', name: `${h.owner_id ? h.full_name ?? '' : t('Sin asignar', 'No owner')}${h.owner_id && !h.current ? t(' (ya no lleva cartera)', ' (no longer carries a book)') : ''} (${num(h.accounts, locale)})` }))
   const assignments = acc ? await dal.channelAssignments(ctx, acc.id) : []
   const own = ctx.can('territory.own', market)
   const peopleSel = (name: string, testId: string, empty?: string) => (
@@ -324,8 +329,12 @@ async function Portfolio({ ctx, market, acc, tz }: { ctx: Ctx; market: string; a
         <CardTitle title={t('Plan de reparto en borrador', 'Draft reassignment plan')} hint={t('Primero se guarda y se ve quién gana y quién pierde visibilidad. Nada se mueve hasta aplicarlo, y se aplica entero o nada.', 'It is saved first and you see who gains and who loses visibility. Nothing moves until it is applied, and it applies whole or not at all.')} />
         <ActionForm action={A.draftPlanAction} className="grid grid-cols-1 gap-4 md:grid-cols-4 md:items-end" testId="plan-form">
           <input type="hidden" name="market" value={market} />
-          <Field label={t('Comercios que lleva', 'Merchants owned by')}>{peopleSel('from', 'plan-from')}</Field>
-          <Field label={t('Pasan a', 'Move to')}>{peopleSel('to', 'plan-to')}</Field>
+          <Field label={t('Comercios que lleva', 'Merchants owned by')}>
+            <select name="from" className={sel} required data-testid="plan-from" defaultValue=""><option value="">{t('Elige', 'Choose')}</option>{fromOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+          </Field>
+          <Field label={t('Pasan a', 'Move to')}>
+            <select name="to" className={sel} required data-testid="plan-to" defaultValue=""><option value="">{t('Elige', 'Choose')}</option>{targets.map((p) => <option key={p.id} value={p.id}>{p.team ? `${p.full_name} · ${p.team}` : p.full_name}</option>)}</select>
+          </Field>
           <Field label={t('Nota', 'Note')}><input name="note" className="input" maxLength={300} /></Field>
           <Submit testId="plan-draft">{t('Guardar borrador', 'Save draft')}</Submit>
         </ActionForm>

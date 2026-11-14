@@ -177,8 +177,13 @@ test.describe('campo-canal', () => {
     const id = await rawAccount('marco.pena', name)
     await loginAs(page, 'fernando.ibarra')
     await page.goto('/campo?tab=cartera&mercado=MX')
-    await page.getByTestId('plan-from').selectOption({ label: 'Lucía Vega' })
-    await page.getByTestId('plan-to').selectOption({ label: 'Marco Peña' })
+    // ajustes3: las opciones dicen cuántos comercios lleva cada quien y el equipo de quien recibe (cambiado a propósito).
+    const pick = async (testId: string, who: string) => {
+      const sel = page.getByTestId(testId)
+      await sel.selectOption((await sel.locator('option', { hasText: who }).first().getAttribute('value'))!)
+    }
+    await pick('plan-from', 'Lucía Vega')
+    await pick('plan-to', 'Marco Peña')
     await page.getByTestId('plan-draft').click()
     await expect(ok(page)).toContainText('borrador')
     const plan = page.getByTestId('plan-row').filter({ hasText: 'Marco Peña' }).first()
