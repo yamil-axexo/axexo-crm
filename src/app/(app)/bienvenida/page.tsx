@@ -16,7 +16,9 @@ const TRACK_PHOTO: Record<Track, { name: PhotoName; pos: string } | null> = {
   supervisor: { name: 'equipo', pos: '55% 35%' },
   lead: { name: 'equipo', pos: '55% 35%' },
   ops: { name: 'mostrador', pos: '66% 40%' },
+  kam: { name: 'asesor', pos: '50% 30%' },
   lt: { name: 'equipo', pos: '55% 35%' },
+  finance: null,
   admin: null,
 }
 const i = (n: number) => ({ '--i': n }) as React.CSSProperties

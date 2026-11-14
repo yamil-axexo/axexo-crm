@@ -46,6 +46,9 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/reportes', 'Reportes', 'Reports'],
   // Va antes de /admin: la primera ruta que coincide es la que nombra la pantalla.
   ['/admin/operaciones', 'Administración, Operaciones', 'Administration, Operations'],
+  ['/admin/automatizaciones', 'Administración, Automatizaciones', 'Administration, Automations'],
+  ['/admin/decisiones', 'Administración, Decisiones de negocio', 'Administration, Business decisions'],
+  ['/admin/seguridad', 'Administración, Seguridad', 'Administration, Security'],
   ['/admin/cuidado', 'Administración, Cuidado de comercios', 'Administration, Merchant care'],
   ['/admin/embudo', 'Administración, Asignación y embudo', 'Administration, Assignment and pipeline'],
   ['/admin/integraciones', 'Administración, Eventos, API y datos', 'Administration, Events, API and data'],
@@ -64,11 +67,13 @@ const SCREENS: [prefix: string, es: string, en: string][] = [
   ['/ayuda', 'Ayuda', 'Help'],
   ['/reportar', 'Reportar un problema', 'Report a problem'],
   ['/campo', 'Campo y canales', 'Field and channels'],
+  ['/documentos', 'Documento generado', 'Generated document'],
   ['/solicitudes', 'Pedir un cambio', 'Request a change'],
 ]
 
 export function screenLabel(t: T, path: string | null | undefined): string {
   if (!path) return t('No se sabe', 'Unknown')
-  const hit = SCREENS.find(([prefix]) => path === prefix || path.startsWith(`${prefix}/`))
+  const bare = path.split(/[?#]/)[0]!
+  const hit = SCREENS.find(([prefix]) => bare === prefix || bare.startsWith(`${prefix}/`))
   return hit ? t(hit[1], hit[2]) : path
 }

@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react'
 import { requireCtx } from '@/server/context'
 import { HELP, HELP_TOPICS, TRACK_LABEL, TRAINING, trackOf, type L, type Track } from '@/content/guide'
 import { HelpList, Training, type HelpRow } from '@/ui/help'
+import { BuiltOff } from './apagado'
 
 const TRACKS = Object.keys(TRACK_LABEL) as Track[]
 
@@ -14,7 +15,9 @@ export default async function HelpPage() {
   const l = (x: L) => x[lang]
   const o = (x: L) => x[lang === 'en' ? 'es' : 'en']
   const track = trackOf(ctx.memberships)
-  const all: HelpRow[] = HELP.map((h) => ({
+  // Los temas van en el orden de HELP_TOPICS; dentro de cada tema, en el orden de la guía.
+  const order = Object.keys(HELP_TOPICS)
+  const all: HelpRow[] = [...HELP].sort((a, b) => order.indexOf(a.topic) - order.indexOf(b.topic)).map((h) => ({
     id: h.id, topic: h.topic, topicLabel: l(HELP_TOPICS[h.topic]), q: l(h.q), a: l(h.a), other: `${o(h.q)} ${o(h.a)}`, tracks: h.tracks === 'all' ? TRACKS : h.tracks,
   }))
   // Cada quien ve primero lo de su rol; el orden de los temas no cambia.
@@ -38,6 +41,8 @@ export default async function HelpPage() {
           count: t('{n} preguntas', '{n} questions'),
         }}
       />
+
+      <BuiltOff ctx={ctx} />
 
       <Training
         mine={track}

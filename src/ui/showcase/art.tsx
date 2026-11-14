@@ -209,7 +209,7 @@ function AdminArt() {
   )
 }
 
-const ROLE_ART: Record<Track, () => ReactNode> = { rep: RepArt, supervisor: SupervisorArt, lead: LeadArt, ops: OpsArt, lt: LtArt, admin: AdminArt }
+const ROLE_ART: Record<Track, () => ReactNode> = { rep: RepArt, supervisor: SupervisorArt, lead: LeadArt, ops: OpsArt, kam: LeadArt, lt: LtArt, finance: LtArt, admin: AdminArt }
 export function RoleArt({ track }: { track: Track }) {
   const Art = ROLE_ART[track]
   return <Art />

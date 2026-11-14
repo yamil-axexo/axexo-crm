@@ -550,13 +550,13 @@ const S = {
   },
   carry: {
     key: 'carry',
-    title: { es: 'Revisa "Lo que llevo"', en: 'Check "What I carry"' },
+    title: { es: 'Revisa "Lo que llevo"', en: 'Check "My running numbers"' },
     why: {
-      es: 'Lo que vendiste y sigue vendiendo, y tu estado de comisión. Las cifras de comisión son informativas: el pago lo decide Finanzas.',
-      en: 'What you sold and is still selling, and your commission status. Commission figures are informational: Finance decides the payout.',
+      es: 'Tus altas, primeras ventas y tiendas que siguen vendiendo a 30, 60 y 90 días, con tu estado de comisión.',
+      en: 'Your enrolled stores, first sales and stores still selling at 30, 60 and 90 days, with your commission status.',
     },
     href: '/reportes/lo-que-llevo',
-    cta: { es: 'Ir a Lo que llevo', en: 'Go to What I carry' },
+    cta: { es: 'Ir a Lo que llevo', en: 'Go to My running numbers' },
   },
 } satisfies Record<string, Step>
 
@@ -2692,7 +2692,7 @@ export const TRAINING: Record<Track, Training> = {
     week1: [
       { es: 'Poner la categoría de cada oportunidad y saber qué pasa al enviar el pronóstico.', en: 'Set each opportunity’s category and know what happens when the forecast is sent.' },
       { es: 'Términos y contratos: capturar la comisión pactada, sacar la propuesta y marcar el contrato firmado.', en: 'Terms and contracts: enter the agreed commission, get the proposal and mark the contract signed.' },
-      { es: 'Abrir negocios de expansión en una cuenta y revisar "Lo que llevo".', en: 'Open expansion deals on an account and check "What I carry".' },
+      { es: 'Abrir negocios de expansión en una cuenta y revisar "Lo que llevo".', en: 'Open expansion deals on an account and check "My running numbers".' },
       { es: 'Saber qué está construido y apagado: captura de correos y reuniones, firma electrónica y archivo de ventas.', en: 'Know what is built and turned off: email and meeting capture, e-signature and the sales file.' },
     ],
   },
