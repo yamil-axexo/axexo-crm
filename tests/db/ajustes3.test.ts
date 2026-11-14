@@ -128,4 +128,10 @@ describe('claves de mensajes (P1: Hoy con claves internas)', () => {
     expect(team?.motor).toBe('d2d')
     expect(ex!.owner_id).not.toBe(await personaId('paula.mendez'))
   })
+
+  it('ninguna tabla anida una fila dentro de la cabecera (el error de hidratación de IA y asistencia)', () => {
+    // Table ya pone <thead><tr>; un head con su propio <tr> deja <tr><tr>, el navegador lo reacomoda y React no hidrata.
+    const bad = files('src/app').filter((f) => /head=\{<tr>/.test(readFileSync(f, 'utf8')))
+    expect(bad).toEqual([])
+  })
 })

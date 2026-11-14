@@ -129,7 +129,7 @@ export default async function IaAdminPage({ searchParams }: { searchParams: Prom
           <Card data-testid="ia-measure">
             <CardTitle title={t('¿Ayudan las sugerencias?', 'Do the suggestions help?')} hint={t(`Se mide a los 14 días. Solo se compara contra el grupo de control cuando los dos grupos tienen al menos ${LIFT_MIN} sugerencias medidas.`, `Measured after 14 days. It is compared against the control group only when both groups have at least ${LIFT_MIN} measured suggestions.`)} />
             {stats.length === 0 ? <Empty title={t('Todavía no hay sugerencias', 'No suggestions yet')} hint={t('La tarea programada las calcula cada 6 horas.', 'The scheduled job works them out every 6 hours.')} /> : (
-              <Table label={t('Medición por mercado', 'Measurement per market')} testId="ia-stats" head={<tr><th>{t('Mercado', 'Market')}</th><th>{t('Mostradas', 'Shown')}</th><th>{t('Aceptadas', 'Accepted')}</th><th>{t('Descartadas', 'Dismissed')}</th><th>{t('Vencidas', 'Expired')}</th><th>{t('Se siguieron', 'Followed')}</th><th>{t('Venta arriba', 'Sales up')}</th><th>{t('Contra control', 'Against control')}</th></tr>}>
+              <Table label={t('Medición por mercado', 'Measurement per market')} testId="ia-stats" head={<><th>{t('Mercado', 'Market')}</th><th>{t('Mostradas', 'Shown')}</th><th>{t('Aceptadas', 'Accepted')}</th><th>{t('Descartadas', 'Dismissed')}</th><th>{t('Vencidas', 'Expired')}</th><th>{t('Se siguieron', 'Followed')}</th><th>{t('Venta arriba', 'Sales up')}</th><th>{t('Contra control', 'Against control')}</th></>}>
                 {stats.map((s) => {
                   const enough = s.measured >= LIFT_MIN && s.holdout_measured >= LIFT_MIN
                   return (
@@ -198,7 +198,7 @@ export default async function IaAdminPage({ searchParams }: { searchParams: Prom
         <div className="space-y-8">
           <Card data-testid="ia-evals">
             <CardTitle title={t('Evaluación por función', 'Evaluation per feature')} hint={t('Cada función tiene un banco de casos con su respuesta esperada, incluidos intentos de engaño. Una función solo puede usar IA si su última corrida contra el adaptador, con la versión vigente, pasa el umbral.', 'Each feature has a bank of cases with the expected answer, including manipulation attempts. A feature can use AI only if its latest run against the adapter, with the current version, meets the threshold.')} />
-            <Table label={t('Funciones', 'Features')} testId="ia-eval-table" head={<tr><th>{t('Función', 'Feature')}</th><th>{t('Casos', 'Cases')}</th><th>{t('Umbral', 'Threshold')}</th><th>{t('Reglas', 'Rules')}</th><th>{t('Adaptador', 'Adapter')}</th><th>{t('¿Puede encenderse?', 'Can it be turned on?')}</th><th /></tr>}>
+            <Table label={t('Funciones', 'Features')} testId="ia-eval-table" head={<><th>{t('Función', 'Feature')}</th><th>{t('Casos', 'Cases')}</th><th>{t('Umbral', 'Threshold')}</th><th>{t('Reglas', 'Rules')}</th><th>{t('Adaptador', 'Adapter')}</th><th>{t('¿Puede encenderse?', 'Can it be turned on?')}</th><th /></>}>
               {d.evals.map((e) => (
                 <tr key={e.feature} data-testid={`ia-eval-${e.feature}`}>
                   <td>{t(...FEATURE_LABEL[e.feature])}<span className="block text-[12px] text-muted">{t('versión', 'version')} {e.prompt_version}</span></td>
@@ -252,7 +252,7 @@ export default async function IaAdminPage({ searchParams }: { searchParams: Prom
           <Card>
             <CardTitle title={t('Llamadas al adaptador, últimos 30 días', 'Adapter calls, last 30 days')} hint={t('Cada llamada queda con su función, versión, si llevaba texto de fuera, la herramienta, lo que cambió y su costo. Se guarda una huella, no el texto.', 'Each call is kept with its feature, version, whether it carried outside text, the tool, what changed and its cost. A fingerprint is kept, not the text.')} />
             {d.calls.length === 0 ? <Empty title={t('Sin llamadas', 'No calls')} /> : (
-              <Table label={t('Llamadas', 'Calls')} testId="ia-calls" head={<tr><th>{t('Función', 'Feature')}</th><th>{t('Modo', 'Mode')}</th><th>{t('Resultado', 'Result')}</th><th>{t('Llamadas', 'Calls')}</th><th>USD</th></tr>}>
+              <Table label={t('Llamadas', 'Calls')} testId="ia-calls" head={<><th>{t('Función', 'Feature')}</th><th>{t('Modo', 'Mode')}</th><th>{t('Resultado', 'Result')}</th><th>{t('Llamadas', 'Calls')}</th><th>USD</th></>}>
                 {d.calls.map((c) => <tr key={`${c.feature}${c.mode}${c.outcome}`}><td>{c.feature}</td><td>{c.mode === 'off' ? t('apagado', 'off') : c.mode === 'rules' ? t('reglas', 'rules') : t('simulado', 'simulated')}</td><td>{c.outcome === 'not_sent' ? t('no salió', 'not sent') : c.outcome === 'refused' ? t('rechazada', 'refused') : t('contestada', 'answered')}</td><td className="num">{num(c.n, locale)}</td><td className="num">{c.cost}</td></tr>)}
               </Table>
             )}
