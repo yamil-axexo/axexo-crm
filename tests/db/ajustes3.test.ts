@@ -113,4 +113,19 @@ describe('claves de mensajes (P1: Hoy con claves internas)', () => {
     const [r] = await admin<{ subject: string }[]>`select subject from crm.activities where id = ${a!.id}`
     expect(r!.subject).toBe(`Agendar la siguiente tarea con ${acc!.name}`)
   })
+
+  it('un aviso sin dueño cae a la supervisión del mismo tipo de venta, no a la primera del mercado', async () => {
+    const [d] = await admin<{ id: string; account_id: string }[]>`
+      select d.id, d.account_id from crm.deals d join crm.pipelines p on p.id = d.pipeline_id join crm.accounts a on a.id = d.account_id
+       where p.market_code = 'MX' and p.motor = 'd2d' and d.status = 'open'
+         and not exists (select 1 from crm.territory_owners o where o.territory_id = a.territory_id and o.valid_to is null)
+       order by d.id limit 1`
+    const [ex] = await admin<{ owner_id: string }[]>`
+      insert into crm.exceptions (market_code, kind, severity, account_id, deal_id, owner_id, detail, dedupe_key)
+      values ('MX', 'no_next_step', 'medium', ${d!.account_id}, ${d!.id}, null, '{}'::jsonb, ${'ajustes3-route:' + d!.id}) returning owner_id`
+    const [team] = await admin<{ motor: string }[]>`
+      select t.motor from crm.memberships m join crm.teams t on t.id = m.team_id where m.user_id = ${ex!.owner_id} and m.market_code = 'MX' and m.valid_to is null limit 1`
+    expect(team?.motor).toBe('d2d')
+    expect(ex!.owner_id).not.toBe(await personaId('paula.mendez'))
+  })
 })
