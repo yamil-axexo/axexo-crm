@@ -243,7 +243,10 @@ export async function savedViews(ctx: Ctx, object: 'account' | 'lead' | 'deal') 
   return withUser(ctx.user.id, async (tx) => {
     const rows = await tx<{ id: string; name: string; filters: Record<string, string>; is_shared: boolean; mine: boolean }[]>`
       select id, name, filters, is_shared, user_id = ${ctx.user.id} as mine from crm.saved_views where object = ${object} order by is_shared desc, name`
-    return [...rows]
+    // Misma regla que listViews: una vista compartida de otro mercado no sale a quien no trabaja ahí.
+    const mine = new Set(ctx.memberships.map((m) => m.market).filter(Boolean))
+    const global = ctx.memberships.some((m) => !m.market)
+    return [...rows].filter((v) => v.mine || global || !v.filters?.market || mine.has(String(v.filters.market)))
   })
 }
 

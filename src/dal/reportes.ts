@@ -552,7 +552,10 @@ export async function listViews(ctx: Ctx, object?: ViewObject): Promise<SavedVie
       select v.id, v.object, v.name, v.filters, v.is_shared, v.team_id, v.user_id = ${ctx.user.id} as mine,
              exists (select 1 from crm.saved_view_pins p where p.view_id = v.id and p.user_id = ${ctx.user.id}) as pinned
         from crm.saved_views v where ${object ? tx`v.object = ${object}` : tx`true`} order by v.is_shared, v.name`
-    return [...rows]
+    // Una vista compartida de otro mercado no le sirve a quien no trabaja ahí ("Organizaciones de US" en Comercios de México).
+    const mine = new Set(ctx.memberships.map((m) => m.market).filter(Boolean))
+    const global = ctx.memberships.some((m) => !m.market)
+    return [...rows].filter((v) => v.mine || global || !v.filters?.market || mine.has(String(v.filters.market)))
   })
 }
 export async function pinnedViews(ctx: Ctx): Promise<SavedView[]> {
