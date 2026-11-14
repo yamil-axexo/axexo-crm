@@ -800,4 +800,4 @@ update crm.stages set required_fields = array_remove(required_fields, 'decision_
 -- ajustes3: las tiendas de la red de un distribuidor o de un agente de ISO son tiendas, no sucursales (eso es de una cadena).
 update crm.accounts c set account_type = 'store'
   from crm.accounts p
- where p.id = c.parent_id and p.account_type in ('distributor', 'iso_agent', 'aggregator') and c.account_type = 'branch';
+ where p.id = c.parent_id and p.account_type in ('distributor', 'iso_agent', 'aggregator') and c.account_type = 'branch' and c.market_code = 'MX';
