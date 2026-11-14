@@ -44,7 +44,10 @@ export default async function KamBoardPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <ReportHeader r={r} />
-      {people.length > 1 && (
+      {who && who !== ctx.user.id && (
+        <p className="mb-3 text-[14px] text-muted-2" data-testid="kam-viewing">{t(`Ves el tablero de ${people.find((p) => p.id === who)?.full_name ?? ''}: "que llevo" y "mis cuentas" son de esa persona.`, `You are viewing ${people.find((p) => p.id === who)?.full_name ?? ''}'s board: "I own" and "my accounts" are that person's.`)}</p>
+      )}
+      {(people.length > 1 || (who && who !== ctx.user.id)) && (
         <div className="mb-5 max-w-sm">
           <NavSelect label={t('Persona KAM', 'KAM')} value={qs('/reportes/kam', { persona: who })} testId="kam-person"
             options={people.map((p) => ({ label: `${p.full_name} · ${p.market_code}`, href: qs('/reportes/kam', { persona: p.id }) }))} />

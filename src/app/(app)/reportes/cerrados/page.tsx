@@ -46,7 +46,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="closed-totals">
         <div className="card p-4 md:p-5"><p className="text-[13px] font-medium text-muted-2">{t('Ganados', 'Won')}</p><p className="num mt-1.5 text-[26px] leading-9 font-semibold text-brand-text" data-testid="closed-won">{num(data.won, locale)}</p></div>
         <div className="card p-4 md:p-5"><p className="text-[13px] font-medium text-muted-2">{t('Perdidos', 'Lost')}</p><p className="num mt-1.5 text-[26px] leading-9 font-semibold text-strong" data-testid="closed-lost">{num(data.lost, locale)}</p></div>
-        <div className="card min-w-0 p-4 md:p-5"><p className="text-[13px] font-medium text-muted-2">{t('Monto ganado', 'Amount won')}</p><p className="num mt-1.5 text-[18px] leading-7 font-semibold text-strong [overflow-wrap:anywhere]" data-testid="closed-won-amount">{sumText('won')}</p><p className="mt-1 text-[12.5px] text-muted">{t('Solo negocios con monto capturado.', 'Only deals with an amount entered.')}</p></div>
+        <div className="card min-w-0 p-4 md:p-5"><p className="text-[13px] font-medium text-muted-2">{t('Monto ganado al mes', 'Monthly amount won')}</p><p className="num mt-1.5 text-[18px] leading-7 font-semibold text-strong [overflow-wrap:anywhere]" data-testid="closed-won-amount">{sumText('won')}</p><p className="mt-1 text-[12.5px] text-muted">{t('Suma del monto esperado al mes de cada negocio ganado (en un pedido, la suma de sus líneas). Solo negocios con monto capturado.', 'Sum of each won deal’s expected monthly amount (on an order, the sum of its lines). Only deals with an amount entered.')}</p></div>
         <div className="card min-w-0 p-4 md:p-5"><p className="text-[13px] font-medium text-muted-2">{t('Monto perdido', 'Amount lost')}</p><p className="num mt-1.5 text-[18px] leading-7 font-semibold text-strong [overflow-wrap:anywhere]">{sumText('lost')}</p><p className="mt-1 text-[12.5px] text-muted">{t('Solo negocios con monto capturado.', 'Only deals with an amount entered.')}</p></div>
       </div>
 
@@ -54,7 +54,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
         <Card className="mt-6 @container" pad={false} data-testid="closed-people">
           <div className="px-5 pt-5 md:px-7 md:pt-6"><CardTitle title={t('Por persona', 'By person')} hint={t(`Negocios cerrados ${periodText(t, locale, period.first)}, con los filtros de arriba.`, `Deals closed ${periodText(t, locale, period.first)}, with the filters above.`)} /></div>
           <div aria-hidden className="hidden border-y border-line px-7 py-2.5 text-[13px] font-medium text-muted @2xl:grid @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_90px_90px_minmax(0,1.4fr)] @2xl:gap-4">
-            <span>{t('Persona', 'Person')}</span><span>{t('Equipo', 'Team')}</span><span>{t('Ganados', 'Won')}</span><span>{t('Perdidos', 'Lost')}</span><span>{t('Monto ganado', 'Amount won')}</span>
+            <span>{t('Persona', 'Person')}</span><span>{t('Equipo', 'Team')}</span><span>{t('Ganados', 'Won')}</span><span>{t('Perdidos', 'Lost')}</span><span>{t('Monto ganado al mes', 'Monthly amount won')}</span>
           </div>
           <ul className="divide-y divide-line">
             {data.people.map((p) => (
@@ -63,7 +63,7 @@ export default async function ClosedDealsPage({ searchParams }: { searchParams: 
                 <span className="block text-[14px] text-muted-2">{p.team_name ?? t('Sin equipo', 'No team')}</span>
                 <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Ganados: ', 'Won: ')}</span>{p.won}</span>
                 <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Perdidos: ', 'Lost: ')}</span>{p.lost}</span>
-                <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Monto ganado: ', 'Amount won: ')}</span>{p.amounts.map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || <NoData locale={locale} />}</span>
+                <span className="num block text-[14px] text-strong"><span className="text-muted @2xl:hidden">{t('Monto ganado al mes: ', 'Monthly amount won: ')}</span>{p.amounts.map((a) => money(Number(a.amount), a.currency, locale)).join(' · ') || <NoData locale={locale} />}</span>
               </li>
             ))}
           </ul>

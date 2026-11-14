@@ -346,7 +346,7 @@ export async function Ficha({ ctx, data, tab, mode, href, closeHref, asOf = null
             <Field label={t('Título', 'Title')} className="col-span-2"><input name="title" className="input" required defaultValue={`${openDeal && offered[0]?.has_items ? t('Pedido', 'Order') : openDeal || ['active', 'at_risk', 'inactive'].includes(a.lifecycle) ? t('Ampliación', 'Expansion') : t('Alta', 'Onboarding')}: ${a.name}`} data-testid="new-deal-title" /></Field>
             <Field label={t('Próximo paso', 'Next step')} className="col-span-2"><input name="next_step" className="input" required minLength={2} data-testid="new-deal-step" /></Field>
             <Field label={t('Fecha', 'Date')}><input name="next_step_due" type="date" className="input" required defaultValue={today} /></Field>
-            <Field label={t(`Monto (${market.currency}), opcional`, `Amount (${market.currency}), optional`)} hint={t('En un pedido, el monto sale de sus líneas.', 'On an order, the amount comes from its lines.')}><input name="amount" className="input" inputMode="decimal" /></Field>
+            <Field label={t(`Monto esperado al mes (${market.currency}), opcional`, `Expected monthly amount (${market.currency}), optional`)} hint={t('En un pedido, el monto sale de sus líneas.', 'On an order, the amount comes from its lines.')}><input name="amount" className="input" inputMode="decimal" /></Field>
             <div className="col-span-2 flex justify-end"><Submit testId="save-deal">{t('Crear negocio', 'Create deal')}</Submit></div>
           </ActionForm>
         </Dialog>

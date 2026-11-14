@@ -66,7 +66,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const canWin = canEdit && (!opsAhead || opsMoves) && !(opsOnly && !current?.is_ops)
   const gateLabels = {
     title: '', body: '', save: t('Guardar y mover', 'Save and move'),
-    amount: t(`Monto esperado (${market.currency})`, `Expected amount (${market.currency})`), nextStep: t('Próximo paso', 'Next step'), nextDue: t('Fecha del próximo paso', 'Next step date'),
+    amount: t(`Monto esperado al mes (${market.currency})`, `Expected monthly amount (${market.currency})`), nextStep: t('Próximo paso', 'Next step'), nextDue: t('Fecha del próximo paso', 'Next step date'),
     decisionMaker: t('Quien decide', 'Decision-maker'), pick: t('Elige quién decide', 'Pick the decision-maker'), met: t('Ya hablé con quien decide', 'I have spoken with the decision-maker'),
     noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
     items: t('Falta al menos una línea de producto: agrégala abajo, en Líneas del pedido.', 'It needs at least one product line: add it below, under Order lines.'), openDeal: '',
@@ -381,7 +381,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               {(ops.is_ops || deal.ops_owner_name) && <KeyVal k={t('En Operaciones', 'In Operations')}>{deal.ops_owner_name ?? t('Sin tomar', 'Not taken')}</KeyVal>}
               {ops.merchant_ref && <KeyVal k="Merchant ID">{ops.merchant_ref}</KeyVal>}
               {recruited && <KeyVal k={t('Reclutado por', 'Recruited by')}><span data-testid="deal-recruiter">{recruiterText(t, recruited.recruited_by, recruited.agency)}</span></KeyVal>}
-              <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado', 'Expected amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>
+              <KeyVal k={ops.has_items ? t('Monto (suma de líneas)', 'Amount (sum of lines)') : t('Monto esperado al mes', 'Expected monthly amount')}>{money(deal.amount_minor ? Number(deal.amount_minor) : null, deal.currency, locale)}</KeyVal>
               {deal.status === 'open' && <KeyVal k={t('Próximo paso', 'Next step')}>{deal.next_step ? `${deal.next_step} · ${day(deal.next_step_due, locale)}` : <NoData locale={locale} />}</KeyVal>}
               <KeyVal k={t('En esta etapa', 'In this stage')}>{t(`${daysSince(deal.stage_entered_at)} días`, `${daysSince(deal.stage_entered_at)} days`)}</KeyVal>
               <KeyVal k={t('Creado', 'Created')}>{day(deal.created_at, locale, market.timezone)}</KeyVal>

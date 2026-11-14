@@ -262,7 +262,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
             labels={{
               gate: {
                 title: t('Para pasar a "%s" falta esto', 'To move to "%s" you still need this'), body: t('Llénalo aquí y %n avanza.', 'Fill it in here and %n moves on.'), save: t('Guardar y mover', 'Save and move'),
-                amount: t(`Monto esperado (${market.currency})`, `Expected amount (${market.currency})`), nextStep: m('deals.next.step'), nextDue: m('deals.next.due'),
+                amount: t(`Monto esperado al mes (${market.currency})`, `Expected monthly amount (${market.currency})`), nextStep: m('deals.next.step'), nextDue: m('deals.next.due'),
                 decisionMaker: t('Quien decide', 'Decision-maker'), pick: t('Elige quién decide', 'Pick the decision-maker'), met: t('Ya hablé con quien decide', 'I have spoken with the decision-maker'),
                 noContacts: t('Este comercio todavía no tiene contactos.', 'This merchant has no contacts yet.'), addContact: t('Agregar el contacto en la ficha', 'Add the contact on the merchant page'),
                 items: t('Falta al menos una línea de producto.', 'It needs at least one product line.'), openDeal: t('Agregar líneas en el negocio', 'Add lines on the deal'),
