@@ -220,6 +220,8 @@ describe('E5.F9: documentos generados', () => {
   })
 
   it('se guarda, la bóveda apagada deja el enlace y el correo queda en la cola con el canal apagado', async () => {
+    // El correo a un comercio espera el horario hábil del mercado (notify.ts): la prueba abre el horario para no depender de la hora.
+    await admin`update crm.market_hours set days = '{1,2,3,4,5,6,7}', opens = '00:00', closes = '23:59:59'`
     const [a] = await storesOf('lucia.vega@contigo.test', 1)
     const id = await generateDocument(lucia, { accountId: a!.id, dealId: null, kind: 'letter', title: 'Carta de prueba', body: 'Texto de la carta' })
     const doc = await one(admin<{ vault_status: string; created_by: string }[]>`select vault_status, created_by from crm.generated_documents where id = ${id}`)

@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { ctxFor, owner, personaId, systemContext } from './helpers'
+import { ctxFor, owner, personaId, systemContext, marketDay } from './helpers'
 import { convertLead, createImportedLead, createLead, intakeFromForm, qualifyLead, disqualifyLead } from '@/domain/leads'
 import { createDeal, moveDeal, updateDeal } from '@/domain/deals'
 import { createAccount } from '@/domain/accounts'
@@ -21,8 +21,8 @@ import { getBoard } from '@/dal/pipelines'
 import { readCatalogs } from '@/dal/api-v1'
 
 // embudo2 (ACT-02): la fecha del próximo paso tiene tope (90 días propuestos); las pruebas usan fechas cercanas.
-const SOON = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
-const SOON2 = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10)
+const SOON = marketDay(30)
+const SOON2 = marketDay(45)
 void SOON2
 
 const admin = owner()

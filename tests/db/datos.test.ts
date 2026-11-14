@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { asPersona, attempt, ctxFor, owner, personaId } from './helpers'
+import { asPersona, attempt, ctxFor, owner, personaId, marketDay } from './helpers'
 import { withSystem } from '@/server/db'
 import { addContact, addContactLinked, createAccount, setParent } from '@/domain/accounts'
 import { setPrimaryContact, createField } from '@/domain/b2b'
@@ -19,7 +19,7 @@ const admin = owner()
 const tag = () => Math.random().toString(36).slice(2, 8)
 const one = async <T>(q: Promise<T[]>) => (await q)[0]!
 const phone = () => `55 6${Math.floor(1000000 + Math.random() * 8999999)}`
-const future = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+const future = (days: number) => marketDay(days)
 const audits = (action: string, id: string) => admin<{ before: Record<string, unknown> | null; after: Record<string, unknown> | null }[]>`
   select before, after from crm.audit_events where action = ${action} and object_id = ${id} order by at desc`
 const WHY = 'Es otra tienda del mismo dueño'

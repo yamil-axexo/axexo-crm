@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { asPersona, ctxFor, owner, personaId, systemContext } from './helpers'
+import { asPersona, ctxFor, owner, personaId, systemContext, marketDay } from './helpers'
 import { withUser } from '@/server/db'
 import { createAccount } from '@/domain/accounts'
 import { createDeal } from '@/domain/deals'
@@ -20,8 +20,8 @@ import { addDays, isoDay } from '@/lib/format'
 import type { Ctx } from '@/server/context'
 
 // embudo2 (ACT-02): la fecha del próximo paso tiene tope (90 días propuestos); las pruebas usan fechas cercanas.
-const SOON = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
-const SOON2 = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10)
+const SOON = marketDay(30)
+const SOON2 = marketDay(45)
 void SOON2
 
 // Paquete ciclo-cs (13-nov-2026): cuidado del comercio después de la venta, catálogo CS-01 a CS-08.

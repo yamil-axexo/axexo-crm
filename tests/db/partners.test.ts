@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { asPersona, attempt, ctxFor, owner, personaId } from './helpers'
+import { asPersona, attempt, ctxFor, owner, personaId, marketDay } from './helpers'
 import { withSystem, withoutUser } from '@/server/db'
 import { createAccount } from '@/domain/accounts'
 import {
@@ -20,7 +20,7 @@ const admin = owner()
 afterAll(() => admin.end())
 const tag = () => Math.random().toString(36).slice(2, 8)
 const uid = async (k: string) => (await admin<{ id: string }[]>`select md5(${'contigo:' + k})::uuid as id`)[0]!.id
-const isoDay = (offsetDays: number) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10)
+const isoDay = (offsetDays: number) => marketDay(offsetDays)
 
 /** Una cuenta de US de Sam (ventas), para no ensuciar el árbol sintético. */
 async function usAccount(kind: 'store' | 'distributor' = 'store', extra: Record<string, unknown> = {}) {

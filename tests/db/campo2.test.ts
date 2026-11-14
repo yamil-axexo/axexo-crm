@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { ctxFor, owner, systemContext } from './helpers'
+import { ctxFor, owner, systemContext, marketDay } from './helpers'
 import { withSystem } from '@/server/db'
 import { ingestSalesAppEvent } from '@/domain/integrations'
 import { createAccount } from '@/domain/accounts'
@@ -22,7 +22,7 @@ afterAll(() => admin.end())
 const one = async <T>(q: Promise<T[]>) => (await q)[0]!
 const tag = () => Math.random().toString(36).slice(2, 8).replace(/\d/g, 'x')
 const now = () => new Date().toISOString()
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => marketDay()
 const sc = (m: string) => `SC-${m}-${Math.floor(100000 + Math.random() * 899999)}`
 
 /** Una tienda nueva de la Sales App en México, con su ID de Sales Core. */

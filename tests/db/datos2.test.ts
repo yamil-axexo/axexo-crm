@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { ctxFor, owner, personaId } from './helpers'
+import { ctxFor, owner, personaId, marketDay } from './helpers'
 import { withSystem, withUser } from '@/server/db'
 import { addContactLinked, createAccount, setParent } from '@/domain/accounts'
 import { fieldRegistry, nodeTotals } from '@/dal/datos'
@@ -232,7 +232,7 @@ describe('DAT-01 · árbol a una fecha, comisión por nodo y dueño al mover', (
     await admin`update crm.accounts set created_at = now() - interval '30 days' where id in (${chain}, ${kid})`
     await setParent(paula, kid, chain)
     await admin`update crm.account_links set valid_from = now() - interval '5 days' where child_id = ${kid}`
-    const ago = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10)
+    const ago = (d: number) => marketDay(-d)
     const today = await nodeTotals(paula, chain)
     expect(today.accounts).toBe(2)
     expect(today.as_of).toBeNull()
@@ -274,7 +274,7 @@ describe('DAT-01 · árbol a una fecha, comisión por nodo y dueño al mover', (
 })
 
 describe('DAT-05 · reglas de valor, campos de contacto y actividad, paso a columna y plazo medido', () => {
-  const future = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+  const future = (days: number) => marketDay(days)
 
   it('un mercado propone un campo de contacto; aprobado, se llena en el contacto y respeta sus reglas', async () => {
     const ana = await ctxFor('ana.robles')
@@ -500,7 +500,7 @@ describe('E4.F9 · el asiento se aprueba antes del acceso', () => {
     await expect(grantAccess(nora, { email, fullName: 'Persona Asiento', role: 'rep', market: 'MX' } as never, D)).rejects.toMatchObject({ code: 'invalid' })
     expect((await admin`select 1 from crm.users where email = ${email}`).length).toBe(0)
     await expect(grantAccess(nora, { email, fullName: 'Persona Asiento', role: 'rep', market: 'MX', seatApprover: 'Dueña del presupuesto', seatApprovedOn: '2099-01-01' }, D)).rejects.toMatchObject({ code: 'invalid' })
-    const out = await grantAccess(nora, { email, fullName: 'Persona Asiento', role: 'finance', market: 'MX', seatApprover: 'Dueña del presupuesto', seatApprovedOn: new Date().toISOString().slice(0, 10), seatReference: 'Presupuesto 2027' }, D)
+    const out = await grantAccess(nora, { email, fullName: 'Persona Asiento', role: 'finance', market: 'MX', seatApprover: 'Dueña del presupuesto', seatApprovedOn: marketDay(), seatReference: 'Presupuesto 2027' }, D)
     const row = await one(admin<{ approver_name: string; reference: string; role: string }[]>`
       select s.approver_name, s.reference, m.role from crm.memberships m join crm.seat_approvals s on s.membership_id = m.id where m.user_id = ${out.userId}`)
     expect(row).toEqual({ approver_name: 'Dueña del presupuesto', reference: 'Presupuesto 2027', role: 'finance' })

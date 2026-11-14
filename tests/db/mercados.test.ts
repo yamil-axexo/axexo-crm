@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest'
-import { asPersona, ctxFor, owner, personaId, systemContext } from './helpers'
+import { asPersona, ctxFor, owner, personaId, systemContext, marketDay } from './helpers'
 import { withUser, marketWorkday } from '@/server/db'
 import { ingestSalesAppEvent } from '@/domain/integrations'
 import { createAccount, addContact } from '@/domain/accounts'
@@ -35,7 +35,7 @@ const code = async (p: Promise<unknown>) => {
     return e instanceof DomainError ? e.code : ((e as { code?: string }).code ?? 'error')
   }
 }
-const iso = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10)
+const iso = (offset: number) => marketDay(offset)
 
 async function storeOf(persona: string, n = 0) {
   const id = await personaId(persona)
