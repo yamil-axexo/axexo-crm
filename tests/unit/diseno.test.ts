@@ -80,14 +80,18 @@ describe('diseño: capturas, fotos y contenido de la entrada', () => {
   })
 
   it('la entrada no promete lo que todavía no existe', () => {
+    // Programa "los 95": lo externo está construido y apagado, y se dice así; lo que no existe todavía, aparte.
     const soon = LANDING.status.rows.filter((r) => r.state === 'soon').map((r) => r.label.es).join(' ')
-    // Lo que CONTIGO no hace todavía se dice de frente: Sales App sin conectar, sin trabajo sin conexión, sin adjuntos y sin avisos por correo.
     expect(soon).toMatch(/Sales App/)
-    expect(soon).toMatch(/datos de ventas/)
-    expect(soon).toMatch(/sin conexión/)
-    expect(soon).toMatch(/fotos/)
+    expect(soon).toMatch(/archivo diario de ventas/)
     expect(soon).toMatch(/correo/)
-    expect(LANDING.status.soon.es).toBe('Todavía no')
+    expect(soon).toMatch(/WhatsApp/)
+    expect(soon).toMatch(/IA/)
+    expect(LANDING.status.soon.es).toBe('Construido y apagado')
+    const later = LANDING.status.rows.filter((r) => r.state === 'later').map((r) => r.label.es).join(' ')
+    expect(later).toMatch(/sin conexión/)
+    expect(LANDING.status.later.es).toBe('Todavía no')
+    expect(LANDING.status.text.es).toMatch(/sign-off escrito de Dan Mulligan o Michael Essiet/)
     const ribbon = LANDING.ribbon.items.map((x) => x.es).join(' ')
     expect(ribbon).not.toMatch(/Sales App|S5|export|sin conexión/i)
   })
