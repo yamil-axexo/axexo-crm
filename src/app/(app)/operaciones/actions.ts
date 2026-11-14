@@ -8,7 +8,8 @@ import { addDealItem, bulkCloseLost, markNoticeSeen, removeDealItem, saveOpsCata
 import type { ActionResult } from '@/lib/errors'
 import { day } from '@/lib/format'
 
-import { gateInfo, type GateInfo } from '@/dal/ops'
+import { gateInfo, getDealOps, pendingOps, type GateInfo } from '@/dal/ops'
+import { invalid } from '@/lib/errors'
 
 type R = ActionResult<unknown>
 const number = (raw: string): number => Number(raw.replace(/[, ]/g, ''))
@@ -119,6 +120,12 @@ async function applyGate(ctx: Parameters<typeof updateDeal>[0], id: string, fd: 
 export async function winDealAction(_: R | null, fd: FormData): Promise<R> {
   return runAction(async (ctx) => {
     const id = str(fd, 'deal_id')
+    // Con documentos, proveedores o capacitación pendientes, ganar pide confirmarlo: queda dicho qué se saltó.
+    const ops = await getDealOps(ctx, id)
+    const pending = ops ? pendingOps(ops) : []
+    if (pending.length > 0 && fd.get('ops_ack') !== 'on') {
+      throw invalid(`Operaciones tiene pendiente: ${pending.map((p) => p.es).join('; ')}. Ábrelo y confirma que se gana así.`, `Operations still has pending: ${pending.map((p) => p.en).join('; ')}. Open it and confirm it is won this way.`)
+    }
     await applyGate(ctx, id, fd)
     const on = str(fd, 'won_on')
     const out = await moveDeal(ctx, id, str(fd, 'stage_id'), undefined, undefined, { wonOn: on })

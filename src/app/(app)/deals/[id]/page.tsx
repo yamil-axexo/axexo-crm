@@ -22,7 +22,7 @@ import { ACTIVITY, CONTACT_ROLE, lab } from '@/lib/labels'
 import { moveDealAction, updateDealAction } from '@/app/(app)/pipelines/actions'
 import { gateMoveAction, winDealAction } from '@/app/(app)/operaciones/actions'
 import { GateFields } from '@/ui/ops'
-import { getDealOps, notifyOptions } from '@/dal/ops'
+import { getDealOps, notifyOptions, pendingOps } from '@/dal/ops'
 import { DealItems, DealOpsCard, OrderDetailsCard } from './ops'
 import { DealSteps } from './steps'
 import { TrainingAgenda } from './training'
@@ -39,6 +39,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const { deal, stages, contacts, events, activities, items, current, next, missingNext, missingWin, gateDefs, highlights } = data
   const defs = await fieldDefs(ctx, 'deal', deal.market_code, deal.motor)
   const ops = (await getDealOps(ctx, id))!
+  const opsPending = pendingOps(ops)
   const canEditFields = ctx.can('deal.edit', deal.market_code)
   const market = ctx.market(deal.market_code)
   // E9.F12: en mercados con ficha de dealer, el negocio dice quién reclutó la tienda.
@@ -195,6 +196,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                           <div className="mt-4 border-t border-line pt-1" data-testid="win-gate">
                             <p className="mt-4 text-[14px] font-medium text-strong" data-testid="win-needs">{t(...winMissingText(missingWin, defNames))}</p>
                             <GateFields minDate={today} dealHref={`/deals/${deal.id}`} info={{ ...gateInfoBase, missing: missingWin, fields: gateDefs.filter((f) => missingWin.includes(f.ref)), stageName: { es: won.name_es, en: won.name_en } }} labels={gateLabels} />
+                          </div>
+                        )}
+                        {opsPending.length > 0 && (
+                          <div className="mt-4 rounded-2xl border border-line px-4 py-3" data-testid="win-ops-pending">
+                            <p className="text-[14px] font-medium text-strong">{t('Operaciones todavía tiene pendiente:', 'Operations still has pending:')}</p>
+                            <ul className="mt-1 list-disc pl-5 text-[13.5px] text-muted-2">{opsPending.map((p) => <li key={p.es}>{t(p.es, p.en)}</li>)}</ul>
+                            <label className="mt-3 flex min-h-11 items-center gap-3 text-[14px]"><input type="checkbox" name="ops_ack" className="h-5 w-5" required data-testid="win-ops-ack" />{t('Confirmo que se gana con esto pendiente.', 'I confirm it is won with this pending.')}</label>
                           </div>
                         )}
                         <div className="mt-5 flex justify-end"><Submit testId="deal-win-confirm">{t('Marcar como ganado', 'Mark as won')}</Submit></div>

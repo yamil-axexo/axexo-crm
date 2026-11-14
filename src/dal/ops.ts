@@ -92,6 +92,20 @@ export async function opsWaiting(ctx: Ctx): Promise<number> {
 export type OrderDetails = { carrier: string; customer_number: string | null; due_on: string | null; po_number: string | null; ship_to: string | null; terms: string | null; description: string | null }
 export type OpsCheck = { catalog_id: string; kind: 'provider' | 'document'; label_es: string; label_en: string; status: string | null; on_date: string | null; link: string | null }
 
+/**
+ * Lo que Operaciones todavía no cierra de un negocio con lista de alta: documentos sin validar, proveedores sin aprobar y
+ * capacitación sin hacer. "Marcar como ganado" lo lista y pide confirmar (tercera vuelta del comité: se podía ganar
+ * saltando Operaciones sin que nadie lo notara).
+ */
+export function pendingOps(ops: { checklist: boolean; training_status: string; checks: OpsCheck[] }): { es: string; en: string }[] {
+  if (!ops.checklist) return []
+  const out = ops.checks
+    .filter((c) => (c.kind === 'document' ? c.status !== 'validated' : c.status !== 'approved'))
+    .map((c) => ({ es: `${c.label_es}: ${c.kind === 'document' ? (c.status === 'received' ? 'recibido, sin validar' : 'falta') : 'sin aprobar'}`, en: `${c.label_en}: ${c.kind === 'document' ? (c.status === 'received' ? 'received, not validated' : 'missing') : 'not approved'}` }))
+  if (ops.training_status !== 'done') out.push({ es: 'Capacitación: sin hacer', en: 'Training: not done' })
+  return out
+}
+
 /** Lo que Operaciones mantiene de un negocio: proveedores y documentos del catálogo del mercado con su estado, y el próximo paso de Operaciones. */
 export async function getDealOps(ctx: Ctx, dealId: string) {
   return withUser(ctx.user.id, async (tx) => {
