@@ -397,7 +397,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                   </span>
                   <span className="min-w-0 flex-1 text-[15.5px] leading-6 text-white">{l(r.label)}</span>
                   <span className={`col-start-2 w-fit shrink-0 rounded-full px-3 py-1 text-[12.5px] font-semibold ${r.state === 'on' ? 'bg-[#3ddc97] text-[#04130d]' : 'border border-white/25 text-[#c5d2cc]'}`}>
-                    {l(r.state === 'on' ? LANDING.status.on : LANDING.status.soon)}
+                    {l(r.state === 'on' ? LANDING.status.on : r.state === 'soon' ? LANDING.status.soon : LANDING.status.later)}
                   </span>
                 </li>
               ))}
