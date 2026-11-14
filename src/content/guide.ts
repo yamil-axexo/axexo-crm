@@ -287,6 +287,26 @@ const S = {
     href: '/operaciones',
     cta: { es: 'Ir a la Cola de Operaciones', en: 'Go to the Operations queue' },
   },
+  opsWin: {
+    key: 'ops-win',
+    title: { es: 'Marca el negocio como ganado cuando Operaciones termina', en: 'Mark the deal as won when Operations is done' },
+    why: {
+      es: 'Si el negocio pasó por Operaciones, lo gana Operaciones: en el negocio, "Marcar como ganado" con la fecha real de cierre. Si quedan documentos, proveedores o capacitación pendientes, el diálogo los lista y pide confirmar que se gana así.',
+      en: 'If the deal went through Operations, Operations wins it: on the deal, "Mark as won" with the actual close date. If documents, providers or training are still pending, the dialog lists them and asks you to confirm it is won that way.',
+    },
+    href: '/operaciones',
+    cta: { es: 'Ir a la Cola de Operaciones', en: 'Go to the Operations queue' },
+  },
+  opsOrders: {
+    key: 'ops-orders',
+    title: { es: 'Recibe los pedidos', en: 'Receive the orders' },
+    why: {
+      es: 'Cuando llega un pedido, aparece arriba de la Cola de Operaciones, en "Pedidos por recibir", con el enlace al pedido listo para imprimir. También te llega un aviso en la campana.',
+      en: 'When an order comes in, it shows at the top of the Operations queue, under "Orders to receive", with a link to the printable order. You also get a notice in the bell.',
+    },
+    href: '/operaciones',
+    cta: { es: 'Ir a la Cola de Operaciones', en: 'Go to the Operations queue' },
+  },
   opsNote: {
     key: 'ops-note',
     title: { es: 'Deja tu próximo paso y avisa con una nota', en: 'Leave your next step and notify with a note' },
@@ -567,7 +587,7 @@ export const STEPS: Record<Track, Step[]> = {
   rep: [S.today, S.mine, S.visit, S.complete, S.leads, S.convert, S.nostep, S.notices, S.assist, S.report],
   supervisor: [S.teamNow, S.team, S.weekly, S.exceptions, S.reassign, S.distribute, S.closed, S.queues, S.announce, S.complete, S.report],
   lead: [S.teamHome, S.distribute, S.weekly, S.closed, S.exceptions, S.gallery, S.care, S.panelMenu, S.report],
-  ops: [S.opsQueue, S.opsTake, S.opsReturn, S.opsFields, S.opsNote, S.notices, S.report],
+  ops: [S.opsQueue, S.opsTake, S.opsReturn, S.opsFields, S.opsNote, S.opsWin, S.opsOrders, S.notices, S.report],
   kam: [S.today, S.kamBoard, S.chains, S.mine, S.carry, S.assist, S.notices, S.report],
   lt: [S.panel, S.closed, S.team, S.gallery, S.readonly, S.missing],
   finance: [S.finance, S.reconcile, S.gallery, S.care, S.notices, S.report],
