@@ -29,7 +29,8 @@ test.describe('la entrada abre en el idioma del navegador', () => {
     await page.goto('/login')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await expect(page.getByTestId('landing-hero').locator('h1')).toHaveText('Every merchant, with its next step.')
-    await expect(page.getByTestId('landing-status').getByText('Not yet', { exact: true })).toHaveCount(3)
+    await expect(page.getByTestId('landing-status').getByText('Built, turned off', { exact: true })).toHaveCount(3)
+    await expect(page.getByTestId('landing-status').getByText('Not yet', { exact: true })).toHaveCount(1)
     await expect(page.getByTestId('landing-people')).toContainText('Stock photos, for illustration only.')
     // la persona elige español: gana sobre el navegador, también al volver a cargar
     await page.getByTestId('locale-toggle').click()
@@ -53,13 +54,18 @@ test.describe('la entrada abre en el idioma del navegador', () => {
     }
   })
 
-  test('la entrada dice de frente lo que todavía no hace y a quién acudir', async ({ page }) => {
+  test('la entrada dice de frente lo que está construido y apagado y a quién acudir', async ({ page }) => {
     await page.goto('/login')
     const status = page.getByTestId('landing-status')
-    for (const text of ['Visitas automáticas desde la Sales App', 'Primera venta y ventas de cada comercio desde los datos de ventas', 'Trabajo sin conexión, fotos o archivos adjuntos, mapa, app instalable y avisos por correo o Slack']) await expect(status).toContainText(text)
-    // lo que entró en la ola 2 ya figura como funcionando, y la regla del piloto va con las palabras del producto
-    for (const text of ['Cola de Operaciones y pedidos con líneas de producto', 'Negocios cerrados y reporte semanal de campo, con exportación']) await expect(status).toContainText(text)
-    await expect(status.getByText('Todavía no', { exact: true })).toHaveCount(3)
+    for (const text of ['Visitas automáticas desde la Sales App y archivo diario de ventas', 'Avisos por correo, Slack, WhatsApp y al teléfono', 'IA, bóveda de documentos, firma electrónica y mapa', 'Trabajo sin conexión y app instalable']) await expect(status).toContainText(text)
+    await expect(status).toContainText('sign-off escrito de Dan Mulligan o Michael Essiet')
+    // lo que entró en las olas ya figura como funcionando, y la regla del piloto va con las palabras del producto
+    for (const text of ['Cola de Operaciones y pedidos con líneas de producto', 'Negocios cerrados y reporte semanal de campo, con exportación', 'Automatizaciones, requisitos y aprobaciones de etapa', 'Cuidado de comercios, campo y canales']) await expect(status).toContainText(text)
+    await expect(status.getByText('Construido y apagado', { exact: true })).toHaveCount(3)
+    await expect(status.getByText('Todavía no', { exact: true })).toHaveCount(1)
+    // Finanzas y Cuentas clave tienen su tarjeta por rol
+    await expect(page.getByTestId('landing-roles')).toContainText('Ganados por mes, moneda y entidad legal')
+    await expect(page.getByTestId('landing-roles')).toContainText('Tu tablero de cuentas clave')
     await expect(page.getByTestId('landing-rule')).toHaveText('En el piloto se gana a mano; cuando llegue la primera transacción se confirmará sola.')
     await expect(page.getByTestId('landing-roles')).toContainText('Tu cola: lo que Ventas entregó')
     const faq = page.getByTestId('landing-faq')
@@ -71,12 +77,16 @@ test.describe('la entrada abre en el idioma del navegador', () => {
 
 test.describe('primeros pasos por rol', () => {
   const ROLES = [
-    ['lucia.vega', 'Ventas', 8],
-    ['fernando.ibarra', 'Supervisión', 9], // ola 4: supervisión suma su número semanal
-    ['ana.robles', 'Líder de mercado', 7],
-    ['valeria.soto', 'Operaciones', 6],
-    ['luis.tovar', 'Leadership', 5],
-    ['nora.salas', 'Administración', 9], // ola 4: administración suma la pestaña de Pipedrive
+    // programa "los 95": cada rol suma los pasos de lo nuevo (avisos, Asistencia, colas, anuncios, reportes, cuidado,
+    // automatizaciones, seguridad, gobierno), y Finanzas y Cuentas clave tienen los suyos
+    ['lucia.vega', 'Ventas', 10],
+    ['fernando.ibarra', 'Supervisión', 11],
+    ['ana.robles', 'Líder de mercado', 9],
+    ['valeria.soto', 'Operaciones', 7],
+    ['elena.duarte', 'Cuentas clave', 8],
+    ['luis.tovar', 'Leadership', 6],
+    ['marta.ibanez', 'Finanzas', 6],
+    ['nora.salas', 'Administración', 13],
   ] as const
 
   test('cada rol tiene sus pasos, cada paso lleva a una pantalla que abre, y sus dos bloques de hábitos', async ({ page }) => {
@@ -159,6 +169,8 @@ test.describe('pasada final (ola 3): cada rol empieza en su pantalla y la ayuda 
     ['valeria.soto', '/operaciones', 'Ir a mi cola'],
     ['luis.tovar', '/panel-lt', 'Ir al Panel del LT'],
     ['nora.salas', '/admin', 'Ir a Administración'],
+    ['elena.duarte', '/hoy', 'Ir a Hoy'],
+    ['marta.ibanez', '/reportes/finanzas', 'Ir a mis reportes'],
   ] as const
 
   test('el primer paso de cada rol lleva a la pantalla donde aterriza, y el botón del final también', async ({ page }) => {
@@ -377,8 +389,8 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     await expect(items.first().locator('p')).toContainText('Regla del piloto: los tres embudos de primera transacción se ganan a mano')
     await help.getByTestId('help-clear').click()
     await help.getByTestId('help-chip-limits').click()
-    await expect(items).toHaveCount(10)
-    for (const q of ['¿Las visitas llegan solas desde la Sales App?', '¿Puedo trabajar o leer sin conexión?', '¿Puedo adjuntar fotos, contratos o evidencia?', '¿CONTIGO me avisa por correo o por Slack cuando me cae algo?', '¿La primera venta y las ventas de cada comercio llegan solas?', '¿Dónde está el mapa de comercios?', '¿Hay una app para instalar desde la tienda de aplicaciones?']) await expect(help).toContainText(q)
+    expect(await items.count()).toBeGreaterThanOrEqual(12)
+    for (const q of ['¿Las visitas llegan solas desde la Sales App?', '¿Puedo trabajar o leer sin conexión?', '¿Puedo adjuntar fotos, contratos o evidencia?', '¿CONTIGO me avisa por correo o por Slack cuando me cae algo?', '¿La primera venta y las ventas de cada comercio llegan solas?', '¿Dónde está el mapa de comercios?', '¿Hay una app para instalar desde la tienda de aplicaciones?', '¿CONTIGO ya me avisa por correo, Slack o WhatsApp?']) await expect(help).toContainText(q)
     // lo que ya hace no sale como pendiente
     expect((await items.allTextContents()).join(' ')).not.toMatch(/exportar|pedido/i)
     await help.getByTestId('help-chip-limits').click()
@@ -406,7 +418,7 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     await expect(team.nth(1)).toContainText('¿Qué diferencia hay entre "Primer intento a tiempo" y "Contacto logrado"?')
     // su rol va primero en el filtro, con su nombre
     const roles = help.getByTestId('help-roles').locator('button')
-    await expect(roles).toHaveText(['Todo', 'Para Leadership', 'Ventas', 'Supervisión', 'Líder de mercado', 'Operaciones', 'Administración'])
+    await expect(roles).toHaveText(['Todo', 'Para Leadership', 'Ventas', 'Supervisión', 'Líder de mercado', 'Operaciones', 'Cuentas clave', 'Finanzas', 'Administración'])
     await help.getByTestId('help-mine').click()
     const mine = await items.count()
     expect(mine).toBeLessThan(all)
@@ -440,5 +452,81 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
       await page.setViewportSize({ width: w, height: 900 })
       await clean(page, `ayuda ${w}`)
     }
+  })
+})
+
+test.describe('programa "los 95": la ayuda de lo nuevo y lo construido y apagado', () => {
+  test('cada tema nuevo tiene sus preguntas, con el nombre exacto de la pantalla, y el buscador las encuentra en los dos idiomas', async ({ page }) => {
+    await loginAs(page, 'nora.salas')
+    await page.goto('/ayuda')
+    const help = page.getByTestId('help')
+    for (const topic of ['notices', 'automations', 'reports', 'files', 'integrations', 'pipeline', 'us', 'mx', 'channel', 'care', 'security', 'markets', 'governance', 'partners', 'ai']) {
+      await expect(help.getByTestId(`help-topic-${topic}`).getByTestId('help-item').first(), topic).toBeVisible()
+    }
+    const items = help.getByTestId('help-item')
+    for (const [word, q] of [
+      ['probar contra un registro', '¿Qué hace "Probar contra un registro"?'],
+      ['preferencias de avisos', '¿Puedo elegir qué avisos recibo?'],
+      ['mensaje muerto', '¿Qué es un mensaje muerto y qué hago con él?'],
+      ['deshacer la importacion', 'Me equivoqué de archivo. ¿Puedo deshacer la importación?'],
+      ['fusiono', '¿Cómo fusiono dos comercios que son el mismo?'],
+      ['sin convertir', '¿Por qué un negocio aparece como "sin convertir"?'],
+      ['ver como otra persona', '¿Qué es "Ver como otra persona"?'],
+      ['grupo de control', '¿Qué es el grupo de control?'],
+      ['dead letter', '¿Qué es un mensaje muerto y qué hago con él?'],
+    ] as const) {
+      await help.getByTestId('help-search').fill(word)
+      await expect(items.first(), word).toBeVisible()
+      await expect(help, word).toContainText(q)
+    }
+    // la IA se dice como es: apagada; lo que funciona es por reglas
+    await help.getByTestId('help-search').fill('usa IA')
+    await expect(help).toContainText('¿CONTIGO usa IA?')
+    await items.filter({ hasText: '¿CONTIGO usa IA?' }).first().locator('summary').click()
+    await expect(items.filter({ hasText: '¿CONTIGO usa IA?' }).first()).toContainText('Todo lo que necesitaría un modelo de IA está apagado')
+  })
+
+  test('construido y apagado: cada conexión con qué le falta y quién la enciende, y los valores propuestos con quién decide', async ({ page }) => {
+    await loginAs(page, 'luis.tovar')
+    await page.goto('/ayuda')
+    const off = page.getByTestId('help-built-off')
+    await expect(off.locator('h2')).toHaveText('Construido y apagado')
+    await expect(off).toContainText('sign-off escrito de Dan Mulligan o Michael Essiet')
+    await off.getByTestId('help-built-off-connectors').locator('summary').click()
+    expect(await off.getByTestId('help-built-off-row').count()).toBeGreaterThanOrEqual(20)
+    await expect(off.getByTestId('help-built-off-row').filter({ hasText: 'WhatsApp (plantillas aprobadas)' })).toContainText('Marketing y Legal')
+    await off.getByTestId('help-built-off-proposed').locator('summary').click()
+    expect(await off.getByTestId('help-proposed-row').count()).toBeGreaterThanOrEqual(5)
+    await expect(off.getByTestId('help-proposed-row').filter({ hasText: 'Lectura sin señal en el teléfono' })).toContainText('Lo decide: Seguridad. Se cambia en Administración, Plataforma.')
+    await expect(off.getByTestId('help-built-off-status')).toHaveAttribute('href', '/estado')
+    // quien vende ve la misma lista, sin el enlace a Estado de CONTIGO (no lo puede abrir)
+    await loginAs(page, 'marco.pena')
+    await page.goto('/ayuda')
+    await expect(page.getByTestId('help-built-off')).toBeVisible()
+    await expect(page.getByTestId('help-built-off-status')).toHaveCount(0)
+    for (const w of [1440, 390]) {
+      await page.setViewportSize({ width: w, height: 900 })
+      await page.getByTestId('help-built-off-connectors').locator('summary').click()
+      await clean(page, `ayuda construido y apagado ${w}`)
+      await page.getByTestId('help-built-off-connectors').locator('summary').click()
+    }
+  })
+
+  test('Finanzas y Cuentas clave: sus primeros pasos y su capacitación', async ({ page }) => {
+    await loginAs(page, 'marta.ibanez', { stay: true })
+    await page.goto('/bienvenida')
+    await expect(page.getByTestId('welcome-track')).toHaveText('Finanzas')
+    await expect(page.getByTestId('step-finance-report')).toContainText('Abre tu reporte de Finanzas')
+    await page.goto('/ayuda')
+    const training = page.getByTestId('training')
+    await expect(training.getByTestId('training-role-finance')).toHaveAttribute('aria-pressed', 'true')
+    await expect(training.getByTestId('training-day1')).toContainText('Detalle de visitas, 31 días (reembolsos)')
+    await loginAs(page, 'elena.duarte')
+    await page.goto('/bienvenida')
+    await expect(page.getByTestId('welcome-track')).toHaveText('Cuentas clave')
+    await expect(page.getByTestId('step-kam-board')).toContainText('Abre tu tablero de cuentas clave')
+    await page.getByTestId('step-kam-board').locator('a[href="/reportes/kam"]').first().click()
+    await expect(page).toHaveURL(/\/reportes\/kam$/)
+    await expect(page.locator('main')).toContainText('Cuentas clave (KAM)')
   })
 })
