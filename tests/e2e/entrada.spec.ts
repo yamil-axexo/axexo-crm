@@ -49,23 +49,23 @@ test('primer ingreso: bienvenida con el paso a paso de su rol y una lista que se
   await expect(page.getByTestId('welcome-track')).toHaveText('Ventas')
   await expect(page.getByTestId('welcome-title')).toHaveText('Te damos la bienvenida a CONTIGO, Lucía.')
   await expect(page.getByTestId('how-step')).toHaveCount(4)
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('0 de 8')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('0 de 10')
 
   // marcar y desmarcar
   const first = page.getByTestId('step-today')
   await first.getByTestId('step-toggle').click()
   await expect(first).toHaveAttribute('data-done', 'true')
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 10')
   await page.getByTestId('step-complete').getByTestId('step-toggle').click()
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('2 de 8')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('2 de 10')
   await first.getByTestId('step-toggle').click()
   await expect(first).toHaveAttribute('data-done', 'false')
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 10')
 
   // en Hoy queda el recordatorio con el avance, y se puede esconder
   await page.getByTestId('welcome-go').click()
   await expect(page).toHaveURL(/\/hoy$/)
-  await expect(page.getByTestId('hoy-onboarding')).toContainText('1 de 8 hechos')
+  await expect(page.getByTestId('hoy-onboarding')).toContainText('1 de 10 hechos')
   await page.getByTestId('hoy-onboarding-hide').click()
   await expect(page.getByTestId('hoy-onboarding')).toHaveCount(0)
 
@@ -73,7 +73,7 @@ test('primer ingreso: bienvenida con el paso a paso de su rol y una lista que se
   await openMenu(page)
   await page.getByTestId('nav-welcome').click()
   await expect(page).toHaveURL(/\/bienvenida$/)
-  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
+  await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 10')
   await page.getByTestId('onboarding-show').click()
   await expect(page.getByTestId('onboarding-hide')).toBeVisible()
 
@@ -83,7 +83,7 @@ test('primer ingreso: bienvenida con el paso a paso de su rol y una lista que se
 })
 
 test('cada rol recibe su propio recorrido', async ({ page }) => {
-  for (const [persona, label, steps] of [['fernando.ibarra', 'Supervisión', 9], ['ana.robles', 'Líder de mercado', 7], ['valeria.soto', 'Operaciones', 6], ['luis.tovar', 'Leadership', 5], ['nora.salas', 'Administración', 9]] as const) {
+  for (const [persona, label, steps] of [['fernando.ibarra', 'Supervisión', 11], ['ana.robles', 'Líder de mercado', 9], ['valeria.soto', 'Operaciones', 7], ['luis.tovar', 'Leadership', 6], ['nora.salas', 'Administración', 13]] as const) {
     await loginAs(page, persona)
     await page.goto('/bienvenida')
     await expect(page.getByTestId('welcome-track'), persona).toHaveText(label)

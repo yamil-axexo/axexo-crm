@@ -71,9 +71,17 @@ test.describe('la entrada abre en el idioma del navegador', () => {
     const faq = page.getByTestId('landing-faq')
     await expect(faq).toContainText('¿A quién acudo?')
     await expect(faq).toContainText('Reportar un problema')
-    await expect(page.getByTestId('landing-roles')).toContainText('registras la visita desde la ficha')
+    await expect(page.getByTestId('landing-roles')).toContainText('la visita registrada desde la ficha')
   })
 })
+
+/** Entra como una persona que aterriza en una pantalla que loginAs no espera (Finanzas en su reporte, o Primeros pasos la primera vez). */
+async function enter(page: Page, persona: string) {
+  await page.context().clearCookies()
+  await page.goto('/login')
+  await page.getByTestId(`persona-${persona}`).click()
+  await page.waitForURL((u) => !u.pathname.startsWith('/login'))
+}
 
 test.describe('primeros pasos por rol', () => {
   const ROLES = [
@@ -92,7 +100,7 @@ test.describe('primeros pasos por rol', () => {
   test('cada rol tiene sus pasos, cada paso lleva a una pantalla que abre, y sus dos bloques de hábitos', async ({ page }) => {
     test.setTimeout(150_000)
     for (const [persona, label, count] of ROLES) {
-      await loginAs(page, persona)
+      await enter(page, persona)
       await page.goto('/bienvenida')
       await expect(page.getByTestId('welcome-track'), persona).toHaveText(label)
       const steps = page.getByTestId('onboarding').locator('li[data-testid^="step-"]')
@@ -125,7 +133,7 @@ test.describe('primeros pasos por rol', () => {
 
     await page.getByTestId('step-report').getByTestId('step-toggle').click()
     await expect(page.getByTestId('step-report')).toHaveAttribute('data-done', 'true')
-    await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
+    await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 10')
     // esconder lleva a Hoy sin el recordatorio; la lista sigue en el menú con lo marcado y se puede volver a mostrar
     await page.getByTestId('onboarding-hide').click()
     await expect(page).toHaveURL(/\/hoy$/)
@@ -133,11 +141,11 @@ test.describe('primeros pasos por rol', () => {
     await openMenu(page)
     await page.getByTestId('nav-welcome').click()
     await expect(page).toHaveURL(/\/bienvenida$/)
-    await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 8')
+    await expect(page.getByTestId('onboarding-progress')).toHaveText('1 de 10')
     await page.getByTestId('onboarding-show').click()
     await expect(page.getByTestId('onboarding-hide')).toBeVisible()
     await page.goto('/hoy')
-    await expect(page.getByTestId('hoy-onboarding')).toContainText('1 de 8 hechos')
+    await expect(page.getByTestId('hoy-onboarding')).toContainText('1 de 10 hechos')
     // el paso de reportar lleva al formulario
     await page.goto('/bienvenida')
     await page.getByTestId('step-report').locator('a[href="/reportar"]').click()
@@ -176,8 +184,9 @@ test.describe('pasada final (ola 3): cada rol empieza en su pantalla y la ayuda 
   test('el primer paso de cada rol lleva a la pantalla donde aterriza, y el botón del final también', async ({ page }) => {
     test.setTimeout(120_000)
     for (const [persona, home, go] of HOMES) {
-      await loginAs(page, persona, { stay: true })
-      expect(new URL(page.url()).pathname, persona).toBe(home)
+      await enter(page, persona)
+      if (new URL(page.url()).pathname === '/bienvenida') await page.goto(home) // la primera vez entra por Primeros pasos
+      else expect(new URL(page.url()).pathname, persona).toBe(home)
       await page.goto('/bienvenida')
       const first = page.getByTestId('onboarding').locator('li[data-testid^="step-"]').first().locator('a[href^="/"]').first()
       expect((await first.getAttribute('href'))!.split('?')[0], persona).toBe(home)
@@ -384,9 +393,11 @@ test.describe('ayuda: buscador, rol y capacitación', () => {
     await expect(help.locator('mark').first()).toBeVisible()
     // la regla del piloto y lo que no hace todavía
     await help.getByTestId('help-search').fill('se ganan a mano')
-    await expect(items).toHaveCount(1)
-    await items.first().locator('summary').click()
-    await expect(items.first().locator('p')).toContainText('Regla del piloto: los tres embudos de primera transacción se ganan a mano')
+    // la pregunta de cómo se gana y la del archivo de ventas apagado (por eso en el piloto se gana a mano)
+    await expect(items).toHaveCount(2)
+    const won = items.filter({ hasText: '¿Cómo se gana un negocio?' })
+    await won.locator('summary').click()
+    await expect(won.locator('p')).toContainText('Regla del piloto: los tres embudos de primera transacción se ganan a mano')
     await help.getByTestId('help-clear').click()
     await help.getByTestId('help-chip-limits').click()
     expect(await items.count()).toBeGreaterThanOrEqual(12)
@@ -513,7 +524,7 @@ test.describe('programa "los 95": la ayuda de lo nuevo y lo construido y apagado
   })
 
   test('Finanzas y Cuentas clave: sus primeros pasos y su capacitación', async ({ page }) => {
-    await loginAs(page, 'marta.ibanez', { stay: true })
+    await enter(page, 'marta.ibanez')
     await page.goto('/bienvenida')
     await expect(page.getByTestId('welcome-track')).toHaveText('Finanzas')
     await expect(page.getByTestId('step-finance-report')).toContainText('Abre tu reporte de Finanzas')
@@ -521,7 +532,7 @@ test.describe('programa "los 95": la ayuda de lo nuevo y lo construido y apagado
     const training = page.getByTestId('training')
     await expect(training.getByTestId('training-role-finance')).toHaveAttribute('aria-pressed', 'true')
     await expect(training.getByTestId('training-day1')).toContainText('Detalle de visitas, 31 días (reembolsos)')
-    await loginAs(page, 'elena.duarte')
+    await enter(page, 'elena.duarte')
     await page.goto('/bienvenida')
     await expect(page.getByTestId('welcome-track')).toHaveText('Cuentas clave')
     await expect(page.getByTestId('step-kam-board')).toContainText('Abre tu tablero de cuentas clave')
