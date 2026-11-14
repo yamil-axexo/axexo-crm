@@ -31,7 +31,7 @@ export default async function CarryPage({ searchParams }: { searchParams: Promis
         <Metric t={t} k="carryFirstSales" value={num(c.first_sales, locale)} tone="good" owners={owners} testId="carry-first" />
       </div>
       <Card className="mt-6" data-testid="carry-active">
-        <CardTitle title={t('Siguen vendiendo', 'Still selling')} hint={c.as_of ? t(`Según el archivo diario de ventas, con corte al ${day(c.as_of, locale)}.`, `Per the daily sales file, cutoff ${day(c.as_of, locale)}.`) : t('Todavía no hay archivo de ventas para tu cartera.', 'There is no sales file for your book yet.')} />
+        <CardTitle title={t('Siguen vendiendo', 'Still selling')} hint={c.as_of ? t(`De las tiendas con primera venta en el periodo, cuántas seguían vendiendo después. El estado de comisiones de abajo cuenta toda tu cartera, no solo el periodo. Según el archivo diario de ventas, con corte al ${day(c.as_of, locale)}.`, `Of the stores with a first sale in the period, how many were still selling afterwards. The commission statement below counts your whole book, not just the period. Per the daily sales file, cutoff ${day(c.as_of, locale)}.`) : t('Todavía no hay archivo de ventas para tu cartera.', 'There is no sales file for your book yet.')} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {c.windows.map((w) => (
             <div key={w.days} className="rounded-[14px] border border-line p-4" data-testid={`carry-${w.days}`}>

@@ -23,8 +23,8 @@ export function StatementList({ t, locale, rows, testId = 'statements' }: { t: T
               <Badge tone={s.status === 'published' ? 'good' : 'info'}>{s.status === 'published' ? t('Publicado', 'Published') : t('Estimado', 'Estimate')}</Badge>
             </p>
             <p className="mt-1 text-[13.5px] text-muted">
-              {t(`${num(n('enrolled'), locale)} altas · ${num(n('first_sales'), locale)} primeras ventas · activas: ${num(n('active_30'), locale)} a 30 días, ${num(n('active_60'), locale)} a 60, ${num(n('active_90'), locale)} a 90`,
-                 `${num(n('enrolled'), locale)} sign-ups · ${num(n('first_sales'), locale)} first sales · active: ${num(n('active_30'), locale)} at 30 days, ${num(n('active_60'), locale)} at 60, ${num(n('active_90'), locale)} at 90`)}
+              {t(`${num(n('enrolled'), locale)} altas · ${num(n('first_sales'), locale)} primeras ventas · siguen vendiendo, de toda la cartera: ${num(n('active_30'), locale)} a 30 días de su primera venta, ${num(n('active_60'), locale)} a 60, ${num(n('active_90'), locale)} a 90`,
+                 `${num(n('enrolled'), locale)} sign-ups · ${num(n('first_sales'), locale)} first sales · still selling, across the whole book: ${num(n('active_30'), locale)} at 30 days from their first sale, ${num(n('active_60'), locale)} at 60, ${num(n('active_90'), locale)} at 90`)}
             </p>
             {goal > 0 && (
               <p className="mt-1 text-[13.5px] text-strong" data-testid="statement-goal">
